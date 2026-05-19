@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 - 2026-05-19
+
+- Unified tool-run persistence and search grounding evidence for web/file/code/MCP-style tool calls.
+- Replaced destructive browser prompts with accessible in-app confirmation and input dialogs.
+- Preserved partial assistant output on failures/stops and added clearer continue/retry recovery affordances.
+- Hardened attachment handling with safe DOM construction, image count limits, and text file size limits.
+- Expanded adaptive output classes for troubleshooting, report, and source-heavy answers.
+- Added tests for tool-run state, dialog behavior, and adaptive answer classification.
+
 ## 1.2.0 - 2026-05-19
 
 - Added conversation management filters for active, favorites, archived, and all conversations.

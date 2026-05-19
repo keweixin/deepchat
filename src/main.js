@@ -34,6 +34,8 @@ import { autoResize, debounce, showToast } from './modules/utils.js';
 let pendingAttachments = [];
 let composerOverrides = null;
 const INPUT_HISTORY_KEY = 'dc_input_history';
+const MAX_TEXT_ATTACHMENT_BYTES = 256 * 1024;
+const MAX_IMAGE_ATTACHMENTS = 8;
 let inputHistory = [];
 let inputHistoryIndex = -1;
 
@@ -828,7 +830,12 @@ function handleDroppedFiles(files, $input) {
   const textFiles = files.filter(f => !f.type.startsWith('image/'));
 
   if (imageFiles.length > 0) {
-    imageFiles.forEach(file => {
+    const remainingSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - pendingAttachments.length);
+    const acceptedImages = imageFiles.slice(0, remainingSlots);
+    if (acceptedImages.length < imageFiles.length) {
+      showToast(`最多保留 ${MAX_IMAGE_ATTACHMENTS} 张待发送图片，多余图片已忽略。`, 2400);
+    }
+    acceptedImages.forEach(file => {
       const reader = new FileReader();
       reader.onload = () => {
         // Show attachment preview
@@ -842,17 +849,25 @@ function handleDroppedFiles(files, $input) {
 
         const item = document.createElement('div');
         item.className = 'attachment-item';
-        item.innerHTML = `
-          <img src="${reader.result}" alt="${file.name}" />
-          <span class="attachment-name">${file.name}</span>
-          <button class="attachment-remove" title="移除">&times;</button>
-        `;
-        item.querySelector('.attachment-remove').addEventListener('click', () => {
+        const image = document.createElement('img');
+        image.src = reader.result;
+        image.alt = file.name || '图片附件';
+        const name = document.createElement('span');
+        name.className = 'attachment-name';
+        name.textContent = file.name || '图片附件';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'attachment-remove';
+        remove.title = '移除';
+        remove.setAttribute('aria-label', `移除 ${file.name || '图片附件'}`);
+        remove.textContent = '×';
+        remove.addEventListener('click', () => {
           pendingAttachments = pendingAttachments.filter((attachment) => attachment.id !== item.dataset.attachmentId);
           item.remove();
           if (preview.children.length === 0) preview.remove();
           document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
         });
+        item.append(image, name, remove);
         // Store base64 data for sending
         item.dataset.base64 = reader.result;
         item.dataset.mimeType = file.type;
@@ -870,22 +885,28 @@ function handleDroppedFiles(files, $input) {
       };
       reader.readAsDataURL(file);
     });
-    showToast(`已添加 ${imageFiles.length} 张图片`, 1500);
+    if (acceptedImages.length > 0) showToast(`已添加 ${acceptedImages.length} 张图片`, 1500);
   }
 
   if (textFiles.length > 0) {
     // For non-image files, read as text and paste into input
-    textFiles.forEach(file => {
+    const acceptedTextFiles = textFiles.filter((file) => {
+      if (file.size <= MAX_TEXT_ATTACHMENT_BYTES) return true;
+      showToast(`${file.name} 超过 256KB，已跳过。`, 2600);
+      return false;
+    });
+    acceptedTextFiles.forEach(file => {
       const reader = new FileReader();
       reader.onload = () => {
         const content = reader.result;
-        $input.value += (($input.value ? '\n' : '') + `\`\`\`\n${content}\n\`\`\``);
+        const label = file.type || 'text/plain';
+        $input.value += (($input.value ? '\n' : '') + `文件：${file.name}\n\n\`\`\`${label}\n${content}\n\`\`\``);
         autoResize($input);
         document.getElementById('send-btn').disabled = false;
       };
       reader.readAsText(file);
     });
-    showToast(`已插入 ${textFiles.length} 个文件内容`);
+    if (acceptedTextFiles.length > 0) showToast(`已插入 ${acceptedTextFiles.length} 个文件内容`);
   }
 }
 

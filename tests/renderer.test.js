@@ -88,6 +88,41 @@ describe('renderer security and widgets', () => {
     expect(root.querySelector('.answer-summary')).toBeNull();
   });
 
+  it('classifies troubleshooting, report, and source-heavy answers', async () => {
+    const root = document.createElement('div');
+    root.innerHTML = renderMarkdown(`## 原因
+
+报错说明：接口请求失败。
+
+## 如何验证
+
+按步骤复现并检查日志。`);
+    await postProcess(root);
+    expect(root.classList.contains('answer-troubleshoot')).toBe(true);
+
+    const reportRoot = document.createElement('div');
+    reportRoot.innerHTML = renderMarkdown(`这是一段摘要，说明本次分析结论。
+
+## 依据
+
+这里列出判断依据。
+
+## 风险
+
+这里列出风险。
+
+## 建议
+
+这里列出建议。`);
+    await postProcess(reportRoot);
+    expect(reportRoot.classList.contains('answer-report')).toBe(true);
+
+    const sourceRoot = document.createElement('div');
+    sourceRoot.innerHTML = renderMarkdown('来源：[A](https://example.com/a) 和 [B](https://example.com/b)。');
+    await postProcess(sourceRoot);
+    expect(sourceRoot.classList.contains('answer-sourced')).toBe(true);
+  });
+
   it('turns the first concise paragraph of a long answer into a summary', async () => {
     const root = document.createElement('div');
     root.innerHTML = renderMarkdown(`这次问题的核心是渲染层缺少语义分层，需要让样式跟随内容类型变化。

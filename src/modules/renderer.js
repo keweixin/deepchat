@@ -472,6 +472,9 @@ function resetAdaptiveDecorations(container) {
     'answer-code',
     'answer-visual',
     'answer-table-dense',
+    'answer-troubleshoot',
+    'answer-report',
+    'answer-sourced',
   );
   container.querySelectorAll('.answer-note, .answer-callout, .answer-summary, .answer-steps, .answer-checklist').forEach((node) => {
     node.classList.remove('answer-note', 'answer-callout', 'answer-summary', 'answer-steps', 'answer-checklist');
@@ -527,6 +530,9 @@ function classifyAnswer(container) {
   if (codeBlocks > 0) container.classList.add('answer-code');
   if (visuals > 0) container.classList.add('answer-visual');
   if (tables.length >= 2 || tableRows >= 6) container.classList.add('answer-table-dense');
+  if (/报错|错误|失败|排查|修复|验证|复现|原因/.test(text)) container.classList.add('answer-troubleshoot');
+  if (/摘要|依据|风险|建议|结论|分析|评估|报告/.test(text) && (headings >= 2 || paragraphs >= 4)) container.classList.add('answer-report');
+  if (container.querySelectorAll('a').length >= 2 || container.querySelector('[data-callout-type="source"]')) container.classList.add('answer-sourced');
 }
 
 function decorateSummary(container) {

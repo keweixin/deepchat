@@ -460,6 +460,32 @@
   padding: var(--space-2) var(--space-3);
 }
 
+.message-content.answer-troubleshoot h2,
+.message-content.answer-report h2,
+.message-content.answer-sourced h2 {
+  padding-top: var(--space-1);
+}
+
+.message-content.answer-troubleshoot h2::before {
+  background: linear-gradient(180deg, #ef4444, #f59e0b);
+}
+
+.message-content.answer-report .answer-summary {
+  border-color: color-mix(in srgb, var(--accent-secondary), transparent 68%);
+  background: color-mix(in srgb, var(--accent-secondary), transparent 92%);
+}
+
+.message-content.answer-sourced a {
+  background: color-mix(in srgb, var(--accent-primary), transparent 92%);
+}
+
+.message-content.answer-code .code-block-wrapper + p,
+.message-content.answer-visual .mermaid-wrapper + p,
+.message-content.answer-visual .markdown-media-frame + p {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
 /* ─── Horizontal Rule ─── */
 .message-content hr {
   border: none;

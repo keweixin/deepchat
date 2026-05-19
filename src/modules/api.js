@@ -462,11 +462,11 @@ async function streamBrowserChat(messages, opts = {}) {
   let fullOutput = '';
   let doneCalled = false;
 
-  function callDone(output) {
+  function callDone(output, meta = {}) {
     if (doneCalled) return;
     doneCalled = true;
     opts.onTokenCount?.({ input: inputTokens, output: estimateTokens(output) });
-    opts.onDone?.();
+    opts.onDone?.(meta);
   }
 
   try {
@@ -515,7 +515,7 @@ async function streamBrowserChat(messages, opts = {}) {
 
     callDone(fullOutput);
   } catch (err) {
-    if (err.name === 'AbortError') callDone(fullOutput);
+    if (err.name === 'AbortError') callDone(fullOutput, { aborted: true });
     else opts.onError?.(err);
   }
 }

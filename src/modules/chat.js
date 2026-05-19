@@ -29,6 +29,21 @@ import { exportConversation } from './exporters.js';
 import { enhancePrompt, isEnhanceEnabled } from './settings.js';
 import { renderMarkdown, postProcess } from './renderer.js';
 import { refreshReadingNavigator, resetReadingNavigator } from './reading-navigator.js';
+import { confirmAction, promptText } from './dialogs.js';
+import {
+  applyToolDecision,
+  applyToolResult,
+  buildToolRuns,
+  createToolRecord,
+  extractToolSources,
+  formatToolArgs,
+  getSearchGrounding,
+  getToolDurationMs,
+  getToolName,
+  getToolQuery,
+  getToolStatusMeta,
+  hasSearchWithoutCitedSource as hasUncitedSearchSource,
+} from './tool-runs.js';
 import { uid, formatTime, relativeTime, scrollToBottom, truncate, copyToClipboard, showToast, escapeHtml } from './utils.js';
 
 let conversations = [];
@@ -130,10 +145,16 @@ export function switchConversation(id) {
   refreshReadingNavigator();
 }
 
-export function deleteConversation(id) {
+export async function deleteConversation(id) {
   const conv = conversations.find(c => c.id === id);
   const title = conv ? conv.title : '此对话';
-  if (!confirm(`确定删除「${title}」？此操作不可恢复。`)) return;
+  const ok = await confirmAction({
+    title: '删除对话',
+    message: `确定删除「${title}」？此操作不可恢复。`,
+    confirmText: '删除',
+    tone: 'danger',
+  });
+  if (!ok) return;
   
   conversations = conversations.filter(c => c.id !== id);
   selectedConversationIds.delete(id);
@@ -169,10 +190,18 @@ function togglePinConversation(id) {
   renderConversationList();
 }
 
-export function clearCurrentChat() {
+export async function clearCurrentChat() {
   const conv = getActiveConversation();
   if (!conv) return;
-  if (conv.messages.length > 0 && !confirm('确定清空当前对话？此操作不可恢复。')) return;
+  if (conv.messages.length > 0) {
+    const ok = await confirmAction({
+      title: '清空当前对话',
+      message: '确定清空当前对话？此操作不可恢复。',
+      confirmText: '清空',
+      tone: 'danger',
+    });
+    if (!ok) return;
+  }
   conv.messages = [];
   conv.title = '新的对话';
   persist();
@@ -212,7 +241,9 @@ export async function sendMessage(content, options = {}) {
     composerOverrides: options.composerOverrides || null,
   };
   conv.messages.push(userMsg);
-  appendMessageDOM(userMsg);
+  const userEl = appendMessageDOM(userMsg);
+  userEl.dataset.messageIndex = String(conv.messages.length - 1);
+  addUserMessageActions(userEl, userMsg, conv.messages.length - 1);
   scrollToBottom($messages);
 
   if (conv.messages.filter(m => m.role === 'user').length === 1) {
@@ -379,20 +410,14 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     },
     onToolRequest(event) {
       if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
-      const tool = {
-        id: event.toolCallId,
-        name: event.name,
-        args: event.args,
-        risk: event.risk,
-        status: 'pending',
-        requestedAt: new Date().toISOString(),
-      };
+      const tool = createToolRecord(event);
       assistantMsg.toolCalls.push(tool);
       syncToolRuns(assistantMsg);
       renderToolCalls(toolContainer, assistantMsg.toolCalls, {
         requestId: event.requestId,
         onDecision(toolCallId, approved) {
-          tool.status = approved ? 'approved' : 'denied';
+          applyToolDecision(tool, approved);
+          syncToolRuns(assistantMsg);
           approveToolRequest(event.requestId, toolCallId, approved);
           renderToolCalls(toolContainer, assistantMsg.toolCalls);
         }
@@ -400,26 +425,11 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     },
     onToolResult(event) {
       if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
-      let tool = assistantMsg.toolCalls.find(item => item.id === event.toolCallId);
-      if (!tool) {
-        tool = {
-          id: event.toolCallId,
-          name: event.name,
-          args: event.args || {},
-          risk: event.risk || '',
-          status: 'approved',
-        };
-        assistantMsg.toolCalls.push(tool);
-      }
-      tool.status = event.ok ? 'completed' : (tool.status === 'denied' ? 'denied' : 'failed');
-      tool.output = event.output;
-      tool.ok = event.ok;
-      tool.completedAt = new Date().toISOString();
-      tool.sources = extractToolSources(event.output);
+      applyToolResult(assistantMsg.toolCalls, event);
       syncToolRuns(assistantMsg);
       renderToolCalls(toolContainer, assistantMsg.toolCalls);
     },
-    async onDone() {
+    async onDone(doneEvent = {}) {
       clearTimeout(renderTimer);
       
       // Calculate final speed
@@ -440,13 +450,16 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
 
       assistantMsg.content = fullContent;
       assistantMsg.thinking = fullThinking;
+      assistantMsg.stopped = Boolean(doneEvent.aborted);
       assistantMsg.speed = finalSpeed;
-      assistantMsg.sourceWarning = hasSearchWithoutCitedSource(assistantMsg, fullContent);
+      assistantMsg.sourceWarning = hasUncitedSearchSource(assistantMsg, fullContent);
       conv.messages.push(assistantMsg);
+      msgEl.dataset.messageIndex = String(conv.messages.length - 1);
       persist();
 
       addMessageActions(msgEl, fullContent, assistantMsg.tokens, finalSpeed, conv.messages.length - 1);
-      renderSourceWarning(msgEl.querySelector('.message-body'), assistantMsg);
+      if (assistantMsg.stopped) renderStoppedNotice(msgEl.querySelector('.message-body'), conv.messages.length - 1);
+      renderAssistantEvidence(msgEl.querySelector('.message-body'), assistantMsg);
 
       isStreaming = false;
       abortController = null;
@@ -477,10 +490,9 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.error = err.message;
       syncToolRuns(assistantMsg);
       conv.messages.push(assistantMsg);
+      msgEl.dataset.messageIndex = String(conv.messages.length - 1);
       persist();
-      renderErrorContent(contentEl, err.message, () => {
-        msgEl.remove();
-      }, () => {
+      const renderRetry = () => {
         // Retry: remove failed message and re-stream
         conv.messages.pop();
         persist();
@@ -488,7 +500,16 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         isStreaming = false;
         abortController = null;
         doStream(conv);
-      });
+      };
+      if (fullContent.trim()) {
+        contentEl.innerHTML = renderMarkdown(fullContent);
+        postProcess(contentEl).then(refreshReadingNavigator);
+        const errorHost = document.createElement('div');
+        contentEl.appendChild(errorHost);
+        renderErrorContent(errorHost, err.message, () => msgEl.remove(), renderRetry);
+      } else {
+        renderErrorContent(contentEl, err.message, () => msgEl.remove(), renderRetry);
+      }
       
       isStreaming = false;
       abortController = null;
@@ -548,6 +569,7 @@ function renderMessages() {
 
   conv.messages.forEach((msg, idx) => {
     const el = appendMessageDOM(msg);
+    el.dataset.messageIndex = String(idx);
     if (msg.role === 'user') {
       addUserMessageActions(el, msg, idx);
     }
@@ -568,6 +590,7 @@ function renderMessages() {
         postProcess(contentEl).then(refreshReadingNavigator);
       }
       addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
+      if (msg.stopped) renderStoppedNotice(el.querySelector('.message-body'), idx);
 
       if (msg.thinking) {
         const thinkingBlock = el.querySelector('.thinking-block');
@@ -578,7 +601,7 @@ function renderMessages() {
         }
       }
       renderToolCalls(el.querySelector('.tool-calls-container'), msg.toolCalls || []);
-      renderSourceWarning(el.querySelector('.message-body'), msg);
+      renderAssistantEvidence(el.querySelector('.message-body'), msg);
     }
   });
 
@@ -682,11 +705,13 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
 
     const header = document.createElement('div');
     header.className = 'tool-call-header';
+    const statusMeta = getToolStatusMeta(tool.status);
+    block.dataset.statusTone = statusMeta.tone;
     const title = document.createElement('strong');
-    title.textContent = tool.name || tool.function?.name || 'unknown_tool';
+    title.textContent = getToolName(tool);
     const status = document.createElement('span');
     status.className = 'tool-call-status';
-    status.textContent = getToolStatusText(tool.status);
+    status.textContent = `${statusMeta.icon} ${statusMeta.label}`;
     header.append('工具调用：', title, status);
 
     const risk = document.createElement('p');
@@ -703,6 +728,13 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
 
     const meta = createToolMeta(tool);
     if (meta) block.appendChild(meta);
+    const query = getToolQuery(tool);
+    if (getToolName(tool) === 'web_search' && query) {
+      const queryLine = document.createElement('div');
+      queryLine.className = 'tool-call-query';
+      queryLine.textContent = `实际搜索 query：${query}`;
+      block.appendChild(queryLine);
+    }
 
     if (tool.status === 'pending' && options.onDecision) {
       const actions = document.createElement('div');
@@ -791,48 +823,8 @@ function createToolOutputPreview(outputText) {
   return preview;
 }
 
-function extractToolSources(outputText) {
-  const lines = String(outputText || '').split('\n');
-  const sources = [];
-  let current = null;
-  for (const line of lines) {
-    const titleMatch = line.match(/^\s*(\d+)\.\s+(.+)$/);
-    if (titleMatch) {
-      current = { title: titleMatch[2].trim(), url: '', publishedDate: '' };
-      sources.push(current);
-      continue;
-    }
-    if (!current) continue;
-    const urlMatch = line.match(/^\s*URL:\s*(.+)$/);
-    if (urlMatch) current.url = urlMatch[1].trim();
-    const dateMatch = line.match(/^\s*Published:\s*(.+)$/);
-    if (dateMatch) current.publishedDate = dateMatch[1].trim();
-  }
-  return sources.filter(source => source.title && source.url);
-}
-
 function syncToolRuns(message) {
-  message.toolRuns = (message.toolCalls || []).map((tool) => ({
-    id: tool.id,
-    name: tool.name || tool.function?.name || 'unknown_tool',
-    args: tool.args || {},
-    risk: tool.risk || '',
-    status: tool.status || 'pending',
-    ok: tool.ok,
-    requestedAt: tool.requestedAt || '',
-    completedAt: tool.completedAt || '',
-    durationMs: getToolDurationMs(tool),
-    outputPreview: tool.output ? String(tool.output).slice(0, 1200) : '',
-    sources: tool.sources || extractToolSources(tool.output || ''),
-  }));
-}
-
-function getToolDurationMs(tool) {
-  if (!tool?.requestedAt || !tool?.completedAt) return null;
-  const start = Date.parse(tool.requestedAt);
-  const end = Date.parse(tool.completedAt);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  return Math.max(0, end - start);
+  message.toolRuns = buildToolRuns(message.toolCalls || []);
 }
 
 function formatToolTime(value) {
@@ -841,21 +833,64 @@ function formatToolTime(value) {
 }
 
 export function hasSearchWithoutCitedSource(message, content) {
-  const searchRuns = (message.toolRuns || []).filter((run) => run.name === 'web_search' && run.status === 'completed');
-  if (searchRuns.length === 0) return false;
-  const urls = searchRuns.flatMap((run) => run.sources || []).map((source) => source.url).filter(Boolean);
-  if (urls.length === 0) return true;
-  return !urls.some((url) => String(content || '').includes(url));
+  return hasUncitedSearchSource(message, content);
 }
 
-function renderSourceWarning(container, message) {
+function renderAssistantEvidence(container, message) {
   if (!container) return;
   container.querySelector('.source-grounding-warning')?.remove();
-  if (!message?.sourceWarning) return;
-  const warning = document.createElement('div');
-  warning.className = 'source-grounding-warning';
-  warning.textContent = '本轮调用了联网搜索，但最终回答没有引用搜索来源 URL，请谨慎核验。';
-  container.appendChild(warning);
+  container.querySelector('.source-grounding-card')?.remove();
+  const grounding = getSearchGrounding(message, message?.content || '');
+  if (!grounding.hasSearch) return;
+
+  const card = document.createElement('div');
+  card.className = `source-grounding-card${grounding.warning ? ' is-warning' : ' is-grounded'}`;
+  const title = document.createElement('div');
+  title.className = 'source-grounding-title';
+  title.textContent = grounding.warning ? '联网结果未被明确引用' : '已引用联网来源';
+  const meta = document.createElement('div');
+  meta.className = 'source-grounding-meta';
+  meta.textContent = [
+    grounding.queries[0] ? `query: ${grounding.queries[0]}` : '',
+    `${grounding.sources.length} 个来源`,
+  ].filter(Boolean).join(' · ');
+  card.append(title, meta);
+  if (grounding.sources.length) {
+    const list = document.createElement('div');
+    list.className = 'source-grounding-list';
+    for (const source of grounding.sources.slice(0, 3)) {
+      const link = document.createElement('a');
+      link.href = source.url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.textContent = source.title || source.url;
+      list.appendChild(link);
+    }
+    card.appendChild(list);
+  }
+  container.appendChild(card);
+  if (grounding.warning) {
+    const warning = document.createElement('div');
+    warning.className = 'source-grounding-warning';
+    warning.textContent = grounding.hasSources
+      ? '本轮调用了联网搜索，但最终回答没有引用搜索来源 URL，请谨慎核验。'
+      : '本轮调用了联网搜索，但工具没有返回可用来源 URL，请谨慎核验。';
+    container.appendChild(warning);
+  }
+}
+
+function renderStoppedNotice(container, msgIndex) {
+  if (!container || container.querySelector('.generation-stopped-notice')) return;
+  const notice = document.createElement('div');
+  notice.className = 'generation-stopped-notice';
+  const text = document.createElement('span');
+  text.textContent = '生成已停止，已保留当前内容。';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = '继续生成';
+  button.addEventListener('click', () => continueFromResponseAt(msgIndex));
+  notice.append(text, button);
+  container.appendChild(notice);
 }
 
 function formatBytes(bytes) {
@@ -863,24 +898,6 @@ function formatBytes(bytes) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getToolStatusText(status) {
-  const map = {
-    pending: '等待确认',
-    approved: '已确认',
-    denied: '已拒绝',
-    completed: '已完成',
-    failed: '失败',
-  };
-  return map[status] || '已记录';
-}
-
-function formatToolArgs(tool) {
-  if (tool.args) return JSON.stringify(tool.args, null, 2);
-  const fn = tool.function;
-  if (!fn?.arguments) return '{}';
-  try { return JSON.stringify(JSON.parse(fn.arguments), null, 2); } catch { return fn.arguments; }
 }
 
 function renderErrorContent(container, message, onClose, onRetry) {
@@ -978,8 +995,14 @@ function addUserMessageActions(msgEl, msg, msgIndex) {
   const delBtn = document.createElement('button');
   delBtn.className = 'msg-action-btn';
   delBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> 删除`;
-  delBtn.addEventListener('click', () => {
-    if (!confirm('删除这条消息和其后的所有回复？')) return;
+  delBtn.addEventListener('click', async () => {
+    const ok = await confirmAction({
+      title: '删除消息',
+      message: '删除这条消息和其后的所有回复？此操作不可恢复。',
+      confirmText: '删除',
+      tone: 'danger',
+    });
+    if (!ok) return;
     const conv = conversations.find(c => c.id === activeConvId);
     if (!conv) return;
     conv.messages = conv.messages.slice(0, msgIndex);
@@ -1248,11 +1271,53 @@ async function handleRunCodeBlock(detail = {}) {
     cancel.disabled = true;
     button.disabled = true;
     button.textContent = '运行中...';
+    const msgEl = wrapper.closest('.message.assistant');
+    const msgIndex = Number.parseInt(msgEl?.dataset.messageIndex || '-1', 10);
+    const conv = getActiveConversation();
+    const msg = Number.isInteger(msgIndex) && msgIndex >= 0 ? conv?.messages?.[msgIndex] : null;
+    const tool = msg ? {
+      id: `manual_run_${uid()}`,
+      name: 'run_code',
+      args: { language, code },
+      risk: '用户从代码块手动确认运行代码片段。',
+      status: 'approved',
+      requestedAt: new Date().toISOString(),
+    } : null;
+    if (msg && tool) {
+      msg.toolCalls = [...(msg.toolCalls || []), tool];
+      syncToolRuns(msg);
+      renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
+      persist();
+    }
     try {
       const output = await runTool('run_code', { language, code });
+      if (tool) {
+        applyToolResult(msg.toolCalls, {
+          toolCallId: tool.id,
+          name: 'run_code',
+          args: { language, code },
+          ok: true,
+          output,
+        });
+        syncToolRuns(msg);
+        renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
+        persist();
+      }
       confirmBox.remove();
       renderCodeOutput(wrapper, output, true);
     } catch (error) {
+      if (tool) {
+        applyToolResult(msg.toolCalls, {
+          toolCallId: tool.id,
+          name: 'run_code',
+          args: { language, code },
+          ok: false,
+          output: error.message || String(error),
+        });
+        syncToolRuns(msg);
+        renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
+        persist();
+      }
       renderCodeOutput(wrapper, error.message || String(error), false);
     } finally {
       button.disabled = false;
@@ -1452,9 +1517,15 @@ function toggleConversationSelection(id, checked) {
   renderConversationList(document.getElementById('search-input')?.value.trim() || '');
 }
 
-function deleteSelectedConversations() {
+async function deleteSelectedConversations() {
   if (selectedConversationIds.size === 0) return;
-  if (!confirm(`确定删除选中的 ${selectedConversationIds.size} 个对话？此操作不可恢复。`)) return;
+  const ok = await confirmAction({
+    title: '批量删除对话',
+    message: `确定删除选中的 ${selectedConversationIds.size} 个对话？此操作不可恢复。`,
+    confirmText: '删除',
+    tone: 'danger',
+  });
+  if (!ok) return;
   conversations = conversations.filter((conversation) => !selectedConversationIds.has(conversation.id));
   if (activeConvId && selectedConversationIds.has(activeConvId)) {
     activeConvId = conversations[0]?.id || null;
@@ -1500,20 +1571,30 @@ function toggleArchiveConversation(id) {
   renderConversationList(document.getElementById('search-input')?.value.trim() || '');
 }
 
-function editConversationTags(id) {
+async function editConversationTags(id) {
   const conv = conversations.find(c => c.id === id);
   if (!conv) return;
-  const next = prompt('输入标签，用逗号分隔。留空表示清除标签。', (conv.tags || []).join(', '));
+  const next = await promptText({
+    title: '编辑标签',
+    message: '输入标签，用逗号、分号或换行分隔。留空表示清除标签。',
+    value: (conv.tags || []).join(', '),
+    placeholder: '例如：项目, 排障, 收藏',
+  });
   if (next === null) return;
   conv.tags = parseTagsInput(next);
   persist();
   renderConversationList(document.getElementById('search-input')?.value.trim() || '');
 }
 
-function moveConversationFolder(id) {
+async function moveConversationFolder(id) {
   const conv = conversations.find(c => c.id === id);
   if (!conv) return;
-  const next = prompt('输入文件夹名称。留空表示移出文件夹。', conv.folderId || '');
+  const next = await promptText({
+    title: '移动到文件夹',
+    message: '输入文件夹名称。留空表示移出文件夹。',
+    value: conv.folderId || '',
+    placeholder: '例如：工作 / 学习 / 项目',
+  });
   if (next === null) return;
   conv.folderId = normalizeFolderName(next);
   persist();
