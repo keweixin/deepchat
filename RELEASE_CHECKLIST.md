@@ -1,0 +1,12 @@
+# DeepChat Release Checklist
+
+Before creating a new installer or portable build:
+
+1. Stop running `DeepChat*` processes so old release artifacts are not locked.
+2. Run `npm test`.
+3. Run `npm run build`.
+4. Run `npm run verify`.
+5. Run `npm audit --omit=dev --registry=https://registry.npmjs.org`.
+6. Launch the built app and smoke test: send text, attach an image with a vision model, run a code block, use web search, open a Mermaid diagram, and import/export a backup.
+7. Confirm artifact names follow `DeepChat-Setup-vX.Y.Z.exe` and `DeepChat-Portable-vX.Y.Z-YYYYMMDD-HHMMSS.exe`.
+8. Update `CHANGELOG.md` with the user-visible changes.
