@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 - 2026-05-19
+
+- Replaced cramped inline conversation actions with a focused right-side `...` menu for rename, tags, folder, pin, archive, and delete.
+- Reduced reading navigator scroll jank by separating outline rebuilds from scroll-only active/progress updates.
+- Added a regression test to ensure scroll events do not rebuild the navigator outline.
+
 ## 1.3.0 - 2026-05-19
 
 - Unified tool-run persistence and search grounding evidence for web/file/code/MCP-style tool calls.

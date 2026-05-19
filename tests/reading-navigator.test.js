@@ -125,6 +125,34 @@ flowchart LR
     expect(document.querySelector('.reading-nav-counter').textContent).toBe('1 个标题');
   });
 
+  it('does not rebuild the outline during scroll-only updates', async () => {
+    document.body.innerHTML = `
+      <main id="main-content">
+        <div id="chat-messages" style="height: 400px; overflow: auto;"></div>
+      </main>
+    `;
+    const messages = document.querySelector('#chat-messages');
+    initReadingNavigator();
+
+    messages.innerHTML = `<div class="message assistant"><div class="message-content">${renderMarkdown('## 第一节\n\n内容')}</div></div>`;
+    await postProcess(messages.querySelector('.message-content'));
+    refreshReadingNavigator();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(document.querySelectorAll('.reading-nav-item')).toHaveLength(1);
+
+    messages.querySelector('.message-content').insertAdjacentHTML('beforeend', renderMarkdown('## 第二节\n\n内容'));
+    messages.dispatchEvent(new Event('scroll'));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(document.querySelectorAll('.reading-nav-item')).toHaveLength(1);
+
+    refreshReadingNavigator();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    expect(document.querySelectorAll('.reading-nav-item')).toHaveLength(2);
+  });
+
   it('keeps a compact expandable navigator on small viewports', async () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = () => ({ matches: true });

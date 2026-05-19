@@ -54,6 +54,8 @@ let userScrolledUp = false; // Smart scroll: track if user scrolled up
 let sidebarFilter = SIDEBAR_FILTERS.active;
 let bulkMode = false;
 let selectedConversationIds = new Set();
+let conversationMenuEl = null;
+let conversationMenuCleanup = null;
 
 let $messages, $welcome, $convList, $chatTitle, $modelName;
 
@@ -1365,6 +1367,7 @@ function bindConversationToolbar() {
 }
 
 function renderConversationList(searchQuery = '') {
+  closeConversationMenu();
   $convList.innerHTML = '';
   updateConversationToolbarState();
   
@@ -1393,6 +1396,7 @@ function renderConversationList(searchQuery = '') {
 
     const item = document.createElement('div');
     item.className = `conversation-item${conv.id === activeConvId ? ' active' : ''}${conv.pinned ? ' is-pinned' : ''}${conv.archivedAt ? ' is-archived' : ''}`;
+    item.dataset.conversationId = conv.id;
     const pinIcon = conv.pinned ? '<span class="conv-pin-indicator" title="已置顶">📌</span>' : '';
     const tags = (conv.tags || []).map((tag) => `<span class="conv-tag">#${escapeHtml(tag)}</span>`).join('');
     const meta = [conv.folderId ? `<span class="conv-folder-label">${escapeHtml(conv.folderId)}</span>` : '', tags].filter(Boolean).join('');
@@ -1406,14 +1410,8 @@ function renderConversationList(searchQuery = '') {
       </span>
       ${pinIcon}
       <div class="conv-actions">
-        <button class="conv-tags icon-btn-sm" title="编辑标签">#</button>
-        <button class="conv-folder icon-btn-sm" title="移动到文件夹">⌁</button>
-        <button class="conv-archive icon-btn-sm" title="${conv.archivedAt ? '取消归档' : '归档'}">${conv.archivedAt ? '↩' : '✓'}</button>
-        <button class="conv-pin icon-btn-sm" title="${conv.pinned ? '取消置顶' : '置顶'}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="${conv.pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M12 2L12 12M12 12L8 8M12 12L16 8M5 21L19 21"/></svg>
-        </button>
-        <button class="conv-delete icon-btn-sm" title="删除对话">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button class="conv-menu-trigger icon-btn-sm" title="更多操作" aria-label="打开对话操作菜单" aria-haspopup="menu" aria-expanded="false">
+          <span aria-hidden="true">•••</span>
         </button>
       </div>
     `;
@@ -1433,25 +1431,9 @@ function renderConversationList(searchQuery = '') {
       toggleConversationSelection(conv.id, e.target.checked);
     });
 
-    item.querySelector('.conv-tags')?.addEventListener('click', (e) => {
+    item.querySelector('.conv-menu-trigger')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      editConversationTags(conv.id);
-    });
-
-    item.querySelector('.conv-folder')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      moveConversationFolder(conv.id);
-    });
-
-    item.querySelector('.conv-archive')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleArchiveConversation(conv.id);
-    });
-
-    // Pin/unpin
-    item.querySelector('.conv-pin').addEventListener('click', (e) => {
-      e.stopPropagation();
-      togglePinConversation(conv.id);
+      toggleConversationMenu(conv.id, e.currentTarget);
     });
 
     // Double-click to rename
@@ -1483,13 +1465,137 @@ function renderConversationList(searchQuery = '') {
       });
     });
     
-    item.querySelector('.conv-delete').addEventListener('click', (e) => {
-      e.stopPropagation();
-      deleteConversation(conv.id);
-    });
-    
     $convList.appendChild(item);
   });
+}
+
+function toggleConversationMenu(id, anchor) {
+  if (conversationMenuEl?.dataset.conversationId === id) {
+    closeConversationMenu();
+    return;
+  }
+  openConversationMenu(id, anchor);
+}
+
+function openConversationMenu(id, anchor) {
+  const conv = conversations.find(c => c.id === id);
+  if (!conv || !anchor) return;
+  closeConversationMenu();
+
+  anchor.setAttribute('aria-expanded', 'true');
+  anchor.closest('.conversation-item')?.classList.add('is-menu-open');
+
+  const menu = document.createElement('div');
+  menu.className = 'conversation-action-menu';
+  menu.dataset.conversationId = id;
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', `对话操作：${conv.title}`);
+
+  const actions = [
+    { label: '重命名', icon: '✎', onClick: () => promptRenameConversation(id) },
+    { label: '编辑标签', icon: '#', onClick: () => editConversationTags(id) },
+    { label: '移动到文件夹', icon: '▣', onClick: () => moveConversationFolder(id) },
+    { label: conv.pinned ? '取消置顶' : '置顶聊天', icon: '⌃', onClick: () => togglePinConversation(id) },
+    { label: conv.archivedAt ? '取消归档' : '归档', icon: conv.archivedAt ? '↩' : '□', onClick: () => toggleArchiveConversation(id) },
+    { label: '删除', icon: '⌫', tone: 'danger', onClick: () => deleteConversation(id) },
+  ];
+
+  for (const action of actions) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `conversation-menu-item${action.tone === 'danger' ? ' is-danger' : ''}`;
+    button.setAttribute('role', 'menuitem');
+
+    const icon = document.createElement('span');
+    icon.className = 'conversation-menu-icon';
+    icon.textContent = action.icon;
+
+    const text = document.createElement('span');
+    text.textContent = action.label;
+
+    button.append(icon, text);
+    button.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      closeConversationMenu();
+      await action.onClick();
+    });
+    menu.appendChild(button);
+  }
+
+  document.body.appendChild(menu);
+  positionConversationMenu(menu, anchor);
+  conversationMenuEl = menu;
+
+  const onPointerDown = (event) => {
+    if (menu.contains(event.target) || anchor.contains(event.target)) return;
+    closeConversationMenu();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') closeConversationMenu();
+  };
+  const onReposition = () => positionConversationMenu(menu, anchor);
+
+  setTimeout(() => document.addEventListener('pointerdown', onPointerDown, true), 0);
+  document.addEventListener('keydown', onKeyDown);
+  window.addEventListener('resize', onReposition, { passive: true });
+  window.addEventListener('scroll', onReposition, { passive: true, capture: true });
+
+  conversationMenuCleanup = () => {
+    document.removeEventListener('pointerdown', onPointerDown, true);
+    document.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('resize', onReposition);
+    window.removeEventListener('scroll', onReposition, true);
+    anchor.setAttribute('aria-expanded', 'false');
+    anchor.closest('.conversation-item')?.classList.remove('is-menu-open');
+  };
+
+  menu.querySelector('button')?.focus();
+}
+
+function closeConversationMenu() {
+  if (conversationMenuCleanup) conversationMenuCleanup();
+  conversationMenuCleanup = null;
+  conversationMenuEl?.remove();
+  conversationMenuEl = null;
+}
+
+function positionConversationMenu(menu, anchor) {
+  if (!menu || !anchor?.isConnected) {
+    closeConversationMenu();
+    return;
+  }
+
+  const rect = anchor.getBoundingClientRect();
+  const width = Math.max(196, menu.offsetWidth || 196);
+  const height = menu.offsetHeight || 260;
+  const margin = 8;
+  const left = clampNumber(rect.right - width, margin, window.innerWidth - width - margin);
+  let top = rect.bottom + 8;
+  if (top + height > window.innerHeight - margin) top = Math.max(margin, rect.top - height - 8);
+
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+}
+
+async function promptRenameConversation(id) {
+  const conv = conversations.find(c => c.id === id);
+  if (!conv) return;
+
+  const next = await promptText({
+    title: '重命名对话',
+    message: '输入新的对话名称。',
+    value: conv.title || '',
+    placeholder: '对话名称',
+  });
+  if (next === null) return;
+
+  const title = next.trim();
+  if (title) renameConversation(id, title);
+}
+
+function clampNumber(value, min, max) {
+  if (max < min) return min;
+  return Math.max(min, Math.min(max, value));
 }
 
 function updateConversationToolbarState() {

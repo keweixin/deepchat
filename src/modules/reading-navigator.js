@@ -30,7 +30,11 @@ export function initReadingNavigator(options = {}) {
     progress: nav.querySelector('.reading-nav-progress-bar'),
     activeContent: null,
     items: [],
+    itemButtons: new Map(),
     signature: '',
+    structureDirty: true,
+    activeAnchorId: '',
+    progressPercent: -1,
     collapsed: false,
   };
 
@@ -47,7 +51,7 @@ export function initReadingNavigator(options = {}) {
     nav.querySelector('.reading-nav-collapse').setAttribute('aria-expanded', String(!state.collapsed));
   });
 
-  scrollContainer.addEventListener('scroll', scheduleNavigatorUpdate, { passive: true });
+  scrollContainer.addEventListener('scroll', scheduleNavigatorPositionUpdate, { passive: true });
   window.addEventListener('resize', handleNavigatorResize);
 
   refreshReadingNavigator();
@@ -56,20 +60,23 @@ export function initReadingNavigator(options = {}) {
 
 export function refreshReadingNavigator() {
   if (!state) return;
+  state.structureDirty = true;
   scheduleNavigatorUpdate();
 }
 
 export function resetReadingNavigator() {
   if (!state) return;
-  hideNavigator();
+  hideNavigator({ dirty: true });
 }
 
 export function destroyReadingNavigator() {
   if (!state) return;
-  state.scrollContainer.removeEventListener('scroll', scheduleNavigatorUpdate);
+  state.scrollContainer.removeEventListener('scroll', scheduleNavigatorPositionUpdate);
   window.removeEventListener('resize', handleNavigatorResize);
+  if (rafId) cancelAnimationFrame(rafId);
   state.nav.remove();
   state = null;
+  rafId = 0;
 }
 
 export function collectReadingAnchors(root, options = {}) {
@@ -109,6 +116,17 @@ function scheduleNavigatorUpdate() {
   });
 }
 
+function scheduleNavigatorPositionUpdate() {
+  if (!state || state.structureDirty) return scheduleNavigatorUpdate();
+  if (rafId) return;
+  rafId = requestAnimationFrame(() => {
+    rafId = 0;
+    if (!state || state.nav.hidden || state.items.length === 0) return;
+    updateActiveItem();
+    updateProgress();
+  });
+}
+
 function handleNavigatorResize() {
   if (!state) return;
   if (!isCompactViewport()) state.nav.classList.remove('is-mobile-open');
@@ -116,18 +134,25 @@ function handleNavigatorResize() {
 }
 
 function updateNavigator() {
-  const items = collectReadingAnchors(state.scrollContainer);
-  if (items.length < MIN_ITEMS_TO_SHOW) {
-    hideNavigator();
-    return;
-  }
+  if (state.structureDirty) {
+    state.structureDirty = false;
+    const items = collectReadingAnchors(state.scrollContainer);
+    if (items.length < MIN_ITEMS_TO_SHOW) {
+      hideNavigator({ dirty: false });
+      return;
+    }
 
-  const signature = getAnchorSignature(items);
-  if (state.signature !== signature) {
-    state.activeContent = state.scrollContainer;
-    state.items = items;
-    state.signature = signature;
-    renderNavigatorItems(items);
+    const signature = getAnchorSignature(items);
+    if (state.signature !== signature) {
+      state.activeContent = state.scrollContainer;
+      state.items = items;
+      state.signature = signature;
+      state.activeAnchorId = '';
+      renderNavigatorItems(items);
+    }
+  } else if (!state.items.length) {
+    hideNavigator({ dirty: false });
+    return;
   }
 
   state.nav.classList.remove('hidden');
@@ -136,20 +161,25 @@ function updateNavigator() {
   updateProgress();
 }
 
-function hideNavigator() {
+function hideNavigator(options = {}) {
   if (!state) return;
   state.nav.classList.add('hidden');
   state.nav.hidden = true;
   state.activeContent = null;
   state.items = [];
+  state.itemButtons = new Map();
   state.signature = '';
+  state.activeAnchorId = '';
+  state.progressPercent = -1;
+  state.structureDirty = Boolean(options.dirty);
   state.list.replaceChildren();
   state.counter.textContent = '';
   state.progress.style.height = '0%';
 }
 
 function renderNavigatorItems(items) {
-  state.list.replaceChildren();
+  const fragment = document.createDocumentFragment();
+  state.itemButtons = new Map();
   state.counter.textContent = `${items.length} 个标题`;
 
   items.forEach((item, index) => {
@@ -171,10 +201,12 @@ function renderNavigatorItems(items) {
 
     button.append(marker, text);
     button.addEventListener('click', () => scrollToAnchor(item.node));
-    state.list.appendChild(button);
+    fragment.appendChild(button);
+    state.itemButtons.set(item.id, button);
 
     if (index === 0) button.setAttribute('aria-current', 'true');
   });
+  state.list.replaceChildren(fragment);
 }
 
 function updateActiveItem() {
@@ -190,15 +222,20 @@ function updateActiveItem() {
     if (rect.top > focusLine) break;
   }
 
-  state.list.querySelectorAll('.reading-nav-item').forEach((button) => {
-    const isActive = button.dataset.anchorId === active.id;
-    button.classList.toggle('is-active', isActive);
-    if (isActive) {
-      button.setAttribute('aria-current', 'true');
-    } else {
-      button.removeAttribute('aria-current');
-    }
-  });
+  if (state.activeAnchorId === active.id) return;
+
+  const previous = state.itemButtons.get(state.activeAnchorId);
+  if (previous) {
+    previous.classList.remove('is-active');
+    previous.removeAttribute('aria-current');
+  }
+
+  const next = state.itemButtons.get(active.id);
+  if (next) {
+    next.classList.add('is-active');
+    next.setAttribute('aria-current', 'true');
+  }
+  state.activeAnchorId = active.id;
 }
 
 function updateProgress() {
@@ -206,7 +243,10 @@ function updateProgress() {
 
   const maxScroll = Math.max(1, state.scrollContainer.scrollHeight - state.scrollContainer.clientHeight);
   const value = clamp(state.scrollContainer.scrollTop / maxScroll, 0, 1);
-  state.progress.style.height = `${Math.round(value * 100)}%`;
+  const percent = Math.round(value * 100);
+  if (percent === state.progressPercent) return;
+  state.progressPercent = percent;
+  state.progress.style.height = `${percent}%`;
 }
 
 function scrollToAnchor(node) {
