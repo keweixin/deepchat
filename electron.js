@@ -226,8 +226,6 @@ function emitChatValidationError(requestId, error) {
   });
 }
 
-const path = require('path');
-
 function isAllowedAppNavigation(url) {
   try {
     const parsed = new URL(url);
