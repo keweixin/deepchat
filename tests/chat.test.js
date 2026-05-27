@@ -57,16 +57,24 @@ describe('chat regeneration', () => {
       reason: '需要读取本地证据',
       steps: ['搜索项目结构', '读取 UI 文件'],
       searchPlan: [{ purpose: '定位', query: 'agent plan UI', reason: '确认入口' }],
-      selectedTools: ['search_workspace', 'read_file'],
+      selectedTools: ['search_workspace', 'run_code'],
+      candidateTools: ['read_symbol'],
       approvalPolicy: ['运行代码必须确认'],
+      warnings: ['缺少 Tavily Key 时不要编造来源'],
     });
 
     expect(prompt).toContain('只执行');
     expect(prompt).toContain('<agent_plan>');
     expect(prompt).toContain('模式：workspace');
+    expect(prompt).toContain('风险摘要：风险：高风险确认');
+    expect(prompt).toContain('高风险 1 个');
     expect(prompt).toContain('1. 搜索项目结构');
     expect(prompt).toContain('定位：agent plan UI');
+    expect(prompt).toContain('候选工具');
+    expect(prompt).toContain('read_symbol');
     expect(prompt).toContain('运行代码必须确认');
+    expect(prompt).toContain('提示');
+    expect(prompt).toContain('缺少 Tavily Key 时不要编造来源');
     expect(buildAgentPlanActionPrompt('unknown', { mode: 'workspace' })).toBe('');
   });
 

@@ -1457,24 +1457,31 @@ function appendAgentPlanChips(card, labelText, values = [], extraClass = '') {
   card.appendChild(group);
 }
 
-function createAgentPlanExecutionSummary(plan = {}) {
+function buildAgentPlanExecutionSummaryParts(plan = {}) {
   const selectedTools = Array.isArray(plan.selectedTools) ? plan.selectedTools.map((tool) => String(tool || '').trim()).filter(Boolean) : [];
   const missing = Array.isArray(plan.missingPrerequisites) ? plan.missingPrerequisites.filter(Boolean) : [];
   const highRiskTools = selectedTools.filter((tool) => /run_code|write|delete|mcp/i.test(tool));
   const readOnlyTools = selectedTools.filter((tool) => /read|search|list|web/i.test(tool));
   const risk = missing.length ? '需配置' : (highRiskTools.length ? '高风险确认' : (readOnlyTools.length ? '低风险读取' : '普通回答'));
-  const parts = [
-    `风险：${risk}`,
-    plan.maxRounds ? `最多 ${plan.maxRounds} 轮` : '',
-    selectedTools.length ? `工具 ${selectedTools.length} 个` : '',
-    highRiskTools.length ? `高风险 ${highRiskTools.length} 个` : '',
-    Array.isArray(plan.searchPlan) && plan.searchPlan.length ? `搜索 ${plan.searchPlan.length} 组` : '',
-    missing.length ? `缺配置 ${missing.length} 项` : '',
-    '执行前会显示确认边界',
-  ].filter(Boolean);
+  return {
+    parts: [
+      `风险：${risk}`,
+      plan.maxRounds ? `最多 ${plan.maxRounds} 轮` : '',
+      selectedTools.length ? `工具 ${selectedTools.length} 个` : '',
+      highRiskTools.length ? `高风险 ${highRiskTools.length} 个` : '',
+      Array.isArray(plan.searchPlan) && plan.searchPlan.length ? `搜索 ${plan.searchPlan.length} 组` : '',
+      missing.length ? `缺配置 ${missing.length} 项` : '',
+      '执行前会显示确认边界',
+    ].filter(Boolean),
+    hasWarning: Boolean(highRiskTools.length || missing.length),
+  };
+}
+
+function createAgentPlanExecutionSummary(plan = {}) {
+  const { parts, hasWarning } = buildAgentPlanExecutionSummaryParts(plan);
   if (!parts.length) return null;
   const box = document.createElement('div');
-  box.className = `agent-plan-execution-summary${highRiskTools.length || missing.length ? ' is-warning' : ''}`;
+  box.className = `agent-plan-execution-summary${hasWarning ? ' is-warning' : ''}`;
   box.textContent = parts.join(' · ');
   box.title = '根据计划中的工具、搜索计划和缺失配置生成的执行前摘要。';
   return box;
@@ -2442,11 +2449,13 @@ export function buildAgentPlanActionPrompt(action, plan = {}) {
 
 function serializeAgentPlanForPrompt(plan = {}) {
   if (!plan || typeof plan !== 'object') return '';
+  const executionSummary = buildAgentPlanExecutionSummaryParts(plan).parts.join(' · ');
   const lines = [
     `模式：${plan.mode || 'unknown'}`,
     `最多轮数：${plan.maxRounds || ''}`,
     `原因：${plan.reason || ''}`,
   ];
+  if (executionSummary) lines.push(`风险摘要：${executionSummary}`);
   const pushList = (label, values, mapper = (value) => value) => {
     const list = (Array.isArray(values) ? values : []).map(mapper).map((value) => String(value || '').trim()).filter(Boolean);
     if (!list.length) return;
@@ -2456,8 +2465,10 @@ function serializeAgentPlanForPrompt(plan = {}) {
   pushList('步骤', plan.steps);
   pushList('搜索计划', plan.searchPlan, (item) => `${item.purpose || '搜索'}：${item.query}${item.reason ? `（${item.reason}）` : ''}`);
   pushList('预计工具', plan.selectedTools);
+  pushList('候选工具', plan.candidateTools);
   pushList('缺少配置', plan.missingPrerequisites);
   pushList('审批策略', plan.approvalPolicy);
+  pushList('提示', plan.warnings);
   return lines.join('\n').trim();
 }
 
