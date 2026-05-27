@@ -300,4 +300,21 @@ describe('tool run state', () => {
       contextCompacted: true,
     });
   });
+
+  it('carries tool recovery suggestions into runs and evidence payloads', () => {
+    const tool = createToolRecord({ toolCallId: 'fail1', name: 'web_search', args: { query: 'cache' } });
+    applyToolResult([tool], {
+      toolCallId: 'fail1',
+      name: 'web_search',
+      ok: false,
+      output: 'Tavily 搜索失败',
+      nextAction: '检查 Tavily Key 后重试。',
+    });
+
+    const run = buildToolRuns([tool])[0];
+    const evidence = buildToolEvidencePayload(tool);
+
+    expect(run.nextAction).toBe('检查 Tavily Key 后重试。');
+    expect(evidence.nextAction).toBe('检查 Tavily Key 后重试。');
+  });
 });

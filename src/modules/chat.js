@@ -933,6 +933,8 @@ export function renderToolCalls(container, toolCalls = [], options = {}) {
     if (meta) block.appendChild(meta);
     const security = createToolSecurityMeta(tool);
     if (security) block.appendChild(security);
+    const nextAction = createToolNextAction(tool);
+    if (nextAction) block.appendChild(nextAction);
     if (tool.parseError) {
       const parse = document.createElement('div');
       parse.className = 'tool-parse-error';
@@ -1068,6 +1070,20 @@ function createToolSecurityMeta(tool) {
   meta.className = 'tool-security-meta';
   meta.textContent = items.join(' · ');
   return meta;
+}
+
+function createToolNextAction(tool) {
+  if (!tool.nextAction) return null;
+  const next = document.createElement('div');
+  next.className = 'tool-next-action';
+  const label = document.createElement('span');
+  label.className = 'tool-next-action-label';
+  label.textContent = '下一步';
+  const text = document.createElement('span');
+  text.className = 'tool-next-action-text';
+  text.textContent = tool.nextAction;
+  next.append(label, text);
+  return next;
 }
 
 function createToolOutputSummary(outputText, tool = {}) {

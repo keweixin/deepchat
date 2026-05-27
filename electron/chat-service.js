@@ -462,6 +462,7 @@ class ChatService {
     });
     if (parsedArgs.error) {
       const message = `工具 ${fn.name || 'unknown_tool'} 参数 JSON 解析失败：${parsedArgs.error}`;
+      const nextAction = buildToolNextAction(fn.name, args, { parseError: parsedArgs.error, output: message });
       this.emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: message });
       const contextMeta = buildToolContextOutput(fn.name, args, message);
       this.emit(requestId, 'toolResult', {
@@ -469,6 +470,7 @@ class ChatService {
         name: fn.name,
         ok: false,
         output: message,
+        nextAction,
         ...contextMeta,
         rawArguments: fn.arguments || '',
         parseError: parsedArgs.error,
@@ -483,8 +485,9 @@ class ChatService {
       const denied = decision.timedOut
         ? `工具 ${fn.name} 等待确认超过 ${Math.round(resolveToolApprovalTimeout(settings) / 1000)} 秒，已自动拒绝。`
         : `用户拒绝执行工具 ${fn.name}。`;
+      const nextAction = buildToolNextAction(fn.name, args, { denied: true, timedOut: decision.timedOut, output: denied });
       this.emit(requestId, 'agentStage', { stage: 'tool_denied', round, maxRounds, toolName: fn.name, stopReason: denied });
-      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: denied, ...buildToolContextOutput(fn.name, args, denied) });
+      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: denied, nextAction, ...buildToolContextOutput(fn.name, args, denied) });
       return denied;
     }
 
@@ -513,12 +516,14 @@ class ChatService {
     } catch (error) {
       const message = normalizeError(error);
       const returned = `工具 ${fn.name} 执行失败：${message}`;
+      const nextAction = buildToolNextAction(fn.name, args, { failed: true, output: returned, error: message });
       this.emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: message });
       this.emit(requestId, 'toolResult', {
         toolCallId: toolCall.id,
         name: fn.name,
         ok: false,
         output: message,
+        nextAction,
         ...buildToolContextOutput(fn.name, args, returned),
         security: buildToolSecurity(fn.name, args, settings),
       });
@@ -1123,6 +1128,35 @@ function buildSingleStepStopReason(toolResults = []) {
     .filter(Boolean);
   const summary = names.length ? `已完成单步执行：${names.join(', ')}。` : '已完成单步执行。';
   return `${summary}已暂停后续工具轮次；可继续点击“单步执行”推进下一步，或点击“执行全部”让 Agent 按计划继续。`;
+}
+
+function buildToolNextAction(name, args = {}, outcome = {}) {
+  const toolName = String(name || 'unknown_tool');
+  if (outcome.parseError) {
+    return '让模型重新发送合法 JSON 参数；不要执行空参数工具调用。';
+  }
+  if (outcome.denied) {
+    if (outcome.timedOut) {
+      return '确认超时后已停止该工具；可以重新点击执行，或改用“修改计划”减少本步工具调用。';
+    }
+    return '已按用户选择停止该工具；可以修改计划、换用低风险读取/搜索工具，或重新确认后继续。';
+  }
+  if (toolName === 'web_search') {
+    return '检查 Tavily Key、网络连接和 query；必要时缩小关键词或降低 max_results 后重试。';
+  }
+  if (['index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(toolName)) {
+    const target = String(args.path || args.directory || args.root || args.symbol || args.query || '').trim();
+    return target
+      ? `确认工作区授权、路径/符号是否存在：${target.slice(0, 160)}；必要时先 list_files 或 search_workspace 定位。`
+      : '确认工作区已授权；必要时先 list_files 或 search_workspace 定位目标文件。';
+  }
+  if (toolName === 'run_code') {
+    return '查看 stderr/stdout 和退出码；必要时缩小代码片段、补充依赖前置条件，或改为只生成代码不运行。';
+  }
+  if (isMcpToolName(toolName)) {
+    return '检查 MCP Server 是否在线、工具参数 schema 是否变化；可在设置中刷新 MCP 状态后重试。';
+  }
+  return '检查工具名称、参数和可用配置；必要时修改计划后重试。';
 }
 
 function normalizeToolApprovalPolicy(value) {

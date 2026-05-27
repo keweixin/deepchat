@@ -18,6 +18,7 @@ export function createToolRecord(event = {}, now = new Date()) {
     security: event.security || null,
     approvalPolicy: event.approvalPolicy || '',
     autoApproved: event.autoApproved === true,
+    nextAction: event.nextAction || '',
     status: event.autoApproved ? 'approved' : 'pending',
     requestedAt: now.toISOString(),
     expiresAt: event.expiresAt || '',
@@ -56,6 +57,7 @@ export function applyToolResult(toolCalls = [], event = {}, now = new Date()) {
   if (event.security) tool.security = event.security;
   if (event.approvalPolicy) tool.approvalPolicy = event.approvalPolicy;
   if (event.autoApproved !== undefined) tool.autoApproved = event.autoApproved === true;
+  if (event.nextAction) tool.nextAction = event.nextAction;
   if (event.contextOutput !== undefined) tool.contextOutput = event.contextOutput;
   if (event.rawOutputTokens !== undefined) tool.rawOutputTokens = event.rawOutputTokens;
   if (event.contextOutputTokens !== undefined) tool.contextOutputTokens = event.contextOutputTokens;
@@ -91,6 +93,7 @@ export function buildToolRuns(toolCalls = []) {
     security: tool.security || null,
     approvalPolicy: tool.approvalPolicy || '',
     autoApproved: tool.autoApproved === true,
+    nextAction: tool.nextAction || '',
     parseError: tool.parseError || '',
     contextOutput: tool.contextOutput || '',
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
@@ -127,6 +130,7 @@ export function buildToolEvidencePayload(tool = {}) {
     security: tool.security || null,
     approvalPolicy: tool.approvalPolicy || '',
     autoApproved: tool.autoApproved === true,
+    nextAction: tool.nextAction || '',
     parseError: tool.parseError || '',
     sources,
     localCitations,

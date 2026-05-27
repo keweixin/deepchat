@@ -216,6 +216,22 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('输出摘要');
   });
 
+  it('renders tool recovery suggestions in tool result cards', () => {
+    const container = document.createElement('div');
+    renderToolCalls(container, [{
+      id: 'tool-fail',
+      name: 'web_search',
+      status: 'failed',
+      ok: false,
+      args: { query: 'DeepChat' },
+      output: 'Tavily 搜索失败',
+      nextAction: '检查 Tavily Key 后重试。',
+    }]);
+
+    expect(container.textContent).toContain('下一步');
+    expect(container.textContent).toContain('检查 Tavily Key 后重试');
+  });
+
   it('renders assistant HTML artifacts in a sandboxed preview', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

@@ -679,6 +679,7 @@ describe('electron chat service token usage and agent loop', () => {
     expect(toolRequest.parseError).toBeTruthy();
     const toolResult = events.find((event) => event.type === 'toolResult');
     expect(toolResult.ok).toBe(false);
+    expect(toolResult.nextAction).toContain('重新发送合法 JSON');
   });
 
   it('repairs clearly truncated tool argument JSON before approval', async () => {
@@ -716,6 +717,7 @@ describe('electron chat service token usage and agent loop', () => {
 
     expect(result).toContain('自动拒绝');
     expect(events.find((event) => event.type === 'toolRequest').expiresAt).toBeTruthy();
+    expect(events.find((event) => event.type === 'toolResult').nextAction).toContain('重新点击执行');
   });
 
   it('suppresses duplicate tool calls in the same agent run', async () => {
