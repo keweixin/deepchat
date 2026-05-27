@@ -372,8 +372,8 @@ function renderKatex(container) {
       throwOnError: false,
       trust: false,
     });
-  } catch (e) {
-    console.warn('KaTeX render error:', e);
+  } catch {
+    // Silently ignore invalid LaTeX fragments.
   }
 }
 
@@ -387,8 +387,8 @@ async function renderMermaidDiagrams(container) {
   try {
     const mermaid = await getMermaid();
     await mermaid.run({ nodes: mermaidEls });
-  } catch (e) {
-    console.warn('Mermaid render error:', e);
+  } catch {
+    // Silently ignore malformed diagram syntax.
   }
 }
 
@@ -439,8 +439,8 @@ function attachCopyHandlers(container) {
           btn.querySelector('.copy-text').textContent = '复制';
           btn.classList.remove('copied');
         }, 1500);
-      } catch (e) {
-        console.warn('Copy failed:', e);
+      } catch {
+        // Clipboard permission denied or transient failure — silently ignore.
       }
     });
   });

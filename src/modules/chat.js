@@ -806,7 +806,7 @@ function updateSpeedIndicator(msgEl, speed) {
   if (!indicator) {
     indicator = document.createElement('div');
     indicator.className = 'speed-indicator';
-    msgEl.querySelector('.message-body').appendChild(indicator);
+    msgEl.querySelector('.message-body')?.appendChild(indicator);
   }
   indicator.textContent = `⚡ ${speed} tok/s`;
 }
@@ -3308,7 +3308,7 @@ function addUserMessageActions(msgEl, msg, msgIndex) {
   });
   actions.appendChild(delBtn);
 
-  msgEl.querySelector('.message-body').appendChild(actions);
+  msgEl.querySelector('.message-body')?.appendChild(actions);
 }
 
 // ─── Assistant Message Actions ───
@@ -3466,7 +3466,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
     actions.appendChild(badge);
   }
 
-  msgEl.querySelector('.message-body').appendChild(actions);
+  msgEl.querySelector('.message-body')?.appendChild(actions);
 }
 
 function createAnswerActionButton(label, title, onClick) {
