@@ -597,8 +597,25 @@ function togglePromptTemplateMenu(anchor) {
   for (const template of getPromptTemplateEntries()) {
     const item = document.createElement('button');
     item.type = 'button';
-    item.textContent = template.title;
-    item.title = template.text;
+    item.className = 'prompt-template-item';
+    item.title = buildPromptTemplateTitle(template);
+    const head = document.createElement('span');
+    head.className = 'prompt-template-head';
+    const title = document.createElement('span');
+    title.className = 'prompt-template-title';
+    title.textContent = template.title;
+    const mode = document.createElement('span');
+    mode.className = 'prompt-template-mode';
+    mode.textContent = template.mode || '模板';
+    head.append(title, mode);
+    const desc = document.createElement('span');
+    desc.className = 'prompt-template-desc';
+    desc.textContent = template.description || template.intent || '插入常用提示词模板';
+    const intent = document.createElement('span');
+    intent.className = 'prompt-template-intent';
+    intent.textContent = template.intent || '';
+    item.append(head, desc);
+    if (intent.textContent) item.appendChild(intent);
     item.addEventListener('click', () => {
       const input = document.getElementById('message-input');
       input.value = applyPromptTemplate(input.value, template.text);
@@ -613,6 +630,16 @@ function togglePromptTemplateMenu(anchor) {
   }
   anchor.closest('.composer-toolbar')?.appendChild(menu);
   promptTemplateMenu = menu;
+}
+
+function buildPromptTemplateTitle(template = {}) {
+  return [
+    template.description,
+    template.mode ? `推荐模式：${template.mode}` : '',
+    template.intent ? `上下文/工具：${template.intent}` : '',
+    '',
+    template.text,
+  ].filter((line) => line !== undefined && line !== null).join('\n').trim();
 }
 
 function toggleComposerToolMenu(anchor, onChange, openSettings) {

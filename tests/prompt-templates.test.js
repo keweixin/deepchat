@@ -21,13 +21,23 @@ describe('prompt templates', () => {
     expect(entries.find((entry) => entry.id === 'project-audit').text).toContain('@changed');
     expect(entries.find((entry) => entry.id === 'project-audit').text).toContain('file:line');
     expect(entries.find((entry) => entry.id === 'project-audit').text).toContain(':::todo');
+    expect(entries.find((entry) => entry.id === 'project-audit')).toMatchObject({
+      mode: '项目',
+      intent: expect.stringContaining('@changed'),
+      description: expect.stringContaining('当前仓库结构'),
+    });
     expect(entries.find((entry) => entry.id === 'agent-execute').text).toContain('@changed');
     expect(entries.find((entry) => entry.id === 'agent-execute').text).toContain(':::tool-result');
+    expect(entries.find((entry) => entry.id === 'agent-execute')).toMatchObject({
+      mode: 'Agent',
+      intent: expect.stringContaining('Plan/Execute/Evidence/Final'),
+    });
     expect(entries.find((entry) => entry.id === 'research-topic').text).toContain('@web');
     expect(entries.find((entry) => entry.id === 'research-topic').text).toContain('官方文档');
     expect(entries.find((entry) => entry.id === 'file-review').text).toContain(':::decision');
     expect(entries.find((entry) => entry.id === 'polished-doc').text).toContain(':::summary');
     expect(entries.find((entry) => entry.id === 'polished-doc').text).toContain('不要输出原始 HTML');
+    expect(entries.every((entry) => entry.mode && entry.intent && entry.description)).toBe(true);
   });
 
   it('appends templates without losing existing composer text', () => {

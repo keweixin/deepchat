@@ -1266,7 +1266,8 @@
   bottom: calc(100% + 8px);
   z-index: 80;
   display: grid;
-  min-width: 180px;
+  gap: 2px;
+  width: min(380px, calc(100vw - 32px));
   padding: var(--space-2);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -1275,6 +1276,8 @@
 }
 
 .prompt-template-menu button {
+  display: grid;
+  gap: 3px;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
@@ -1285,6 +1288,46 @@
 .prompt-template-menu button:hover {
   background: var(--glass-bg-hover);
   color: var(--text-primary);
+}
+
+.prompt-template-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.prompt-template-title {
+  color: var(--text-primary);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt-template-mode {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--accent-primary), transparent 94%);
+  font-size: 10px;
+}
+
+.prompt-template-desc,
+.prompt-template-intent {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.prompt-template-intent {
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .input-container {
