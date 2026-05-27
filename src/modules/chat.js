@@ -1289,7 +1289,7 @@ export function renderAgentTimeline(container, message = {}) {
   }
 
   const planStage = stages.find((stage) => stage?.stage === 'plan' && stage.planSummary);
-  const planCard = createAgentPlanCard(planStage?.planSummary);
+  const planCard = createAgentPlanCard(planStage?.planSummary, message.contextBudget);
   if (planCard) panel.appendChild(planCard);
 
   const list = document.createElement('ol');
@@ -1315,7 +1315,7 @@ export function renderAgentTimeline(container, message = {}) {
   container.appendChild(panel);
 }
 
-function createAgentPlanCard(plan = null) {
+function createAgentPlanCard(plan = null, contextBudget = null) {
   if (!plan || !Array.isArray(plan.steps) || plan.steps.length === 0) return null;
   const card = document.createElement('section');
   card.className = 'agent-plan-card';
@@ -1335,6 +1335,8 @@ function createAgentPlanCard(plan = null) {
 
   const summary = createAgentPlanExecutionSummary(plan);
   if (summary) card.appendChild(summary);
+  const budgetSummary = createAgentPlanBudgetSummary(contextBudget);
+  if (budgetSummary) card.appendChild(budgetSummary);
 
   const steps = document.createElement('ol');
   steps.className = 'agent-plan-steps';
@@ -1475,6 +1477,24 @@ function createAgentPlanExecutionSummary(plan = {}) {
   box.className = `agent-plan-execution-summary${highRiskTools.length || missing.length ? ' is-warning' : ''}`;
   box.textContent = parts.join(' · ');
   box.title = '根据计划中的工具、搜索计划和缺失配置生成的执行前摘要。';
+  return box;
+}
+
+function createAgentPlanBudgetSummary(contextBudget = null) {
+  if (!contextBudget || typeof contextBudget !== 'object') return null;
+  const max = Number(contextBudget.maxInputTokens || 0);
+  const estimated = Number(contextBudget.estimatedInputTokens || 0);
+  const parts = [
+    max || estimated ? `上下文：${formatCompactTokenCount(estimated)} / ${formatCompactTokenCount(max)} tok` : '',
+    contextBudget.trimmed ? `已裁剪 ${contextBudget.droppedCount || 0} 条历史` : '未裁剪历史',
+    contextBudget.summaryUsed ? '已使用长期记忆' : '',
+    contextBudget.prefixFingerprint ? `prefix ${contextBudget.prefixFingerprint}` : '',
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  const box = document.createElement('div');
+  box.className = `agent-plan-budget-summary${contextBudget.trimmed ? ' is-trimmed' : ''}`;
+  box.textContent = parts.join(' · ');
+  box.title = '本轮 Agent 计划将使用的输入预算、裁剪状态和缓存前缀。';
   return box;
 }
 

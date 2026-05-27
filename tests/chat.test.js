@@ -437,6 +437,9 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('高风险 1 个');
     expect(container.textContent).toContain('搜索 2 组');
     expect(container.textContent).toContain('执行前会显示确认边界');
+    expect(container.textContent).toContain('上下文：12k / 24k tok');
+    expect(container.textContent).toContain('已裁剪 3 条历史');
+    expect(container.textContent).toContain('已使用长期记忆');
     expect(container.textContent).toContain('检索外部资料');
     expect(container.textContent).toContain('搜索计划');
     expect(container.textContent).toContain('DeepSeek cache official documentation');

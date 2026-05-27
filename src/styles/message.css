@@ -779,6 +779,22 @@
   background: color-mix(in srgb, #f59e0b, transparent 92%);
 }
 
+.agent-plan-budget-summary {
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-primary), transparent 95%);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.agent-plan-budget-summary.is-trimmed {
+  border-color: color-mix(in srgb, var(--accent-secondary), transparent 68%);
+  background: color-mix(in srgb, var(--accent-secondary), transparent 93%);
+}
+
 .agent-search-plan {
   display: grid;
   gap: var(--space-2);
