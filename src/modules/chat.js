@@ -1759,7 +1759,16 @@ function buildAgentPlanExecutionSummaryParts(plan = {}) {
   const missing = Array.isArray(plan.missingPrerequisites) ? plan.missingPrerequisites.filter(Boolean) : [];
   const highRiskTools = selectedTools.filter((tool) => /run_code|write|delete|mcp/i.test(tool));
   const readOnlyTools = selectedTools.filter((tool) => /read|search|list|web/i.test(tool));
-  const risk = missing.length ? '需配置' : (highRiskTools.length ? '高风险确认' : (readOnlyTools.length ? '低风险读取' : '普通回答'));
+  const autoReadonly = (Array.isArray(plan.approvalPolicy) ? plan.approvalPolicy : [])
+    .some((item) => /自动执行|自动通过|只读自动/.test(String(item || '')));
+  const risk = missing.length
+    ? '需配置'
+    : (highRiskTools.length
+      ? (autoReadonly && readOnlyTools.length ? '只读自动 · 高风险确认' : '高风险确认')
+      : (readOnlyTools.length ? (autoReadonly ? '只读自动' : '低风险读取') : '普通回答'));
+  const boundary = autoReadonly && readOnlyTools.length
+    ? '只读自动/高风险确认边界'
+    : '执行前会显示确认边界';
   return {
     parts: [
       `风险：${risk}`,
@@ -1768,7 +1777,7 @@ function buildAgentPlanExecutionSummaryParts(plan = {}) {
       highRiskTools.length ? `高风险 ${highRiskTools.length} 个` : '',
       Array.isArray(plan.searchPlan) && plan.searchPlan.length ? `搜索 ${plan.searchPlan.length} 组` : '',
       missing.length ? `缺配置 ${missing.length} 项` : '',
-      '执行前会显示确认边界',
+      boundary,
     ].filter(Boolean),
     hasWarning: Boolean(highRiskTools.length || missing.length),
   };

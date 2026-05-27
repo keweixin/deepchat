@@ -799,6 +799,27 @@ describe('chat regeneration', () => {
     expect(revise.disabled).toBe(false);
   });
 
+  it('renders auto-readonly approval boundaries in agent plan summaries', () => {
+    const container = document.createElement('div');
+    renderAgentTimeline(container, {
+      agentStages: [{
+        stage: 'plan',
+        round: 0,
+        planSummary: {
+          mode: 'multi_tool',
+          maxRounds: 3,
+          selectedTools: ['search_workspace', 'read_file', 'run_code'],
+          approvalPolicy: ['低风险读取/搜索类工具会自动执行并保留证据；运行代码、MCP 和写入类操作仍必须确认。'],
+          steps: ['搜索工作区证据', '运行小段代码验证'],
+        },
+      }],
+    });
+
+    expect(container.textContent).toContain('风险：只读自动 · 高风险确认');
+    expect(container.textContent).toContain('高风险 1 个');
+    expect(container.textContent).toContain('只读自动/高风险确认边界');
+  });
+
   it('fills the composer when revising an agent plan from the timeline', () => {
     const input = document.createElement('textarea');
     input.id = 'message-input';
