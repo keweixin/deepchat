@@ -219,19 +219,88 @@
         </div>
         <div class="input-area">
           <div class="composer-toolbar" aria-label="发送选项">
-            <label class="composer-control composer-mode-control" for="composer-mode-select">
-              <span class="composer-control-label">模式</span>
-              <select id="composer-mode-select" class="composer-select composer-mode-select" title="选择本轮回答模式">
-                <option value="daily">日常</option>
-                <option value="analysis">深析</option>
-                <option value="project">项目</option>
-                <option value="agent">Agent</option>
-                <option value="research">研究</option>
-                <option value="code">代码</option>
-                <option value="writing">写作</option>
-                <option value="polish">美化</option>
-              </select>
-            </label>
+            <div class="composer-mode-pills" id="composer-mode-pills" role="tablist" aria-label="任务模式">
+              <button
+                type="button"
+                class="composer-mode-pill"
+                data-mode="daily"
+                role="tab"
+                aria-selected="false"
+                title="日常回答，默认不调用工具"
+              >
+                日常
+              </button>
+              <button
+                type="button"
+                class="composer-mode-pill"
+                data-mode="analysis"
+                role="tab"
+                aria-selected="false"
+                title="复杂问题深度分析"
+              >
+                深析
+              </button>
+              <button
+                type="button"
+                class="composer-mode-pill"
+                data-mode="project"
+                role="tab"
+                aria-selected="false"
+                title="分析本地项目，保留文件证据"
+              >
+                项目
+              </button>
+              <button
+                type="button"
+                class="composer-mode-pill"
+                data-mode="agent"
+                role="tab"
+                aria-selected="false"
+                title="规划工具流，按证据推进"
+              >
+                Agent
+              </button>
+              <button
+                type="button"
+                class="composer-mode-pill"
+                data-mode="research"
+                role="tab"
+                aria-selected="false"
+                title="联网搜索并带来源回答"
+              >
+                研究
+              </button>
+              <button
+                type="button"
+                class="composer-mode-pill"
+                data-mode="code"
+                role="tab"
+                aria-selected="false"
+                title="代码审查、符号读取、运行验证"
+              >
+                代码
+              </button>
+              <button
+                type="button"
+                class="composer-mode-pill"
+                data-mode="writing"
+                role="tab"
+                aria-selected="false"
+                title="整理成文档、报告或清单"
+              >
+                写作
+              </button>
+              <button
+                type="button"
+                class="composer-mode-pill"
+                data-mode="polish"
+                role="tab"
+                aria-selected="false"
+                title="升级为摘要、决策和 TODO"
+              >
+                美化
+              </button>
+            </div>
             <button
               id="composer-context-btn"
               class="composer-context-btn"
@@ -780,6 +849,20 @@
                 <option value="off">关闭 — 不显示 Crew 面板</option>
               </select>
               <p class="form-hint">控制 Agent Crew 小人面板的显示时机。"自动"会在模型调用工具时自动展示协作状态。</p>
+            </div>
+            <div class="form-group">
+              <label for="default-composer-mode-select">默认任务模式</label>
+              <select id="default-composer-mode-select" class="form-input">
+                <option value="daily">日常 — 普通聊天</option>
+                <option value="analysis">深析 — 复杂问题分析</option>
+                <option value="project">项目 — 本地项目分析</option>
+                <option value="agent">Agent — 工具流规划</option>
+                <option value="research">研究 — 联网搜索</option>
+                <option value="code">代码 — 审查与运行</option>
+                <option value="writing">写作 — 文档整理</option>
+                <option value="polish">美化 — 摘要与决策</option>
+              </select>
+              <p class="form-hint">新建对话时默认使用的任务模式。每个对话会独立记住你切换后的模式。</p>
             </div>
           </div>
           <div class="settings-section">

@@ -57,6 +57,7 @@ const DEFAULT_SETTINGS = {
   thinkingBudget: 0,
   activeSkill: 'agent_auto',
   crewDisplayMode: 'auto',
+  defaultComposerMode: 'daily',
   autoContextSummary: true,
   cacheOptimization: true,
   toolApprovalTimeoutMs: 60000,
@@ -1855,6 +1856,10 @@ function normalizeSettings(input = {}) {
   next.crewDisplayMode = validCrewModes.includes(next.crewDisplayMode)
     ? next.crewDisplayMode
     : DEFAULT_SETTINGS.crewDisplayMode;
+  const validComposerModes = ['daily', 'analysis', 'project', 'agent', 'research', 'code', 'writing', 'polish'];
+  next.defaultComposerMode = validComposerModes.includes(next.defaultComposerMode)
+    ? next.defaultComposerMode
+    : DEFAULT_SETTINGS.defaultComposerMode;
   return next;
 }
 

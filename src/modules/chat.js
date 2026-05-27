@@ -199,6 +199,26 @@ export function switchConversation(id) {
   renderMessages();
   updateHeader();
   refreshReadingNavigator();
+  const conv = conversations.find((c) => c.id === id);
+  if (conv) {
+    window.dispatchEvent(
+      new CustomEvent('deepchat:conversation-switched', {
+        detail: { conversationId: id, composerModeId: conv.composerModeId || '' },
+      })
+    );
+  }
+}
+
+export function getActiveConversationComposerMode() {
+  const conv = conversations.find((c) => c.id === activeConvId);
+  return conv?.composerModeId || '';
+}
+
+export function setActiveConversationComposerMode(modeId) {
+  const conv = conversations.find((c) => c.id === activeConvId);
+  if (!conv) return;
+  conv.composerModeId = modeId;
+  persist();
 }
 
 export async function deleteConversation(id) {

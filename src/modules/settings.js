@@ -186,6 +186,7 @@ export function initSettings(onModelChange) {
     toolApprovalTimeout: document.getElementById('tool-approval-timeout-input'),
     toolApprovalPolicy: document.getElementById('tool-approval-policy-select'),
     crewDisplayMode: document.getElementById('crew-display-mode-select'),
+    defaultComposerMode: document.getElementById('default-composer-mode-select'),
     runCodeEnabled: document.getElementById('run-code-enabled-toggle'),
     systemPrompt: document.getElementById('system-prompt-input'),
     modelQuickSelect: document.querySelector('.model-quick-select'),
@@ -235,6 +236,7 @@ export function initSettings(onModelChange) {
   if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = settings.toolApprovalTimeoutMs;
   if (els.toolApprovalPolicy) els.toolApprovalPolicy.value = settings.toolApprovalPolicy || 'confirm_all';
   if (els.crewDisplayMode) els.crewDisplayMode.value = settings.crewDisplayMode || 'auto';
+  if (els.defaultComposerMode) els.defaultComposerMode.value = settings.defaultComposerMode || 'daily';
   if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
   els.systemPrompt.value = settings.systemPrompt;
 
@@ -345,6 +347,9 @@ export function initSettings(onModelChange) {
     }
     if (patch.crewDisplayMode !== undefined && els.crewDisplayMode) {
       els.crewDisplayMode.value = next.crewDisplayMode || 'auto';
+    }
+    if (patch.defaultComposerMode !== undefined && els.defaultComposerMode) {
+      els.defaultComposerMode.value = next.defaultComposerMode || 'daily';
     }
     if (patch.runCodeEnabled !== undefined && els.runCodeEnabled) {
       els.runCodeEnabled.checked = next.runCodeEnabled !== false;
@@ -500,6 +505,11 @@ export function initSettings(onModelChange) {
   }
   if (els.crewDisplayMode) {
     els.crewDisplayMode.addEventListener('change', () => saveSettings({ crewDisplayMode: els.crewDisplayMode.value }));
+  }
+  if (els.defaultComposerMode) {
+    els.defaultComposerMode.addEventListener('change', () =>
+      saveSettings({ defaultComposerMode: els.defaultComposerMode.value })
+    );
   }
   if (els.runCodeEnabled) {
     els.runCodeEnabled.addEventListener('change', () => saveSettings({ runCodeEnabled: els.runCodeEnabled.checked }));

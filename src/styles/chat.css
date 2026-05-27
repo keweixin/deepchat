@@ -1040,6 +1040,64 @@
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
+/* Mode pills */
+.composer-mode-pills {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-card), transparent 40%);
+}
+
+.composer-mode-pill {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+  white-space: nowrap;
+}
+
+.composer-mode-pill:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-elevated), transparent 60%);
+}
+
+.composer-mode-pill:focus-visible {
+  outline: none;
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.composer-mode-pill.is-active {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  font-weight: 700;
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 30%);
+}
+
+.composer-mode-pill.is-unavailable {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.composer-mode-pill.is-unavailable:hover {
+  color: var(--text-secondary);
+  background: transparent;
+}
+
 .composer-search-toggle {
   position: relative;
   gap: var(--space-2);

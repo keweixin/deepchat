@@ -23,6 +23,8 @@ export function normalizeConversation(conversation = {}) {
       conversation.usageTotals && typeof conversation.usageTotals === 'object' ? conversation.usageTotals : null,
     cacheProfile:
       conversation.cacheProfile && typeof conversation.cacheProfile === 'object' ? conversation.cacheProfile : null,
+    composerModeId:
+      typeof conversation.composerModeId === 'string' && conversation.composerModeId ? conversation.composerModeId : '',
     messages: Array.isArray(conversation.messages) ? conversation.messages : [],
   };
 }

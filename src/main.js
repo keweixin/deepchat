@@ -42,6 +42,8 @@ import {
   clearCurrentChat,
   updateModelDisplay,
   exportCurrentChat,
+  getActiveConversationComposerMode,
+  setActiveConversationComposerMode,
 } from './modules/chat.js';
 import { renderMarkdown } from './modules/renderer.js';
 import { onMenuNewChat, onMenuOpenSettings } from './modules/client-store.js';
@@ -119,6 +121,13 @@ function bindEvents() {
 
   function triggerNewChat() {
     createConversation();
+    const settings = getSettings();
+    composerModeId = getComposerMode(settings.defaultComposerMode || 'daily').id;
+    composerOverrides = {
+      ...composerOverrides,
+      ...getComposerModeOverrides(composerModeId, settings),
+    };
+    applySettingsToComposer(settings);
     $input.value = '';
     $input.style.height = 'auto';
     $sendBtn.disabled = true;
@@ -372,6 +381,7 @@ async function handleSend() {
   $input.dispatchEvent(new Event('input', { bubbles: true }));
 
   await sendMessage(content, { attachments, composerOverrides: overrides, modelContent: finalModelContent });
+  setActiveConversationComposerMode(composerModeId);
 }
 
 function loadInputHistory() {
@@ -408,7 +418,7 @@ const COMPOSER_THINKING_LABELS = new Map([
 
 function initComposerOptions(openSettings) {
   const $toolbar = document.querySelector('.composer-toolbar');
-  const $mode = document.getElementById('composer-mode-select');
+  const $modePills = document.getElementById('composer-mode-pills');
   const $thinking = document.getElementById('composer-thinking-select');
   const $webToggle = document.getElementById('composer-web-search-toggle');
   const $webStatus = document.getElementById('composer-search-status');
@@ -442,7 +452,7 @@ function initComposerOptions(openSettings) {
         enhance: settings.enhance !== false,
       };
     }
-    syncComposerModeSelect($mode, composerModeId, settings);
+    syncComposerModePills($modePills, composerModeId, settings);
     syncThinkingSelect($thinking, composerOverrides.thinkingBudget);
 
     const hasSearchKey = Boolean(settings.tavilyApiKey);
@@ -472,16 +482,21 @@ function initComposerOptions(openSettings) {
     syncing = false;
   }
 
-  if ($mode) {
-    $mode.addEventListener('change', () => {
+  if ($modePills) {
+    $modePills.addEventListener('click', (event) => {
+      const pill = event.target.closest('.composer-mode-pill');
+      if (!pill) return;
+      const modeValue = pill.dataset.mode;
+      if (!modeValue) return;
       const settings = getSettings();
-      composerModeId = getComposerMode($mode.value).id;
+      composerModeId = getComposerMode(modeValue).id;
       const modeOverrides = getComposerModeOverrides(composerModeId, settings);
       composerOverrides = {
         ...composerOverrides,
         ...modeOverrides,
       };
       applySettingsToComposer(settings);
+      setActiveConversationComposerMode(composerModeId);
       showToast(`本轮模式：${getComposerMode(composerModeId).label}`, 1200);
     });
   }
@@ -610,6 +625,19 @@ function initComposerOptions(openSettings) {
     });
   });
 
+  window.addEventListener('deepchat:conversation-switched', (event) => {
+    const savedMode = event.detail?.composerModeId;
+    if (savedMode) {
+      composerModeId = getComposerMode(savedMode).id;
+      const settings = getSettings();
+      composerOverrides = {
+        ...composerOverrides,
+        ...getComposerModeOverrides(composerModeId, settings),
+      };
+      applySettingsToComposer(settings);
+    }
+  });
+
   window.addEventListener('deepchat:settings-changed', (event) => {
     applySettingsToComposer(event.detail?.settings || getSettings());
   });
@@ -629,16 +657,20 @@ function initComposerOptions(openSettings) {
   applySettingsToComposer();
 }
 
-function syncComposerModeSelect(select, activeModeId, settings = {}) {
-  if (!select) return;
+function syncComposerModePills(container, activeModeId, settings = {}) {
+  if (!container) return;
   const entries = buildComposerModeEntries(settings);
-  for (const option of select.options) {
-    const entry = entries.find((item) => item.id === option.value);
+  const resolvedModeId = getComposerMode(activeModeId).id;
+  for (const pill of container.querySelectorAll('.composer-mode-pill')) {
+    const modeId = pill.dataset.mode;
+    const entry = entries.find((item) => item.id === modeId);
     if (!entry) continue;
-    option.textContent = entry.label;
-    option.title = `${entry.description}${entry.state && entry.state !== '可用' ? ` · ${entry.state}` : ''}`;
+    pill.textContent = entry.label;
+    pill.title = `${entry.description}${entry.state && entry.state !== '可用' ? ` · ${entry.state}` : ''}`;
+    pill.classList.toggle('is-active', modeId === resolvedModeId);
+    pill.classList.toggle('is-unavailable', !entry.available);
+    pill.setAttribute('aria-selected', modeId === resolvedModeId ? 'true' : 'false');
   }
-  select.value = getComposerMode(activeModeId).id;
 }
 
 let promptTemplateMenu = null;
