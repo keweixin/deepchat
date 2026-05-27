@@ -94,8 +94,80 @@ describe('chat regeneration', () => {
 
     renderAssistantEvidence(container, message);
 
+    expect(container.textContent).toContain('本轮工具证据');
+    expect(container.textContent).toContain('1 个工具');
     expect(container.textContent).toContain('本地文件证据未被明确引用');
     expect(container.textContent).toContain('src/agent.md:2-3');
+  });
+
+  it('renders detailed tool evidence panel with sources, symbols, and cache', async () => {
+    const container = document.createElement('div');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const message = {
+      content: '根据 src/agent.md:2-3 和 https://example.com/news 可知。',
+      tokens: {
+        input: 100,
+        output: 20,
+        total: 120,
+        cacheHit: 60,
+        cacheMiss: 40,
+        cacheHitRate: 0.6,
+        source: 'provider',
+      },
+      cacheProfile: { prefixFingerprint: 'abc123' },
+      toolRuns: [
+        {
+          id: 'web1',
+          name: 'web_search',
+          status: 'completed',
+          ok: true,
+          query: 'deepchat agent',
+          sources: [{ title: 'Agent Notes', url: 'https://example.com/news' }],
+          outputPreview: '联网搜索结果',
+        },
+        {
+          id: 'sym1',
+          name: 'read_symbol',
+          status: 'completed',
+          ok: true,
+          args: { symbol: 'buildContextBudgetBundle' },
+          localCitations: [{ file: 'src/agent.md', lineStart: 2, lineEnd: 3, label: 'src/agent.md:2-3' }],
+          workspaceSymbol: {
+            symbol: 'buildContextBudgetBundle',
+            result: { file: 'src/agent.md', startLine: 2, endLine: 3 },
+          },
+          contextCompacted: true,
+          rawOutputTokens: 900,
+          contextOutputTokens: 120,
+        },
+      ],
+    };
+
+    renderAssistantEvidence(container, message);
+
+    expect(container.textContent).toContain('本轮工具证据');
+    expect(container.textContent).toContain('2 个工具');
+    expect(container.textContent).toContain('Agent Notes');
+    expect(container.textContent).toContain('buildContextBudgetBundle src/agent.md:2-3');
+    expect(container.textContent).toContain('已压缩 900→120 tokens');
+    expect(container.textContent).toContain('cache 60%');
+    expect(container.textContent).toContain('prefix abc123');
+
+    container.querySelector('.tool-evidence-actions .tool-copy-btn').click();
+    await Promise.resolve();
+
+    const payload = JSON.parse(writeText.mock.calls[0][0]);
+    expect(payload).toMatchObject({
+      type: 'deepchat.messageEvidence',
+      version: 1,
+      tokens: { input: 100, output: 20, cacheHit: 60 },
+    });
+    expect(payload.toolRuns).toHaveLength(2);
+    expect(payload.toolRuns[1].workspaceSymbol.result.file).toBe('src/agent.md');
   });
 
   it('renders local workspace citations in tool result cards', () => {

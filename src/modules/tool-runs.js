@@ -98,8 +98,8 @@ export function buildToolEvidencePayload(tool = {}) {
   const outputText = tool.output ? String(tool.output) : '';
   const sources = tool.sources || extractToolSources(outputText);
   const localCitations = extractLocalCitations(outputText, getToolName(tool));
-  const workspaceResults = extractWorkspaceSearchResults(outputText, getToolName(tool));
-  const workspaceSymbol = extractWorkspaceSymbolResult(outputText, getToolName(tool));
+  const workspaceResults = tool.workspaceResults || extractWorkspaceSearchResults(outputText, getToolName(tool));
+  const workspaceSymbol = tool.workspaceSymbol || extractWorkspaceSymbolResult(outputText, getToolName(tool));
   const id = tool.id || '';
   return {
     type: 'deepchat.toolEvidence',

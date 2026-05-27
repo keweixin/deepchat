@@ -987,6 +987,126 @@
   white-space: nowrap;
 }
 
+.tool-evidence-panel {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 10%);
+}
+
+.tool-evidence-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.tool-evidence-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+}
+
+.tool-evidence-meta {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-align: right;
+}
+
+.tool-evidence-grid {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.tool-evidence-run {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card), transparent 16%);
+}
+
+.tool-evidence-run.status-failed,
+.tool-evidence-run.status-denied {
+  border-color: color-mix(in srgb, #ef4444, transparent 68%);
+}
+
+.tool-evidence-run-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.tool-evidence-run-header strong {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.tool-evidence-status {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.tool-evidence-run-meta,
+.tool-evidence-preview {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.tool-evidence-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.tool-evidence-chip-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tool-evidence-chip {
+  max-width: 100%;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-primary), transparent 94%);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-evidence-preview {
+  margin: 0;
+}
+
+.tool-evidence-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+.tool-evidence-empty {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
 .artifact-container {
   margin-top: var(--space-3);
 }

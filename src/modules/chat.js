@@ -1445,9 +1445,10 @@ function downloadHtmlArtifact(artifact, index) {
 
 export function renderAssistantEvidence(container, message) {
   if (!container) return;
-  container.querySelectorAll('.source-grounding-warning, .source-grounding-card').forEach((item) => item.remove());
+  container.querySelectorAll('.source-grounding-warning, .source-grounding-card, .tool-evidence-panel').forEach((item) => item.remove());
   const grounding = getSearchGrounding(message, message?.content || '');
   const localGrounding = getLocalFileGrounding(message, message?.content || '');
+  appendToolEvidencePanel(container, message, grounding, localGrounding);
   if (grounding.hasSearch) {
     appendGroundingCard(container, {
       warning: grounding.warning,
@@ -1477,6 +1478,189 @@ export function renderAssistantEvidence(container, message) {
       warningText: '本轮读取或搜索了本地工作区文件，但最终回答没有引用文件名或 file:line 证据，请谨慎核验。',
     });
   }
+}
+
+function appendToolEvidencePanel(container, message = {}, grounding = {}, localGrounding = {}) {
+  const runs = Array.isArray(message.toolRuns) ? message.toolRuns.filter(Boolean) : [];
+  const completedRuns = runs.filter((run) => run.status === 'completed' || run.ok === true);
+  if (runs.length === 0 && !message.tokens && !message.cacheProfile) return;
+
+  const panel = document.createElement('details');
+  panel.className = 'tool-evidence-panel';
+  panel.open = completedRuns.length > 0;
+
+  const summary = document.createElement('summary');
+  summary.className = 'tool-evidence-summary';
+  const title = document.createElement('span');
+  title.className = 'tool-evidence-title';
+  title.textContent = '本轮工具证据';
+  const meta = document.createElement('span');
+  meta.className = 'tool-evidence-meta';
+  meta.textContent = buildToolEvidenceMeta(runs, grounding, localGrounding, message);
+  summary.append(title, meta);
+  panel.appendChild(summary);
+
+  const grid = document.createElement('div');
+  grid.className = 'tool-evidence-grid';
+
+  for (const run of runs) {
+    grid.appendChild(createToolEvidenceRunCard(run));
+  }
+
+  const cacheCard = createCacheEvidenceCard(message);
+  if (cacheCard) grid.appendChild(cacheCard);
+
+  if (grid.children.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'tool-evidence-empty';
+    empty.textContent = '暂无可展示的工具证据。';
+    grid.appendChild(empty);
+  }
+
+  panel.appendChild(grid);
+
+  const actions = document.createElement('div');
+  actions.className = 'tool-evidence-actions';
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'tool-copy-btn';
+  copy.textContent = '复制本轮证据 JSON';
+  copy.addEventListener('click', async () => {
+    await copyToClipboard(JSON.stringify(buildMessageEvidencePayload(message), null, 2));
+    showToast('本轮工具证据已复制');
+  });
+  actions.appendChild(copy);
+  panel.appendChild(actions);
+
+  container.appendChild(panel);
+}
+
+function buildToolEvidenceMeta(runs = [], grounding = {}, localGrounding = {}, message = {}) {
+  const parts = [];
+  if (runs.length) parts.push(`${runs.length} 个工具`);
+  if (grounding.sources?.length) parts.push(`${grounding.sources.length} 个来源`);
+  if (localGrounding.citations?.length) parts.push(`${localGrounding.citations.length} 个文件引用`);
+  const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
+  if (usage?.cacheHit > 0 || usage?.cacheMiss > 0) {
+    parts.push(`cache ${Math.round((usage.cacheHitRate || 0) * 100)}%`);
+  } else if (message.cacheProfile?.cacheHitRate !== undefined) {
+    parts.push(`cache ${Math.round(Number(message.cacheProfile.cacheHitRate || 0) * 100)}%`);
+  }
+  return parts.length ? parts.join(' · ') : '无工具调用';
+}
+
+function createToolEvidenceRunCard(run = {}) {
+  const card = document.createElement('article');
+  card.className = `tool-evidence-run status-${run.status || 'unknown'}`;
+
+  const header = document.createElement('div');
+  header.className = 'tool-evidence-run-header';
+  const name = document.createElement('strong');
+  name.textContent = run.name || 'unknown_tool';
+  const status = document.createElement('span');
+  status.className = 'tool-evidence-status';
+  status.textContent = getToolStatusMeta(run.status).label;
+  header.append(name, status);
+  card.appendChild(header);
+
+  const meta = document.createElement('div');
+  meta.className = 'tool-evidence-run-meta';
+  meta.textContent = [
+    run.durationMs !== null && run.durationMs !== undefined ? `耗时 ${run.durationMs}ms` : '',
+    run.query ? `query: ${run.query}` : '',
+    run.args?.path ? `path: ${run.args.path}` : '',
+    run.args?.symbol ? `symbol: ${run.args.symbol}` : '',
+    run.args?.language ? `language: ${run.args.language}` : '',
+  ].filter(Boolean).join(' · ');
+  if (meta.textContent) card.appendChild(meta);
+
+  appendEvidenceChips(card, '来源', (run.sources || []).slice(0, 3).map((source) => source.title || source.url));
+  appendEvidenceChips(card, '文件', (run.localCitations || []).slice(0, 6).map((citation) => citation.label));
+  if (Array.isArray(run.workspaceResults) && run.workspaceResults.length) {
+    appendEvidenceChips(card, '搜索命中', run.workspaceResults.slice(0, 4).map((item) => `${item.file}:${item.startLine}-${item.endLine}`));
+  }
+  if (run.workspaceSymbol?.result) {
+    appendEvidenceChips(card, '符号', [`${run.workspaceSymbol.symbol} ${run.workspaceSymbol.result.file}:${run.workspaceSymbol.result.startLine}-${run.workspaceSymbol.result.endLine}`]);
+  }
+  if (run.contextCompacted) {
+    appendEvidenceChips(card, '上下文', [`已压缩 ${run.rawOutputTokens || 0}→${run.contextOutputTokens || 0} tokens`]);
+  }
+  if (run.parseError) appendEvidenceChips(card, '参数错误', [run.parseError]);
+  if (run.outputPreview) appendEvidencePreview(card, run.outputPreview);
+  return card;
+}
+
+function appendEvidenceChips(card, labelText, values = []) {
+  const filtered = values.map((value) => String(value || '').trim()).filter(Boolean);
+  if (!filtered.length) return;
+  const group = document.createElement('div');
+  group.className = 'tool-evidence-chip-group';
+  const label = document.createElement('span');
+  label.className = 'tool-evidence-chip-label';
+  label.textContent = labelText;
+  group.appendChild(label);
+  for (const value of filtered) {
+    const chip = document.createElement('span');
+    chip.className = 'tool-evidence-chip';
+    chip.textContent = value;
+    chip.title = value;
+    group.appendChild(chip);
+  }
+  card.appendChild(group);
+}
+
+function appendEvidencePreview(card, text) {
+  const preview = document.createElement('p');
+  preview.className = 'tool-evidence-preview';
+  preview.textContent = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+  card.appendChild(preview);
+}
+
+function createCacheEvidenceCard(message = {}) {
+  const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
+  const profile = message.cacheProfile || {};
+  if (!usage && !profile.prefixFingerprint) return null;
+
+  const card = document.createElement('article');
+  card.className = 'tool-evidence-run cache-evidence';
+  const header = document.createElement('div');
+  header.className = 'tool-evidence-run-header';
+  const name = document.createElement('strong');
+  name.textContent = 'Token / Cache';
+  const status = document.createElement('span');
+  status.className = 'tool-evidence-status';
+  status.textContent = usage?.source || 'profile';
+  header.append(name, status);
+  card.appendChild(header);
+
+  appendEvidenceChips(card, '用量', [
+    usage ? `输入 ${usage.input}` : '',
+    usage ? `输出 ${usage.output}` : '',
+    usage?.reasoning ? `思考 ${usage.reasoning}` : '',
+  ]);
+  appendEvidenceChips(card, '缓存', [
+    usage ? `hit ${usage.cacheHit}` : profile.cacheHit ? `hit ${profile.cacheHit}` : '',
+    usage ? `miss ${usage.cacheMiss}` : profile.cacheMiss ? `miss ${profile.cacheMiss}` : '',
+    usage ? `rate ${Math.round((usage.cacheHitRate || 0) * 100)}%` : '',
+    profile.prefixFingerprint ? `prefix ${profile.prefixFingerprint}` : '',
+  ]);
+  if (usage?.cost?.estimatedSavingsUsd > 0 || profile.estimatedSavingsUsd > 0) {
+    appendEvidenceChips(card, '成本', [
+      `节省约 $${Number(usage?.cost?.estimatedSavingsUsd || profile.estimatedSavingsUsd || 0).toFixed(6)}`,
+    ]);
+  }
+  return card;
+}
+
+function buildMessageEvidencePayload(message = {}) {
+  return {
+    type: 'deepchat.messageEvidence',
+    version: 1,
+    toolRuns: (message.toolRuns || []).map((run) => buildToolEvidencePayload(run)),
+    tokens: message.tokens ? normalizeTokenUsage(message.tokens) : null,
+    cacheProfile: message.cacheProfile || null,
+    contextBudget: message.contextBudget || null,
+  };
 }
 
 function appendGroundingCard(container, { warning, title: titleText, meta: metaText, items = [], warningText }) {
