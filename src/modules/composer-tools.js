@@ -1,4 +1,4 @@
-import { SKILLS, hasNativeBridge, isSkillRunnable } from './api.js';
+import { SKILLS, detectAgentIntent, hasNativeBridge, isSkillRunnable } from './api.js';
 
 export const COMPOSER_TOOL_IDS = Object.freeze([
   'agent_auto',
@@ -52,8 +52,68 @@ export function hasAnyToolConfigured(settings = {}) {
   return hasEnabledMcpServer(settings);
 }
 
+export function buildComposerIntentPreview(inputText = '', settings = {}) {
+  const text = String(inputText || '').trim();
+  if (!text || settings.activeSkill !== 'agent_auto') {
+    return { text: '', title: '', state: 'idle', intent: null };
+  }
+  const intent = detectAgentIntent(text, settings);
+  const selectedLabels = formatToolLabels(intent.selectedTools || []);
+  const candidateLabels = formatToolLabels(intent.candidateTools || []);
+  const missing = Array.isArray(intent.missingPrerequisites) ? intent.missingPrerequisites : [];
+
+  if (missing.length > 0) {
+    return {
+      text: `预判：需要 ${candidateLabels || intent.reason || '工具'} · 缺 ${missing.join('、')}`,
+      title: buildIntentPreviewTitle(intent, missing),
+      state: 'warning',
+      intent,
+    };
+  }
+  if (selectedLabels) {
+    return {
+      text: `预判：${selectedLabels} · 执行前会确认`,
+      title: buildIntentPreviewTitle(intent, missing),
+      state: 'tool',
+      intent,
+    };
+  }
+  return {
+    text: '预判：普通聊天',
+    title: buildIntentPreviewTitle(intent, missing),
+    state: 'chat',
+    intent,
+  };
+}
+
 function hasEnabledMcpServer(settings = {}) {
   return (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
+}
+
+function formatToolLabels(tools = []) {
+  const labels = [];
+  const add = (label) => {
+    if (label && !labels.includes(label)) labels.push(label);
+  };
+  for (const tool of tools) {
+    if (tool === 'web_search') add('联网搜索');
+    else if (tool === 'run_code') add('代码运行');
+    else if (tool === 'mcp') add('MCP');
+    else if (tool === 'list_files' || tool === 'search_workspace' || tool === 'read_file') add('工作区文件');
+    else add(tool);
+  }
+  return labels.join('、');
+}
+
+function buildIntentPreviewTitle(intent = {}, missing = []) {
+  return [
+    `模式：${intent.toolMode || 'none'}`,
+    `置信度：${Math.round(Number(intent.confidence || 0) * 100)}%`,
+    intent.reason ? `原因：${intent.reason}` : '',
+    intent.selectedTools?.length ? `可用工具：${formatToolLabels(intent.selectedTools)}` : '',
+    intent.candidateTools?.length ? `候选工具：${formatToolLabels(intent.candidateTools)}` : '',
+    missing.length ? `缺少配置：${missing.join('、')}` : '',
+  ].filter(Boolean).join('\n');
 }
 
 function getComposerToolRisk(id) {

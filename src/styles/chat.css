@@ -1181,6 +1181,16 @@
   color: var(--text-muted);
 }
 
+.composer-run-status[data-intent-state="tool"] {
+  color: var(--text-primary);
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 68%);
+}
+
+.composer-run-status[data-intent-state="warning"] {
+  color: #f59e0b;
+  border-color: color-mix(in srgb, #f59e0b, transparent 62%);
+}
+
 /* Welcome Screen */
 .welcome-screen {
   display: flex;

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildComposerIntentPreview,
   buildComposerToolEntries,
   getComposerToolModeLabel,
   getComposerToolUnavailableReason,
@@ -24,6 +25,39 @@ describe('composer tool drawer helpers', () => {
     expect(entries.find((entry) => entry.id === 'web_search')).toMatchObject({ available: false, state: '需 Tavily Key' });
     expect(entries.find((entry) => entry.id === 'file_reader')).toMatchObject({ available: false, state: '需桌面版' });
     expect(entries.find((entry) => entry.id === 'multi_tool')).toMatchObject({ available: false, state: '需桌面版' });
+  });
+
+  it('previews agent_auto tool intent and missing prerequisites before send', () => {
+    const missing = buildComposerIntentPreview('帮我读取 README 并检查 package.json', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+    const ready = buildComposerIntentPreview('最新 DeepSeek cache pricing 查一下', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: [],
+      tavilyApiKey: 'tvly-test',
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+
+    expect(missing.state).toBe('warning');
+    expect(missing.text).toContain('工作区文件');
+    expect(missing.text).toContain('缺 工作区目录');
+    expect(ready.state).toBe('tool');
+    expect(ready.text).toContain('联网搜索');
+    expect(ready.text).toContain('执行前会确认');
+  });
+
+  it('keeps composer intent preview quiet outside smart agent mode', () => {
+    const preview = buildComposerIntentPreview('最新新闻', {
+      activeSkill: 'none',
+      tavilyApiKey: 'tvly-test',
+    });
+
+    expect(preview).toMatchObject({ state: 'idle', text: '' });
   });
 
   it('enables desktop workspace, code, mcp, and multi-tool entries when configured', () => {

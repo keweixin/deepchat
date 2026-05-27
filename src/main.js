@@ -30,7 +30,7 @@ import { renderMarkdown } from './modules/renderer.js';
 import { onMenuNewChat, onMenuOpenSettings } from './modules/client-store.js';
 import { initReadingNavigator } from './modules/reading-navigator.js';
 import { autoResize, debounce, showToast } from './modules/utils.js';
-import { buildComposerToolEntries, getComposerToolModeLabel } from './modules/composer-tools.js';
+import { buildComposerIntentPreview, buildComposerToolEntries, getComposerToolModeLabel } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
 import {
   buildChatSearchIndex,
@@ -90,6 +90,7 @@ function bindEvents() {
     $input.style.height = 'auto';
     $sendBtn.disabled = true;
     clearPendingAttachments();
+    $input.dispatchEvent(new Event('input', { bubbles: true }));
     // Reset token estimator
     const badge = document.getElementById('token-badge');
     if (badge) badge.classList.add('hidden');
@@ -323,6 +324,7 @@ async function handleSend() {
   $input.style.height = 'auto';
   document.getElementById('send-btn').disabled = true;
   clearPendingAttachments();
+  $input.dispatchEvent(new Event('input', { bubbles: true }));
 
   await sendMessage(content, { attachments, composerOverrides: overrides });
 }
@@ -405,7 +407,7 @@ function initComposerOptions(openSettings) {
     if ($enhanceStatus) $enhanceStatus.textContent = composerOverrides.enhance === false ? '关闭' : '开启';
     $enhanceToggleLabel?.classList.toggle('is-disabled', composerOverrides.enhance === false);
     updateComposerToolButton($toolDrawerBtn, $toolStatus, { ...settings, activeSkill });
-    updateComposerRunStatus($runStatus, { ...settings, ...composerOverrides }, $thinking.value);
+    updateComposerRunStatus($runStatus, { ...settings, ...composerOverrides }, $thinking.value, document.getElementById('message-input')?.value || '');
     syncing = false;
   }
 
@@ -495,6 +497,10 @@ function initComposerOptions(openSettings) {
     applySettingsToComposer(event.detail?.settings || getSettings());
   });
 
+  document.getElementById('message-input')?.addEventListener('input', () => {
+    updateComposerRunStatus($runStatus, { ...getSettings(), ...composerOverrides }, $thinking.value, document.getElementById('message-input')?.value || '');
+  });
+
   applySettingsToComposer();
 }
 
@@ -527,6 +533,7 @@ function togglePromptTemplateMenu(anchor) {
       input.value = input.value ? `${input.value}\n\n${template.text}` : template.text;
       autoResize(input);
       document.getElementById('send-btn').disabled = false;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
       promptTemplateMenu?.remove();
       promptTemplateMenu = null;
       input.focus();
@@ -755,14 +762,18 @@ function getSearchStatusText(settings) {
   return '关闭';
 }
 
-function updateComposerRunStatus(target, settings, thinkingValue) {
+function updateComposerRunStatus(target, settings, thinkingValue, inputText = '') {
   if (!target) return;
   const thinking = getThinkingLabel(String(Number.parseInt(thinkingValue, 10) || 0));
   const tool = getComposerToolModeLabel(settings.activeSkill);
   const search = getSearchStatusText(settings);
   const enhance = settings.enhance === false ? '增强关闭' : '增强开启';
   const caps = getModelCapabilities(settings);
-  target.textContent = `本轮：${tool} · ${thinking}思考 · 搜索${search} · ${enhance} · 图片${caps.vision ? '可用' : '不可用'}`;
+  const preview = buildComposerIntentPreview(inputText, settings);
+  const base = `本轮：${tool} · ${thinking}思考 · 搜索${search} · ${enhance} · 图片${caps.vision ? '可用' : '不可用'}`;
+  target.textContent = preview.text ? `${base} · ${preview.text}` : base;
+  target.title = preview.title || '根据当前设置展示本轮模型、工具和输入意图预判。';
+  target.dataset.intentState = preview.state || 'idle';
 }
 
 function updateComposerToolButton(button, status, settings) {
