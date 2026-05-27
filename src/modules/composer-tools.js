@@ -149,20 +149,27 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     });
   }
 
-  if (activeSkill === 'mcp_tool' || hasMcpDirective) {
+  if (activeSkill === 'mcp_tool' || activeSkill === 'multi_tool' || hasMcpDirective) {
     const servers = getMcpServerPreviewItems(settings);
-    const count = servers.filter((server) => server.enabled).length;
+    const configuredCount = servers.filter((server) => server.configured).length;
+    const readyCount = servers.filter((server) => server.ready).length;
+    const toolCount = servers.reduce((sum, server) => sum + (server.toolCount || 0), 0);
     items.push({
       kind: 'mcp',
-      label: count ? `MCP ${count} 个` : 'MCP 未配置',
-      tone: count ? 'ready' : 'warning',
+      label: readyCount
+        ? `MCP ${readyCount}/${servers.length} 可用${toolCount ? ` · ${toolCount} 工具` : ''}`
+        : (configuredCount ? `MCP ${configuredCount} 个待测试` : 'MCP 未配置'),
+      tone: readyCount ? 'ready' : (configuredCount ? 'warning' : 'warning'),
+      title: servers.length
+        ? '来自 MCP 配置和最近一次状态刷新；MCP 调用仍需确认。'
+        : '请先在设置中添加 MCP Server。',
     });
     for (const server of servers.slice(0, 4)) {
       items.push({
         kind: 'mcp-server',
-        label: `MCP ${server.name} ${server.enabled ? '✓' : '×'}`,
-        tone: server.enabled ? 'ready' : 'warning',
-        title: server.enabled ? '该 MCP Server 已启用并配置命令。' : server.reason,
+        label: `MCP ${server.name} ${server.ready ? '✓' : '×'}${server.toolCount ? ` ${server.toolCount}` : ''}`,
+        tone: server.ready ? 'ready' : 'warning',
+        title: server.reason,
       });
     }
   }
@@ -184,18 +191,42 @@ function hasEnabledMcpServer(settings = {}) {
 }
 
 function getMcpServerPreviewItems(settings = {}) {
+  const statuses = Array.isArray(settings.mcpStatuses) ? settings.mcpStatuses : [];
+  const byId = new Map(statuses.filter(Boolean).map((status) => [String(status.id || ''), status]));
   return (Array.isArray(settings.mcpServers) ? settings.mcpServers : [])
     .map((server, index) => {
+      const id = String(server?.id || '').trim();
       const name = String(server?.name || server?.id || `server-${index + 1}`).trim();
       const command = String(server?.command || '').trim();
       const disabled = server?.enabled === false;
+      const status = byId.get(id);
+      const toolCount = Number(status?.toolCount ?? status?.tools?.length ?? 0) || 0;
+      const configured = Boolean(!disabled && command);
+      const ready = configured && (status ? Boolean(status.ok) : true);
+      const reason = buildMcpServerPreviewReason({ disabled, command, status, toolCount });
       return {
         name,
-        enabled: Boolean(!disabled && command),
-        reason: disabled ? '该 MCP Server 已关闭。' : '该 MCP Server 缺少启动命令。',
+        configured,
+        ready,
+        toolCount,
+        reason,
       };
     })
     .filter((server) => server.name);
+}
+
+function buildMcpServerPreviewReason({ disabled, command, status, toolCount }) {
+  if (disabled) return '该 MCP Server 已关闭。';
+  if (!command) return '该 MCP Server 缺少启动命令。';
+  if (!status) return '已配置启动命令，尚未刷新 MCP 状态。';
+  if (status.ok) {
+    return [
+      `最近测试可用，工具 ${toolCount} 个。`,
+      status.schemaHash ? `schema ${String(status.schemaHash).slice(0, 8)}` : '',
+      status.cacheExpiresAt ? `缓存到 ${status.cacheExpiresAt}` : '',
+    ].filter(Boolean).join(' ');
+  }
+  return status.error ? `最近测试失败：${status.error}` : '最近测试失败。';
 }
 
 function formatToolLabels(tools = []) {

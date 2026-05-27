@@ -106,13 +106,49 @@ describe('composer tool drawer helpers', () => {
     });
 
     expect(preview.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'MCP 1 个', tone: 'ready' }),
+      expect.objectContaining({ label: 'MCP 1/3 可用', tone: 'ready' }),
       expect.objectContaining({ label: 'MCP GitHub ✓', tone: 'ready' }),
       expect.objectContaining({ label: 'MCP Notion ×', tone: 'warning' }),
       expect.objectContaining({ label: 'MCP Filesystem ×', tone: 'warning' }),
     ]));
     expect(preview.items.find((item) => item.label === 'MCP Notion ×').title).toContain('已关闭');
     expect(preview.items.find((item) => item.label === 'MCP Filesystem ×').title).toContain('缺少启动命令');
+  });
+
+  it('uses refreshed MCP status and tool counts in the context preview', () => {
+    window.deepchat = {};
+    const preview = buildComposerContextPreview('帮我查外部系统记录', {
+      activeSkill: 'multi_tool',
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [
+        { id: 'mcp_github', name: 'GitHub', command: 'node', enabled: true },
+        { id: 'mcp_notion', name: 'Notion', command: 'node', enabled: true },
+      ],
+      mcpStatuses: [
+        {
+          id: 'mcp_github',
+          ok: true,
+          toolCount: 7,
+          schemaHash: 'abcdef123456',
+          cacheExpiresAt: '2026-05-27T12:30:00.000Z',
+        },
+        {
+          id: 'mcp_notion',
+          ok: false,
+          error: 'spawn failed',
+        },
+      ],
+    });
+
+    expect(preview.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'MCP 1/2 可用 · 7 工具', tone: 'ready' }),
+      expect.objectContaining({ label: 'MCP GitHub ✓ 7', tone: 'ready' }),
+      expect.objectContaining({ label: 'MCP Notion ×', tone: 'warning' }),
+    ]));
+    expect(preview.items.find((item) => item.label === 'MCP GitHub ✓ 7').title).toContain('schema abcdef12');
+    expect(preview.items.find((item) => item.label === 'MCP Notion ×').title).toContain('spawn failed');
   });
 
   it('warns in the context preview when explicit local context lacks a workspace', () => {

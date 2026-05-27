@@ -226,6 +226,7 @@ export function initSettings(onModelChange) {
 
   function markMcpStatusStale(nextSettings = getSettings()) {
     latestMcpStatuses = [];
+    emitMcpStatusChanged(latestMcpStatuses, { stale: true });
     renderMcpServers(nextSettings, latestMcpStatuses);
     if (els.mcpStatusText) {
       els.mcpStatusText.textContent = 'MCP 配置已变更，请刷新状态以更新工具 schema 和缓存前缀。';
@@ -236,6 +237,7 @@ export function initSettings(onModelChange) {
   async function refreshMcpStatuses() {
     if (!hasNativeBridge()) throw new Error('MCP 只能在桌面版测试。');
     latestMcpStatuses = await listMcpStatus();
+    emitMcpStatusChanged(latestMcpStatuses, { stale: false });
     renderMcpServers(getSettings(), latestMcpStatuses);
     return latestMcpStatuses;
   }
@@ -886,6 +888,16 @@ function summarizeMcpStatusRefresh(statuses = []) {
   const toolCount = rows.reduce((sum, status) => sum + (status.toolCount ?? status.tools?.length ?? 0), 0);
   const schemaCount = new Set(rows.filter((status) => status.schemaHash).map((status) => status.schemaHash)).size;
   return `MCP 已刷新：${ok}/${rows.length} 可用 · ${toolCount} 个工具 · ${schemaCount} 个 schema`;
+}
+
+function emitMcpStatusChanged(statuses = [], meta = {}) {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  window.dispatchEvent(new CustomEvent('deepchat:mcp-status-changed', {
+    detail: {
+      statuses: Array.isArray(statuses) ? statuses : [],
+      stale: Boolean(meta.stale),
+    },
+  }));
 }
 
 function shortHash(value) {

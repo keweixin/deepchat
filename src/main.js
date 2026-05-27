@@ -49,6 +49,7 @@ import {
 let pendingAttachments = [];
 let composerOverrides = null;
 let composerModeId = 'daily';
+let latestMcpStatuses = [];
 const INPUT_HISTORY_KEY = 'dc_input_history';
 const MAX_TEXT_ATTACHMENT_BYTES = 256 * 1024;
 const MAX_IMAGE_ATTACHMENTS = 8;
@@ -421,8 +422,9 @@ function initComposerOptions(openSettings) {
     if ($enhanceStatus) $enhanceStatus.textContent = composerOverrides.enhance === false ? '关闭' : '开启';
     $enhanceToggleLabel?.classList.toggle('is-disabled', composerOverrides.enhance === false);
     updateComposerToolButton($toolDrawerBtn, $toolStatus, { ...settings, activeSkill });
-    updateComposerRunStatus($runStatus, { ...settings, ...composerOverrides }, $thinking.value, document.getElementById('message-input')?.value || '');
-    renderComposerContextPreview($contextPreview, document.getElementById('message-input')?.value || '', { ...settings, ...composerOverrides });
+    const composedSettings = { ...settings, ...composerOverrides, mcpStatuses: latestMcpStatuses };
+    updateComposerRunStatus($runStatus, composedSettings, $thinking.value, document.getElementById('message-input')?.value || '');
+    renderComposerContextPreview($contextPreview, document.getElementById('message-input')?.value || '', composedSettings);
     syncing = false;
   }
 
@@ -550,8 +552,15 @@ function initComposerOptions(openSettings) {
     applySettingsToComposer(event.detail?.settings || getSettings());
   });
 
+  window.addEventListener('deepchat:mcp-status-changed', (event) => {
+    latestMcpStatuses = Array.isArray(event.detail?.statuses) && !event.detail?.stale
+      ? event.detail.statuses
+      : [];
+    applySettingsToComposer(getSettings());
+  });
+
   document.getElementById('message-input')?.addEventListener('input', () => {
-    const settings = { ...getSettings(), ...composerOverrides };
+    const settings = { ...getSettings(), ...composerOverrides, mcpStatuses: latestMcpStatuses };
     const inputText = document.getElementById('message-input')?.value || '';
     updateComposerRunStatus($runStatus, settings, $thinking.value, inputText);
     renderComposerContextPreview($contextPreview, inputText, settings);
@@ -843,7 +852,10 @@ function updateComposerRunStatus(target, settings, thinkingValue, inputText = ''
 
 function renderComposerContextPreview(target, inputText = '', settings = {}) {
   if (!target) return;
-  const preview = buildComposerContextPreview(inputText, settings);
+  const preview = buildComposerContextPreview(inputText, {
+    ...settings,
+    mcpStatuses: settings.mcpStatuses || latestMcpStatuses,
+  });
   target.innerHTML = '';
   target.title = preview.title || '';
   for (const item of preview.items) {
