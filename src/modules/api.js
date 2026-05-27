@@ -1710,6 +1710,7 @@ async function migrateLegacyStorage() {
     try {
       conversations = JSON.parse(rawConversations);
     } catch {
+      console.warn('Failed to parse stored conversations, resetting.');
       conversations = [];
     }
   }

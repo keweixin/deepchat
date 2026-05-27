@@ -173,7 +173,9 @@ export function destroyChat() {
   _chatCleanupFns.forEach((fn) => {
     try {
       fn();
-    } catch {}
+    } catch (err) {
+      console.warn('chat cleanup failed:', err);
+    }
   });
   _chatCleanupFns = [];
 }
