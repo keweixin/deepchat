@@ -2482,6 +2482,9 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
     actions.appendChild(createAnswerActionButton('精排', '把这条回答改写成组件化精排版', () => {
       sendAnswerAction('polish', content);
     }));
+    actions.appendChild(createAnswerActionButton('转代码', '把这条回答整理成可复制的代码或 patch', () => {
+      sendAnswerAction('code', content);
+    }));
     actions.appendChild(createAnswerActionButton('TODO', '把这条回答转成可执行 TODO 清单', () => {
       sendAnswerAction('todo', content);
     }));
@@ -2580,6 +2583,7 @@ export function buildAnswerActionPrompt(action, content = '') {
     deeper: '请基于下面这段上一条回答，重新输出一个更详细版本。补充背景、原因、取舍、风险和下一步，但不要编造未验证事实。',
     table: '请基于下面这段上一条回答，整理成表格优先的版本。适合对比、清单、优先级或行动项的内容用 Markdown 表格表达，最后保留简短结论。',
     polish: '请基于下面这段上一条回答，改写成 DeepChat 组件化精排版。使用 :::summary 给 3-5 条核心结论；有风险用 :::warning；有推荐方案用 :::decision；有步骤用 :::steps；有来源或文件证据用 :::source；有行动项用 :::todo 或 :::next。正文保持 Markdown 层级清晰；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
+    code: '请基于下面这段上一条回答，提炼成可复制的代码、配置或 patch 草案。优先输出带语言标记的 fenced code block；如果上一条回答包含文件路径或函数名，先列出目标文件和修改点；如果信息不足以生成可靠代码，明确列出缺少的输入，不要编造 API、依赖或未验证实现。',
     todo: '请基于下面这段上一条回答，提炼成可执行 TODO 清单。使用 :::todo 包裹最终清单，按 P0/P1/P2 分组，每项包含动作、验收标准、依赖或风险；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
     report: '请基于下面这段上一条回答，整理成报告版。使用 :::summary 给 3-5 条核心结论，使用 :::decision 给推荐方案，使用 :::source 汇总上一条回答已经给出的来源或证据，使用 :::todo 给行动清单，使用 :::next 给下一步；正文按“依据 / 风险 / 建议”组织，必要时用 Markdown 表格；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
   };

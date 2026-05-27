@@ -25,6 +25,7 @@ describe('chat regeneration', () => {
     const deeper = buildAnswerActionPrompt('deeper', '结论：先做组件化回答。');
     const table = buildAnswerActionPrompt('table', 'P0：证据面板\nP1：回答组件');
     const polish = buildAnswerActionPrompt('polish', '结论：组件化回答更清晰。');
+    const code = buildAnswerActionPrompt('code', '修改 src/modules/chat.js，新增回答快捷动作。');
     const todo = buildAnswerActionPrompt('todo', 'P0：补证据面板\nP1：优化回答组件');
     const report = buildAnswerActionPrompt('report', '结论：先做组件化回答。\n风险：不要输出原始 HTML。');
     const long = buildAnswerActionPrompt('shorter', 'A'.repeat(9000));
@@ -44,6 +45,11 @@ describe('chat regeneration', () => {
     expect(polish).toContain(':::next');
     expect(polish).toContain('不要输出原始 HTML');
     expect(polish).toContain('结论：组件化回答更清晰');
+    expect(code).toContain('可复制的代码');
+    expect(code).toContain('fenced code block');
+    expect(code).toContain('目标文件');
+    expect(code).toContain('不要编造 API');
+    expect(code).toContain('src/modules/chat.js');
     expect(todo).toContain('TODO 清单');
     expect(todo).toContain(':::todo');
     expect(todo).toContain('验收标准');
