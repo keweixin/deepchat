@@ -26,6 +26,11 @@ describe('composer tool drawer helpers', () => {
     expect(entries.find((entry) => entry.id === 'web_search')).toMatchObject({ available: false, state: '需 Tavily Key' });
     expect(entries.find((entry) => entry.id === 'file_reader')).toMatchObject({ available: false, state: '需桌面版' });
     expect(entries.find((entry) => entry.id === 'multi_tool')).toMatchObject({ available: false, state: '需桌面版' });
+    expect(entries.find((entry) => entry.id === 'none')).toMatchObject({ risk: '无工具' });
+    expect(entries.find((entry) => entry.id === 'agent_auto')).toMatchObject({ risk: '自动判断' });
+    expect(entries.find((entry) => entry.id === 'web_search')).toMatchObject({ risk: '低风险确认' });
+    expect(entries.find((entry) => entry.id === 'code_runner')).toMatchObject({ risk: '高风险确认' });
+    expect(entries.find((entry) => entry.id === 'multi_tool')).toMatchObject({ risk: '混合风险确认' });
   });
 
   it('previews agent_auto tool intent and missing prerequisites before send', () => {
@@ -158,6 +163,34 @@ describe('composer tool drawer helpers', () => {
     ]));
     expect(preview.items.find((item) => item.label === 'MCP GitHub ✓ 7').title).toContain('schema abcdef12');
     expect(preview.items.find((item) => item.label === 'MCP Notion ×').title).toContain('spawn failed');
+  });
+
+  it('keeps hidden context preview items discoverable with an overflow chip', () => {
+    window.deepchat = {};
+    const preview = buildComposerContextPreview('请用 @mcp @run @web 检查外部系统', {
+      activeSkill: 'multi_tool',
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: 'tvly-test',
+      runCodeEnabled: true,
+      maxInputTokens: 24000,
+      agentMaxRounds: 5,
+      autoContextSummary: true,
+      cacheOptimization: true,
+      mcpServers: [
+        { name: 'GitHub', command: 'node', enabled: true },
+        { name: 'Notion', command: 'node', enabled: false },
+        { name: 'Filesystem', command: '', enabled: true },
+        { name: 'Linear', command: 'node', enabled: true },
+        { name: 'Docs', command: 'node', enabled: true },
+      ],
+    });
+
+    expect(preview.items).toHaveLength(12);
+    const more = preview.items.at(-1);
+    expect(more).toMatchObject({ kind: 'more' });
+    expect(more.label).toMatch(/^另有 \d+ 项$/);
+    expect(more.title).toContain('自动摘要开启');
+    expect(more.title).toContain('缓存前缀稳定');
   });
 
   it('warns in the context preview when explicit local context lacks a workspace', () => {

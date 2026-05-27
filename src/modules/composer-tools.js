@@ -218,8 +218,9 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
       : '系统提示、Agent 规则和工具 schema 会尽量保持稳定顺序，提高 prefix cache 命中。',
   });
 
+  const visibleItems = limitPreviewItems(dedupePreviewItems(items), 12);
   return {
-    items: dedupePreviewItems(items).slice(0, 12),
+    items: visibleItems,
     title: '本轮将使用的上下文、工具、token 预算和缓存策略。显式 @file/@folder/@symbol 会优先影响工具选择。',
   };
 }
@@ -294,10 +295,26 @@ function buildIntentPreviewTitle(intent = {}, missing = []) {
 }
 
 function getComposerToolRisk(id) {
-  if (id === 'none' || id === 'agent_auto') return '低风险';
-  if (id === 'web_search' || id === 'file_reader') return '需确认';
-  if (id === 'code_runner' || id === 'mcp_tool' || id === 'multi_tool') return '高风险确认';
+  if (id === 'none') return '无工具';
+  if (id === 'agent_auto') return '自动判断';
+  if (id === 'web_search' || id === 'file_reader') return '低风险确认';
+  if (id === 'code_runner' || id === 'mcp_tool') return '高风险确认';
+  if (id === 'multi_tool') return '混合风险确认';
   return '需确认';
+}
+
+function limitPreviewItems(items = [], limit = 12) {
+  if (!Array.isArray(items) || items.length <= limit) return items;
+  const visibleLimit = Math.max(1, limit - 1);
+  const visible = items.slice(0, visibleLimit);
+  const hidden = items.slice(visibleLimit);
+  visible.push({
+    kind: 'more',
+    label: `另有 ${hidden.length} 项`,
+    tone: hidden.some((item) => item.tone === 'warning' || item.tone === 'danger') ? 'warning' : 'muted',
+    title: hidden.map((item) => item.label).filter(Boolean).join('\n'),
+  });
+  return visible;
 }
 
 function dedupePreviewItems(items = []) {
