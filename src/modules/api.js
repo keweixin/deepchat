@@ -231,7 +231,7 @@ export const SKILLS = {
     icon: '📄',
     description: '读取已授权工作区内的文本文件',
     needs: ['workspaceRoots'],
-    promptSuffix: '\n\n当前客户端具备文件读取能力。用户提到文件时，客户端会在授权工作区内查找并提供内容。请基于实际提供的文件内容进行分析，不要假装已读取文件。',
+    promptSuffix: '\n\n当前客户端具备文件读取能力。用户提到文件时，客户端会在授权工作区内建立索引、查找并提供带 file:line 的内容。请基于实际提供的文件内容进行分析，不要假装已读取文件。',
   },
   code_runner: {
     name: '代码运行',

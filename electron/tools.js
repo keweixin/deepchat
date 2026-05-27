@@ -10,6 +10,8 @@ const MAX_SEARCH_FILE_BYTES = 64 * 1024;
 const MAX_SEARCH_SCAN_FILES = 700;
 const MAX_TOOL_OUTPUT = 12000;
 const RUN_TIMEOUT_MS = 5000;
+const WORKSPACE_INDEX_TTL_MS = 5 * 60 * 1000;
+const WORKSPACE_INDEX_CACHE_MAX = 8;
 const SENSITIVE_PATH_PARTS = new Set(['.ssh', '.aws', '.azure', '.gnupg']);
 const SENSITIVE_FILE_NAMES = new Set([
   '.npmrc',
@@ -74,6 +76,23 @@ const TOOL_SCHEMAS = {
       },
     },
   },
+  index_workspace: {
+    type: 'function',
+    function: {
+      name: 'index_workspace',
+      description: 'Build or refresh a lightweight in-memory index of approved workspace text files for faster cited search.',
+      parameters: {
+        type: 'object',
+        properties: {
+          root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
+          directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to index.' },
+          pattern: { type: 'string', description: 'Optional filename substring or wildcard, such as *.js or README.' },
+          force_refresh: { type: 'boolean', description: 'Rebuild the index even when a fresh cached index exists.' },
+          max_files: { type: 'integer', minimum: 1, maximum: MAX_SEARCH_SCAN_FILES, description: 'Maximum files to scan.' },
+        },
+      },
+    },
+  },
   read_file: {
     type: 'function',
     function: {
@@ -112,10 +131,12 @@ const TOOL_SCHEMAS = {
 const MODE_TOOLS = {
   none: [],
   web_search: ['web_search'],
-  file_reader: ['list_files', 'search_workspace', 'read_file'],
+  file_reader: ['index_workspace', 'list_files', 'search_workspace', 'read_file'],
   code_runner: ['run_code'],
-  multi_tool: ['web_search', 'list_files', 'search_workspace', 'read_file', 'run_code'],
+  multi_tool: ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_file', 'run_code'],
 };
+
+const workspaceIndexCache = new Map();
 
 function getToolDefinitions(activeSkill) {
   const ids = MODE_TOOLS[activeSkill] || [];
@@ -149,6 +170,12 @@ function describeToolRisk(name, args) {
       ? `将在已授权工作区目录 ${directory.slice(0, 160)} 内搜索文本：${query}，并返回文件行号引用。`
       : `将在已授权工作区内搜索文本：${query}，并返回文件行号引用。`;
   }
+  if (name === 'index_workspace') {
+    const directory = String(args.directory || '').trim();
+    return directory
+      ? `将在已授权工作区目录 ${directory.slice(0, 160)} 内建立轻量文本索引，跳过敏感路径和二进制文件。`
+      : '将在已授权工作区内建立轻量文本索引，跳过敏感路径和二进制文件。';
+  }
   if (name === 'read_file') {
     const citation = parsePathLineCitation(args.path);
     const startLine = args.start_line || citation.startLine;
@@ -172,6 +199,7 @@ async function executeTool(name, args, settings) {
   let output;
   if (name === 'web_search') output = await webSearch(args, settings);
   else if (name === 'list_files') output = await listFiles(args, settings);
+  else if (name === 'index_workspace') output = await indexWorkspace(args, settings);
   else if (name === 'search_workspace') output = await searchWorkspace(args, settings);
   else if (name === 'read_file') output = await readFile(args, settings);
   else if (name === 'run_code') output = await runCode(args, settings);
@@ -335,33 +363,31 @@ async function listFiles(args, settings) {
   ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
+async function indexWorkspace(args, settings) {
+  const index = await getWorkspaceIndex(args, settings, {
+    forceRefresh: Boolean(args.force_refresh),
+    maxFiles: clampInt(args.max_files, 1, MAX_SEARCH_SCAN_FILES, MAX_SEARCH_SCAN_FILES),
+  });
+  return formatWorkspaceIndexOutput(index);
+}
+
 async function searchWorkspace(args, settings) {
   const symbol = normalizeSearchSymbol(args.symbol);
   const query = String(args.query || symbol).trim();
   if (!query) throw new Error('搜索关键词不能为空。');
-  const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
-  const directory = String(args.directory || '').trim();
-  const scanRoot = directory ? await resolveAllowedDirectory(directory, [root]) : root;
-  const realRoot = await fs.realpath(root).catch(() => root);
-  const pattern = String(args.pattern || '').trim();
-  const matcher = createMatcher(pattern);
+  const index = await getWorkspaceIndex(args, settings);
   const maxResults = clampInt(args.max_results, 1, 20, 8);
-  const files = [];
-  await walk(scanRoot, scanRoot, files, matcher, MAX_SEARCH_SCAN_FILES);
 
   const terms = tokenizeSearchQuery(query);
   const queryLower = query.toLowerCase();
   const hits = [];
-  for (const file of files) {
+  for (const file of index.files) {
     if (hits.length >= maxResults * 4) break;
-    if (!file.fullPath || isSensitivePath(file.fullPath)) continue;
-    const text = await readSearchableFile(file.fullPath, Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES));
-    if (!text) continue;
-    const fileHits = findTextHits(text, terms, queryLower, symbol, 2);
+    const fileHits = findTextHits(file.text, terms, queryLower, symbol, 2);
     for (const hit of fileHits) {
       hits.push({
         ...hit,
-        file: path.relative(realRoot, file.fullPath) || file.path,
+        file: file.path,
         size: file.size || 0,
         truncated: (file.size || 0) > MAX_SEARCH_FILE_BYTES,
       });
@@ -371,13 +397,13 @@ async function searchWorkspace(args, settings) {
 
   hits.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
   const selected = hits.slice(0, maxResults);
-  const relativeDirectory = path.relative(realRoot, scanRoot) || '.';
   if (selected.length === 0) {
     return [
       `工作区搜索：${query}`,
-      `工作区：${root}`,
-      `目录：${relativeDirectory}`,
-      pattern ? `文件筛选：${pattern}` : '',
+      `工作区：${index.root}`,
+      `目录：${index.relativeDirectory}`,
+      index.pattern ? `文件筛选：${index.pattern}` : '',
+      `索引：${index.fromCache ? '命中缓存' : '新建'} · files=${index.fileCount} · chunks=${index.chunkCount} · hash=${index.hash}`,
       '没有找到匹配的文本结果。',
     ].filter(Boolean).join('\n');
   }
@@ -385,9 +411,10 @@ async function searchWorkspace(args, settings) {
   const lines = [
     `工作区搜索：${query}`,
     symbol ? `符号：${symbol}` : '',
-    `工作区：${root}`,
-    `目录：${relativeDirectory}`,
-    pattern ? `文件筛选：${pattern}` : '',
+    `工作区：${index.root}`,
+    `目录：${index.relativeDirectory}`,
+    index.pattern ? `文件筛选：${index.pattern}` : '',
+    `索引：${index.fromCache ? '命中缓存' : '新建'} · files=${index.fileCount} · chunks=${index.chunkCount} · hash=${index.hash}`,
     `结果数：${selected.length}`,
     '',
   ].filter(Boolean);
@@ -402,6 +429,125 @@ async function searchWorkspace(args, settings) {
     lines.push('');
   });
   return lines.join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+async function getWorkspaceIndex(args, settings, options = {}) {
+  const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
+  const directory = String(args.directory || '').trim();
+  const scanRoot = directory ? await resolveAllowedDirectory(directory, [root]) : root;
+  const realRoot = await fs.realpath(root).catch(() => root);
+  const realScanRoot = await fs.realpath(scanRoot).catch(() => scanRoot);
+  const pattern = String(args.pattern || '').trim();
+  const maxFiles = clampInt(options.maxFiles ?? args.max_files, 1, MAX_SEARCH_SCAN_FILES, MAX_SEARCH_SCAN_FILES);
+  const cacheKey = buildWorkspaceIndexCacheKey(realRoot, realScanRoot, pattern, maxFiles);
+  const cached = workspaceIndexCache.get(cacheKey);
+  const now = Date.now();
+  if (!options.forceRefresh && cached && now - cached.builtAtMs < WORKSPACE_INDEX_TTL_MS) {
+    return {
+      ...cached,
+      fromCache: true,
+      ageMs: now - cached.builtAtMs,
+    };
+  }
+
+  const matcher = createMatcher(pattern);
+  const rawFiles = [];
+  await walk(realScanRoot, realScanRoot, rawFiles, matcher, maxFiles);
+  const files = [];
+  let skippedSensitive = 0;
+  let skippedBinary = 0;
+  let scannedBytes = 0;
+  let chunkCount = 0;
+
+  for (const file of rawFiles) {
+    if (!file.fullPath) continue;
+    if (isSensitivePath(file.fullPath)) {
+      skippedSensitive += 1;
+      continue;
+    }
+    const text = await readSearchableFile(file.fullPath, Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES));
+    if (!text) {
+      skippedBinary += 1;
+      continue;
+    }
+    const lineCount = text.split(/\r?\n/).length;
+    const chunks = Math.max(1, Math.ceil(lineCount / 80));
+    chunkCount += chunks;
+    scannedBytes += Math.min(file.size || Buffer.byteLength(text, 'utf8'), MAX_SEARCH_FILE_BYTES);
+    files.push({
+      path: path.relative(realRoot, file.fullPath) || file.path,
+      fullPath: file.fullPath,
+      size: file.size || 0,
+      mtimeMs: file.mtimeMs || 0,
+      lineCount,
+      chunks,
+      text: redactSensitiveText(text),
+    });
+  }
+
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  const index = {
+    cacheKey,
+    root: realRoot,
+    scanRoot: realScanRoot,
+    relativeDirectory: path.relative(realRoot, realScanRoot) || '.',
+    pattern,
+    fileCount: files.length,
+    rawFileCount: rawFiles.length,
+    skippedSensitive,
+    skippedBinary,
+    scannedBytes,
+    chunkCount,
+    files,
+    hash: buildWorkspaceIndexHash(files),
+    builtAt: new Date(now).toISOString(),
+    builtAtMs: now,
+    ttlMs: WORKSPACE_INDEX_TTL_MS,
+    fromCache: false,
+    ageMs: 0,
+  };
+  rememberWorkspaceIndex(cacheKey, index);
+  return index;
+}
+
+function rememberWorkspaceIndex(cacheKey, index) {
+  workspaceIndexCache.set(cacheKey, index);
+  while (workspaceIndexCache.size > WORKSPACE_INDEX_CACHE_MAX) {
+    const oldest = [...workspaceIndexCache.entries()]
+      .sort((a, b) => a[1].builtAtMs - b[1].builtAtMs)[0];
+    if (!oldest) break;
+    workspaceIndexCache.delete(oldest[0]);
+  }
+}
+
+function buildWorkspaceIndexCacheKey(root, scanRoot, pattern, maxFiles) {
+  return [root, scanRoot, pattern || '*', maxFiles].map((item) => String(item || '').toLowerCase()).join('\0');
+}
+
+function buildWorkspaceIndexHash(files = []) {
+  const payload = files.map((file) => `${file.path}:${file.size}:${Math.round(file.mtimeMs || 0)}:${file.lineCount}`).join('\n');
+  return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 16);
+}
+
+function formatWorkspaceIndexOutput(index) {
+  const files = index.files.slice(0, 80).map((file) => `- ${file.path} (${file.lineCount} lines, ${file.size} bytes, chunks ${file.chunks})`);
+  return [
+    `工作区索引：${index.fromCache ? '命中缓存' : '新建'}`,
+    `工作区：${index.root}`,
+    `目录：${index.relativeDirectory}`,
+    index.pattern ? `文件筛选：${index.pattern}` : '',
+    `索引 hash：${index.hash}`,
+    `有效期：${formatDuration(index.ttlMs)}${index.fromCache ? ` · age ${formatDuration(index.ageMs)}` : ''}`,
+    `文件数：${index.fileCount}/${index.rawFileCount}`,
+    `文本块：${index.chunkCount}`,
+    `扫描字节：${index.scannedBytes}`,
+    index.skippedSensitive ? `跳过敏感路径：${index.skippedSensitive}` : '',
+    index.skippedBinary ? `跳过二进制/不可读：${index.skippedBinary}` : '',
+    '',
+    '索引文件：',
+    ...files,
+    index.files.length > files.length ? `... 仅显示前 ${files.length} 个文件` : '',
+  ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
 async function readSearchableFile(filePath, maxBytes) {
@@ -531,6 +677,13 @@ function formatMtime(ms) {
   const date = new Date(Number(ms) || 0);
   if (Number.isNaN(date.getTime())) return 'unknown';
   return date.toISOString().replace('T', ' ').slice(0, 16);
+}
+
+function formatDuration(ms) {
+  const value = Math.max(0, Number(ms) || 0);
+  if (value < 1000) return `${Math.round(value)}ms`;
+  if (value < 60 * 1000) return `${Math.round(value / 1000)}s`;
+  return `${Math.round(value / 60000)}m`;
 }
 
 function shouldSkip(name) {

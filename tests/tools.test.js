@@ -120,6 +120,44 @@ describe('electron tools helpers', () => {
     }
   });
 
+  it('builds and reuses a lightweight workspace index for cited search', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-index-workspace-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src', 'agent.md'), [
+        '# Agent Notes',
+        'Workspace index should speed up local search.',
+        'Every answer should cite file lines.',
+      ].join('\n'), 'utf8');
+      await fs.writeFile(path.join(tmpDir, '.env'), 'API_KEY=should_not_be_indexed', 'utf8');
+
+      const first = await executeTool('index_workspace', {
+        directory: 'src',
+      }, { workspaceRoots: [tmpDir] });
+      const second = await executeTool('index_workspace', {
+        directory: 'src',
+      }, { workspaceRoots: [tmpDir] });
+      const search = await executeTool('search_workspace', {
+        query: 'workspace index',
+        directory: 'src',
+        max_results: 3,
+      }, { workspaceRoots: [tmpDir] });
+
+      expect(first).toContain('工作区索引：新建');
+      expect(first).toContain('索引 hash：');
+      expect(first).toContain('文件数：1/1');
+      expect(first).toContain('文本块：1');
+      expect(first).toContain('agent.md');
+      expect(first).not.toContain('should_not_be_indexed');
+      expect(second).toContain('工作区索引：命中缓存');
+      expect(search).toContain('索引：命中缓存');
+      expect(search).toContain('agent.md:2-3');
+      expect(search).toContain('2: Workspace index should speed up local search.');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('returns multiple bounded hits from the same workspace file', async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-search-multi-hit-'));
     try {
