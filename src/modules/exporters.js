@@ -69,21 +69,52 @@ export function buildConversationMarkdown(conversation, options = {}) {
       markdown += `\n`;
     }
     if (message.error) markdown += `> 生成失败：${message.error}\n\n`;
-    const runs = message.toolRuns?.length ? message.toolRuns : message.toolCalls;
+    const runs = getMessageToolEvidenceRuns(message);
     if (runs?.length) {
       markdown += `#### 工具调用\n\n`;
       for (const tool of runs) {
-        markdown += `- ${tool.name || tool.function?.name || 'unknown'}：${getToolStatusText(tool.status)}\n`;
-        if (tool.sources?.length) {
-          for (const source of tool.sources) markdown += `  - ${source.title}: ${source.url}\n`;
+        const evidence = tool.evidence?.type === 'deepchat.toolEvidence'
+          ? tool.evidence
+          : buildToolEvidencePayload(tool);
+        const citationStatus = buildEvidenceCitationStatus(evidence, message.content || '');
+        markdown += `- ${evidence.name || 'unknown'}：${getToolStatusText(evidence.status)} · 证据${formatCitationStatusText(citationStatus)}\n`;
+        if (evidence.query) markdown += `  - query: ${evidence.query}\n`;
+        if (evidence.durationMs) markdown += `  - 耗时: ${evidence.durationMs}ms\n`;
+        if (evidence.contextCompacted) {
+          markdown += `  - 上下文压缩: ${evidence.rawOutputTokens || 0} → ${evidence.contextOutputTokens || 0} tokens\n`;
+        }
+        for (const ref of citationStatus.refs.slice(0, 6)) {
+          markdown += `  - ${ref.cited ? '已引用' : '未引用'}: ${ref.label || ref.value}\n`;
         }
       }
       markdown += `\n`;
     }
+    const usageMarkdown = buildMessageUsageMarkdown(message);
+    if (usageMarkdown) markdown += usageMarkdown;
     if (message.sourceWarning) markdown += `> 注意：本轮调用了联网搜索，但最终回答没有引用搜索来源 URL。\n\n`;
     markdown += `---\n\n`;
   }
   return markdown;
+}
+
+function buildMessageUsageMarkdown(message = {}) {
+  const usage = normalizeExportUsage(message.tokens || null);
+  const hasUsage = usage.total > 0 || usage.input > 0 || usage.output > 0;
+  const hasBudget = Boolean(message.contextBudget);
+  if (!hasUsage && !hasBudget) return '';
+  const parts = [];
+  if (hasUsage) {
+    parts.push(`输入 ${usage.input}`);
+    parts.push(`输出 ${usage.output}`);
+    parts.push(`总计 ${usage.total}`);
+    if (usage.reasoning) parts.push(`思考 ${usage.reasoning}`);
+    if (usage.cacheHit || usage.cacheMiss) parts.push(`cache ${Math.round((usage.cacheHitRate || 0) * 100)}%`);
+    parts.push(usage.source === 'provider' ? '服务商真实 usage' : (usage.source === 'mixed' ? '真实/估算混合' : '本地估算'));
+  }
+  if (message.contextBudget?.prefixFingerprint) parts.push(`prefix ${message.contextBudget.prefixFingerprint}`);
+  if (message.contextBudget?.trimmed) parts.push(`裁剪 ${message.contextBudget.droppedCount || 0} 条历史`);
+  if (message.contextBudget?.summaryUsed) parts.push('已使用长期摘要');
+  return `#### Token / Cache\n\n- ${parts.join(' · ')}\n\n`;
 }
 
 export function buildConversationHtml(conversation) {
@@ -171,6 +202,13 @@ function buildEvidenceCitationStatus(evidence = {}, content = '') {
     total,
     refs: checked,
   };
+}
+
+function formatCitationStatusText(status = {}) {
+  if (status.total === 0) return '无外部引用项';
+  if (status.state === 'is-cited') return `已全部引用 (${status.cited}/${status.total})`;
+  if (status.state === 'partially-cited') return `部分引用 (${status.cited}/${status.total})`;
+  return `未引用 (${status.cited}/${status.total})`;
 }
 
 function collectEvidenceRefs(evidence = {}) {

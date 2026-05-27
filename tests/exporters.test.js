@@ -21,6 +21,61 @@ describe('conversation exporters', () => {
     expect(markdown).not.toContain('问题');
   });
 
+  it('adds evidence citation and cache audit details to markdown exports', () => {
+    const markdown = buildConversationMarkdown({
+      title: '审计导出',
+      messages: [{
+        role: 'assistant',
+        timestamp: 100,
+        content: '结论来自 https://example.com/used，并参考 src/modules/api.js:10-20。',
+        tokens: {
+          input: 100,
+          output: 20,
+          total: 120,
+          cacheHit: 50,
+          cacheMiss: 50,
+          source: 'provider',
+        },
+        contextBudget: {
+          prefixFingerprint: 'abc123',
+          trimmed: true,
+          droppedCount: 2,
+          summaryUsed: true,
+        },
+        toolRuns: [{
+          name: 'web_search',
+          status: 'completed',
+          output: [
+            '1. Used Source',
+            'URL: https://example.com/used',
+            '2. Missed Source',
+            'URL: https://example.com/missed',
+          ].join('\n'),
+        }, {
+          name: 'read_file',
+          status: 'completed',
+          contextCompacted: true,
+          rawOutputTokens: 900,
+          contextOutputTokens: 120,
+          output: '文件：src/modules/api.js\n行范围：10-20\n内容...',
+        }],
+      }],
+    });
+
+    expect(markdown).toContain('#### 工具调用');
+    expect(markdown).toContain('web_search：已完成 · 证据部分引用 (1/2)');
+    expect(markdown).toContain('已引用: Used Source');
+    expect(markdown).toContain('未引用: Missed Source');
+    expect(markdown).toContain('read_file：已完成 · 证据已全部引用 (1/1)');
+    expect(markdown).toContain('上下文压缩: 900 → 120 tokens');
+    expect(markdown).toContain('#### Token / Cache');
+    expect(markdown).toContain('输入 100 · 输出 20 · 总计 120');
+    expect(markdown).toContain('cache 50%');
+    expect(markdown).toContain('prefix abc123');
+    expect(markdown).toContain('裁剪 2 条历史');
+    expect(markdown).toContain('已使用长期摘要');
+  });
+
   it('builds auditable tool evidence with message indexes', () => {
     const evidence = buildToolEvidence({
       id: 'c1',
