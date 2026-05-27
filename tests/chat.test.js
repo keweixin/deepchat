@@ -39,6 +39,8 @@ describe('chat regeneration', () => {
     expect(report).toContain('报告版');
     expect(report).toContain(':::summary');
     expect(report).toContain(':::decision');
+    expect(report).toContain(':::source');
+    expect(report).toContain(':::next');
     expect(report).toContain('不要输出原始 HTML');
     expect(long.length).toBeLessThan(6500);
     expect(long).toContain('中间内容已省略');

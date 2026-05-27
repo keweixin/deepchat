@@ -55,6 +55,8 @@ describe('composer modes', () => {
     expect(agent).toContain('Plan -> Execute -> Evidence -> Final');
     expect(polish).toContain('模式：美化');
     expect(polish).toContain(':::summary');
+    expect(polish).toContain(':::source');
+    expect(polish).toContain(':::next');
     expect(polish).toContain('不要输出原始 HTML');
     expect(daily).toBe('普通问题');
     expect(duplicate.match(/<response_mode>/g)).toHaveLength(1);

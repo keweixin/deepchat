@@ -2374,7 +2374,7 @@ export function buildAnswerActionPrompt(action, content = '') {
     deeper: '请基于下面这段上一条回答，重新输出一个更详细版本。补充背景、原因、取舍、风险和下一步，但不要编造未验证事实。',
     table: '请基于下面这段上一条回答，整理成表格优先的版本。适合对比、清单、优先级或行动项的内容用 Markdown 表格表达，最后保留简短结论。',
     todo: '请基于下面这段上一条回答，提炼成可执行 TODO 清单。按 P0/P1/P2 分组，每项包含动作、验收标准、依赖或风险；不要引入上一条回答之外的新事实。',
-    report: '请基于下面这段上一条回答，整理成报告版。使用 :::summary 给 3-5 条核心结论，使用 :::decision 给推荐方案；正文按“依据 / 风险 / 建议 / 下一步”组织，必要时用 Markdown 表格；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
+    report: '请基于下面这段上一条回答，整理成报告版。使用 :::summary 给 3-5 条核心结论，使用 :::decision 给推荐方案，使用 :::source 汇总上一条回答已经给出的来源或证据，使用 :::next 给下一步；正文按“依据 / 风险 / 建议”组织，必要时用 Markdown 表格；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
   };
   const instruction = instructions[action];
   if (!instruction) return '';

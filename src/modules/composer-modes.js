@@ -97,7 +97,7 @@ export const COMPOSER_MODES = Object.freeze({
     instruction: [
       '你正在以输出美化模式回答。',
       '优先使用 DeepChat 安全组件语法组织重点，不要输出原始 HTML。',
-      '可使用 :::summary、:::decision、:::steps、:::warning 这类块表达摘要、推荐方案、步骤和风险。',
+      '可使用 :::summary、:::decision、:::steps、:::warning、:::source、:::next 这类块表达摘要、推荐方案、步骤、风险、来源和下一步。',
       '正文保持 Markdown 层级清晰；复杂信息优先用表格，最后给行动清单。',
       '只美化表达和结构，不编造上一文或用户问题中没有的事实。',
     ].join('\n'),

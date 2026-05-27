@@ -169,6 +169,8 @@
 .message-content .answer-component-warning { --component-color: #ef4444; }
 .message-content .answer-component-steps { --component-color: #38bdf8; }
 .message-content .answer-component-decision { --component-color: var(--accent-secondary); }
+.message-content .answer-component-source { --component-color: #22c55e; }
+.message-content .answer-component-next { --component-color: #f59e0b; }
 .message-content .answer-component-tool-result { --component-color: #a78bfa; }
 
 .message-content .answer-component-label {

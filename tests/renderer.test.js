@@ -40,6 +40,16 @@ describe('renderer security and widgets', () => {
 推荐方案：B
 :::
 
+:::source
+- src/modules/renderer.js:75
+- https://example.com/doc
+:::
+
+:::next
+1. 补测试
+2. 再跑构建
+:::
+
 :::tool-result
 工具：search_workspace
 状态：成功
@@ -49,10 +59,12 @@ describe('renderer security and widgets', () => {
     await postProcess(root);
 
     const components = root.querySelectorAll('.answer-component');
-    expect(components).toHaveLength(4);
+    expect(components).toHaveLength(6);
     expect(root.querySelector('.answer-component-summary strong').textContent).toBe('结论 1');
     expect(root.querySelector('.answer-component-warning').textContent).toContain('不要让模型输出');
     expect(root.querySelector('.answer-component-decision').textContent).toContain('推荐方案');
+    expect(root.querySelector('.answer-component-source').textContent).toContain('src/modules/renderer.js:75');
+    expect(root.querySelector('.answer-component-next').textContent).toContain('补测试');
     expect(root.querySelector('.answer-component-tool-result').textContent).toContain('search_workspace');
     expect(root.querySelector('button')).toBeNull();
     expect(root.innerHTML).toContain('&lt;button');

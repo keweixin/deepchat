@@ -77,6 +77,8 @@ const ANSWER_COMPONENT_TYPES = Object.freeze({
   warning: { label: '注意', className: 'answer-component-warning' },
   steps: { label: '步骤', className: 'answer-component-steps' },
   decision: { label: '决策', className: 'answer-component-decision' },
+  source: { label: '来源', className: 'answer-component-source' },
+  next: { label: '下一步', className: 'answer-component-next' },
   'tool-result': { label: '工具结果', className: 'answer-component-tool-result' },
 });
 
@@ -558,7 +560,7 @@ function decorateSummary(container) {
 function extractAnswerComponents(markdown = '') {
   const components = [];
   const source = String(markdown || '');
-  const output = source.replace(/^:::(summary|warning|steps|decision|tool-result)[ \t]*\n([\s\S]*?)^:::[ \t]*$/gmi, (_match, type, body) => {
+  const output = source.replace(/^:::(summary|warning|steps|decision|source|next|tool-result)[ \t]*\n([\s\S]*?)^:::[ \t]*$/gmi, (_match, type, body) => {
     const normalizedType = String(type || '').toLowerCase();
     const config = ANSWER_COMPONENT_TYPES[normalizedType];
     if (!config) return _match;
