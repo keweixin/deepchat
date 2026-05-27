@@ -41,7 +41,12 @@ import { enhancePrompt, isEnhanceEnabled } from './settings.js';
 import { renderMarkdown, postProcess } from './renderer.js';
 import { refreshReadingNavigator, resetReadingNavigator } from './reading-navigator.js';
 import { confirmAction, promptText } from './dialogs.js';
-import { buildArtifactDownloadName, createSandboxedHtmlDocument, extractHtmlArtifacts } from './artifacts.js';
+import {
+  buildArtifactDownloadName,
+  createSandboxedHtmlDocument,
+  extractArtifacts,
+  getArtifactTypeLabel,
+} from './artifacts.js';
 import {
   applyToolDecision,
   applyToolResult,
@@ -2154,8 +2159,8 @@ export function hasLocalFilesWithoutCitedSource(message, content) {
 
 export function renderAssistantArtifacts(container, message) {
   if (!container) return [];
-  container.innerHTML = '';
-  const artifacts = extractHtmlArtifacts(message?.content || '');
+  container.replaceChildren();
+  const artifacts = extractArtifacts(message?.content || '');
   if (artifacts.length === 0) {
     container.hidden = true;
     return [];
@@ -2192,16 +2197,11 @@ function renderArtifactCard(artifact, index) {
 
   const title = document.createElement('div');
   title.className = 'artifact-title';
-  title.textContent = artifact.title || 'HTML 预览';
+  title.textContent = artifact.title || getArtifactTypeLabel(artifact.type);
 
   const meta = document.createElement('div');
   meta.className = 'artifact-meta';
-  const metaParts = [
-    formatBytes(artifact.size || 0),
-    '脚本禁用',
-    artifact.externalResourceCount ? `${artifact.externalResourceCount} 个外链资源受 CSP 限制` : '',
-    artifact.truncated ? '已按预览上限裁剪' : '',
-  ].filter(Boolean);
+  const metaParts = buildArtifactMetaParts(artifact);
   meta.textContent = metaParts.join(' · ');
   main.append(title, meta);
 
@@ -2212,17 +2212,48 @@ function renderArtifactCard(artifact, index) {
   previewBtn.type = 'button';
   previewBtn.className = 'artifact-action-btn primary';
   previewBtn.textContent = '预览';
-  previewBtn.addEventListener('click', () => openHtmlArtifactPreview(artifact));
+  previewBtn.addEventListener('click', () => openArtifactPreview(artifact));
 
   const downloadBtn = document.createElement('button');
   downloadBtn.type = 'button';
   downloadBtn.className = 'artifact-action-btn';
-  downloadBtn.textContent = '导出 HTML';
-  downloadBtn.addEventListener('click', () => downloadHtmlArtifact(artifact, index));
+  downloadBtn.textContent = '导出';
+  downloadBtn.addEventListener('click', () => downloadArtifact(artifact, index));
 
   actions.append(previewBtn, downloadBtn);
   card.append(main, actions);
   return card;
+}
+
+function buildArtifactMetaParts(artifact) {
+  const parts = [formatBytes(artifact.size || 0)];
+  switch (artifact.type) {
+    case 'html-preview': {
+      parts.push('脚本禁用');
+      if (artifact.externalResourceCount) parts.push(`${artifact.externalResourceCount} 个外链资源受 CSP 限制`);
+      break;
+    }
+    case 'mermaid': {
+      parts.push('图表');
+      break;
+    }
+    case 'table': {
+      parts.push(artifact.format === 'markdown' ? 'Markdown 表格' : artifact.format?.toUpperCase() || '表格');
+      break;
+    }
+    case 'json-data': {
+      parts.push(artifact.parsed ? '有效 JSON' : '原始 JSON');
+      break;
+    }
+    case 'code-file': {
+      parts.push(artifact.language || '代码');
+      break;
+    }
+    default:
+      break;
+  }
+  if (artifact.truncated) parts.push('已按预览上限裁剪');
+  return parts.filter(Boolean);
 }
 
 export function renderAssistantAnswerHeader(container, message = {}) {
@@ -2402,6 +2433,28 @@ function isFailedToolStatus(status) {
   return ['failed', 'error', 'denied', 'timeout', 'cancelled', 'canceled'].includes(String(status || '').toLowerCase());
 }
 
+function openArtifactPreview(artifact) {
+  switch (artifact.type) {
+    case 'html-preview':
+      openHtmlArtifactPreview(artifact);
+      break;
+    case 'mermaid':
+      openMermaidArtifactPreview(artifact);
+      break;
+    case 'json-data':
+      openJsonArtifactPreview(artifact);
+      break;
+    case 'code-file':
+      openCodeArtifactPreview(artifact);
+      break;
+    case 'table':
+      openTableArtifactPreview(artifact);
+      break;
+    default:
+      openHtmlArtifactPreview(artifact);
+  }
+}
+
 function openHtmlArtifactPreview(artifact) {
   document.querySelector('.artifact-preview-overlay')?.remove();
   const overlay = document.createElement('div');
@@ -2449,9 +2502,205 @@ function openHtmlArtifactPreview(artifact) {
   document.addEventListener('keydown', onKeyDown);
 }
 
-function downloadHtmlArtifact(artifact, index) {
-  const html = createSandboxedHtmlDocument(artifact.source, { title: artifact.title });
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+function openMermaidArtifactPreview(artifact) {
+  document.querySelector('.artifact-preview-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'artifact-preview-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'artifact-preview-panel';
+
+  const header = document.createElement('div');
+  header.className = 'artifact-preview-header';
+  const title = document.createElement('h3');
+  title.textContent = artifact.title || 'Mermaid 图表';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'artifact-preview-close';
+  closeBtn.setAttribute('aria-label', '关闭预览');
+  closeBtn.textContent = '×';
+  header.append(title, closeBtn);
+
+  const content = document.createElement('div');
+  content.className = 'artifact-preview-content';
+  const pre = document.createElement('pre');
+  pre.className = 'artifact-preview-code language-mermaid';
+  pre.textContent = artifact.source;
+  content.appendChild(pre);
+
+  panel.append(header, content);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const cleanup = () => {
+    document.removeEventListener('keydown', onKeyDown);
+    overlay.remove();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') cleanup();
+  };
+  closeBtn.addEventListener('click', cleanup, { once: true });
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) cleanup();
+  });
+  document.addEventListener('keydown', onKeyDown);
+}
+
+function openJsonArtifactPreview(artifact) {
+  document.querySelector('.artifact-preview-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'artifact-preview-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'artifact-preview-panel';
+
+  const header = document.createElement('div');
+  header.className = 'artifact-preview-header';
+  const title = document.createElement('h3');
+  title.textContent = artifact.title || 'JSON 数据';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'artifact-preview-close';
+  closeBtn.setAttribute('aria-label', '关闭预览');
+  closeBtn.textContent = '×';
+  header.append(title, closeBtn);
+
+  const content = document.createElement('div');
+  content.className = 'artifact-preview-content';
+  const pre = document.createElement('pre');
+  pre.className = 'artifact-preview-code language-json';
+  try {
+    pre.textContent = JSON.stringify(JSON.parse(artifact.source), null, 2);
+  } catch {
+    pre.textContent = artifact.source;
+  }
+  content.appendChild(pre);
+
+  panel.append(header, content);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const cleanup = () => {
+    document.removeEventListener('keydown', onKeyDown);
+    overlay.remove();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') cleanup();
+  };
+  closeBtn.addEventListener('click', cleanup, { once: true });
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) cleanup();
+  });
+  document.addEventListener('keydown', onKeyDown);
+}
+
+function openCodeArtifactPreview(artifact) {
+  document.querySelector('.artifact-preview-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'artifact-preview-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'artifact-preview-panel';
+
+  const header = document.createElement('div');
+  header.className = 'artifact-preview-header';
+  const title = document.createElement('h3');
+  title.textContent = artifact.title || '代码文件';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'artifact-preview-close';
+  closeBtn.setAttribute('aria-label', '关闭预览');
+  closeBtn.textContent = '×';
+  header.append(title, closeBtn);
+
+  const content = document.createElement('div');
+  content.className = 'artifact-preview-content';
+  const pre = document.createElement('pre');
+  pre.className = `artifact-preview-code language-${artifact.language || 'text'}`;
+  pre.textContent = artifact.source;
+  content.appendChild(pre);
+
+  panel.append(header, content);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const cleanup = () => {
+    document.removeEventListener('keydown', onKeyDown);
+    overlay.remove();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') cleanup();
+  };
+  closeBtn.addEventListener('click', cleanup, { once: true });
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) cleanup();
+  });
+  document.addEventListener('keydown', onKeyDown);
+}
+
+function openTableArtifactPreview(artifact) {
+  document.querySelector('.artifact-preview-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'artifact-preview-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'artifact-preview-panel';
+
+  const header = document.createElement('div');
+  header.className = 'artifact-preview-header';
+  const title = document.createElement('h3');
+  title.textContent = artifact.title || '表格';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'artifact-preview-close';
+  closeBtn.setAttribute('aria-label', '关闭预览');
+  closeBtn.textContent = '×';
+  header.append(title, closeBtn);
+
+  const content = document.createElement('div');
+  content.className = 'artifact-preview-content';
+  const pre = document.createElement('pre');
+  pre.className = 'artifact-preview-code';
+  pre.textContent = artifact.source;
+  content.appendChild(pre);
+
+  panel.append(header, content);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const cleanup = () => {
+    document.removeEventListener('keydown', onKeyDown);
+    overlay.remove();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') cleanup();
+  };
+  closeBtn.addEventListener('click', cleanup, { once: true });
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) cleanup();
+  });
+  document.addEventListener('keydown', onKeyDown);
+}
+
+function downloadArtifact(artifact, index) {
+  let blob;
+  let mimeType = 'text/plain;charset=utf-8';
+  switch (artifact.type) {
+    case 'html-preview': {
+      const html = createSandboxedHtmlDocument(artifact.source, { title: artifact.title });
+      blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      mimeType = 'text/html;charset=utf-8';
+      break;
+    }
+    case 'json-data': {
+      blob = new Blob([artifact.source], { type: 'application/json;charset=utf-8' });
+      mimeType = 'application/json;charset=utf-8';
+      break;
+    }
+    default: {
+      blob = new Blob([artifact.source], { type: 'text/plain;charset=utf-8' });
+    }
+  }
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
