@@ -34,12 +34,15 @@ describe('chat regeneration', () => {
     expect(deeper).toContain('更详细版本');
     expect(table).toContain('Markdown 表格');
     expect(todo).toContain('TODO 清单');
+    expect(todo).toContain(':::todo');
     expect(todo).toContain('验收标准');
+    expect(todo).toContain('不要输出原始 HTML');
     expect(todo).toContain('P0：补证据面板');
     expect(report).toContain('报告版');
     expect(report).toContain(':::summary');
     expect(report).toContain(':::decision');
     expect(report).toContain(':::source');
+    expect(report).toContain(':::todo');
     expect(report).toContain(':::next');
     expect(report).toContain('不要输出原始 HTML');
     expect(long.length).toBeLessThan(6500);
