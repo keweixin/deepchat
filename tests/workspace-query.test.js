@@ -64,9 +64,7 @@ describe('workspace-query parser', () => {
   });
 
   it('parses combined directives', () => {
-    const result = parseWorkspaceQuery(
-      '@file:chat.js @folder:src @symbol:sendMessage @changed:3d recent changes'
-    );
+    const result = parseWorkspaceQuery('@file:chat.js @folder:src @symbol:sendMessage @changed:3d recent changes');
     expect(result.textQuery).toBe('recent changes');
     expect(result.file).toEqual(['chat.js']);
     expect(result.folder).toEqual(['src']);

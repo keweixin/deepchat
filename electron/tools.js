@@ -3,11 +3,7 @@ const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
-const {
-  parseWorkspaceQuery,
-  matchesFileDirective,
-  matchesChangedDirective,
-} = require('./workspace-query');
+const { parseWorkspaceQuery, matchesFileDirective, matchesChangedDirective } = require('./workspace-query');
 
 const MAX_FILE_BYTES = 100 * 1024;
 const DEFAULT_FILE_BYTES = 30 * 1024;
@@ -985,9 +981,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   let chunkCount = 0;
   let reusedCount = 0;
 
-  const oldFileMap = incrementalCache?.files
-    ? new Map(incrementalCache.files.map((f) => [f.path, f]))
-    : new Map();
+  const oldFileMap = incrementalCache?.files ? new Map(incrementalCache.files.map((f) => [f.path, f])) : new Map();
 
   for (const file of rawFiles) {
     if (!file.fullPath) continue;

@@ -57,7 +57,9 @@ export function parseWorkspaceQuery(query = '') {
 }
 
 export function matchesFileDirective(filePath, directives) {
-  const normalized = String(filePath || '').replace(/\\/g, '/').toLowerCase();
+  const normalized = String(filePath || '')
+    .replace(/\\/g, '/')
+    .toLowerCase();
   if (directives.file.length > 0) {
     const fileLower = directives.file.map((f) => String(f).replace(/\\/g, '/').toLowerCase());
     if (!fileLower.some((f) => normalized === f || normalized.endsWith('/' + f) || normalized.includes(f))) {
@@ -117,7 +119,10 @@ function looksLikeSymbolDefinition(line, symbol) {
   const lower = line.toLowerCase();
   const symLower = symbol.toLowerCase();
   const defPatterns = [
-    new RegExp(`\\b(?:function|class|const|let|var|def|async\\s+def|interface|type|enum|struct)\\s+${symLower}\\b`, 'i'),
+    new RegExp(
+      `\\b(?:function|class|const|let|var|def|async\\s+def|interface|type|enum|struct)\\s+${symLower}\\b`,
+      'i'
+    ),
     new RegExp(`\\b${symLower}\\s*[=:]\\s*(?:function|class|async|=>)`, 'i'),
     new RegExp(`\\b${symLower}\\s*\\(`, 'i'),
   ];
