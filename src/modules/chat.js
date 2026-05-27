@@ -1612,8 +1612,20 @@ function createAgentPlanCard(plan = null, contextBudget = null) {
   appendAgentPlanChips(card, '缺少配置', plan.missingPrerequisites, 'is-warning');
   appendAgentPlanChips(card, '审批策略', plan.approvalPolicy);
   appendAgentPlanChips(card, '提示', plan.warnings, 'is-warning');
+  const blockedNotice = createAgentPlanBlockedNotice(plan);
+  if (blockedNotice) card.appendChild(blockedNotice);
   card.appendChild(createAgentPlanActions(plan));
   return card;
+}
+
+function createAgentPlanBlockedNotice(plan = {}) {
+  const availability = getAgentPlanActionAvailability(plan);
+  const reason = availability.disabledReasons.execute_all || availability.disabledReasons.single_step || '';
+  if (!reason) return null;
+  const notice = document.createElement('div');
+  notice.className = 'agent-plan-blocked-notice';
+  notice.textContent = `执行已暂停：${reason}`;
+  return notice;
 }
 
 function createAgentPlanActions(plan = {}) {

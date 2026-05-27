@@ -993,6 +993,16 @@
   background: color-mix(in srgb, #f59e0b, transparent 92%);
 }
 
+.agent-plan-blocked-notice {
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, #f59e0b, transparent 62%);
+  border-radius: 8px;
+  color: color-mix(in srgb, #f59e0b, var(--text-primary) 22%);
+  background: color-mix(in srgb, #f59e0b, transparent 92%);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .agent-plan-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1017,6 +1027,23 @@
   border-color: color-mix(in srgb, var(--accent-primary), transparent 52%);
   background: color-mix(in srgb, var(--accent-primary), transparent 86%);
   transform: translateY(-1px);
+}
+
+.agent-plan-action-btn:disabled,
+.agent-plan-action-btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.48;
+  border-color: var(--glass-border);
+  color: var(--text-muted);
+  background: var(--glass-bg);
+  transform: none;
+}
+
+.agent-plan-action-btn:disabled:hover,
+.agent-plan-action-btn[aria-disabled="true"]:hover {
+  border-color: var(--glass-border);
+  background: var(--glass-bg);
+  transform: none;
 }
 
 .agent-plan-action-btn.action-cancel {

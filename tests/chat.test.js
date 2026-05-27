@@ -726,6 +726,35 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('等待确认');
   });
 
+  it('shows a blocked notice and disables execution controls when agent plan prerequisites are missing', () => {
+    const container = document.createElement('div');
+
+    renderAgentTimeline(container, {
+      agentStages: [{
+        stage: 'plan',
+        round: 0,
+        planSummary: {
+          mode: 'web_search',
+          maxRounds: 3,
+          steps: ['搜索资料', '整理答案'],
+          selectedTools: ['web_search'],
+          missingPrerequisites: ['Tavily Key'],
+        },
+      }],
+    });
+
+    const executeAll = container.querySelector('.agent-plan-action-btn.action-execute_all');
+    const singleStep = container.querySelector('.agent-plan-action-btn.action-single_step');
+    const revise = container.querySelector('.agent-plan-action-btn.action-revise');
+
+    expect(container.textContent).toContain('执行已暂停');
+    expect(container.textContent).toContain('Tavily Key');
+    expect(executeAll.disabled).toBe(true);
+    expect(singleStep.disabled).toBe(true);
+    expect(executeAll.title).toContain('请先修改计划或完成配置');
+    expect(revise.disabled).toBe(false);
+  });
+
   it('fills the composer when revising an agent plan from the timeline', () => {
     const input = document.createElement('textarea');
     input.id = 'message-input';
