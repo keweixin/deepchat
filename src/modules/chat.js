@@ -429,10 +429,11 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     renderAgentTimeline(agentContainer, assistantMsg);
   }
   if (memoryContext?.taskCheckpointUsed) {
+    const checkpointSummary = formatTaskCheckpointStageSummary(memoryContext.taskCheckpoint);
     assistantMsg.agentStages.push({
-      stage: 'memory',
+      stage: 'checkpoint',
       round: 0,
-      warning: '已使用长期任务状态，作为本轮尾部上下文以保持缓存前缀稳定',
+      warning: checkpointSummary || '已使用长期任务状态，作为本轮尾部上下文以保持缓存前缀稳定',
     });
     renderAgentTimeline(agentContainer, assistantMsg);
   }
@@ -1454,6 +1455,7 @@ function formatAgentStageLabel(stage = {}) {
   const labels = {
     plan: '规划工具',
     memory: '检索历史',
+    checkpoint: '任务检查点',
     summary: '压缩记忆',
     warning: '配置提示',
     model: '模型思考',
@@ -1471,6 +1473,32 @@ function formatAgentStageLabel(stage = {}) {
     return `规划工具：${mode}`;
   }
   return labels[stage.stage] || String(stage.stage || 'Agent');
+}
+
+function formatTaskCheckpointStageSummary(checkpoint = {}) {
+  if (!checkpoint || typeof checkpoint !== 'object') return '';
+  const statusLabels = {
+    ready: '可继续',
+    needs_attention: '需要处理',
+    waiting_for_approval: '等待确认',
+    failed: '上一轮失败',
+    completed: '已完成',
+  };
+  const parts = [];
+  if (checkpoint.agentStatus) parts.push(statusLabels[checkpoint.agentStatus] || checkpoint.agentStatus);
+  if (Array.isArray(checkpoint.pendingApprovals) && checkpoint.pendingApprovals.length) {
+    parts.push(`待确认 ${checkpoint.pendingApprovals.length} 项`);
+  }
+  if (Array.isArray(checkpoint.failedSteps) && checkpoint.failedSteps.length) {
+    parts.push(`失败/拒绝 ${checkpoint.failedSteps.length} 项`);
+  }
+  if (Array.isArray(checkpoint.recoveryActions) && checkpoint.recoveryActions.length) {
+    parts.push(`恢复建议 ${checkpoint.recoveryActions.length} 条`);
+  }
+  if (parts.length === 0 && Array.isArray(checkpoint.completedSteps) && checkpoint.completedSteps.length) {
+    parts.push(`已完成 ${checkpoint.completedSteps.length} 项`);
+  }
+  return parts.length ? `已使用长期任务状态：${parts.join('，')}` : '';
 }
 
 function syncToolRuns(message) {
@@ -1499,6 +1527,7 @@ function maybeAppendRelevantMemory(apiMessages, conversation) {
   return {
     ...memoryContext,
     taskCheckpointUsed: Boolean(taskCheckpointText),
+    taskCheckpoint: conversation?.taskCheckpoint || null,
   };
 }
 

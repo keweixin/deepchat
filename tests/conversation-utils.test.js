@@ -35,6 +35,11 @@ describe('conversation utilities', () => {
         latestUserGoal: '继续处理缓存命中',
         lastTools: ['read_file:completed'],
         openItems: ['注意 prefix 稳定'],
+        completedSteps: ['read_file:completed - src/modules/chat.js'],
+        failedSteps: ['web_search:failed - Tavily key missing'],
+        pendingApprovals: ['run_code:pending'],
+        recoveryActions: ['web_search: 配置 Tavily Key 后重试'],
+        agentStatus: 'needs_attention',
         updatedAt: '2026-05-27T00:00:00.000Z',
       },
       messages: [],
@@ -45,6 +50,11 @@ describe('conversation utilities', () => {
       latestUserGoal: '继续处理缓存命中',
       lastTools: ['read_file:completed'],
       openItems: ['注意 prefix 稳定'],
+      completedSteps: ['read_file:completed - src/modules/chat.js'],
+      failedSteps: ['web_search:failed - Tavily key missing'],
+      pendingApprovals: ['run_code:pending'],
+      recoveryActions: ['web_search: 配置 Tavily Key 后重试'],
+      agentStatus: 'needs_attention',
     });
     expect(normalized.taskCheckpointUpdatedAt).toBe('2026-05-27T00:00:00.000Z');
   });
@@ -170,7 +180,10 @@ describe('conversation utilities', () => {
         {
           role: 'assistant',
           content: '已经固定 system prompt 和工具 schema，下一步处理长期任务状态。',
-          toolRuns: [{ name: 'read_file', status: 'completed' }],
+          toolRuns: [
+            { name: 'read_file', status: 'completed', summary: '读取 src/modules/chat.js' },
+            { name: 'web_search', status: 'failed', error: '缺少 Tavily Key', nextAction: '先在设置里配置 Tavily Key，再重新搜索。' },
+          ],
           agentStages: [{ warning: 'prefix cache 会在工具 schema 变化时下降' }],
         },
       ],
@@ -178,14 +191,40 @@ describe('conversation utilities', () => {
 
     expect(checkpoint).toMatchObject({
       objective: '根据 Reasonix 优化 DeepSeek 缓存命中。',
-      lastTools: ['read_file:completed'],
+      lastTools: ['web_search:failed', 'read_file:completed'],
+      completedSteps: ['read_file:completed - 读取 src/modules/chat.js'],
+      failedSteps: ['web_search:failed - 先在设置里配置 Tavily Key，再重新搜索。'],
+      recoveryActions: ['web_search: 先在设置里配置 Tavily Key，再重新搜索。'],
+      agentStatus: 'needs_attention',
       prefixFingerprint: 'abc123',
     });
 
     const context = buildTaskCheckpointContext(checkpoint);
     expect(context).toContain('<task_checkpoint>');
+    expect(context).toContain('Agent 状态: 需要处理');
+    expect(context).toContain('已完成: read_file:completed');
+    expect(context).toContain('失败/拒绝: web_search:failed');
+    expect(context).toContain('恢复建议: web_search');
     expect(context).toContain('prefix cache 稳定');
-    expect(context).toContain('read_file:completed');
     expect(context).toContain('上一轮 prefix: abc123');
+  });
+
+  it('tracks pending tool approvals in task checkpoints', () => {
+    const checkpoint = buildTaskCheckpoint({
+      messages: [
+        { role: 'user', content: '运行一个 JS 实验。' },
+        {
+          role: 'assistant',
+          content: '我需要先确认运行代码。',
+          toolRuns: [{ name: 'run_code', status: 'pending', nextAction: '等待用户确认运行 JS 代码。' }],
+        },
+      ],
+    }, { now: '2026-05-27T00:00:00.000Z' });
+
+    expect(checkpoint).toMatchObject({
+      agentStatus: 'waiting_for_approval',
+      pendingApprovals: ['run_code:pending - 等待用户确认运行 JS 代码。'],
+    });
+    expect(buildTaskCheckpointContext(checkpoint)).toContain('待确认: run_code:pending');
   });
 });

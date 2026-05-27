@@ -113,6 +113,20 @@ export function buildTaskCheckpoint(conversation = {}, options = {}) {
     contextSummary: compactMemorySnippet(conversation.contextSummary || '', 420),
     openItems: extractRecentAgentOpenItems(messages),
     lastTools: extractRecentToolNames(messages),
+    completedSteps: extractRecentToolSummaries(messages, {
+      statuses: ['completed', 'success', 'succeeded'],
+      maxItems: 6,
+    }),
+    failedSteps: extractRecentToolSummaries(messages, {
+      statuses: ['failed', 'error', 'denied', 'timeout', 'cancelled', 'canceled'],
+      maxItems: 6,
+    }),
+    pendingApprovals: extractRecentToolSummaries(messages, {
+      statuses: ['pending', 'approval_required', 'awaiting_approval', 'waiting_approval', 'requested'],
+      maxItems: 4,
+    }),
+    recoveryActions: extractRecentRecoveryActions(messages),
+    agentStatus: inferAgentStatus(messages),
     sourceMessageCount: messages.length,
     updatedAt: options.now || new Date().toISOString(),
     prefixFingerprint: cacheProfile.prefixFingerprint || conversation.cacheProfile?.prefixFingerprint || '',
@@ -133,7 +147,12 @@ export function buildTaskCheckpointContext(checkpoint, options = {}) {
   }
   if (normalized.contextSummary) lines.push(`长期摘要: ${normalized.contextSummary}`);
   if (normalized.lastAssistantSummary) lines.push(`上一轮结论: ${normalized.lastAssistantSummary}`);
+  if (normalized.agentStatus) lines.push(`Agent 状态: ${formatAgentStatus(normalized.agentStatus)}`);
   if (normalized.lastTools.length) lines.push(`最近工具: ${normalized.lastTools.join(', ')}`);
+  if (normalized.completedSteps.length) lines.push(`已完成: ${normalized.completedSteps.join('；')}`);
+  if (normalized.failedSteps.length) lines.push(`失败/拒绝: ${normalized.failedSteps.join('；')}`);
+  if (normalized.pendingApprovals.length) lines.push(`待确认: ${normalized.pendingApprovals.join('；')}`);
+  if (normalized.recoveryActions.length) lines.push(`恢复建议: ${normalized.recoveryActions.join('；')}`);
   if (normalized.openItems.length) lines.push(`待注意: ${normalized.openItems.join('；')}`);
   if (normalized.prefixFingerprint) lines.push(`上一轮 prefix: ${normalized.prefixFingerprint}`);
   lines.push('</task_checkpoint>');
@@ -151,6 +170,11 @@ export function normalizeTaskCheckpoint(value) {
     contextSummary: compactCheckpointText(value.contextSummary, 520),
     openItems: normalizeStringList(value.openItems, 6, 320),
     lastTools: normalizeStringList(value.lastTools, 8, 160),
+    completedSteps: normalizeStringList(value.completedSteps, 6, 280),
+    failedSteps: normalizeStringList(value.failedSteps, 6, 320),
+    pendingApprovals: normalizeStringList(value.pendingApprovals, 4, 260),
+    recoveryActions: normalizeStringList(value.recoveryActions, 5, 320),
+    agentStatus: normalizeAgentStatus(value.agentStatus),
     sourceMessageCount: clampInt(value.sourceMessageCount, 0, 10000, 0),
     updatedAt: compactCheckpointText(value.updatedAt, 80),
     prefixFingerprint: compactCheckpointText(value.prefixFingerprint, 80),
@@ -160,7 +184,11 @@ export function normalizeTaskCheckpoint(value) {
     checkpoint.lastAssistantSummary ||
     checkpoint.contextSummary ||
     checkpoint.openItems.length ||
-    checkpoint.lastTools.length;
+    checkpoint.lastTools.length ||
+    checkpoint.completedSteps.length ||
+    checkpoint.failedSteps.length ||
+    checkpoint.pendingApprovals.length ||
+    checkpoint.recoveryActions.length;
   return hasContent ? checkpoint : null;
 }
 
@@ -378,6 +406,112 @@ function extractRecentToolNames(messages) {
     }
   }
   return normalizeStringList(names, 8, 140);
+}
+
+function extractRecentToolSummaries(messages, { statuses = [], maxItems = 6 } = {}) {
+  const wanted = new Set(statuses.map((status) => normalizeToolStatus(status)).filter(Boolean));
+  const items = [];
+  for (let i = messages.length - 1; i >= 0 && items.length < maxItems; i -= 1) {
+    const runs = getMessageToolRuns(messages[i]);
+    for (let j = runs.length - 1; j >= 0 && items.length < maxItems; j -= 1) {
+      const run = runs[j] || {};
+      const status = normalizeToolStatus(run.status || (run.ok === true ? 'completed' : (run.ok === false ? 'failed' : '')));
+      if (!status || (wanted.size && !wanted.has(status))) continue;
+      const name = getToolRunName(run);
+      if (!name) continue;
+      const detail = getToolRunDetail(run, status);
+      items.push(detail ? `${name}:${status} ${detail}` : `${name}:${status}`);
+    }
+  }
+  return normalizeStringList(items, maxItems, 280);
+}
+
+function extractRecentRecoveryActions(messages) {
+  const items = [];
+  for (let i = messages.length - 1; i >= 0 && items.length < 5; i -= 1) {
+    const runs = getMessageToolRuns(messages[i]);
+    for (let j = runs.length - 1; j >= 0 && items.length < 5; j -= 1) {
+      const run = runs[j] || {};
+      const action = run.nextAction || run.recoveryAction || run.suggestion;
+      if (!action) continue;
+      const name = getToolRunName(run);
+      items.push(`${name ? `${name}: ` : ''}${compactMemorySnippet(action, 260)}`);
+    }
+  }
+  return normalizeStringList(items, 5, 300);
+}
+
+function inferAgentStatus(messages) {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message?.error) return 'failed';
+    const runs = getMessageToolRuns(message);
+    for (let j = runs.length - 1; j >= 0; j -= 1) {
+      const status = normalizeToolStatus(runs[j]?.status || (runs[j]?.ok === true ? 'completed' : (runs[j]?.ok === false ? 'failed' : '')));
+      if (['pending', 'approval_required', 'awaiting_approval', 'waiting_approval', 'requested'].includes(status)) {
+        return 'waiting_for_approval';
+      }
+      if (['failed', 'error', 'denied', 'timeout', 'cancelled', 'canceled'].includes(status)) {
+        return 'needs_attention';
+      }
+    }
+    const stages = Array.isArray(message?.agentStages) ? message.agentStages : [];
+    for (let j = stages.length - 1; j >= 0; j -= 1) {
+      const stage = stages[j] || {};
+      if (stage.stopReason || stage.warning) return 'needs_attention';
+    }
+    if (message?.role === 'assistant' && compactCheckpointText(message.content, 80)) return 'ready';
+  }
+  return 'ready';
+}
+
+function getMessageToolRuns(message) {
+  return [
+    ...(Array.isArray(message?.toolRuns) ? message.toolRuns : []),
+    ...(Array.isArray(message?.toolCalls) ? message.toolCalls : []),
+  ];
+}
+
+function getToolRunName(run) {
+  return String(run?.name || run?.function?.name || run?.toolName || '').trim();
+}
+
+function getToolRunDetail(run, status) {
+  const raw = run?.nextAction ||
+    run?.parseError ||
+    run?.error ||
+    run?.summary ||
+    run?.contextOutput ||
+    run?.outputSummary ||
+    run?.output ||
+    '';
+  const detail = compactMemorySnippet(typeof raw === 'string' ? raw : JSON.stringify(raw), status === 'completed' ? 120 : 180);
+  return detail ? `- ${detail}` : '';
+}
+
+function normalizeToolStatus(value) {
+  const status = String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+  if (status === 'complete' || status === 'ok' || status === 'done') return 'completed';
+  if (status === 'failure') return 'failed';
+  if (status === 'rejected') return 'denied';
+  if (status === 'cancelled') return 'canceled';
+  return status;
+}
+
+function normalizeAgentStatus(value) {
+  const status = String(value || '').trim();
+  return ['ready', 'needs_attention', 'waiting_for_approval', 'failed', 'completed'].includes(status) ? status : '';
+}
+
+function formatAgentStatus(status) {
+  const labels = {
+    ready: '可继续',
+    needs_attention: '需要处理',
+    waiting_for_approval: '等待工具确认',
+    failed: '上一轮失败',
+    completed: '已完成',
+  };
+  return labels[status] || status;
 }
 
 function getDateGroup(timestamp) {
