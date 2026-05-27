@@ -30,6 +30,12 @@ import { renderMarkdown } from './modules/renderer.js';
 import { onMenuNewChat, onMenuOpenSettings } from './modules/client-store.js';
 import { initReadingNavigator } from './modules/reading-navigator.js';
 import { autoResize, debounce, showToast } from './modules/utils.js';
+import {
+  buildChatSearchIndex,
+  clearChatSearchHighlights,
+  findChatSearchMatches,
+  highlightChatSearchMatches,
+} from './modules/chat-search.js';
 
 let pendingAttachments = [];
 let composerOverrides = null;
@@ -688,15 +694,12 @@ function toggleChatSearch() {
 
   const input = bar.querySelector('.chat-search-input');
   const countEl = bar.querySelector('.chat-search-count');
+  let searchIndex = buildChatSearchIndex(document);
   let matches = [];
   let currentMatch = -1;
 
   function clearHighlights() {
-    document.querySelectorAll('.search-highlight').forEach(el => {
-      const parent = el.parentNode;
-      parent.replaceChild(document.createTextNode(el.textContent), el);
-      parent.normalize();
-    });
+    clearChatSearchHighlights(document);
     matches = [];
     currentMatch = -1;
   }
@@ -706,40 +709,12 @@ function toggleChatSearch() {
     const query = input.value.trim();
     if (!query) { countEl.textContent = ''; return; }
 
-    const messages = document.querySelectorAll('#chat-messages .message-content');
-    const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-
-    messages.forEach(msgEl => {
-      const walker = document.createTreeWalker(msgEl, NodeFilter.SHOW_TEXT);
-      const textNodes = [];
-      while (walker.nextNode()) textNodes.push(walker.currentNode);
-
-      textNodes.forEach(node => {
-        const text = node.textContent;
-        if (!regex.test(text)) return;
-        regex.lastIndex = 0;
-        const frag = document.createDocumentFragment();
-        let lastIdx = 0;
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-          if (match.index > lastIdx) {
-            frag.appendChild(document.createTextNode(text.slice(lastIdx, match.index)));
-          }
-          const mark = document.createElement('mark');
-          mark.className = 'search-highlight';
-          mark.textContent = match[0];
-          frag.appendChild(mark);
-          lastIdx = regex.lastIndex;
-        }
-        if (lastIdx < text.length) {
-          frag.appendChild(document.createTextNode(text.slice(lastIdx)));
-        }
-        node.parentNode.replaceChild(frag, node);
-      });
-    });
-
-    matches = Array.from(document.querySelectorAll('.search-highlight'));
-    countEl.textContent = matches.length > 0 ? `${matches.length} 个结果` : '无结果';
+    searchIndex = buildChatSearchIndex(document);
+    const matchedMessages = findChatSearchMatches(searchIndex, query, { limit: 50 });
+    matches = highlightChatSearchMatches(matchedMessages, query, { markLimit: 300 });
+    countEl.textContent = matches.length > 0
+      ? `${matches.length} 个结果${matchedMessages.length >= 50 ? '（前 50 条消息）' : ''}`
+      : '无结果';
     if (matches.length > 0) jumpTo(0);
   }
 

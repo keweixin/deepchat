@@ -1255,6 +1255,10 @@
   border-radius: 2px;
   padding: 0 1px;
 }
+.message.chat-search-match .message-body {
+  outline: 1px solid rgba(250, 204, 21, 0.18);
+  outline-offset: 2px;
+}
 .search-highlight-active {
   background: rgba(250, 204, 21, 0.6);
   outline: 2px solid rgba(250, 204, 21, 0.8);
