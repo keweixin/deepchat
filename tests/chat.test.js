@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   getCompactMessagePreview,
+  hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
   renderAgentTimeline,
+  renderAssistantEvidence,
   shouldCompactHistoricalMessage,
   trimMessagesForRegeneration,
 } from '../src/modules/chat.js';
@@ -41,6 +43,36 @@ describe('chat regeneration', () => {
 
     expect(hasSearchWithoutCitedSource(message, '根据搜索结果，新闻如下。')).toBe(true);
     expect(hasSearchWithoutCitedSource(message, '来源：https://example.com/news')).toBe(false);
+  });
+
+  it('flags local file answers that do not cite file line evidence', () => {
+    const message = {
+      toolRuns: [{
+        name: 'search_workspace',
+        status: 'completed',
+        localCitations: [{ file: 'src/agent.md', lineStart: 2, lineEnd: 3, label: 'src/agent.md:2-3' }],
+      }],
+    };
+
+    expect(hasLocalFilesWithoutCitedSource(message, '根据本地文件，缓存命中需要固定前缀。')).toBe(true);
+    expect(hasLocalFilesWithoutCitedSource(message, '根据 src/agent.md:2-3，缓存命中需要固定前缀。')).toBe(false);
+  });
+
+  it('renders local file grounding evidence next to assistant messages', () => {
+    const container = document.createElement('div');
+    const message = {
+      content: '根据本地文件，缓存命中需要固定前缀。',
+      toolRuns: [{
+        name: 'search_workspace',
+        status: 'completed',
+        localCitations: [{ file: 'src/agent.md', lineStart: 2, lineEnd: 3, label: 'src/agent.md:2-3' }],
+      }],
+    };
+
+    renderAssistantEvidence(container, message);
+
+    expect(container.textContent).toContain('本地文件证据未被明确引用');
+    expect(container.textContent).toContain('src/agent.md:2-3');
   });
 
   it('renders agent stages and context budget metadata', () => {

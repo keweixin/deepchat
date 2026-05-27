@@ -41,12 +41,14 @@ import {
   createToolRecord,
   extractToolSources,
   formatToolArgs,
+  getLocalFileGrounding,
   getSearchGrounding,
   getToolDurationMs,
   getToolName,
   getToolQuery,
   getToolStatusMeta,
   hasSearchWithoutCitedSource as hasUncitedSearchSource,
+  hasLocalFilesWithoutCitedSource as hasUncitedLocalSource,
 } from './tool-runs.js';
 import { uid, formatTime, relativeTime, scrollToBottom, truncate, copyToClipboard, showToast, escapeHtml } from './utils.js';
 
@@ -510,7 +512,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.thinking = fullThinking;
       assistantMsg.stopped = Boolean(doneEvent.aborted);
       assistantMsg.speed = finalSpeed;
-      assistantMsg.sourceWarning = hasUncitedSearchSource(assistantMsg, fullContent);
+      assistantMsg.sourceWarning = hasUncitedSearchSource(assistantMsg, fullContent) || hasUncitedLocalSource(assistantMsg, fullContent);
       if (assistantMsg.agentStages?.length) renderAgentTimeline(agentContainer, assistantMsg);
       conv.messages.push(assistantMsg);
       refreshConversationTaskCheckpoint(conv);
@@ -1218,45 +1220,80 @@ export function hasSearchWithoutCitedSource(message, content) {
   return hasUncitedSearchSource(message, content);
 }
 
-function renderAssistantEvidence(container, message) {
-  if (!container) return;
-  container.querySelector('.source-grounding-warning')?.remove();
-  container.querySelector('.source-grounding-card')?.remove();
-  const grounding = getSearchGrounding(message, message?.content || '');
-  if (!grounding.hasSearch) return;
+export function hasLocalFilesWithoutCitedSource(message, content) {
+  return hasUncitedLocalSource(message, content);
+}
 
+export function renderAssistantEvidence(container, message) {
+  if (!container) return;
+  container.querySelectorAll('.source-grounding-warning, .source-grounding-card').forEach((item) => item.remove());
+  const grounding = getSearchGrounding(message, message?.content || '');
+  const localGrounding = getLocalFileGrounding(message, message?.content || '');
+  if (grounding.hasSearch) {
+    appendGroundingCard(container, {
+      warning: grounding.warning,
+      title: grounding.warning ? '联网结果未被明确引用' : '已引用联网来源',
+      meta: [
+        grounding.queries[0] ? `query: ${grounding.queries[0]}` : '',
+        `${grounding.sources.length} 个来源`,
+      ].filter(Boolean).join(' · '),
+      items: grounding.sources.slice(0, 3).map((source) => ({
+        label: source.title || source.url,
+        href: source.url,
+      })),
+      warningText: grounding.hasSources
+        ? '本轮调用了联网搜索，但最终回答没有引用搜索来源 URL，请谨慎核验。'
+        : '本轮调用了联网搜索，但工具没有返回可用来源 URL，请谨慎核验。',
+    });
+  }
+  if (localGrounding.hasLocalFiles) {
+    appendGroundingCard(container, {
+      warning: localGrounding.warning,
+      title: localGrounding.warning ? '本地文件证据未被明确引用' : '已引用本地文件证据',
+      meta: `${localGrounding.citations.length} 个文件引用`,
+      items: localGrounding.citations.slice(0, 4).map((citation) => ({
+        label: citation.label,
+        href: '',
+      })),
+      warningText: '本轮读取或搜索了本地工作区文件，但最终回答没有引用文件名或 file:line 证据，请谨慎核验。',
+    });
+  }
+}
+
+function appendGroundingCard(container, { warning, title: titleText, meta: metaText, items = [], warningText }) {
   const card = document.createElement('div');
-  card.className = `source-grounding-card${grounding.warning ? ' is-warning' : ' is-grounded'}`;
+  card.className = `source-grounding-card${warning ? ' is-warning' : ' is-grounded'}`;
   const title = document.createElement('div');
   title.className = 'source-grounding-title';
-  title.textContent = grounding.warning ? '联网结果未被明确引用' : '已引用联网来源';
+  title.textContent = titleText;
   const meta = document.createElement('div');
   meta.className = 'source-grounding-meta';
-  meta.textContent = [
-    grounding.queries[0] ? `query: ${grounding.queries[0]}` : '',
-    `${grounding.sources.length} 个来源`,
-  ].filter(Boolean).join(' · ');
+  meta.textContent = metaText;
   card.append(title, meta);
-  if (grounding.sources.length) {
+  if (items.length) {
     const list = document.createElement('div');
     list.className = 'source-grounding-list';
-    for (const source of grounding.sources.slice(0, 3)) {
-      const link = document.createElement('a');
-      link.href = source.url;
-      link.target = '_blank';
-      link.rel = 'noreferrer';
-      link.textContent = source.title || source.url;
-      list.appendChild(link);
+    for (const item of items) {
+      if (item.href) {
+        const link = document.createElement('a');
+        link.href = item.href;
+        link.target = '_blank';
+        link.rel = 'noreferrer';
+        link.textContent = item.label;
+        list.appendChild(link);
+      } else {
+        const span = document.createElement('span');
+        span.textContent = item.label;
+        list.appendChild(span);
+      }
     }
     card.appendChild(list);
   }
   container.appendChild(card);
-  if (grounding.warning) {
+  if (warning) {
     const warning = document.createElement('div');
     warning.className = 'source-grounding-warning';
-    warning.textContent = grounding.hasSources
-      ? '本轮调用了联网搜索，但最终回答没有引用搜索来源 URL，请谨慎核验。'
-      : '本轮调用了联网搜索，但工具没有返回可用来源 URL，请谨慎核验。';
+    warning.textContent = warningText;
     container.appendChild(warning);
   }
 }

@@ -5,7 +5,10 @@ import {
   buildToolEvidencePayload,
   buildToolRuns,
   createToolRecord,
+  extractLocalCitations,
+  getLocalFileGrounding,
   getSearchGrounding,
+  hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
 } from '../src/modules/tool-runs.js';
 
@@ -59,6 +62,41 @@ describe('tool run state', () => {
 
     expect(getSearchGrounding(message, '来源：https://example.com/news')).toMatchObject({ hasSearch: true, cited: true, warning: false });
     expect(hasSearchWithoutCitedSource(message, '根据搜索结果回答。')).toBe(true);
+  });
+
+  it('extracts and checks local workspace file citations', () => {
+    const searchOutput = [
+      '工作区搜索：cache telemetry',
+      '1. src/agent.md:2-3',
+      '   摘录:',
+      '   2: DeepSeek cache telemetry should explain hit and miss tokens.',
+    ].join('\n');
+    const readOutput = [
+      '文件：E:\\demo\\src\\agent.md',
+      '大小：200 bytes',
+      '行范围：2-3',
+      '',
+      '2: DeepSeek cache telemetry should explain hit and miss tokens.',
+    ].join('\n');
+    const searchTool = createToolRecord({ toolCallId: 'l1', name: 'search_workspace', args: { query: 'cache telemetry' } });
+    const readTool = createToolRecord({ toolCallId: 'l2', name: 'read_file', args: { path: 'src/agent.md:2-3' } });
+    applyToolResult([searchTool], { toolCallId: 'l1', name: 'search_workspace', ok: true, output: searchOutput });
+    applyToolResult([readTool], { toolCallId: 'l2', name: 'read_file', ok: true, output: readOutput });
+    const message = { toolRuns: buildToolRuns([searchTool, readTool]) };
+
+    expect(extractLocalCitations(searchOutput, 'search_workspace')[0]).toMatchObject({
+      file: 'src/agent.md',
+      lineStart: 2,
+      lineEnd: 3,
+      label: 'src/agent.md:2-3',
+    });
+    expect(getLocalFileGrounding(message, '结论见 src/agent.md:2-3。')).toMatchObject({
+      hasLocalFiles: true,
+      hasCitations: true,
+      cited: true,
+      warning: false,
+    });
+    expect(hasLocalFilesWithoutCitedSource(message, '根据本地文件可知。')).toBe(true);
   });
 
   it('builds structured evidence without copying the full raw output', () => {

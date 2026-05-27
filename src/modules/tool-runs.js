@@ -79,6 +79,7 @@ export function buildToolRuns(toolCalls = []) {
     durationMs: getToolDurationMs(tool),
     outputPreview: tool.output ? String(tool.output).slice(0, 1200) : '',
     sources: tool.sources || extractToolSources(tool.output || ''),
+    localCitations: extractLocalCitations(tool.output || '', getToolName(tool)),
     query: getToolQuery(tool),
     security: tool.security || null,
     parseError: tool.parseError || '',
@@ -94,6 +95,7 @@ export function buildToolRuns(toolCalls = []) {
 export function buildToolEvidencePayload(tool = {}) {
   const outputText = tool.output ? String(tool.output) : '';
   const sources = tool.sources || extractToolSources(outputText);
+  const localCitations = extractLocalCitations(outputText, getToolName(tool));
   const id = tool.id || '';
   return {
     type: 'deepchat.toolEvidence',
@@ -113,6 +115,7 @@ export function buildToolEvidencePayload(tool = {}) {
     security: tool.security || null,
     parseError: tool.parseError || '',
     sources,
+    localCitations,
     outputPreview: outputText.slice(0, 1200),
     contextOutput: tool.contextOutput || '',
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
@@ -196,9 +199,100 @@ export function hasSearchWithoutCitedSource(message, content) {
   return getSearchGrounding(message, content).warning;
 }
 
+export function getLocalFileGrounding(message = {}, content = '') {
+  const runs = getLocalFileRuns(message);
+  const citations = runs.flatMap((run) => run.localCitations || []);
+  const cited = citations.length > 0 && citations.some((citation) => isLocalCitationMentioned(content, citation));
+  return {
+    hasLocalFiles: runs.length > 0,
+    hasCitations: citations.length > 0,
+    cited,
+    warning: runs.length > 0 && citations.length > 0 && !cited,
+    citations,
+    runs,
+  };
+}
+
+export function hasLocalFilesWithoutCitedSource(message, content) {
+  return getLocalFileGrounding(message, content).warning;
+}
+
 function getSearchRuns(message) {
   const runs = message.toolRuns?.length ? message.toolRuns : buildToolRuns(message.toolCalls || []);
   return runs.filter((run) => run.name === 'web_search' && run.status === 'completed');
+}
+
+function getLocalFileRuns(message) {
+  const runs = message.toolRuns?.length ? message.toolRuns : buildToolRuns(message.toolCalls || []);
+  return runs.filter((run) => ['search_workspace', 'read_file'].includes(run.name) && run.status === 'completed');
+}
+
+export function extractLocalCitations(outputText = '', toolName = '') {
+  const lines = String(outputText || '').split('\n');
+  const citations = [];
+  if (toolName === 'search_workspace') {
+    for (const line of lines) {
+      const match = line.match(/^\s*\d+\.\s+(.+?):(\d+)(?:-(\d+))?\s*$/);
+      if (!match) continue;
+      citations.push(buildLocalCitation(match[1], match[2], match[3]));
+    }
+  }
+  if (toolName === 'read_file') {
+    const fileLine = lines.find((line) => /^\s*文件：/.test(line));
+    const rangeLine = lines.find((line) => /^\s*行范围：/.test(line));
+    const file = fileLine ? fileLine.replace(/^\s*文件：/, '').trim() : '';
+    const rangeMatch = rangeLine?.match(/行范围：\s*(\d+)(?:-(\d+))?/);
+    if (file && rangeMatch) citations.push(buildLocalCitation(file, rangeMatch[1], rangeMatch[2]));
+    else if (file) citations.push(buildLocalCitation(file, 0, 0));
+  }
+  return dedupeLocalCitations(citations);
+}
+
+function buildLocalCitation(file, startLine, endLine) {
+  const normalizedFile = String(file || '').trim();
+  const start = Number.parseInt(startLine, 10) || 0;
+  const end = Number.parseInt(endLine || startLine, 10) || start;
+  return {
+    file: normalizedFile,
+    lineStart: start,
+    lineEnd: end,
+    label: formatLocalCitationLabel(normalizedFile, start, end),
+  };
+}
+
+function formatLocalCitationLabel(file, lineStart, lineEnd) {
+  if (!lineStart) return file;
+  return `${file}:${lineStart}${lineEnd && lineEnd !== lineStart ? `-${lineEnd}` : ''}`;
+}
+
+function dedupeLocalCitations(citations) {
+  const seen = new Set();
+  const out = [];
+  for (const citation of citations) {
+    const key = `${citation.file}:${citation.lineStart}:${citation.lineEnd}`;
+    if (!citation.file || seen.has(key)) continue;
+    seen.add(key);
+    out.push(citation);
+  }
+  return out;
+}
+
+function isLocalCitationMentioned(content, citation) {
+  const text = String(content || '').replace(/\\/g, '/');
+  const file = String(citation.file || '').replace(/\\/g, '/');
+  const basename = file.split('/').filter(Boolean).at(-1) || file;
+  const lineStart = citation.lineStart ? String(citation.lineStart) : '';
+  const lineEnd = citation.lineEnd && citation.lineEnd !== citation.lineStart ? String(citation.lineEnd) : '';
+  const labels = [
+    citation.label,
+    file,
+    basename,
+    lineStart ? `${file}:${lineStart}` : '',
+    lineStart ? `${basename}:${lineStart}` : '',
+    lineStart && lineEnd ? `${file}:${lineStart}-${lineEnd}` : '',
+    lineStart && lineEnd ? `${basename}:${lineStart}-${lineEnd}` : '',
+  ].filter(Boolean).map((item) => String(item).replace(/\\/g, '/'));
+  return labels.some((label) => text.includes(label));
 }
 
 function parseFunctionArgs(value) {
