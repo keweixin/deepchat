@@ -1368,11 +1368,13 @@ async function streamNativeChat(messages, opts) {
     if (event.type === 'done') {
       settled = true;
       unsubscribe();
+      removeAbortListener();
       opts.onDone?.(event);
     }
     if (event.type === 'error') {
       settled = true;
       unsubscribe();
+      removeAbortListener();
       opts.onError?.(new Error(event.message || '未知错误'));
     }
   });
@@ -1381,6 +1383,7 @@ async function streamNativeChat(messages, opts) {
     if (!settled) window.deepchat.chat.cancel(requestId);
   };
   opts.signal?.addEventListener('abort', abort, { once: true });
+  const removeAbortListener = () => opts.signal?.removeEventListener('abort', abort);
   window.deepchat.chat.start({
     requestId,
     messages,

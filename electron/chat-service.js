@@ -345,7 +345,8 @@ class ChatService {
           byPurpose: { summary: input + estimateTokens(summary) },
         }),
       };
-    } catch {
+    } catch (err) {
+      console.error('[ContextSummary] Failed:', normalizeError(err));
       if (existingSummary)
         return {
           summary: existingSummary,
@@ -427,70 +428,76 @@ class ChatService {
     let usage = null;
     const toolCalls = [];
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
-        const data = trimmed.slice(5).trim();
-        if (data === '[DONE]') {
-          const nativeToolCalls = compactToolCalls(toolCalls);
-          const repaired =
-            nativeToolCalls.length === 0
-              ? repairToolCallsFromText(content, thinking, tools)
-              : { toolCalls: [], warning: '' };
-          if (repaired.toolCalls.length > 0) {
-            warnings.push(repaired.warning);
-            this.emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+          const data = trimmed.slice(5).trim();
+          if (data === '[DONE]') {
+            const nativeToolCalls = compactToolCalls(toolCalls);
+            const repaired =
+              nativeToolCalls.length === 0
+                ? repairToolCallsFromText(content, thinking, tools)
+                : { toolCalls: [], warning: '' };
+            if (repaired.toolCalls.length > 0) {
+              warnings.push(repaired.warning);
+              this.emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
+            }
+            return {
+              content,
+              thinking,
+              usage,
+              toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
+              warnings,
+            };
           }
-          return {
-            content,
-            thinking,
-            usage,
-            toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
-            warnings,
-          };
-        }
 
-        try {
-          const json = JSON.parse(data);
-          if (json.usage) usage = normalizeTokenUsage(json.usage, { model: settings.model });
-          const delta = json.choices?.[0]?.delta;
-          if (!delta) continue;
-          if (delta.content) {
-            content += delta.content;
-            this.emit(requestId, 'token', { token: delta.content });
+          try {
+            const json = JSON.parse(data);
+            if (json.usage) usage = normalizeTokenUsage(json.usage, { model: settings.model });
+            const delta = json.choices?.[0]?.delta;
+            if (!delta) continue;
+            if (delta.content) {
+              content += delta.content;
+              this.emit(requestId, 'token', { token: delta.content });
+            }
+            if (delta.reasoning_content) {
+              thinking += delta.reasoning_content;
+              this.emit(requestId, 'thinking', { token: delta.reasoning_content });
+            }
+            if (delta.tool_calls) mergeToolCalls(toolCalls, delta.tool_calls);
+          } catch {
+            // Ignore malformed SSE fragments from non-standard providers.
           }
-          if (delta.reasoning_content) {
-            thinking += delta.reasoning_content;
-            this.emit(requestId, 'thinking', { token: delta.reasoning_content });
-          }
-          if (delta.tool_calls) mergeToolCalls(toolCalls, delta.tool_calls);
-        } catch {
-          // Ignore malformed SSE fragments from non-standard providers.
         }
       }
-    }
 
-    const nativeToolCalls = compactToolCalls(toolCalls);
-    const repaired =
-      nativeToolCalls.length === 0 ? repairToolCallsFromText(content, thinking, tools) : { toolCalls: [], warning: '' };
-    if (repaired.toolCalls.length > 0) {
-      warnings.push(repaired.warning);
-      this.emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
+      const nativeToolCalls = compactToolCalls(toolCalls);
+      const repaired =
+        nativeToolCalls.length === 0
+          ? repairToolCallsFromText(content, thinking, tools)
+          : { toolCalls: [], warning: '' };
+      if (repaired.toolCalls.length > 0) {
+        warnings.push(repaired.warning);
+        this.emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
+      }
+      return {
+        content,
+        thinking,
+        usage,
+        toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
+        warnings,
+      };
+    } finally {
+      reader.releaseLock();
     }
-    return {
-      content,
-      thinking,
-      usage,
-      toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
-      warnings,
-    };
   }
 
   async handleToolCall(requestId, toolCall, settings, signal, round = 0, maxRounds = 0) {
@@ -584,9 +591,10 @@ class ChatService {
         toolName: fn.name,
         warning: decision.autoApproved ? decision.reason : undefined,
       });
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       const output = isMcpToolName(fn.name)
-        ? await this.mcpManager.callOpenAiTool(fn.name, args, settings)
-        : await executeTool(fn.name, args, settings);
+        ? await this.mcpManager.callOpenAiTool(fn.name, args, settings, signal)
+        : await executeTool(fn.name, args, settings, signal);
       this.emit(requestId, 'agentStage', { stage: 'tool_result', round, maxRounds, toolName: fn.name });
       this.emit(requestId, 'toolResult', {
         toolCallId: toolCall.id,
@@ -2042,7 +2050,7 @@ function buildToolSecurity(name, args = {}, settings = {}) {
       language: String(args.language || ''),
       codeLength: String(args.code || '').length,
       timeoutMs: CODE_RUN_TIMEOUT_MS,
-      sandbox: 'windows-light',
+      sandbox: process.platform === 'win32' ? 'windows-light' : `${process.platform}-light`,
       envPolicy: 'minimal-allowlist-redacted',
       isolatedCwd: true,
       network: 'not-hard-blocked',
@@ -2188,7 +2196,12 @@ function isToolParameterError(text) {
 function normalizeError(error) {
   if (!error) return '未知错误';
   if (error.name === 'AbortError') return '请求已取消';
-  return String(error.message || error).slice(0, 1000);
+  const full = String(error.message || error);
+  if (full.length > 1000) {
+    console.error('[normalizeError] Truncated error:', full);
+    return full.slice(0, 1000);
+  }
+  return full;
 }
 
 function estimateTokens(text) {

@@ -292,7 +292,7 @@ function describeToolRisk(name, args) {
   return '未知工具调用。';
 }
 
-async function executeTool(name, args, settings) {
+async function executeTool(name, args, settings, signal) {
   let output;
   if (name === 'web_search') output = await webSearch(args, settings);
   else if (name === 'list_files') output = await listFiles(args, settings);
@@ -1015,11 +1015,13 @@ async function getWorkspaceIndex(args, settings, options = {}) {
 }
 
 function rememberWorkspaceIndex(cacheKey, index) {
+  // Delete then re-insert to update LRU order
+  if (workspaceIndexCache.has(cacheKey)) workspaceIndexCache.delete(cacheKey);
   workspaceIndexCache.set(cacheKey, index);
   while (workspaceIndexCache.size > WORKSPACE_INDEX_CACHE_MAX) {
-    const oldest = [...workspaceIndexCache.entries()].sort((a, b) => a[1].builtAtMs - b[1].builtAtMs)[0];
-    if (!oldest) break;
-    workspaceIndexCache.delete(oldest[0]);
+    const firstKey = workspaceIndexCache.keys().next().value;
+    if (firstKey === undefined) break;
+    workspaceIndexCache.delete(firstKey);
   }
 }
 
@@ -1649,7 +1651,7 @@ function isProbablyBinary(buffer) {
   return false;
 }
 
-async function runCode(args, settings = {}) {
+async function runCode(args, settings = {}, signal) {
   if (settings.runCodeEnabled === false || settings.runCodeEnabled === 'false') {
     throw new Error('代码运行工具已在设置中关闭。');
   }
@@ -1672,7 +1674,7 @@ async function runCode(args, settings = {}) {
       : process.env.DEEPCHAT_NODE_PATH || process.execPath;
   const env = buildSandboxEnv(language, tempDir);
   const startedAt = Date.now();
-  const output = await spawnWithLimits(command, [filePath], String(args.stdin || ''), env, tempDir);
+  const output = await spawnWithLimits(command, [filePath], String(args.stdin || ''), env, tempDir, signal);
   const durationMs = Date.now() - startedAt;
   const structured = buildRunCodeStructuredResult({
     language,
@@ -1684,7 +1686,11 @@ async function runCode(args, settings = {}) {
     stdout: output.stdout,
     stderr: output.stderr,
   });
-  await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+  try {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  } catch (err) {
+    console.error('[runCode] Failed to clean up temp dir:', tempDir, err.message);
+  }
   return [
     `语言：${language}`,
     `退出码：${output.exitCode ?? 'unknown'}${output.timedOut ? '（超时终止）' : ''}`,
@@ -1781,12 +1787,19 @@ function normalizeLanguage(value) {
   return '';
 }
 
-function spawnWithLimits(command, args, stdin, env = process.env, cwd) {
+function spawnWithLimits(command, args, stdin, env = process.env, cwd, signal) {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   return new Promise((resolve) => {
     const child = spawn(command, args, { windowsHide: true, env, cwd });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+
+    const onAbort = () => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -1799,12 +1812,16 @@ function spawnWithLimits(command, args, stdin, env = process.env, cwd) {
     child.stderr.on('data', (chunk) => {
       stderr = truncate(stderr + chunk.toString('utf8'), MAX_TOOL_OUTPUT);
     });
-    child.on('error', (error) => {
+    const cleanup = () => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    child.on('error', (error) => {
+      cleanup();
       resolve({ stdout, stderr: error.message, exitCode: null, timedOut });
     });
     child.on('close', (exitCode) => {
-      clearTimeout(timer);
+      cleanup();
       resolve({ stdout, stderr, exitCode, timedOut });
     });
 

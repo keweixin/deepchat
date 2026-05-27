@@ -406,9 +406,15 @@ async function importBackup(parentWindow) {
   const raw = await fs.readFile(result.filePaths[0], 'utf8');
   const parsed = JSON.parse(raw);
   if (!parsed || typeof parsed !== 'object') throw new Error('备份文件格式不正确。');
+  if (parsed.version && parsed.version !== DATA_VERSION) {
+    console.warn(`[Import] Backup version ${parsed.version} differs from current ${DATA_VERSION}`);
+  }
   if (parsed.settings && typeof parsed.settings === 'object')
     await setSettings(sanitizeSettingsForBackup(parsed.settings));
-  if (Array.isArray(parsed.conversations)) await saveConversations(parsed.conversations);
+  if (Array.isArray(parsed.conversations)) {
+    const validated = parsed.conversations.filter((c) => c && c.id && Array.isArray(c.messages));
+    await saveConversations(validated);
+  }
   return { canceled: false, path: result.filePaths[0] };
 }
 

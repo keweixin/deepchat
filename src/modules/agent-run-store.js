@@ -43,7 +43,18 @@ export function getCrewRoleForTool(toolName = '') {
   if (name === 'run_code') {
     return 'coder';
   }
+  // Parse original tool name from OpenAI tool name pattern: mcp__{serverId}__{toolName}_{hash}
+  let originalName = name;
+  if (name.startsWith('mcp__')) {
+    const parts = name.split('__');
+    if (parts.length >= 3) {
+      originalName = parts[2].replace(/_[a-z0-9]+$/, '');
+    }
+  }
   if (name === 'mcp' || name.startsWith('mcp_') || name.startsWith('mcp__')) {
+    if (originalName.includes('read') || originalName.includes('file')) return 'reader';
+    if (originalName.includes('write') || originalName.includes('edit') || originalName.includes('create'))
+      return 'coder';
     return 'researcher';
   }
   // Fallback map science skills and other tools
@@ -86,12 +97,13 @@ export function applyCrewToolRequest(agentRun, tool = {}) {
   }
 
   // Update status based on tool status
+  const count = member.linkedToolCallIds.length;
   if (tool.status === 'pending') {
     member.status = 'waiting';
-    member.currentAction = `等待审批：${toolName}`;
+    member.currentAction = count > 1 ? `等待审批 ${count} 个工具（含 ${toolName}）` : `等待审批：${toolName}`;
   } else {
     member.status = 'running';
-    member.currentAction = `正在执行：${toolName}`;
+    member.currentAction = count > 1 ? `正在执行 ${count} 个工具（含 ${toolName}）` : `正在执行：${toolName}`;
   }
 
   if (!member.startedAt) {
@@ -109,7 +121,7 @@ export function applyCrewToolResult(agentRun, event = {}, toolCalls = []) {
   if (!member) return;
 
   const ok = event.ok !== undefined ? event.ok : tool.ok;
-  const status = event.status || tool.status;
+  const status = event.status || tool.status || 'unknown';
 
   if (status === 'denied') {
     member.status = 'skipped';

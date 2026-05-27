@@ -187,6 +187,7 @@ export function createConversation() {
 
 export function switchConversation(id) {
   activeConvId = id;
+  userScrolledUp = false;
   resetReadingNavigator();
   renderConversationList();
   renderMessages();
@@ -429,7 +430,10 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     if (renderTimer) return;
     renderTimer = setTimeout(async () => {
       renderTimer = null;
-      if (fullContent.length - lastRenderLen < 3 && fullContent.length > 50) return;
+      if (fullContent.length - lastRenderLen < 3 && fullContent.length > 50) {
+        renderTimer = setTimeout(scheduleRender, getThrottleMs());
+        return;
+      }
       lastRenderLen = fullContent.length;
 
       contentEl.innerHTML = renderMarkdown(fullContent);
@@ -623,7 +627,10 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         isStreaming = false;
         abortController = null;
         showToast(`网络错误，正在重试 (${retryCount + 1}/2)...`);
-        setTimeout(() => doStream(conv, retryCount + 1), 1500);
+        setTimeout(() => {
+          if (isStreaming) return;
+          doStream(conv, retryCount + 1);
+        }, 1500);
         return;
       }
 

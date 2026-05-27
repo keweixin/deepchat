@@ -96,7 +96,7 @@ class McpManager {
     return result;
   }
 
-  async callOpenAiTool(openAiToolName, args, settings) {
+  async callOpenAiTool(openAiToolName, args, settings, signal) {
     const parsed = parseOpenAiToolName(openAiToolName);
     if (!parsed) throw new Error(`不是 MCP 工具：${openAiToolName}`);
     const server = getEnabledServers(settings).find((item) => item.id === parsed.serverId);
@@ -107,6 +107,7 @@ class McpManager {
     if (!tool) throw new Error(`MCP 工具不存在：${openAiToolName}`);
 
     const session = await this.getSession(server);
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const callArgs = restoreFlattenedArgs(args || {});
     const result = await withTimeout(
       session.client.callTool({ name: tool.name, arguments: callArgs }),
@@ -149,6 +150,16 @@ class McpManager {
     this.sessions.clear();
     this.refreshToolDefinitions();
     await Promise.all(sessions.map(closeSession));
+  }
+
+  async pruneSessions(enabledServerIds) {
+    const ids = new Set(enabledServerIds);
+    for (const [id, session] of this.sessions) {
+      if (!ids.has(id)) {
+        await closeSession(session);
+        this.sessions.delete(id);
+      }
+    }
   }
 
   refreshToolDefinitions() {
@@ -396,7 +407,12 @@ function serverFingerprint(server) {
 async function closeSession(session) {
   try {
     await session.client.close();
-  } catch {}
+  } catch (err) {
+    console.error('[MCP] Session close failed:', err?.message || err);
+    if (session.transport?.process && !session.transport.process.killed) {
+      session.transport.process.kill('SIGKILL');
+    }
+  }
 }
 
 function withTimeout(promise, ms, message) {
