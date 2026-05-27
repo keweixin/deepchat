@@ -1,11 +1,23 @@
 const { getSettings } = require('./storage');
 const { getToolDefinitions, describeToolRisk, executeTool } = require('./tools');
 const { McpManager, isMcpToolName } = require('./mcp-manager');
+const crypto = require('crypto');
 
 const DEFAULT_AGENT_MAX_ROUNDS = 3;
 const DEFAULT_MAX_INPUT_TOKENS = 24000;
 const MAX_TOOL_CONTEXT_TOKENS = 3500;
 const SUMMARY_TRIGGER_RATIO = 0.8;
+const COMPACTION_SUMMARY_MARKER = '[CONVERSATION HISTORY SUMMARY — earlier turns folded for context efficiency]\n\n';
+const DEFAULT_TOOL_APPROVAL_TIMEOUT_MS = 60000;
+const TOOL_ARG_LONG_STRING_THRESHOLD = 300;
+const CODE_RUN_TIMEOUT_MS = 5000;
+
+const DEEPSEEK_PRICING = {
+  'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+  'deepseek-v4-pro': { inputCacheHit: 0.003625, inputCacheMiss: 0.435, output: 0.87 },
+  'deepseek-chat': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+  'deepseek-reasoner': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+};
 
 const MODE_PROMPTS = {
   none: '',
@@ -72,21 +84,30 @@ class ChatService {
     const messages = sanitizeMessages(request.messages || []);
     const intent = detectAgentIntent(messages, settings);
     const tools = await this.getAvailableTools(settings, intent);
-    const systemPrompt = buildSystemPrompt(settings, intent);
-    const prefixTokens = estimateMessagesTokens([{ role: 'system', content: systemPrompt }]) + estimateTokens(JSON.stringify(tools)) + 16;
+    const prefix = buildCacheStablePrefix(settings, tools);
+    const systemPrompt = prefix.systemPrompt;
+    const prefixTokens = prefix.prefixTokens;
     let contextBundle = buildContextBudgetBundle(messages, {
       maxMessages: settings.maxContextMessages,
       maxInputTokens: settings.maxInputTokens,
       prefixTokens,
+      prefix,
     });
     const apiMessages = [...contextBundle.messages];
     const maxToolRounds = resolveAgentMaxRounds(settings);
     const usageRounds = [];
     const warnings = [];
+    const seenToolCalls = new Set();
 
     let workingMessages = [
       { role: 'system', content: systemPrompt },
     ];
+    if (settings.activeSkill === 'agent_auto') {
+      workingMessages.push({
+        role: 'system',
+        content: formatTurnIntentMetadata(intent),
+      });
+    }
 
     this.emit(requestId, 'agentStage', {
       stage: 'plan',
@@ -94,10 +115,11 @@ class ChatService {
       maxRounds: maxToolRounds,
       intent,
       selectedTools: intent.selectedTools,
+      candidateTools: intent.candidateTools,
       missingPrerequisites: intent.missingPrerequisites,
     });
     if (intent.missingPrerequisites.length > 0) {
-      const warning = `智能 Agent 判断本轮可能需要 ${intent.selectedTools.join(', ') || intent.toolMode}，但缺少配置：${intent.missingPrerequisites.join('、')}。`;
+      const warning = `智能 Agent 判断本轮可能需要 ${(intent.candidateTools || intent.selectedTools).join(', ') || intent.reason}，但缺少配置：${intent.missingPrerequisites.join('、')}。`;
       warnings.push(warning);
       this.emit(requestId, 'agentStage', { stage: 'warning', round: 0, maxRounds: maxToolRounds, warning });
       workingMessages.push({
@@ -111,7 +133,7 @@ class ChatService {
       if (summaryResult?.summary) {
         workingMessages.push({
           role: 'system',
-          content: `以下是本对话较早内容的压缩记忆，仅用于保持任务连续性：\n${summaryResult.summary}`,
+          content: `${COMPACTION_SUMMARY_MARKER}${summaryResult.summary}`,
         });
         usageRounds.push(summaryResult.usage);
         contextBundle = {
@@ -126,6 +148,7 @@ class ChatService {
           summary: summaryResult.summary,
           generated: summaryResult.generated,
           updatedAt: new Date().toISOString(),
+          meta: summaryResult.meta,
         });
       }
     }
@@ -140,6 +163,8 @@ class ChatService {
       usageRounds.push(normalizeTokenUsage(result.usage, {
         input: estimateMessagesTokens(workingMessages),
         output: estimateTokens(result.content),
+        model: settings.model,
+        byPurpose: { main: estimateTokens(result.content) },
       }));
       if (abortController.signal.aborted) {
         this.emit(requestId, 'done', { aborted: true });
@@ -149,6 +174,7 @@ class ChatService {
       if (!result.toolCalls.length) {
         this.emit(requestId, 'agentStage', { stage: 'final', round: round + 1, maxRounds: maxToolRounds, stopReason: 'final' });
         const usage = mergeTokenUsage(usageRounds, { warnings });
+        usage.prefixFingerprint = prefix.prefixFingerprint;
         this.emit(requestId, 'tokenCount', usage);
         this.emit(requestId, 'done', { aborted: false });
         return;
@@ -158,6 +184,7 @@ class ChatService {
         const stopReason = `工具调用超过 ${maxToolRounds} 轮，已停止。`;
         this.emit(requestId, 'agentStage', { stage: 'stop', round: round + 1, maxRounds: maxToolRounds, stopReason });
         const usage = mergeTokenUsage(usageRounds, { warnings });
+        usage.prefixFingerprint = prefix.prefixFingerprint;
         this.emit(requestId, 'tokenCount', usage);
         throw new Error(stopReason);
       }
@@ -165,10 +192,25 @@ class ChatService {
       workingMessages.push({
         role: 'assistant',
         content: result.content || '',
-        tool_calls: result.toolCalls,
+        tool_calls: compactToolCallsForContext(result.toolCalls),
+        ...buildReasoningRoundTrip(result, settings),
       });
 
       for (const toolCall of result.toolCalls) {
+        const signature = toolCallSignature(toolCall);
+        if (seenToolCalls.has(signature)) {
+          const blocked = `重复工具调用已抑制：${toolCall.function?.name || 'unknown_tool'}。请基于已有工具结果继续推理，或换用不同参数。`;
+          warnings.push(blocked);
+          this.emit(requestId, 'agentStage', { stage: 'tool_failed', round: round + 1, maxRounds: maxToolRounds, toolName: toolCall.function?.name, warning: blocked });
+          this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: toolCall.function?.name, ok: false, output: blocked });
+          workingMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: blocked,
+          });
+          continue;
+        }
+        seenToolCalls.add(signature);
         this.emit(requestId, 'agentStage', { stage: 'tool', round: round + 1, maxRounds: maxToolRounds });
         const output = await this.handleToolCall(requestId, toolCall, settings, abortController.signal, round + 1, maxToolRounds);
         workingMessages.push({
@@ -189,6 +231,15 @@ class ChatService {
     const shouldSummarize = droppedMessages.length > 0 || contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO;
     if (!shouldSummarize) return existingSummary ? { summary: existingSummary, generated: false } : null;
     if (summarySourceMessages.length === 0) return existingSummary ? { summary: existingSummary, generated: false } : null;
+    const summaryHash = hashMessages(summarySourceMessages);
+    const priorMeta = request.contextSummaryMeta && typeof request.contextSummaryMeta === 'object' ? request.contextSummaryMeta : {};
+    if (existingSummary && priorMeta.hash === summaryHash) {
+      return {
+        summary: existingSummary,
+        generated: false,
+        meta: { hash: summaryHash, sourceMessageCount: summarySourceMessages.length, cacheHit: true },
+      };
+    }
 
     this.emit(request.requestId, 'agentStage', { stage: 'summary', round: 0, maxRounds: resolveAgentMaxRounds(settings) });
     try {
@@ -200,10 +251,20 @@ class ChatService {
       return {
         summary,
         generated: true,
-        usage: normalizeTokenUsage(null, { input, output: estimateTokens(summary) }),
+        meta: { hash: summaryHash, sourceMessageCount: summarySourceMessages.length, cacheHit: false },
+        usage: normalizeTokenUsage(null, {
+          input,
+          output: estimateTokens(summary),
+          model: settings.model,
+          byPurpose: { summary: input + estimateTokens(summary) },
+        }),
       };
     } catch {
-      if (existingSummary) return { summary: existingSummary, generated: false };
+      if (existingSummary) return {
+        summary: existingSummary,
+        generated: false,
+        meta: { hash: priorMeta.hash || summaryHash, sourceMessageCount: priorMeta.sourceMessageCount || 0, cacheHit: true, stale: true },
+      };
       return null;
     }
   }
@@ -287,7 +348,7 @@ class ChatService {
 
         try {
           const json = JSON.parse(data);
-          if (json.usage) usage = normalizeTokenUsage(json.usage);
+          if (json.usage) usage = normalizeTokenUsage(json.usage, { model: settings.model });
           const delta = json.choices?.[0]?.delta;
           if (!delta) continue;
           if (delta.content) {
@@ -310,18 +371,38 @@ class ChatService {
 
   async handleToolCall(requestId, toolCall, settings, signal, round = 0, maxRounds = 0) {
     const fn = toolCall.function || {};
-    const args = parseToolArgs(fn.arguments);
+    const parsedArgs = parseToolArgsDetailed(fn.arguments);
+    const args = parsedArgs.args;
     this.emit(requestId, 'agentStage', { stage: 'tool_pending', round, maxRounds, toolName: fn.name });
     this.emit(requestId, 'toolRequest', {
       toolCallId: toolCall.id,
       name: fn.name,
       args,
+      rawArguments: fn.arguments || '',
+      parseError: parsedArgs.error,
       risk: this.describeRisk(fn.name, args, settings),
+      security: buildToolSecurity(fn.name, args, settings),
+      expiresAt: new Date(Date.now() + resolveToolApprovalTimeout(settings)).toISOString(),
     });
+    if (parsedArgs.error) {
+      const message = `工具 ${fn.name || 'unknown_tool'} 参数 JSON 解析失败：${parsedArgs.error}`;
+      this.emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: message });
+      this.emit(requestId, 'toolResult', {
+        toolCallId: toolCall.id,
+        name: fn.name,
+        ok: false,
+        output: message,
+        rawArguments: fn.arguments || '',
+        parseError: parsedArgs.error,
+      });
+      return message;
+    }
 
-    const decision = await this.waitForApproval(requestId, toolCall.id, signal);
+    const decision = await this.waitForApproval(requestId, toolCall.id, signal, resolveToolApprovalTimeout(settings));
     if (!decision.approved) {
-      const denied = `用户拒绝执行工具 ${fn.name}。`;
+      const denied = decision.timedOut
+        ? `工具 ${fn.name} 等待确认超过 ${Math.round(resolveToolApprovalTimeout(settings) / 1000)} 秒，已自动拒绝。`
+        : `用户拒绝执行工具 ${fn.name}。`;
       this.emit(requestId, 'agentStage', { stage: 'tool_denied', round, maxRounds, toolName: fn.name, stopReason: denied });
       this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: denied });
       return denied;
@@ -333,17 +414,17 @@ class ChatService {
         ? await this.mcpManager.callOpenAiTool(fn.name, args, settings)
         : await executeTool(fn.name, args, settings);
       this.emit(requestId, 'agentStage', { stage: 'tool_result', round, maxRounds, toolName: fn.name });
-      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: true, output });
+      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: true, output, security: buildToolSecurity(fn.name, args, settings) });
       return output;
     } catch (error) {
       const message = normalizeError(error);
       this.emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: message });
-      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: message });
+      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: message, security: buildToolSecurity(fn.name, args, settings) });
       return `工具 ${fn.name} 执行失败：${message}`;
     }
   }
 
-  waitForApproval(requestId, toolCallId, signal) {
+  waitForApproval(requestId, toolCallId, signal, timeoutMs = DEFAULT_TOOL_APPROVAL_TIMEOUT_MS) {
     return new Promise((resolve) => {
       if (signal.aborted) {
         resolve({ approved: false });
@@ -351,11 +432,25 @@ class ChatService {
       }
 
       const key = `${requestId}:${toolCallId}`;
-      this.pendingApprovals.set(key, { resolve });
-      const onAbort = () => {
+      let settled = false;
+      const cleanup = () => {
         this.pendingApprovals.delete(key);
-        resolve({ approved: false });
+        signal.removeEventListener('abort', onAbort);
+        clearTimeout(timer);
       };
+      const finish = (decision) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(decision);
+      };
+      const onAbort = () => {
+        finish({ approved: false });
+      };
+      const timer = setTimeout(() => {
+        finish({ approved: false, timedOut: true });
+      }, timeoutMs);
+      this.pendingApprovals.set(key, { resolve: finish, cleanup });
       signal.addEventListener('abort', onAbort, { once: true });
     });
   }
@@ -367,8 +462,12 @@ class ChatService {
   }
 
   async getAvailableTools(settings, intent = detectAgentIntent([], settings)) {
-    const activeSkill = settings.activeSkill === 'agent_auto' ? intent.toolMode : settings.activeSkill;
-    const builtIn = getToolDefinitions(activeSkill);
+    const activeSkill = settings.activeSkill === 'agent_auto'
+      ? (settings.cacheOptimization === false ? intent.toolMode : getStableAgentToolMode(settings))
+      : settings.activeSkill;
+    const builtIn = settings.activeSkill === 'agent_auto' && settings.cacheOptimization !== false
+      ? filterStableBuiltInTools(getToolDefinitions(activeSkill), settings)
+      : getToolDefinitions(activeSkill);
     if (activeSkill !== 'mcp_tool' && activeSkill !== 'multi_tool') return builtIn;
     const mcpTools = await this.mcpManager.getToolDefinitions(settings);
     return [...builtIn, ...mcpTools];
@@ -452,9 +551,74 @@ function normalizeBaseUrl(apiBase) {
   return baseUrl;
 }
 
+function getStableAgentToolMode(settings = {}) {
+  const hasMcp = (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
+  const hasWeb = Boolean(settings.tavilyApiKey);
+  const hasFiles = Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
+  const hasCode = settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false';
+  const builtinCount = [hasWeb, hasFiles, hasCode].filter(Boolean).length;
+  if (hasMcp && builtinCount > 0) return 'multi_tool';
+  if (hasMcp) return 'mcp_tool';
+  if (builtinCount > 1) return 'multi_tool';
+  if (hasWeb) return 'web_search';
+  if (hasFiles) return 'file_reader';
+  if (hasCode) return 'code_runner';
+  return 'none';
+}
+
+function filterStableBuiltInTools(tools, settings = {}) {
+  return (tools || []).filter((tool) => {
+    const name = tool?.function?.name;
+    if (name === 'web_search') return Boolean(settings.tavilyApiKey);
+    if (name === 'list_files' || name === 'read_file') return Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
+    if (name === 'run_code') return settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false';
+    return true;
+  });
+}
+
+function buildCacheStablePrefix(settings, tools) {
+  const systemPrompt = buildSystemPrompt(settings, detectAgentIntent([], settings));
+  const prefixBlob = JSON.stringify({
+    system: systemPrompt,
+    tools: stableToolFingerprintPayload(tools),
+  });
+  const prefixBytes = Buffer.byteLength(prefixBlob, 'utf8');
+  const prefixFingerprint = crypto.createHash('sha256').update(prefixBlob).digest('hex').slice(0, 16);
+  const prefixTokens = estimateMessagesTokens([{ role: 'system', content: systemPrompt }]) + estimateTokens(JSON.stringify(tools || [])) + 16;
+  return {
+    systemPrompt,
+    prefixFingerprint,
+    prefixBytes,
+    prefixTokens,
+    cacheStabilityWarnings: [],
+  };
+}
+
+function stableToolFingerprintPayload(tools = []) {
+  return [...(tools || [])]
+    .map((tool) => tool?.function ? {
+      name: tool.function.name,
+      description: tool.function.description,
+      parameters: tool.function.parameters,
+    } : tool)
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+}
+
+function formatTurnIntentMetadata(intent = {}) {
+  return [
+    '本轮动态 Agent 规划元信息（不要把它当成长期系统规则）：',
+    `toolMode=${intent.toolMode || 'none'}`,
+    `confidence=${intent.confidence ?? 0}`,
+    `candidateTools=${(intent.candidateTools || []).join(', ') || 'none'}`,
+    `selectedTools=${(intent.selectedTools || []).join(', ') || 'none'}`,
+    `missingPrerequisites=${(intent.missingPrerequisites || []).join(', ') || 'none'}`,
+    `reason=${intent.reason || 'plain_chat'}`,
+  ].join('\n');
+}
+
 function buildSystemPrompt(settings, intent = detectAgentIntent([], settings)) {
   const suffix = settings.activeSkill === 'agent_auto'
-    ? `${MODE_PROMPTS.agent_auto}${MODE_PROMPTS[intent.toolMode] || ''}`
+    ? `${MODE_PROMPTS.agent_auto}${settings.cacheOptimization === false ? (MODE_PROMPTS[intent.toolMode] || '') : (MODE_PROMPTS[getStableAgentToolMode(settings)] || '')}`
     : (MODE_PROMPTS[settings.activeSkill] || '');
   const skills = formatExternalSkills(settings.externalSkills || []);
   return `${settings.systemPrompt || ''}${suffix}${skills}`;
@@ -535,7 +699,7 @@ function buildContextBudgetBundle(messages, options = {}) {
   if (clean.length === 0) {
     return {
       messages: [],
-      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped: [], retained: [], used: 0 }),
+      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped: [], retained: [], used: 0, prefix: options.prefix }),
     };
   }
 
@@ -545,7 +709,7 @@ function buildContextBudgetBundle(messages, options = {}) {
     const retained = dropLeadingAssistant(trimByRecentBudget(capped, budget));
     return {
       messages: retained,
-      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used: estimateMessagesTokens(retained) }),
+      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used: estimateMessagesTokens(retained), prefix: options.prefix }),
     };
   }
 
@@ -564,11 +728,11 @@ function buildContextBudgetBundle(messages, options = {}) {
   const messagesOut = dropLeadingAssistant(retained);
   return {
     messages: messagesOut,
-    meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained: messagesOut, used: estimateMessagesTokens(messagesOut) }),
+    meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained: messagesOut, used: estimateMessagesTokens(messagesOut), prefix: options.prefix }),
   };
 }
 
-function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used }) {
+function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used, prefix = {} }) {
   const retainedSet = new Set(retained);
   const droppedMessages = capped.filter((message) => !retainedSet.has(message));
   const omittedByMessageLimit = Math.max(0, clean.length - capped.length);
@@ -588,6 +752,9 @@ function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, bu
     droppedCount: droppedMessages.length + omittedByMessageLimit,
     omittedByMessageLimit,
     trimmed: droppedMessages.length > 0 || omittedByMessageLimit > 0,
+    prefixFingerprint: prefix.prefixFingerprint || '',
+    prefixBytes: prefix.prefixBytes || 0,
+    cacheStabilityWarnings: prefix.cacheStabilityWarnings || [],
   };
 }
 
@@ -597,26 +764,41 @@ function detectAgentIntent(messagesOrText, settings = {}) {
     : String(messagesOrText || '');
   const lower = text.toLowerCase();
   const selected = new Set();
+  const candidates = new Set();
   const missing = new Set();
   const reasons = [];
+  let score = 0;
 
   if (needsSearch(text, lower)) {
-    selected.add('web_search');
+    candidates.add('web_search');
     reasons.push('fresh_or_external_facts');
-    if (!settings.tavilyApiKey) missing.add('Tavily API Key');
+    score += 0.35;
+    if (settings.tavilyApiKey) selected.add('web_search');
+    else missing.add('Tavily API Key');
   }
   if (needsFiles(text, lower)) {
-    selected.add('list_files');
-    selected.add('read_file');
+    candidates.add('list_files');
+    candidates.add('read_file');
     reasons.push('local_files');
-    if (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0) missing.add('工作区目录');
+    score += 0.35;
+    if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('list_files');
+      selected.add('read_file');
+    } else {
+      missing.add('工作区目录');
+    }
   }
   if (needsCode(text, lower)) {
-    selected.add('run_code');
+    candidates.add('run_code');
     reasons.push('code_or_calculation');
+    score += 0.3;
+    if (settings.runCodeEnabled === false || settings.runCodeEnabled === 'false') missing.add('代码运行工具');
+    else selected.add('run_code');
   }
   if (needsMcp(text, lower)) {
+    candidates.add('mcp');
     reasons.push('external_mcp');
+    score += 0.25;
     if ((settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command)) {
       selected.add('mcp');
     } else {
@@ -638,7 +820,9 @@ function detectAgentIntent(messagesOrText, settings = {}) {
     kind: toolMode === 'none' ? 'chat' : 'tool',
     toolMode,
     selectedTools: [...selected],
+    candidateTools: [...candidates],
     missingPrerequisites: [...missing],
+    confidence: Math.min(1, score),
     reason: reasons.join(',') || 'plain_chat',
   };
 }
@@ -698,12 +882,110 @@ function compactToolCalls(toolCalls) {
     }));
 }
 
+function compactToolCallsForContext(toolCalls = []) {
+  return compactToolCalls(toolCalls).map((call) => ({
+    ...call,
+    function: {
+      ...call.function,
+      arguments: compactToolArgumentsForContext(call.function.arguments || '{}'),
+    },
+  }));
+}
+
+function compactToolArgumentsForContext(argsJson) {
+  const text = String(argsJson || '{}');
+  if (estimateTokens(text) <= MAX_TOOL_CONTEXT_TOKENS) return text;
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return text.slice(0, 1200);
+    const output = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (typeof value === 'string' && value.length > TOOL_ARG_LONG_STRING_THRESHOLD) {
+        const newlines = (value.match(/\n/g) || []).length;
+        output[key] = `[…shrunk: ${value.length} chars, ${newlines} lines — tool already responded, see result]`;
+      } else {
+        output[key] = value;
+      }
+    }
+    return JSON.stringify(output);
+  } catch {
+    return `${text.slice(0, 1200)}…[shrunk: ${text.length} chars, unparsed]`;
+  }
+}
+
+function buildReasoningRoundTrip(result, settings = {}) {
+  if (!result?.toolCalls?.length) return {};
+  const model = String(settings.model || '').toLowerCase();
+  if (!model.includes('deepseek') && !String(result.thinking || '').trim()) return {};
+  return { reasoning_content: result.thinking || '' };
+}
+
+function toolCallSignature(toolCall = {}) {
+  const fn = toolCall.function || {};
+  return `${fn.name || 'unknown'}:${canonicalJson(fn.arguments || '{}')}`;
+}
+
+function canonicalJson(value) {
+  try {
+    return JSON.stringify(sortObject(JSON.parse(value)));
+  } catch {
+    return String(value || '');
+  }
+}
+
+function sortObject(value) {
+  if (Array.isArray(value)) return value.map(sortObject);
+  if (!value || typeof value !== 'object') return value;
+  return Object.keys(value).sort().reduce((acc, key) => {
+    acc[key] = sortObject(value[key]);
+    return acc;
+  }, {});
+}
+
+function buildToolSecurity(name, args = {}, settings = {}) {
+  if (name === 'run_code') {
+    return {
+      riskLevel: 'high',
+      language: String(args.language || ''),
+      codeLength: String(args.code || '').length,
+      timeoutMs: CODE_RUN_TIMEOUT_MS,
+      sandbox: 'windows-light',
+      envPolicy: 'minimal-allowlist-redacted',
+      isolatedCwd: true,
+      network: 'not-hard-blocked',
+      enabled: settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false',
+    };
+  }
+  if (name === 'read_file') {
+    return {
+      riskLevel: 'medium',
+      path: String(args.path || ''),
+      sensitiveDenylist: true,
+      redaction: true,
+    };
+  }
+  if (name === 'web_search') return { riskLevel: 'low', network: 'https', query: String(args.query || '') };
+  if (isMcpToolName(name)) return { riskLevel: 'external', mcp: true };
+  return { riskLevel: 'unknown' };
+}
+
+function resolveToolApprovalTimeout(settings = {}) {
+  return Math.round(clampNumber(settings.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_TOOL_APPROVAL_TIMEOUT_MS));
+}
+
 function parseToolArgs(raw) {
+  return parseToolArgsDetailed(raw).args;
+}
+
+function parseToolArgsDetailed(raw) {
   try {
     const parsed = JSON.parse(raw || '{}');
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { args: {}, error: '工具参数必须是 JSON object。' };
+    }
+    return { args: parsed, error: '' };
+  } catch (error) {
+    return { args: {}, error: error.message || 'JSON parse error' };
   }
 }
 
@@ -765,6 +1047,8 @@ function normalizeTokenUsage(usage, fallback = {}) {
       cacheMiss: fallback.cacheMiss === undefined ? inputFallback : toTokenNumber(fallback.cacheMiss),
       source: 'estimated',
       warnings: fallback.warnings || [],
+      byPurpose: fallback.byPurpose,
+      model: fallback.model,
     });
   }
 
@@ -797,7 +1081,19 @@ function normalizeTokenUsage(usage, fallback = {}) {
     ? usage.source
     : (hasProviderFields ? 'provider' : 'estimated');
 
-  return finalizeTokenUsage({ input, output, total, reasoning, cacheHit, cacheMiss, source, warnings: usage.warnings || fallback.warnings || [] });
+  return finalizeTokenUsage({
+    input,
+    output,
+    total,
+    reasoning,
+    cacheHit,
+    cacheMiss,
+    source,
+    warnings: usage.warnings || fallback.warnings || [],
+    byPurpose: usage.byPurpose || fallback.byPurpose,
+    cost: usage.cost || fallback.cost,
+    model: usage.model || fallback.model,
+  });
 }
 
 function mergeTokenUsage(usages = [], options = {}) {
@@ -811,8 +1107,10 @@ function mergeTokenUsage(usages = [], options = {}) {
     acc.reasoning += usage.reasoning;
     acc.cacheHit += usage.cacheHit;
     acc.cacheMiss += usage.cacheMiss;
+    acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
+    acc.cost = mergeUsageCost(acc.cost, usage.cost);
     return acc;
-  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0 });
+  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, byPurpose: {}, cost: null });
   const sources = new Set(normalized.map((usage) => usage.source));
   const source = sources.size === 0 ? 'estimated' : (sources.size === 1 ? [...sources][0] : 'mixed');
   return finalizeTokenUsage({ ...totals, source, rounds: normalized.length, warnings: options.warnings || [] });
@@ -825,6 +1123,8 @@ function finalizeTokenUsage(usage) {
   const reasoning = toTokenNumber(usage.reasoning);
   const cacheHit = toTokenNumber(usage.cacheHit);
   const cacheMiss = toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  const byPurpose = normalizePurposeUsage(usage.byPurpose);
+  const cost = usage.cost || estimateUsageCost(usage.model, { input, output, cacheHit, cacheMiss });
   return {
     input,
     output,
@@ -836,7 +1136,76 @@ function finalizeTokenUsage(usage) {
     source: usage.source || 'estimated',
     rounds: usage.rounds,
     warnings: Array.isArray(usage.warnings) ? usage.warnings : [],
+    byPurpose,
+    cost,
   };
+}
+
+function normalizePurposeUsage(value) {
+  if (!value || typeof value !== 'object') return {};
+  const out = {};
+  for (const [key, amount] of Object.entries(value)) {
+    const safeKey = String(key || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 40);
+    if (safeKey) out[safeKey] = toTokenNumber(amount);
+  }
+  return out;
+}
+
+function mergePurposeUsage(left = {}, right = {}) {
+  const out = { ...(left || {}) };
+  for (const [key, amount] of Object.entries(right || {})) {
+    out[key] = toTokenNumber(out[key]) + toTokenNumber(amount);
+  }
+  return out;
+}
+
+function mergeUsageCost(left, right) {
+  if (!left && !right) return null;
+  const out = {
+    model: right?.model || left?.model || '',
+    estimatedCostUsd: 0,
+    estimatedSavingsUsd: 0,
+    inputCacheHitCostUsd: 0,
+    inputCacheMissCostUsd: 0,
+    outputCostUsd: 0,
+  };
+  for (const source of [left, right]) {
+    if (!source) continue;
+    out.estimatedCostUsd += Number(source.estimatedCostUsd || 0);
+    out.estimatedSavingsUsd += Number(source.estimatedSavingsUsd || 0);
+    out.inputCacheHitCostUsd += Number(source.inputCacheHitCostUsd || 0);
+    out.inputCacheMissCostUsd += Number(source.inputCacheMissCostUsd || 0);
+    out.outputCostUsd += Number(source.outputCostUsd || 0);
+  }
+  return out;
+}
+
+function estimateUsageCost(model, usage) {
+  const pricing = pricingForModel(model);
+  if (!pricing) return null;
+  const inputCacheHitCostUsd = usage.cacheHit * pricing.inputCacheHit / 1000000;
+  const inputCacheMissCostUsd = usage.cacheMiss * pricing.inputCacheMiss / 1000000;
+  const outputCostUsd = usage.output * pricing.output / 1000000;
+  return {
+    model,
+    estimatedCostUsd: roundCost(inputCacheHitCostUsd + inputCacheMissCostUsd + outputCostUsd),
+    estimatedSavingsUsd: roundCost(usage.cacheHit * Math.max(0, pricing.inputCacheMiss - pricing.inputCacheHit) / 1000000),
+    inputCacheHitCostUsd: roundCost(inputCacheHitCostUsd),
+    inputCacheMissCostUsd: roundCost(inputCacheMissCostUsd),
+    outputCostUsd: roundCost(outputCostUsd),
+  };
+}
+
+function pricingForModel(model) {
+  const id = String(model || '').trim();
+  if (DEEPSEEK_PRICING[id]) return DEEPSEEK_PRICING[id];
+  if (/deepseek-v4-flash|deepseek-chat|deepseek-reasoner/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-flash'];
+  if (/deepseek-v4-pro/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-pro'];
+  return null;
+}
+
+function roundCost(value) {
+  return Math.round(Number(value || 0) * 1000000000) / 1000000000;
 }
 
 function compactToolOutputForContext(toolName, args, output) {
@@ -931,6 +1300,15 @@ function formatMessagesForSummary(messages = []) {
     const role = message.role === 'assistant' ? '助手' : '用户';
     return `${role}: ${String(message.content || '').slice(0, 1200)}`;
   }).join('\n\n---\n\n').slice(0, 10000);
+}
+
+function hashMessages(messages = []) {
+  const stable = messages.map((message, index) => ({
+    index,
+    role: message.role,
+    content: String(message.content || ''),
+  }));
+  return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex').slice(0, 16);
 }
 
 function resolveAgentMaxRounds(settings = {}) {

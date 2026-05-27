@@ -8,6 +8,18 @@ const MAX_FILE_BYTES = 100 * 1024;
 const DEFAULT_FILE_BYTES = 30 * 1024;
 const MAX_TOOL_OUTPUT = 12000;
 const RUN_TIMEOUT_MS = 5000;
+const SENSITIVE_PATH_PARTS = new Set(['.ssh', '.aws', '.azure', '.gnupg']);
+const SENSITIVE_FILE_NAMES = new Set([
+  '.npmrc',
+  '.pypirc',
+  'credentials.json',
+  'id_rsa',
+  'id_rsa.pub',
+  'id_ed25519',
+  'id_ed25519.pub',
+  'known_hosts',
+]);
+const SENSITIVE_EXTENSIONS = new Set(['.pem', '.key', '.p12', '.pfx', '.crt']);
 
 const TOOL_SCHEMAS = {
   web_search: {
@@ -90,7 +102,7 @@ function getToolModeStatus(settings) {
   return {
     web_search: Boolean(settings.tavilyApiKey),
     file_reader: roots.length > 0,
-    code_runner: true,
+    code_runner: settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false',
     multi_tool: Boolean(settings.tavilyApiKey) || roots.length > 0,
   };
 }
@@ -106,17 +118,25 @@ function describeToolRisk(name, args) {
     return `将读取已授权工作区内的文本文件：${String(args.path || '').slice(0, 160)}`;
   }
   if (name === 'run_code') {
-    return '将以当前系统用户权限运行代码片段；请确认代码可信。';
+    return [
+      '将运行代码片段；请确认代码可信。',
+      `语言：${normalizeLanguage(args.language) || '未知'}`,
+      `代码长度：${String(args.code || '').length} chars`,
+      `超时：${RUN_TIMEOUT_MS}ms`,
+      '权限：独立临时 cwd/HOME/TEMP，环境变量已清洗；Windows 轻沙箱不承诺硬网络隔离。',
+    ].join('\n');
   }
   return '未知工具调用。';
 }
 
 async function executeTool(name, args, settings) {
-  if (name === 'web_search') return webSearch(args, settings);
-  if (name === 'list_files') return listFiles(args, settings);
-  if (name === 'read_file') return readFile(args, settings);
-  if (name === 'run_code') return runCode(args);
-  throw new Error(`不支持的工具：${name}`);
+  let output;
+  if (name === 'web_search') output = await webSearch(args, settings);
+  else if (name === 'list_files') output = await listFiles(args, settings);
+  else if (name === 'read_file') output = await readFile(args, settings);
+  else if (name === 'run_code') output = await runCode(args, settings);
+  else throw new Error(`不支持的工具：${name}`);
+  return redactSensitiveText(output);
 }
 
 async function webSearch(args, settings) {
@@ -293,6 +313,7 @@ function createMatcher(pattern) {
 
 async function readFile(args, settings) {
   const filePath = await resolveAllowedPath(args.path, settings.workspaceRoots || []);
+  if (isSensitivePath(filePath)) throw new Error('该文件路径看起来包含密钥、凭证或敏感配置，已拒绝读取。');
   const stat = await fs.stat(filePath);
   if (!stat.isFile()) throw new Error('只能读取文件，不能读取目录。');
   const maxBytes = clampInt(args.max_bytes, 1024, MAX_FILE_BYTES, DEFAULT_FILE_BYTES);
@@ -302,7 +323,7 @@ async function readFile(args, settings) {
     const buffer = Buffer.alloc(bytesToRead);
     await handle.read(buffer, 0, bytesToRead, 0);
     if (isProbablyBinary(buffer)) throw new Error('该文件看起来是二进制文件，已拒绝读取。');
-    const text = buffer.toString('utf8');
+    const text = redactSensitiveText(buffer.toString('utf8'));
     const truncated = stat.size > maxBytes;
     return [
       `文件：${filePath}`,
@@ -345,6 +366,17 @@ async function resolveAllowedPath(inputPath, workspaceRoots) {
   throw new Error('文件路径不在已授权工作区中。');
 }
 
+function isSensitivePath(filePath) {
+  const normalized = path.resolve(String(filePath || ''));
+  const parts = normalized.split(/[\\/]+/).map((part) => part.toLowerCase());
+  const base = parts[parts.length - 1] || '';
+  if (base === '.env' || base.startsWith('.env.')) return true;
+  if (SENSITIVE_FILE_NAMES.has(base)) return true;
+  if (SENSITIVE_EXTENSIONS.has(path.extname(base).toLowerCase())) return true;
+  if (parts.some((part) => SENSITIVE_PATH_PARTS.has(part))) return true;
+  return /(token|secret|password|api[_-]?key|credential|private[_-]?key)/i.test(base);
+}
+
 function normalizeRoots(roots) {
   if (!Array.isArray(roots)) return [];
   return roots.map((root) => path.resolve(String(root))).filter(Boolean);
@@ -374,14 +406,17 @@ function isProbablyBinary(buffer) {
   return false;
 }
 
-async function runCode(args) {
+async function runCode(args, settings = {}) {
+  if (settings.runCodeEnabled === false || settings.runCodeEnabled === 'false') {
+    throw new Error('代码运行工具已在设置中关闭。');
+  }
   const language = normalizeLanguage(args.language);
   const code = String(args.code || '');
   if (!language) throw new Error('仅支持 JavaScript 和 Python。');
   if (!code.trim()) throw new Error('代码不能为空。');
   if (code.length > 20000) throw new Error('代码过长，已拒绝执行。');
 
-  const tempDir = path.join(os.tmpdir(), 'deepchat-code');
+  const tempDir = path.join(os.tmpdir(), 'deepchat-code', crypto.randomUUID());
   await fs.mkdir(tempDir, { recursive: true });
   const id = crypto.randomUUID();
   const ext = language === 'python' ? 'py' : 'js';
@@ -391,14 +426,15 @@ async function runCode(args) {
   const command = language === 'python'
     ? (process.env.DEEPCHAT_PYTHON_PATH || 'python')
     : (process.env.DEEPCHAT_NODE_PATH || process.execPath);
-  const env = language === 'javascript' && !process.env.DEEPCHAT_NODE_PATH
-    ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
-    : process.env;
-  const output = await spawnWithLimits(command, [filePath], String(args.stdin || ''), env);
-  await fs.unlink(filePath).catch(() => {});
+  const env = buildSandboxEnv(language, tempDir);
+  const output = await spawnWithLimits(command, [filePath], String(args.stdin || ''), env, tempDir);
+  await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
   return [
     `语言：${language}`,
     `退出码：${output.exitCode ?? 'unknown'}${output.timedOut ? '（超时终止）' : ''}`,
+    `沙箱目录：${tempDir}`,
+    '环境变量：仅传递 PATH/SystemRoot/TEMP/HOME 等最小集合，已移除 token/key/secret/password 类变量。',
+    '网络：Windows 轻沙箱未做硬阻断，请只运行可信代码。',
     '',
     'STDOUT:',
     output.stdout || '(empty)',
@@ -408,6 +444,31 @@ async function runCode(args) {
   ].join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
+function buildSandboxEnv(language, tempDir) {
+  const env = {};
+  const pathValue = process.env.PATH || process.env.Path || '';
+  if (pathValue) {
+    env.PATH = pathValue;
+    env.Path = pathValue;
+  }
+  for (const key of ['SystemRoot', 'WINDIR', 'COMSPEC', 'PATHEXT']) {
+    if (process.env[key]) env[key] = process.env[key];
+  }
+  env.HOME = tempDir;
+  env.USERPROFILE = tempDir;
+  env.TMP = tempDir;
+  env.TEMP = tempDir;
+  env.TMPDIR = tempDir;
+  env.NO_COLOR = '1';
+  env.PYTHONIOENCODING = 'utf-8';
+  if (language === 'javascript' && !process.env.DEEPCHAT_NODE_PATH) env.ELECTRON_RUN_AS_NODE = '1';
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !isSensitiveEnvKey(key)));
+}
+
+function isSensitiveEnvKey(key) {
+  return /(key|token|secret|password|credential|cookie|session|auth|bearer)/i.test(String(key || ''));
+}
+
 function normalizeLanguage(value) {
   const lang = String(value || '').trim().toLowerCase();
   if (lang === 'python' || lang === 'py') return 'python';
@@ -415,9 +476,9 @@ function normalizeLanguage(value) {
   return '';
 }
 
-function spawnWithLimits(command, args, stdin, env = process.env) {
+function spawnWithLimits(command, args, stdin, env = process.env, cwd) {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { windowsHide: true, env });
+    const child = spawn(command, args, { windowsHide: true, env, cwd });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -447,6 +508,17 @@ function spawnWithLimits(command, args, stdin, env = process.env) {
   });
 }
 
+function redactSensitiveText(value) {
+  return String(value || '')
+    .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, 'sk-[REDACTED]')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}\b/gi, 'Bearer [REDACTED]')
+    .replace(/\bAKIA[0-9A-Z]{16}\b/g, 'AKIA[REDACTED]')
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]{12,}\b/g, 'ghp_[REDACTED]')
+    .replace(/\bxox[baprs]-[A-Za-z0-9-]{8,}\b/g, 'xoxb-[REDACTED]')
+    .replace(/\btvly-[A-Za-z0-9_-]{8,}\b/g, 'tvly-[REDACTED]')
+    .replace(/\b(api[_-]?key|token|secret|password)\s*[:=]\s*['"]?[^'"\s]{8,}/gi, '$1=[REDACTED]');
+}
+
 function clampInt(value, min, max, fallback) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
@@ -464,6 +536,9 @@ module.exports = {
   getToolModeStatus,
   describeToolRisk,
   executeTool,
+  redactSensitiveText,
+  isSensitivePath,
+  buildSandboxEnv,
   buildTavilySearchRequest,
   normalizeTavilyResults,
   formatTavilyResults,

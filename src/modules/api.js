@@ -54,6 +54,9 @@ const DEFAULT_SETTINGS = {
   thinkingBudget: 0,
   activeSkill: 'agent_auto',
   autoContextSummary: true,
+  cacheOptimization: true,
+  toolApprovalTimeoutMs: 60000,
+  runCodeEnabled: true,
   enhance: true,
   tavilyApiKey: '',
   tavilyMaxResults: 5,
@@ -136,6 +139,13 @@ const TOOL_MODEL_PATTERNS = [
   /gemini/i,
 ];
 
+const DEEPSEEK_PRICING = {
+  'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+  'deepseek-v4-pro': { inputCacheHit: 0.003625, inputCacheMiss: 0.435, output: 0.87 },
+  'deepseek-chat': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+  'deepseek-reasoner': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+};
+
 export function getModelCapabilities(settings = getSettings()) {
   const model = String(settings.model || '');
   return {
@@ -174,7 +184,7 @@ export function isSkillRunnable(id, settings = getSettings()) {
   }
   if (id === 'web_search') return Boolean(settings.tavilyApiKey);
   if (id === 'file_reader') return (settings.workspaceRoots || []).length > 0;
-  if (id === 'code_runner') return true;
+  if (id === 'code_runner') return settings.runCodeEnabled !== false;
   if (id === 'mcp_tool') return (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
   if (id === 'multi_tool') return true;
   return true;
@@ -353,26 +363,41 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     : String(messagesOrText || '');
   const lower = text.toLowerCase();
   const selected = new Set();
+  const candidates = new Set();
   const missing = new Set();
   const reasons = [];
+  let score = 0;
 
   if (needsSearch(text, lower)) {
-    selected.add('web_search');
+    candidates.add('web_search');
     reasons.push('fresh_or_external_facts');
-    if (!settings.tavilyApiKey) missing.add('Tavily API Key');
+    score += 0.35;
+    if (settings.tavilyApiKey) selected.add('web_search');
+    else missing.add('Tavily API Key');
   }
   if (needsFiles(text, lower)) {
-    selected.add('list_files');
-    selected.add('read_file');
+    candidates.add('list_files');
+    candidates.add('read_file');
     reasons.push('local_files');
-    if (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0) missing.add('工作区目录');
+    score += 0.35;
+    if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('list_files');
+      selected.add('read_file');
+    } else {
+      missing.add('工作区目录');
+    }
   }
   if (needsCode(text, lower)) {
-    selected.add('run_code');
+    candidates.add('run_code');
     reasons.push('code_or_calculation');
+    score += 0.3;
+    if (settings.runCodeEnabled === false) missing.add('代码运行工具');
+    else selected.add('run_code');
   }
   if (needsMcp(text, lower)) {
+    candidates.add('mcp');
     reasons.push('external_mcp');
+    score += 0.25;
     if ((settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command)) selected.add('mcp');
     else missing.add('MCP Server');
   }
@@ -391,7 +416,9 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     kind: toolMode === 'none' ? 'chat' : 'tool',
     toolMode,
     selectedTools: [...selected],
+    candidateTools: [...candidates],
     missingPrerequisites: [...missing],
+    confidence: Math.min(1, score),
     reason: reasons.join(',') || 'plain_chat',
   };
 }
@@ -409,6 +436,8 @@ export function normalizeTokenUsage(usage, fallback = {}) {
       cacheMiss: fallback.cacheMiss === undefined ? inputFallback : toTokenNumber(fallback.cacheMiss),
       source: 'estimated',
       warnings: fallback.warnings || [],
+      byPurpose: fallback.byPurpose,
+      model: fallback.model,
     });
   }
 
@@ -441,7 +470,19 @@ export function normalizeTokenUsage(usage, fallback = {}) {
     ? usage.source
     : (hasProviderFields ? 'provider' : 'estimated');
 
-  return finalizeTokenUsage({ input, output, total, reasoning, cacheHit, cacheMiss, source, warnings: usage.warnings || fallback.warnings || [] });
+  return finalizeTokenUsage({
+    input,
+    output,
+    total,
+    reasoning,
+    cacheHit,
+    cacheMiss,
+    source,
+    warnings: usage.warnings || fallback.warnings || [],
+    byPurpose: usage.byPurpose || fallback.byPurpose,
+    cost: usage.cost || fallback.cost,
+    model: usage.model || fallback.model,
+  });
 }
 
 export function mergeTokenUsage(usages = [], options = {}) {
@@ -455,8 +496,10 @@ export function mergeTokenUsage(usages = [], options = {}) {
     acc.reasoning += usage.reasoning;
     acc.cacheHit += usage.cacheHit;
     acc.cacheMiss += usage.cacheMiss;
+    acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
+    acc.cost = mergeUsageCost(acc.cost, usage.cost);
     return acc;
-  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0 });
+  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, byPurpose: {}, cost: null });
   const sources = new Set(normalized.map((usage) => usage.source));
   const source = sources.size === 0 ? 'estimated' : (sources.size === 1 ? [...sources][0] : 'mixed');
   return finalizeTokenUsage({ ...totals, source, rounds: normalized.length, warnings: options.warnings || [] });
@@ -516,6 +559,8 @@ function finalizeTokenUsage(usage) {
   const reasoning = toTokenNumber(usage.reasoning);
   const cacheHit = toTokenNumber(usage.cacheHit);
   const cacheMiss = toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  const byPurpose = normalizePurposeUsage(usage.byPurpose);
+  const cost = usage.cost || estimateUsageCost(usage.model, { input, output, cacheHit, cacheMiss });
   return {
     input,
     output,
@@ -527,7 +572,76 @@ function finalizeTokenUsage(usage) {
     source: usage.source || 'estimated',
     rounds: usage.rounds,
     warnings: Array.isArray(usage.warnings) ? usage.warnings : [],
+    byPurpose,
+    cost,
   };
+}
+
+function normalizePurposeUsage(value) {
+  if (!value || typeof value !== 'object') return {};
+  const out = {};
+  for (const [key, amount] of Object.entries(value)) {
+    const safeKey = String(key || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 40);
+    if (safeKey) out[safeKey] = toTokenNumber(amount);
+  }
+  return out;
+}
+
+function mergePurposeUsage(left = {}, right = {}) {
+  const out = { ...(left || {}) };
+  for (const [key, amount] of Object.entries(right || {})) {
+    out[key] = toTokenNumber(out[key]) + toTokenNumber(amount);
+  }
+  return out;
+}
+
+function mergeUsageCost(left, right) {
+  if (!left && !right) return null;
+  const out = {
+    model: right?.model || left?.model || '',
+    estimatedCostUsd: 0,
+    estimatedSavingsUsd: 0,
+    inputCacheHitCostUsd: 0,
+    inputCacheMissCostUsd: 0,
+    outputCostUsd: 0,
+  };
+  for (const source of [left, right]) {
+    if (!source) continue;
+    out.estimatedCostUsd += Number(source.estimatedCostUsd || 0);
+    out.estimatedSavingsUsd += Number(source.estimatedSavingsUsd || 0);
+    out.inputCacheHitCostUsd += Number(source.inputCacheHitCostUsd || 0);
+    out.inputCacheMissCostUsd += Number(source.inputCacheMissCostUsd || 0);
+    out.outputCostUsd += Number(source.outputCostUsd || 0);
+  }
+  return out;
+}
+
+function estimateUsageCost(model, usage) {
+  const pricing = pricingForModel(model);
+  if (!pricing) return null;
+  const inputCacheHitCostUsd = usage.cacheHit * pricing.inputCacheHit / 1000000;
+  const inputCacheMissCostUsd = usage.cacheMiss * pricing.inputCacheMiss / 1000000;
+  const outputCostUsd = usage.output * pricing.output / 1000000;
+  return {
+    model,
+    estimatedCostUsd: roundCost(inputCacheHitCostUsd + inputCacheMissCostUsd + outputCostUsd),
+    estimatedSavingsUsd: roundCost(usage.cacheHit * Math.max(0, pricing.inputCacheMiss - pricing.inputCacheHit) / 1000000),
+    inputCacheHitCostUsd: roundCost(inputCacheHitCostUsd),
+    inputCacheMissCostUsd: roundCost(inputCacheMissCostUsd),
+    outputCostUsd: roundCost(outputCostUsd),
+  };
+}
+
+function pricingForModel(model) {
+  const id = String(model || '').trim();
+  if (DEEPSEEK_PRICING[id]) return DEEPSEEK_PRICING[id];
+  if (/deepseek-v4-flash|deepseek-chat|deepseek-reasoner/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-flash'];
+  if (/deepseek-v4-pro/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-pro'];
+  return null;
+}
+
+function roundCost(value) {
+  return Math.round(Number(value || 0) * 1000000000) / 1000000000;
 }
 
 export function getConversationUsageSummary(conversation) {
@@ -542,8 +656,10 @@ export function getConversationUsageSummary(conversation) {
     acc.cacheHit += usage.cacheHit;
     acc.cacheMiss += usage.cacheMiss;
     acc.rounds += usage.rounds || 1;
+    acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
+    acc.cost = mergeUsageCost(acc.cost, usage.cost);
     return acc;
-  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, rounds: 0 });
+  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, rounds: 0, byPurpose: {}, cost: null });
   return finalizeTokenUsage({ ...summary, source: 'mixed' });
 }
 
@@ -567,6 +683,9 @@ function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, bu
     droppedCount: droppedMessages.length + omittedByMessageLimit,
     omittedByMessageLimit,
     trimmed: droppedMessages.length > 0 || omittedByMessageLimit > 0,
+    prefixFingerprint: '',
+    prefixBytes: 0,
+    cacheStabilityWarnings: [],
   };
 }
 
@@ -687,6 +806,7 @@ async function streamNativeChat(messages, opts) {
     messages,
     overrides: opts.overrides || {},
     contextSummary: opts.contextSummary || '',
+    contextSummaryMeta: opts.contextSummaryMeta || null,
   });
 }
 
@@ -793,6 +913,8 @@ async function streamBrowserChat(messages, opts = {}) {
       input: inputTokens,
       output: estimateTokens(output),
       warnings,
+      model: settings.model,
+      byPurpose: { main: inputTokens + estimateTokens(output) },
     });
     opts.onTokenCount?.(usage);
     opts.onDone?.(meta);
@@ -826,7 +948,7 @@ async function streamBrowserChat(messages, opts = {}) {
         if (data === '[DONE]') { callDone(fullOutput); return; }
         try {
           const json = JSON.parse(data);
-          if (json.usage) providerUsage = normalizeTokenUsage(json.usage);
+          if (json.usage) providerUsage = normalizeTokenUsage(json.usage, { model: settings.model });
           const delta = json.choices?.[0]?.delta;
           if (delta?.content) {
             fullOutput += delta.content;
@@ -880,6 +1002,8 @@ function applyComposerOverrides(settings, overrides = {}) {
   if (overrides.thinkingBudget !== undefined) next.thinkingBudget = Number.parseInt(overrides.thinkingBudget, 10) || 0;
   if (overrides.activeSkill !== undefined) next.activeSkill = String(overrides.activeSkill || 'none');
   if (overrides.enhance !== undefined) next.enhance = overrides.enhance !== false;
+  if (overrides.agentMaxRounds !== undefined) next.agentMaxRounds = Number.parseInt(overrides.agentMaxRounds, 10) || DEFAULT_SETTINGS.agentMaxRounds;
+  if (overrides.maxInputTokens !== undefined) next.maxInputTokens = Number.parseInt(overrides.maxInputTokens, 10) || DEFAULT_SETTINGS.maxInputTokens;
   return next;
 }
 
@@ -984,10 +1108,16 @@ async function migrateLegacyStorage() {
     dc_model: 'model',
     dc_temperature: 'temperature',
     dc_maxTokens: 'maxTokens',
+    dc_maxInputTokens: 'maxInputTokens',
     dc_systemPrompt: 'systemPrompt',
     dc_maxContext: 'maxContextMessages',
+    dc_agentMaxRounds: 'agentMaxRounds',
+    dc_toolApprovalTimeoutMs: 'toolApprovalTimeoutMs',
     dc_thinkingBudget: 'thinkingBudget',
     dc_activeSkill: 'activeSkill',
+    dc_cacheOptimization: 'cacheOptimization',
+    dc_runCodeEnabled: 'runCodeEnabled',
+    dc_autoContextSummary: 'autoContextSummary',
     dc_enhance: 'enhance',
     dc_tavilyApiKey: 'tavilyApiKey',
     dc_tavilyMaxResults: 'tavilyMaxResults',
@@ -1025,6 +1155,9 @@ function loadBrowserSettings() {
     thinkingBudget: parseInt(localStorage.getItem('dc_thinkingBudget') || String(DEFAULT_SETTINGS.thinkingBudget), 10),
     activeSkill: localStorage.getItem('dc_activeSkill') || DEFAULT_SETTINGS.activeSkill,
     autoContextSummary: localStorage.getItem('dc_autoContextSummary') !== 'false',
+    cacheOptimization: localStorage.getItem('dc_cacheOptimization') !== 'false',
+    toolApprovalTimeoutMs: parseInt(localStorage.getItem('dc_toolApprovalTimeoutMs') || String(DEFAULT_SETTINGS.toolApprovalTimeoutMs), 10),
+    runCodeEnabled: localStorage.getItem('dc_runCodeEnabled') !== 'false',
     enhance: localStorage.getItem('dc_enhance') !== 'false',
     tavilyApiKey: localStorage.getItem('dc_tavilyApiKey') || '',
     tavilyMaxResults: parseInt(localStorage.getItem('dc_tavilyMaxResults') || String(DEFAULT_SETTINGS.tavilyMaxResults), 10),
@@ -1047,6 +1180,9 @@ function saveBrowserSettings(patch) {
     thinkingBudget: 'dc_thinkingBudget',
     activeSkill: 'dc_activeSkill',
     autoContextSummary: 'dc_autoContextSummary',
+    cacheOptimization: 'dc_cacheOptimization',
+    toolApprovalTimeoutMs: 'dc_toolApprovalTimeoutMs',
+    runCodeEnabled: 'dc_runCodeEnabled',
     enhance: 'dc_enhance',
     tavilyMaxResults: 'dc_tavilyMaxResults',
     workspaceRoots: 'dc_workspaceRoots',
@@ -1068,10 +1204,13 @@ function normalizeSettings(input = {}) {
   next.agentMaxRounds = Math.round(clampNumber(next.agentMaxRounds, 1, 10, DEFAULT_SETTINGS.agentMaxRounds));
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
+  next.toolApprovalTimeoutMs = Math.round(clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs));
   next.workspaceRoots = Array.isArray(next.workspaceRoots) ? next.workspaceRoots : [];
   next.externalSkills = Array.isArray(next.externalSkills) ? next.externalSkills : [];
   next.mcpServers = Array.isArray(next.mcpServers) ? next.mcpServers : [];
   next.autoContextSummary = next.autoContextSummary !== false && next.autoContextSummary !== 'false';
+  next.cacheOptimization = next.cacheOptimization !== false && next.cacheOptimization !== 'false';
+  next.runCodeEnabled = next.runCodeEnabled !== false && next.runCodeEnabled !== 'false';
   next.enhance = next.enhance !== false && next.enhance !== 'false';
   return next;
 }
@@ -1084,8 +1223,8 @@ function clampNumber(value, min, max, fallback) {
 
 function parseStoredValue(key, value) {
   if (['temperature'].includes(key)) return parseFloat(value);
-  if (['maxTokens', 'maxInputTokens', 'maxContextMessages', 'agentMaxRounds', 'thinkingBudget', 'tavilyMaxResults'].includes(key)) return parseInt(value, 10);
-  if (key === 'enhance' || key === 'autoContextSummary') return value !== 'false';
+  if (['maxTokens', 'maxInputTokens', 'maxContextMessages', 'agentMaxRounds', 'thinkingBudget', 'tavilyMaxResults', 'toolApprovalTimeoutMs'].includes(key)) return parseInt(value, 10);
+  if (key === 'enhance' || key === 'autoContextSummary' || key === 'cacheOptimization' || key === 'runCodeEnabled') return value !== 'false';
   return value;
 }
 

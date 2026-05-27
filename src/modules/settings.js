@@ -139,6 +139,9 @@ export function initSettings(onModelChange) {
     maxContext: document.getElementById('max-context-input'),
     agentMaxRounds: document.getElementById('agent-max-rounds-input'),
     autoContextSummary: document.getElementById('auto-context-summary-toggle'),
+    cacheOptimization: document.getElementById('cache-optimization-toggle'),
+    toolApprovalTimeout: document.getElementById('tool-approval-timeout-input'),
+    runCodeEnabled: document.getElementById('run-code-enabled-toggle'),
     systemPrompt: document.getElementById('system-prompt-input'),
     modelCapabilityStatus: document.getElementById('model-capability-status'),
     toggleKeyVis: document.getElementById('toggle-key-visibility'),
@@ -182,6 +185,9 @@ export function initSettings(onModelChange) {
   if (els.maxContext) els.maxContext.value = settings.maxContextMessages;
   if (els.agentMaxRounds) els.agentMaxRounds.value = settings.agentMaxRounds;
   if (els.autoContextSummary) els.autoContextSummary.checked = settings.autoContextSummary !== false;
+  if (els.cacheOptimization) els.cacheOptimization.checked = settings.cacheOptimization !== false;
+  if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = settings.toolApprovalTimeoutMs;
+  if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
   els.systemPrompt.value = settings.systemPrompt;
 
   // Thinking budget
@@ -252,6 +258,15 @@ export function initSettings(onModelChange) {
     }
     if (patch.enhance !== undefined && els.enhanceToggle) {
       els.enhanceToggle.checked = next.enhance !== false;
+    }
+    if (patch.cacheOptimization !== undefined && els.cacheOptimization) {
+      els.cacheOptimization.checked = next.cacheOptimization !== false;
+    }
+    if (patch.toolApprovalTimeoutMs !== undefined && els.toolApprovalTimeout) {
+      els.toolApprovalTimeout.value = next.toolApprovalTimeoutMs;
+    }
+    if (patch.runCodeEnabled !== undefined && els.runCodeEnabled) {
+      els.runCodeEnabled.checked = next.runCodeEnabled !== false;
     }
     if (
       patch.activeSkill !== undefined ||
@@ -354,6 +369,15 @@ export function initSettings(onModelChange) {
   }
   if (els.autoContextSummary) {
     els.autoContextSummary.addEventListener('change', () => saveSettings({ autoContextSummary: els.autoContextSummary.checked }));
+  }
+  if (els.cacheOptimization) {
+    els.cacheOptimization.addEventListener('change', () => saveSettings({ cacheOptimization: els.cacheOptimization.checked }));
+  }
+  if (els.toolApprovalTimeout) {
+    els.toolApprovalTimeout.addEventListener('change', () => saveSettings({ toolApprovalTimeoutMs: parseInt(els.toolApprovalTimeout.value, 10) }));
+  }
+  if (els.runCodeEnabled) {
+    els.runCodeEnabled.addEventListener('change', () => saveSettings({ runCodeEnabled: els.runCodeEnabled.checked }));
   }
   els.systemPrompt.addEventListener('input', () => saveSettings({ systemPrompt: els.systemPrompt.value }));
   els.toggleKeyVis.addEventListener('click', () => {
@@ -764,6 +788,9 @@ function applySettingsToInputs(els, settings, onModelChange) {
   if (els.maxContext) els.maxContext.value = settings.maxContextMessages;
   if (els.agentMaxRounds) els.agentMaxRounds.value = settings.agentMaxRounds;
   if (els.autoContextSummary) els.autoContextSummary.checked = settings.autoContextSummary !== false;
+  if (els.cacheOptimization) els.cacheOptimization.checked = settings.cacheOptimization !== false;
+  if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = settings.toolApprovalTimeoutMs;
+  if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
   if (els.thinkingBudget) els.thinkingBudget.value = settings.thinkingBudget;
   if (els.thinkingBudgetVal) els.thinkingBudgetVal.textContent = settings.thinkingBudget === 0 ? '自动' : `${settings.thinkingBudget} tokens`;
   if (els.systemPrompt) els.systemPrompt.value = settings.systemPrompt || '';

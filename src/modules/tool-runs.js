@@ -12,9 +12,13 @@ export function createToolRecord(event = {}, now = new Date()) {
     id: event.toolCallId || event.id || `tool_${now.getTime()}`,
     name: event.name || event.function?.name || 'unknown_tool',
     args: event.args || parseFunctionArgs(event.function?.arguments),
+    rawArguments: event.rawArguments || event.function?.arguments || '',
+    parseError: event.parseError || '',
     risk: event.risk || '',
+    security: event.security || null,
     status: 'pending',
     requestedAt: now.toISOString(),
+    expiresAt: event.expiresAt || '',
   };
 }
 
@@ -45,6 +49,10 @@ export function applyToolResult(toolCalls = [], event = {}, now = new Date()) {
   }
   tool.name = event.name || tool.name;
   if (event.args) tool.args = event.args;
+  if (event.rawArguments) tool.rawArguments = event.rawArguments;
+  if (event.parseError) tool.parseError = event.parseError;
+  if (event.security) tool.security = event.security;
+  if (event.expiresAt) tool.expiresAt = event.expiresAt;
   if (event.risk) tool.risk = event.risk;
   tool.status = event.ok ? 'completed' : (tool.status === 'denied' ? 'denied' : 'failed');
   tool.output = event.output;
@@ -68,6 +76,10 @@ export function buildToolRuns(toolCalls = []) {
     outputPreview: tool.output ? String(tool.output).slice(0, 1200) : '',
     sources: tool.sources || extractToolSources(tool.output || ''),
     query: getToolQuery(tool),
+    security: tool.security || null,
+    parseError: tool.parseError || '',
+    contextOutput: tool.contextOutput || '',
+    expiresAt: tool.expiresAt || '',
   }));
 }
 

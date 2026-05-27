@@ -13,6 +13,7 @@ const {
 describe('electron chat service token usage and agent loop', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('requests streamed usage and parses provider usage chunks', async () => {
@@ -176,6 +177,127 @@ describe('electron chat service token usage and agent loop', () => {
     expect(intent.selectedTools).toContain('run_code');
   });
 
+  it('keeps the cache prefix stable across different smart-agent intents when tools are available', async () => {
+    const service = new ChatService(() => fakeWindow());
+    const settings = baseSettings({
+      activeSkill: 'agent_auto',
+      cacheOptimization: true,
+      tavilyApiKey: 'tvly-test',
+      workspaceRoots: ['E:\\demo'],
+    });
+    const seen = [];
+    service.streamOnce = vi.fn(async (_requestId, messages, _settings, tools) => {
+      seen.push({
+        system: messages[0].content,
+        tools: tools.map((tool) => tool.function.name),
+      });
+      return { content: 'ok', thinking: '', usage: normalizeTokenUsage(null, { input: 1, output: 1, model: settings.model }), toolCalls: [] };
+    });
+
+    await service.runWithSettings({ requestId: 'req-cache-a', messages: [{ role: 'user', content: '搜索今天新闻' }] }, settings, new AbortController());
+    await service.runWithSettings({ requestId: 'req-cache-b', messages: [{ role: 'user', content: '检查 E:\\demo\\package.json 并运行测试' }] }, settings, new AbortController());
+
+    expect(seen[0].system).toBe(seen[1].system);
+    expect(seen[0].tools).toEqual(seen[1].tools);
+    expect(seen[0].tools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'read_file', 'run_code']));
+  });
+
+  it('reuses a matching summary hash without calling the model again', async () => {
+    const service = new ChatService(() => fakeWindow());
+    service.summarizeContext = vi.fn(async () => 'new summary');
+    const contextBundle = {
+      messages: [{ role: 'user', content: 'latest' }],
+      meta: {
+        droppedMessages: [{ role: 'user', content: 'old' }],
+        budgetRatio: 0.2,
+      },
+    };
+    const first = await service.maybeBuildContextSummary(
+      { requestId: 'req-summary', contextSummary: '', contextSummaryMeta: null },
+      baseSettings(),
+      contextBundle,
+      0,
+      new AbortController().signal,
+    );
+    const second = await service.maybeBuildContextSummary(
+      { requestId: 'req-summary', contextSummary: first.summary, contextSummaryMeta: first.meta },
+      baseSettings(),
+      contextBundle,
+      0,
+      new AbortController().signal,
+    );
+
+    expect(service.summarizeContext).toHaveBeenCalledTimes(1);
+    expect(second.generated).toBe(false);
+    expect(second.meta.cacheHit).toBe(true);
+  });
+
+  it('surfaces malformed tool arguments instead of silently running with empty args', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    const result = await service.handleToolCall(
+      'req-parse',
+      { id: 'tool-bad', function: { name: 'run_code', arguments: '{"language":"javascript",' } },
+      baseSettings(),
+      new AbortController().signal,
+    );
+
+    expect(result).toContain('参数 JSON 解析失败');
+    const toolRequest = events.find((event) => event.type === 'toolRequest');
+    expect(toolRequest.parseError).toBeTruthy();
+    const toolResult = events.find((event) => event.type === 'toolResult');
+    expect(toolResult.ok).toBe(false);
+  });
+
+  it('auto-denies pending tool approval after the configured timeout', async () => {
+    vi.useFakeTimers();
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    const promise = service.handleToolCall(
+      'req-timeout',
+      { id: 'tool-timeout', function: { name: 'web_search', arguments: '{"query":"DeepChat"}' } },
+      baseSettings({ toolApprovalTimeoutMs: 5000, tavilyApiKey: 'tvly-test' }),
+      new AbortController().signal,
+    );
+
+    await vi.advanceTimersByTimeAsync(5000);
+    const result = await promise;
+
+    expect(result).toContain('自动拒绝');
+    expect(events.find((event) => event.type === 'toolRequest').expiresAt).toBeTruthy();
+  });
+
+  it('suppresses duplicate tool calls in the same agent run', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.streamOnce = vi.fn()
+      .mockResolvedValueOnce({
+        content: '',
+        thinking: '',
+        usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1 }),
+        toolCalls: [
+          { id: 'tool-1', function: { name: 'web_search', arguments: '{"query":"same"}' } },
+          { id: 'tool-2', function: { name: 'web_search', arguments: '{"query":"same"}' } },
+        ],
+      })
+      .mockResolvedValueOnce({
+        content: 'done',
+        thinking: '',
+        usage: normalizeTokenUsage({ prompt_tokens: 12, completion_tokens: 2 }),
+        toolCalls: [],
+      });
+    service.handleToolCall = vi.fn(async () => 'first output');
+
+    await service.runWithSettings(
+      { requestId: 'req-dupe', messages: [{ role: 'user', content: '搜索 same' }] },
+      baseSettings({ agentMaxRounds: 2, tavilyApiKey: 'tvly-test' }),
+      new AbortController(),
+    );
+
+    expect(service.handleToolCall).toHaveBeenCalledTimes(1);
+    expect(events.some((event) => String(event.output || event.warning || '').includes('重复工具调用已抑制'))).toBe(true);
+  });
+
   it('compacts tool output by tool type', () => {
     const output = [
       '文件：E:\\demo\\README.md',
@@ -203,6 +325,9 @@ function baseSettings(overrides = {}) {
     maxContextMessages: 20,
     thinkingBudget: 0,
     activeSkill: 'none',
+    cacheOptimization: true,
+    toolApprovalTimeoutMs: 60000,
+    runCodeEnabled: true,
     systemPrompt: 'You are helpful.',
     externalSkills: [],
     mcpServers: [],

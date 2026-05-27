@@ -13,7 +13,9 @@ export function normalizeConversation(conversation = {}) {
     archivedAt: normalizeArchiveTime(conversation.archivedAt),
     contextSummary: typeof conversation.contextSummary === 'string' ? conversation.contextSummary : '',
     contextSummaryUpdatedAt: conversation.contextSummaryUpdatedAt || null,
+    contextSummaryMeta: conversation.contextSummaryMeta && typeof conversation.contextSummaryMeta === 'object' ? conversation.contextSummaryMeta : null,
     usageTotals: conversation.usageTotals && typeof conversation.usageTotals === 'object' ? conversation.usageTotals : null,
+    cacheProfile: conversation.cacheProfile && typeof conversation.cacheProfile === 'object' ? conversation.cacheProfile : null,
     messages: Array.isArray(conversation.messages) ? conversation.messages : [],
   };
 }

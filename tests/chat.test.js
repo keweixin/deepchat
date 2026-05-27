@@ -43,6 +43,7 @@ describe('chat regeneration', () => {
       contextBudget: {
         maxInputTokens: 24000,
         estimatedInputTokens: 12000,
+        prefixFingerprint: 'abc123',
         trimmed: true,
         droppedCount: 3,
         summaryUsed: true,
@@ -56,6 +57,7 @@ describe('chat regeneration', () => {
 
     expect(container.hidden).toBe(false);
     expect(container.textContent).toContain('规划工具：web_search');
+    expect(container.textContent).toContain('prefix abc123');
     expect(container.textContent).toContain('裁剪 3 条');
     expect(container.textContent).toContain('等待确认');
   });

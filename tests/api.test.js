@@ -205,9 +205,22 @@ describe('browser settings fallback', () => {
       mcpServers: [],
     });
 
-    expect(intent.toolMode).toBe('web_search');
-    expect(intent.selectedTools).toContain('web_search');
+    expect(intent.toolMode).toBe('none');
+    expect(intent.selectedTools).not.toContain('web_search');
+    expect(intent.candidateTools).toContain('web_search');
     expect(intent.missingPrerequisites).toContain('Tavily API Key');
+  });
+
+  it('adds DeepSeek cost metadata when model pricing is known', () => {
+    const usage = normalizeTokenUsage({
+      prompt_tokens: 1000,
+      completion_tokens: 100,
+      prompt_cache_hit_tokens: 800,
+      prompt_cache_miss_tokens: 200,
+    }, { model: 'deepseek-v4-flash' });
+
+    expect(usage.cost.estimatedCostUsd).toBeGreaterThan(0);
+    expect(usage.cost.estimatedSavingsUsd).toBeGreaterThan(0);
   });
 
   it('summarizes token usage for a conversation', () => {

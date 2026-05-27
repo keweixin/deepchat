@@ -397,6 +397,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
   await streamChat(apiMessages, {
     signal: abortController.signal,
     contextSummary: conv.contextSummary || '',
+    contextSummaryMeta: conv.contextSummaryMeta || null,
     onToken(token) {
       if (streamStartTime === 0) streamStartTime = Date.now();
       tokenCount++;
@@ -413,6 +414,8 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     },
     onTokenCount(counts) {
       assistantMsg.tokens = counts;
+      assistantMsg.cacheProfile = buildCacheProfile(counts, assistantMsg.contextBudget);
+      conv.cacheProfile = assistantMsg.cacheProfile;
     },
     onToolRequest(event) {
       if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
@@ -449,6 +452,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     onContextSummary(event) {
       conv.contextSummary = event.summary || conv.contextSummary || '';
       conv.contextSummaryUpdatedAt = event.updatedAt || new Date().toISOString();
+      conv.contextSummaryMeta = event.meta || conv.contextSummaryMeta || null;
       renderAgentTimeline(agentContainer, assistantMsg);
     },
     async onDone(doneEvent = {}) {
@@ -757,6 +761,14 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
 
     const meta = createToolMeta(tool);
     if (meta) block.appendChild(meta);
+    const security = createToolSecurityMeta(tool);
+    if (security) block.appendChild(security);
+    if (tool.parseError) {
+      const parse = document.createElement('div');
+      parse.className = 'tool-parse-error';
+      parse.textContent = `参数解析失败：${tool.parseError}`;
+      block.appendChild(parse);
+    }
     const query = getToolQuery(tool);
     if (getToolName(tool) === 'web_search' && query) {
       const queryLine = document.createElement('div');
@@ -794,6 +806,15 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
       pre.textContent = tool.output;
       output.append(summary, pre);
       block.appendChild(output);
+      const copyOutput = document.createElement('button');
+      copyOutput.type = 'button';
+      copyOutput.className = 'tool-copy-btn';
+      copyOutput.textContent = '复制原始输出';
+      copyOutput.addEventListener('click', async () => {
+        await copyToClipboard(tool.output);
+        showToast('工具输出已复制');
+      });
+      block.appendChild(copyOutput);
     }
 
     container.appendChild(block);
@@ -803,12 +824,31 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
 function createToolMeta(tool) {
   const items = [];
   if (tool.requestedAt) items.push(`请求：${formatToolTime(tool.requestedAt)}`);
+  if (tool.expiresAt && tool.status === 'pending') {
+    const seconds = Math.max(0, Math.ceil((Date.parse(tool.expiresAt) - Date.now()) / 1000));
+    items.push(`确认倒计时：${seconds}s`);
+  }
   if (tool.completedAt) items.push(`完成：${formatToolTime(tool.completedAt)}`);
   const duration = getToolDurationMs(tool);
   if (duration !== null) items.push(`耗时：${duration}ms`);
   if (items.length === 0) return null;
   const meta = document.createElement('div');
   meta.className = 'tool-call-meta';
+  meta.textContent = items.join(' · ');
+  return meta;
+}
+
+function createToolSecurityMeta(tool) {
+  if (!tool.security) return null;
+  const items = [];
+  if (tool.security.riskLevel) items.push(`风险：${tool.security.riskLevel}`);
+  if (tool.security.sandbox) items.push(`沙箱：${tool.security.sandbox}`);
+  if (tool.security.envPolicy) items.push(`环境：${tool.security.envPolicy}`);
+  if (tool.security.network) items.push(`网络：${tool.security.network}`);
+  if (tool.security.redaction) items.push('输出脱敏');
+  if (!items.length) return null;
+  const meta = document.createElement('div');
+  meta.className = 'tool-security-meta';
   meta.textContent = items.join(' · ');
   return meta;
 }
@@ -877,6 +917,7 @@ export function renderAgentTimeline(container, message = {}) {
     const parts = [
       `输入预算 ${contextBudget.maxInputTokens || 0}`,
       `预计 ${contextBudget.estimatedInputTokens || 0}`,
+      contextBudget.prefixFingerprint ? `prefix ${contextBudget.prefixFingerprint}` : '',
       contextBudget.trimmed ? `裁剪 ${contextBudget.droppedCount || 0} 条` : '未裁剪',
       contextBudget.summaryUsed ? '已用摘要' : '',
     ].filter(Boolean);
@@ -1232,6 +1273,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
       const prefix = usage.source === 'provider' ? '实测' : (usage.source === 'mixed' ? '混合' : '估算');
       parts.push(`${prefix} ${usage.total} tokens`);
       if (usage.cacheHit > 0) parts.push(`命中 ${Math.round(usage.cacheHitRate * 100)}%`);
+      if (usage.cost?.estimatedCostUsd > 0) parts.push(`$${usage.cost.estimatedCostUsd.toFixed(6)}`);
       if (usage.rounds > 1) parts.push(`${usage.rounds} 轮`);
     }
     if (speed) parts.push(`${speed} tok/s`);
@@ -1257,9 +1299,31 @@ function formatTokenUsageTitle(tokens) {
     lines.push(`缓存未命中: ${usage.cacheMiss}`);
     lines.push(`命中率: ${Math.round(usage.cacheHitRate * 100)}%`);
   }
+  if (usage.cost) {
+    lines.push(`估算成本: $${Number(usage.cost.estimatedCostUsd || 0).toFixed(6)}`);
+    lines.push(`缓存节省: $${Number(usage.cost.estimatedSavingsUsd || 0).toFixed(6)}`);
+  }
+  if (tokens.prefixFingerprint) lines.push(`Prefix: ${tokens.prefixFingerprint}`);
+  if (tokens.byPurpose && Object.keys(tokens.byPurpose).length) {
+    lines.push(`用途: ${Object.entries(tokens.byPurpose).map(([key, value]) => `${key}=${value}`).join(', ')}`);
+  }
   if (usage.rounds > 1) lines.push(`Agent 轮次: ${usage.rounds}`);
   if (usage.warnings?.length) lines.push(`提示: ${usage.warnings.join('；')}`);
   return lines.join('\n');
+}
+
+function buildCacheProfile(tokens, contextBudget) {
+  const usage = normalizeTokenUsage(tokens);
+  return {
+    prefixFingerprint: contextBudget?.prefixFingerprint || tokens?.prefixFingerprint || '',
+    prefixTokens: contextBudget?.prefixTokens || 0,
+    prefixBytes: contextBudget?.prefixBytes || 0,
+    cacheHit: usage.cacheHit,
+    cacheMiss: usage.cacheMiss,
+    cacheHitRate: usage.cacheHitRate,
+    estimatedCostUsd: usage.cost?.estimatedCostUsd || 0,
+    estimatedSavingsUsd: usage.cost?.estimatedSavingsUsd || 0,
+  };
 }
 
 function switchVersion(msgIndex, direction) {

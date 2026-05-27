@@ -34,6 +34,9 @@ const DEFAULT_SETTINGS = {
   thinkingBudget: 0,
   activeSkill: 'agent_auto',
   autoContextSummary: true,
+  cacheOptimization: true,
+  toolApprovalTimeoutMs: 60000,
+  runCodeEnabled: true,
   enhance: true,
   tavilyMaxResults: 5,
   workspaceRoots: [],
@@ -83,6 +86,9 @@ function normalizeSettings(input = {}) {
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
   next.autoContextSummary = next.autoContextSummary !== false && next.autoContextSummary !== 'false';
+  next.cacheOptimization = next.cacheOptimization !== false && next.cacheOptimization !== 'false';
+  next.toolApprovalTimeoutMs = Math.round(clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs));
+  next.runCodeEnabled = next.runCodeEnabled !== false && next.runCodeEnabled !== 'false';
   next.workspaceRoots = normalizeWorkspaceRoots(next.workspaceRoots);
   next.externalSkills = normalizeExternalSkills(next.externalSkills);
   next.mcpServers = normalizeMcpServers(next.mcpServers);
