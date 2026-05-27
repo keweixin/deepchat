@@ -120,6 +120,33 @@ describe('electron tools helpers', () => {
     }
   });
 
+  it('returns multiple bounded hits from the same workspace file', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-search-multi-hit-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src', 'agent.md'), [
+        '# Agent Notes',
+        'DeepSeek cache telemetry should explain hit and miss tokens.',
+        'The answer must cite local files.',
+        'Unrelated bridge content keeps the snippets separated.',
+        'Cache telemetry appears again after another tool run.',
+        'The second citation helps the agent inspect the later context.',
+      ].join('\n'), 'utf8');
+
+      const output = await executeTool('search_workspace', {
+        query: 'cache telemetry',
+        directory: 'src',
+        max_results: 5,
+      }, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('agent.md:2-3');
+      expect(output).toContain('agent.md:5-6');
+      expect(output).toContain('5: Cache telemetry appears again');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('prioritizes exact symbol definitions in workspace search', async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-search-symbol-'));
     try {

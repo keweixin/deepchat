@@ -357,14 +357,16 @@ async function searchWorkspace(args, settings) {
     if (!file.fullPath || isSensitivePath(file.fullPath)) continue;
     const text = await readSearchableFile(file.fullPath, Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES));
     if (!text) continue;
-    const hit = findBestTextHit(text, terms, queryLower, symbol);
-    if (!hit) continue;
-    hits.push({
-      ...hit,
-      file: path.relative(realRoot, file.fullPath) || file.path,
-      size: file.size || 0,
-      truncated: (file.size || 0) > MAX_SEARCH_FILE_BYTES,
-    });
+    const fileHits = findTextHits(text, terms, queryLower, symbol, 2);
+    for (const hit of fileHits) {
+      hits.push({
+        ...hit,
+        file: path.relative(realRoot, file.fullPath) || file.path,
+        size: file.size || 0,
+        truncated: (file.size || 0) > MAX_SEARCH_FILE_BYTES,
+      });
+      if (hits.length >= maxResults * 4) break;
+    }
   }
 
   hits.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
@@ -432,9 +434,9 @@ function normalizeSearchSymbol(value) {
   return /^[\p{L}_$][\p{L}\p{N}_$.-]*$/u.test(symbol) ? symbol : '';
 }
 
-function findBestTextHit(text, terms, queryLower, symbol = '') {
+function findTextHits(text, terms, queryLower, symbol = '', maxHits = 2) {
   const lines = String(text || '').split(/\r?\n/);
-  let best = null;
+  const candidates = [];
   const symbolPattern = symbol ? createSymbolPattern(symbol) : null;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index] || '';
@@ -455,11 +457,17 @@ function findBestTextHit(text, terms, queryLower, symbol = '') {
     for (let i = lineStart - 1; i < lineEnd; i++) {
       snippet.push({ line: i + 1, text: truncateLine(lines[i] || '') });
     }
-    if (!best || score > best.score) {
-      best = { score, lineStart, lineEnd, snippet };
-    }
+    candidates.push({ score, lineStart, lineEnd, snippet });
   }
-  return best;
+  candidates.sort((a, b) => (b.score - a.score) || a.lineStart - b.lineStart);
+  const selected = [];
+  for (const candidate of candidates) {
+    const overlaps = selected.some((hit) => candidate.lineStart <= hit.lineEnd && candidate.lineEnd >= hit.lineStart);
+    if (overlaps) continue;
+    selected.push(candidate);
+    if (selected.length >= maxHits) break;
+  }
+  return selected;
 }
 
 function createSymbolPattern(symbol) {
