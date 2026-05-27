@@ -267,7 +267,7 @@ describe('browser settings fallback', () => {
     expect(run.selectedTools).toContain('run_code');
     expect(run.explicitDirectives).toContain('code');
     expect(changed.toolMode).toBe('file_reader');
-    expect(changed.selectedTools).toEqual(expect.arrayContaining(['list_files', 'read_file']));
+    expect(changed.selectedTools).toEqual(expect.arrayContaining(['list_files', 'search_workspace', 'read_file']));
     expect(changed.reason).toContain('explicit_changed_context');
   });
 

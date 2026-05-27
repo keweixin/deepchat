@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added a lightweight `search_workspace` tool that searches approved workspace text files and returns line citations.
 - Added a GitHub tag release workflow for Windows Setup/Portable builds, SHA256 checksums, artifact upload, and draft releases.
 - Documented CI and release automation in the README and release checklist.
 

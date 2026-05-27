@@ -174,6 +174,7 @@ describe('electron chat service token usage and agent loop', () => {
 
     expect(intent.toolMode).toBe('multi_tool');
     expect(intent.selectedTools).toContain('read_file');
+    expect(intent.selectedTools).toContain('search_workspace');
     expect(intent.selectedTools).toContain('run_code');
   });
 
@@ -188,7 +189,7 @@ describe('electron chat service token usage and agent loop', () => {
 
     expect(intent.toolMode).toBe('multi_tool');
     expect(intent.explicitDirectives).toEqual(expect.arrayContaining(['web', 'changed']));
-    expect(intent.selectedTools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'read_file']));
+    expect(intent.selectedTools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'search_workspace', 'read_file']));
     expect(intent.reason).toContain('explicit_web');
     expect(intent.reason).toContain('explicit_changed_context');
   });
@@ -215,7 +216,7 @@ describe('electron chat service token usage and agent loop', () => {
 
     expect(seen[0].system).toBe(seen[1].system);
     expect(seen[0].tools).toEqual(seen[1].tools);
-    expect(seen[0].tools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'read_file', 'run_code']));
+    expect(seen[0].tools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'search_workspace', 'read_file', 'run_code']));
   });
 
   it('keeps smart-agent scratch out of the cache-stable prefix and retained history', async () => {

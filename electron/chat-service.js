@@ -567,7 +567,7 @@ function filterStableBuiltInTools(tools, settings = {}) {
   return (tools || []).filter((tool) => {
     const name = tool?.function?.name;
     if (name === 'web_search') return Boolean(settings.tavilyApiKey);
-    if (name === 'list_files' || name === 'read_file') return Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
+    if (name === 'list_files' || name === 'search_workspace' || name === 'read_file') return Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
     if (name === 'run_code') return settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false';
     return true;
   });
@@ -888,11 +888,13 @@ function detectAgentIntent(messagesOrText, settings = {}) {
   }
   if (directives.changed) {
     candidates.add('list_files');
+    candidates.add('search_workspace');
     candidates.add('read_file');
     reasons.push('explicit_changed_context');
     score += 0.65;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
       selected.add('list_files');
+      selected.add('search_workspace');
       selected.add('read_file');
     } else {
       missing.add('工作区目录');
@@ -918,11 +920,13 @@ function detectAgentIntent(messagesOrText, settings = {}) {
   }
   if (!candidates.has('list_files') && needsFiles(text, lower)) {
     candidates.add('list_files');
+    candidates.add('search_workspace');
     candidates.add('read_file');
     reasons.push('local_files');
     score += 0.35;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
       selected.add('list_files');
+      selected.add('search_workspace');
       selected.add('read_file');
     } else {
       missing.add('工作区目录');
@@ -952,7 +956,7 @@ function detectAgentIntent(messagesOrText, settings = {}) {
   if (hasBuiltin && hasMcp) toolMode = 'multi_tool';
   else if (hasMcp) toolMode = 'mcp_tool';
   else if (selected.has('web_search') && selected.size === 1) toolMode = 'web_search';
-  else if ((selected.has('list_files') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
+  else if ((selected.has('list_files') || selected.has('search_workspace') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
   else if (selected.has('run_code') && selected.size === 1) toolMode = 'code_runner';
   else if (hasBuiltin) toolMode = 'multi_tool';
 
@@ -1127,6 +1131,15 @@ function buildToolSecurity(name, args = {}, settings = {}) {
     return {
       riskLevel: 'medium',
       path: String(args.path || ''),
+      sensitiveDenylist: true,
+      redaction: true,
+    };
+  }
+  if (name === 'search_workspace') {
+    return {
+      riskLevel: 'medium',
+      query: String(args.query || ''),
+      directory: String(args.directory || ''),
       sensitiveDenylist: true,
       redaction: true,
     };
@@ -1380,6 +1393,7 @@ function compactToolOutputForContext(toolName, args, output) {
   if (estimateTokens(text) <= MAX_TOOL_CONTEXT_TOKENS) return text;
   const name = String(toolName || '');
   if (name === 'web_search') return compactSearchOutput(text);
+  if (name === 'search_workspace') return compactWorkspaceSearchOutput(text);
   if (name === 'read_file') return compactFileOutput(text);
   if (name === 'run_code') return compactCodeOutput(text);
   if (isMcpToolName(name)) return compactMcpOutput(text);
@@ -1402,6 +1416,15 @@ function compactSearchOutput(text) {
   return [
     '[联网搜索结果已压缩，完整输出在工具运行卡片中。]',
     ...important.slice(0, 80),
+  ].join('\n').slice(0, 7000);
+}
+
+function compactWorkspaceSearchOutput(text) {
+  const lines = text.split('\n');
+  const important = lines.filter((line) => /^\s*(工作区搜索：|工作区：|目录：|结果数：|\d+\. |   摘录:|   \d+:)/.test(line));
+  return [
+    '[工作区搜索结果已压缩，完整输出在工具运行卡片中。]',
+    important.slice(0, 80).join('\n'),
   ].join('\n').slice(0, 7000);
 }
 

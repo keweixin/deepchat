@@ -90,4 +90,33 @@ describe('electron tools helpers', () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('searches workspace text files with line citations and skips secrets', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-search-workspace-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src', 'agent.md'), [
+        '# Agent Notes',
+        'DeepSeek cache telemetry should explain hit and miss tokens.',
+        'The answer must cite local files.',
+      ].join('\n'), 'utf8');
+      await fs.writeFile(path.join(tmpDir, '.env'), 'DEEPSEEK_CACHE_SECRET=hit miss tokens', 'utf8');
+
+      const output = await executeTool('search_workspace', {
+        query: 'cache telemetry',
+        directory: 'src',
+        max_results: 5,
+      }, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('工作区搜索：cache telemetry');
+      expect(output).toContain('目录：src');
+      expect(output).toContain('src');
+      expect(output).toContain('agent.md:2-3');
+      expect(output).toContain('2: DeepSeek cache telemetry');
+      expect(output).not.toContain('.env');
+      expect(output).not.toContain('DEEPSEEK_CACHE_SECRET');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

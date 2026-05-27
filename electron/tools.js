@@ -6,6 +6,8 @@ const crypto = require('crypto');
 
 const MAX_FILE_BYTES = 100 * 1024;
 const DEFAULT_FILE_BYTES = 30 * 1024;
+const MAX_SEARCH_FILE_BYTES = 64 * 1024;
+const MAX_SEARCH_SCAN_FILES = 700;
 const MAX_TOOL_OUTPUT = 12000;
 const RUN_TIMEOUT_MS = 5000;
 const SENSITIVE_PATH_PARTS = new Set(['.ssh', '.aws', '.azure', '.gnupg']);
@@ -54,6 +56,24 @@ const TOOL_SCHEMAS = {
       },
     },
   },
+  search_workspace: {
+    type: 'function',
+    function: {
+      name: 'search_workspace',
+      description: 'Search text files inside a user-approved workspace and return concise line citations.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Keyword or phrase to search for.' },
+          root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
+          directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to search.' },
+          pattern: { type: 'string', description: 'Optional filename substring or wildcard, such as *.js or README.' },
+          max_results: { type: 'integer', minimum: 1, maximum: 20, description: 'Maximum number of file hits.' },
+        },
+        required: ['query'],
+      },
+    },
+  },
   read_file: {
     type: 'function',
     function: {
@@ -90,9 +110,9 @@ const TOOL_SCHEMAS = {
 const MODE_TOOLS = {
   none: [],
   web_search: ['web_search'],
-  file_reader: ['list_files', 'read_file'],
+  file_reader: ['list_files', 'search_workspace', 'read_file'],
   code_runner: ['run_code'],
-  multi_tool: ['web_search', 'list_files', 'read_file', 'run_code'],
+  multi_tool: ['web_search', 'list_files', 'search_workspace', 'read_file', 'run_code'],
 };
 
 function getToolDefinitions(activeSkill) {
@@ -120,6 +140,13 @@ function describeToolRisk(name, args) {
       ? `将列出已授权工作区目录 ${directory.slice(0, 160)} 内的文件名，不会读取文件内容。`
       : '将列出已授权工作区内的文件名，不会读取文件内容。';
   }
+  if (name === 'search_workspace') {
+    const directory = String(args.directory || '').trim();
+    const query = String(args.query || '').slice(0, 120);
+    return directory
+      ? `将在已授权工作区目录 ${directory.slice(0, 160)} 内搜索文本：${query}，并返回文件行号引用。`
+      : `将在已授权工作区内搜索文本：${query}，并返回文件行号引用。`;
+  }
   if (name === 'read_file') {
     return `将读取已授权工作区内的文本文件：${String(args.path || '').slice(0, 160)}`;
   }
@@ -139,6 +166,7 @@ async function executeTool(name, args, settings) {
   let output;
   if (name === 'web_search') output = await webSearch(args, settings);
   else if (name === 'list_files') output = await listFiles(args, settings);
+  else if (name === 'search_workspace') output = await searchWorkspace(args, settings);
   else if (name === 'read_file') output = await readFile(args, settings);
   else if (name === 'run_code') output = await runCode(args, settings);
   else throw new Error(`不支持的工具：${name}`);
@@ -301,8 +329,127 @@ async function listFiles(args, settings) {
   ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
-async function walk(root, current, files, matcher) {
-  if (files.length >= 220) return;
+async function searchWorkspace(args, settings) {
+  const query = String(args.query || '').trim();
+  if (!query) throw new Error('搜索关键词不能为空。');
+  const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
+  const directory = String(args.directory || '').trim();
+  const scanRoot = directory ? await resolveAllowedDirectory(directory, [root]) : root;
+  const realRoot = await fs.realpath(root).catch(() => root);
+  const pattern = String(args.pattern || '').trim();
+  const matcher = createMatcher(pattern);
+  const maxResults = clampInt(args.max_results, 1, 20, 8);
+  const files = [];
+  await walk(scanRoot, scanRoot, files, matcher, MAX_SEARCH_SCAN_FILES);
+
+  const terms = tokenizeSearchQuery(query);
+  const queryLower = query.toLowerCase();
+  const hits = [];
+  for (const file of files) {
+    if (hits.length >= maxResults * 4) break;
+    if (!file.fullPath || isSensitivePath(file.fullPath)) continue;
+    const text = await readSearchableFile(file.fullPath, Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES));
+    if (!text) continue;
+    const hit = findBestTextHit(text, terms, queryLower);
+    if (!hit) continue;
+    hits.push({
+      ...hit,
+      file: path.relative(realRoot, file.fullPath) || file.path,
+      size: file.size || 0,
+      truncated: (file.size || 0) > MAX_SEARCH_FILE_BYTES,
+    });
+  }
+
+  hits.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
+  const selected = hits.slice(0, maxResults);
+  const relativeDirectory = path.relative(realRoot, scanRoot) || '.';
+  if (selected.length === 0) {
+    return [
+      `工作区搜索：${query}`,
+      `工作区：${root}`,
+      `目录：${relativeDirectory}`,
+      pattern ? `文件筛选：${pattern}` : '',
+      '没有找到匹配的文本结果。',
+    ].filter(Boolean).join('\n');
+  }
+
+  const lines = [
+    `工作区搜索：${query}`,
+    `工作区：${root}`,
+    `目录：${relativeDirectory}`,
+    pattern ? `文件筛选：${pattern}` : '',
+    `结果数：${selected.length}`,
+    '',
+  ].filter(Boolean);
+  selected.forEach((hit, index) => {
+    lines.push(`${index + 1}. ${hit.file}:${hit.lineStart}-${hit.lineEnd}`);
+    lines.push(`   score: ${hit.score}`);
+    if (hit.truncated) lines.push(`   说明：文件超过 ${MAX_SEARCH_FILE_BYTES} bytes，仅搜索开头片段。`);
+    lines.push('   摘录:');
+    for (const item of hit.snippet) {
+      lines.push(`   ${item.line}: ${item.text}`);
+    }
+    lines.push('');
+  });
+  return lines.join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+async function readSearchableFile(filePath, maxBytes) {
+  const handle = await fs.open(filePath, 'r').catch(() => null);
+  if (!handle) return '';
+  try {
+    const bytesToRead = Math.max(1, Math.min(maxBytes, MAX_SEARCH_FILE_BYTES));
+    const buffer = Buffer.alloc(bytesToRead);
+    const result = await handle.read(buffer, 0, bytesToRead, 0);
+    const slice = buffer.subarray(0, result.bytesRead);
+    if (isProbablyBinary(slice)) return '';
+    return slice.toString('utf8');
+  } finally {
+    await handle.close().catch(() => {});
+  }
+}
+
+function tokenizeSearchQuery(query) {
+  return [...new Set(String(query || '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}_.$/-]+/u)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 2)
+    .slice(0, 8))];
+}
+
+function findBestTextHit(text, terms, queryLower) {
+  const lines = String(text || '').split(/\r?\n/);
+  let best = null;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] || '';
+    const lower = line.toLowerCase();
+    let score = 0;
+    if (queryLower && lower.includes(queryLower)) score += 5;
+    for (const term of terms) {
+      if (lower.includes(term)) score += 1;
+    }
+    if (score <= 0) continue;
+    const lineStart = index + 1;
+    const lineEnd = Math.min(lines.length, index + 2);
+    const snippet = [];
+    for (let i = lineStart - 1; i < lineEnd; i++) {
+      snippet.push({ line: i + 1, text: truncateLine(lines[i] || '') });
+    }
+    if (!best || score > best.score) {
+      best = { score, lineStart, lineEnd, snippet };
+    }
+  }
+  return best;
+}
+
+function truncateLine(value) {
+  const text = String(value || '').trim();
+  return text.length > 240 ? `${text.slice(0, 240)}...` : text;
+}
+
+async function walk(root, current, files, matcher, maxFiles = 220) {
+  if (files.length >= maxFiles) return;
   let entries;
   try {
     entries = await fs.readdir(current, { withFileTypes: true });
@@ -311,16 +458,17 @@ async function walk(root, current, files, matcher) {
   }
 
   for (const entry of entries) {
-    if (files.length >= 220) return;
+    if (files.length >= maxFiles) return;
     if (shouldSkip(entry.name)) continue;
     const fullPath = path.join(current, entry.name);
     const relative = path.relative(root, fullPath);
     if (entry.isDirectory()) {
-      await walk(root, fullPath, files, matcher);
+      await walk(root, fullPath, files, matcher, maxFiles);
     } else if (entry.isFile() && matcher(relative)) {
       const stat = await fs.stat(fullPath).catch(() => null);
       files.push({
         path: relative,
+        fullPath,
         size: stat?.size || 0,
         mtimeMs: stat?.mtimeMs || 0,
       });

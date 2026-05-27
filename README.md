@@ -9,6 +9,7 @@ DeepChat 的定位不是大而全 Web 平台，也不是完整 IDE，而是一�
 - 多 Provider：DeepSeek、OpenAI、OpenRouter、硅基流动、DashScope、Ollama、LM Studio、自定义 OpenAI-compatible endpoint。
 - 智能 Agent：自动判断联网搜索、文件读取、代码运行、MCP 或普通聊天；所有工具调用都需要用户确认。
 - 可审计工具：工具请求、审批、拒绝、失败、输出摘要、安全提示和来源会写入消息记录。
+- Workspace Knowledge Lite：在授权工作区内搜索文本文件，返回 `file:line-line` 引用，适合先定位资料再精读文件。
 - DeepSeek cache-first：稳定 system prompt 和工具 schema 前缀，记录 prefix hash、cache hit/miss、命中率、估算成本和节省金额。
 - 长上下文处理：按 token 预算裁剪历史，当前用户消息优先保留，必要时生成短摘要并复用摘要 hash。
 - 安全桌面端：Electron sandbox、CSP、IPC schema 校验、敏感文件拒读、输出脱敏、代码运行轻量隔离。
@@ -67,7 +68,7 @@ npm run electron:build:portable
 
 - [electron.js](./electron.js)：Electron 主进程、安全默认值和 IPC 边界。
 - [electron/chat-service.js](./electron/chat-service.js)：Agent loop、provider streaming、usage/cache 统计、工具审批。
-- [electron/tools.js](./electron/tools.js)：内置工具、文件安全边界、代码运行轻沙箱。
+- [electron/tools.js](./electron/tools.js)：内置工具、工作区搜索、文件安全边界、代码运行轻沙箱。
 - [src/modules/api.js](./src/modules/api.js)：Provider registry、浏览器 fallback、usage/context helpers。
 - [src/modules/chat.js](./src/modules/chat.js)：聊天 UI、Agent timeline、工具卡、token/cache 展示。
 - [tests](./tests)：Vitest 单元和 UI helper 测试。
@@ -76,7 +77,7 @@ npm run electron:build:portable
 
 1. Provider registry 和 cache telemetry 继续产品化。
 2. 工具证据卡片统一结构，支持复制 JSON 和原始输出引用。
-3. Workspace Knowledge：SQLite FTS5、文件 chunk、行号 citation。
+3. Workspace Knowledge：从当前 lightweight line citation 搜索演进到 SQLite FTS5、文件 chunk、增量索引。
 4. `@file` / `@folder` / `@symbol` 显式上下文选择。
 5. Artifact panel：Markdown、Mermaid、Table、JSON、HTML sandbox preview。
 6. MCP 工具抽屉、server status 和 per-workspace tool policy。
