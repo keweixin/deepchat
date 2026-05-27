@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   getCompactMessagePreview,
   formatConversationUsageTelemetry,
@@ -99,6 +99,53 @@ describe('chat regeneration', () => {
     expect(container.hidden).toBe(false);
     expect(container.textContent).toContain('本地引用 (1)');
     expect(container.textContent).toContain('src/agent.md:2-3');
+    expect(container.textContent).toContain('输出摘要');
+  });
+
+  it('renders bounded tool output summaries and copies evidence JSON', async () => {
+    const container = document.createElement('div');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    renderToolCalls(container, [{
+      id: 'tool-code',
+      name: 'run_code',
+      status: 'completed',
+      ok: true,
+      args: { language: 'javascript' },
+      requestedAt: '2026-05-27T12:00:00.000Z',
+      completedAt: '2026-05-27T12:00:01.000Z',
+      output: [
+        '退出码：0',
+        'stdout:',
+        '测试完成',
+        '```js',
+        'const secret = "long code";',
+        '```',
+      ].join('\n'),
+    }]);
+
+    expect(container.textContent).toContain('输出摘要');
+    expect(container.textContent).toContain('退出码：0');
+    expect(container.textContent).toContain('[代码片段]');
+
+    container.querySelector('.tool-copy-btn').click();
+    await Promise.resolve();
+
+    const payload = JSON.parse(writeText.mock.calls[0][0]);
+    expect(payload).toMatchObject({
+      type: 'deepchat.toolEvidence',
+      id: 'tool-code',
+      name: 'run_code',
+      status: 'completed',
+      ok: true,
+      durationMs: 1000,
+      rawOutputRef: 'tool-output:tool-code',
+    });
+    expect(payload.outputPreview).toContain('测试完成');
   });
 
   it('labels selected symbol context as a symbol chip', () => {

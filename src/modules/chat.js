@@ -952,6 +952,9 @@ export function renderToolCalls(container, toolCalls = [], options = {}) {
     }
 
     if (tool.output) {
+      const outputSummary = createToolOutputSummary(tool.output, tool);
+      if (outputSummary) block.appendChild(outputSummary);
+
       const preview = createToolOutputPreview(tool.output, getToolName(tool));
       if (preview) block.appendChild(preview);
 
@@ -1048,6 +1051,32 @@ function createToolSecurityMeta(tool) {
   meta.className = 'tool-security-meta';
   meta.textContent = items.join(' · ');
   return meta;
+}
+
+function createToolOutputSummary(outputText, tool = {}) {
+  const text = compactToolOutputSummaryText(outputText);
+  if (!text) return null;
+  const summary = document.createElement('div');
+  summary.className = `tool-output-summary${tool.ok === false ? ' is-error' : ''}`;
+  const label = document.createElement('span');
+  label.className = 'tool-output-summary-label';
+  label.textContent = tool.ok === false ? '失败摘要' : '输出摘要';
+  const body = document.createElement('span');
+  body.className = 'tool-output-summary-text';
+  body.textContent = text;
+  summary.append(label, body);
+  return summary;
+}
+
+function compactToolOutputSummaryText(outputText) {
+  const lines = String(outputText || '')
+    .replace(/```[\s\S]*?```/g, '[代码片段]')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return '';
+  const joined = lines.slice(0, 6).join(' · ');
+  return joined.length > 420 ? `${joined.slice(0, 420).trim()}...` : joined;
 }
 
 function createToolOutputPreview(outputText, toolName = '') {
