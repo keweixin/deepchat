@@ -180,9 +180,47 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     tone: settings.toolApprovalPolicy === 'auto_readonly' ? 'ready' : 'muted',
   });
 
+  const maxInputTokens = Number.parseInt(settings.maxInputTokens, 10);
+  if (Number.isFinite(maxInputTokens) && maxInputTokens > 0) {
+    items.push({
+      kind: 'budget',
+      label: `输入预算 ${formatCompactTokenCount(maxInputTokens)}`,
+      tone: maxInputTokens < 8000 ? 'warning' : 'ready',
+      title: '历史消息会按输入 token 预算裁剪，当前用户消息会优先保留。',
+    });
+  }
+
+  if (activeSkill !== 'none') {
+    const maxRounds = Number.parseInt(settings.agentMaxRounds, 10);
+    items.push({
+      kind: 'rounds',
+      label: `Agent ${Number.isFinite(maxRounds) && maxRounds > 0 ? maxRounds : 3} 轮上限`,
+      tone: 'muted',
+      title: '达到轮数上限后会停止并说明原因。',
+    });
+  }
+
+  items.push({
+    kind: 'summary',
+    label: settings.autoContextSummary === false ? '自动摘要关闭' : '自动摘要开启',
+    tone: settings.autoContextSummary === false ? 'muted' : 'ready',
+    title: settings.autoContextSummary === false
+      ? '长上下文只会按预算裁剪，不会额外生成长期摘要。'
+      : '历史被裁剪或接近预算时，会尝试生成长期摘要并计入 usage。',
+  });
+
+  items.push({
+    kind: 'cache',
+    label: settings.cacheOptimization === false ? '缓存优化关闭' : '缓存前缀稳定',
+    tone: settings.cacheOptimization === false ? 'warning' : 'ready',
+    title: settings.cacheOptimization === false
+      ? '本轮不会主动保持缓存友好的固定前缀。'
+      : '系统提示、Agent 规则和工具 schema 会尽量保持稳定顺序，提高 prefix cache 命中。',
+  });
+
   return {
-    items: dedupePreviewItems(items).slice(0, 10),
-    title: '本轮将使用的上下文和工具。显式 @file/@folder/@symbol 会优先影响工具选择。',
+    items: dedupePreviewItems(items).slice(0, 12),
+    title: '本轮将使用的上下文、工具、token 预算和缓存策略。显式 @file/@folder/@symbol 会优先影响工具选择。',
   };
 }
 
@@ -274,4 +312,13 @@ function dedupePreviewItems(items = []) {
     out.push({ ...item, label });
   }
   return out;
+}
+
+function formatCompactTokenCount(value) {
+  const count = Number(value) || 0;
+  if (count >= 1000) {
+    const rounded = Math.round(count / 100) / 10;
+    return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded}k`;
+  }
+  return String(count);
 }

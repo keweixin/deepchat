@@ -77,6 +77,10 @@ describe('composer tool drawer helpers', () => {
       tavilyApiKey: 'tvly-test',
       runCodeEnabled: true,
       toolApprovalPolicy: 'auto_readonly',
+      maxInputTokens: 24000,
+      agentMaxRounds: 4,
+      autoContextSummary: true,
+      cacheOptimization: true,
       mcpServers: [{ name: 'github', command: 'node', enabled: true }],
     });
 
@@ -87,8 +91,13 @@ describe('composer tool drawer helpers', () => {
       expect.objectContaining({ label: '工具 智能 Agent' }),
       expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
       expect.objectContaining({ label: '只读工具可自动通过' }),
+      expect.objectContaining({ label: '输入预算 24k', tone: 'ready' }),
+      expect.objectContaining({ label: 'Agent 4 轮上限' }),
+      expect.objectContaining({ label: '自动摘要开启', tone: 'ready' }),
+      expect.objectContaining({ label: '缓存前缀稳定', tone: 'ready' }),
     ]));
     expect(preview.title).toContain('@file');
+    expect(preview.title).toContain('token 预算');
   });
 
   it('shows MCP server status lights in the send-time context preview', () => {
@@ -176,6 +185,26 @@ describe('composer tool drawer helpers', () => {
     });
 
     expect(preview.items.some((item) => item.label === '未选工作区')).toBe(false);
+  });
+
+  it('shows disabled summary and cache warnings before send', () => {
+    const preview = buildComposerContextPreview('帮我整理这段内容', {
+      activeSkill: 'none',
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      maxInputTokens: 4096,
+      autoContextSummary: false,
+      cacheOptimization: false,
+      mcpServers: [],
+    });
+
+    expect(preview.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '输入预算 4.1k', tone: 'warning' }),
+      expect.objectContaining({ label: '自动摘要关闭', tone: 'muted' }),
+      expect.objectContaining({ label: '缓存优化关闭', tone: 'warning' }),
+    ]));
+    expect(preview.items.some((item) => /^Agent /.test(item.label))).toBe(false);
   });
 
   it('keeps composer intent preview quiet outside smart agent mode', () => {
