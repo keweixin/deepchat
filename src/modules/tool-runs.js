@@ -169,6 +169,9 @@ export function formatToolArgs(tool) {
 
 export function getToolQuery(tool) {
   const args = getToolArgs(tool);
+  if (Array.isArray(args?.queries)) {
+    return args.queries.map((item) => String(item || '').trim()).filter(Boolean).join(' / ');
+  }
   return String(args?.query || '').trim();
 }
 
@@ -210,7 +213,7 @@ export function getSearchGrounding(message = {}, content = '') {
     hasSources: urls.length > 0,
     cited,
     warning: runs.length > 0 && (!urls.length || !cited),
-    queries: runs.map((run) => run.query || run.args?.query || '').filter(Boolean),
+    queries: runs.map((run) => run.query || getToolQuery(run)).filter(Boolean),
     sources,
     runs,
   };

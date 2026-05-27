@@ -2,7 +2,7 @@ import { createRequire } from 'module';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
@@ -15,6 +15,10 @@ const {
 } = require('../electron/tools');
 
 describe('electron tools helpers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('keeps file paths inside the approved workspace root', () => {
     const root = path.resolve('E:/workspace/project');
 
@@ -52,6 +56,56 @@ describe('electron tools helpers', () => {
 
     expect(request.payload.query).toBe('DeepSeek cache pricing');
     expect(request.payload.max_results).toBe(1);
+  });
+
+  it('executes a multi-query Tavily search plan with de-duplicated structured results', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [
+            { title: 'Official Docs', url: 'https://example.com/docs', content: 'Official context cache docs.' },
+            { title: 'Shared Result', url: 'https://example.com/shared', content: 'Shared result from docs query.' },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [
+            { title: 'Shared Result Duplicate', url: 'https://example.com/shared', content: 'Duplicate should be removed.' },
+            { title: 'GitHub Issue', url: 'https://github.com/example/issue', content: 'Implementation issue.' },
+          ],
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const output = await executeTool('web_search', {
+      queries: ['DeepSeek context cache official docs', 'DeepSeek cache GitHub issue'],
+      max_results: 4,
+    }, { tavilyApiKey: 'tvly-test', tavilyMaxResults: 4 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(output).toContain('搜索计划：2 个 query');
+    expect(output).toContain('Structured Search Plan:');
+    expect(output).toContain('Tavily 返回来源（已按 URL 去重）');
+    expect(output).toContain('Official Docs');
+    expect(output).toContain('GitHub Issue');
+    expect(output.match(/https:\/\/example\.com\/shared/g)).toHaveLength(2);
+
+    const structured = extractStructuredResults(output, 'Structured Search Plan:');
+    expect(structured).toMatchObject({
+      type: 'deepchat.webSearchPlanResults',
+      queries: [
+        expect.objectContaining({ originalQuery: 'DeepSeek context cache official docs' }),
+        expect.objectContaining({ originalQuery: 'DeepSeek cache GitHub issue' }),
+      ],
+    });
+    expect(structured.results.map((item) => item.url)).toEqual([
+      'https://example.com/docs',
+      'https://example.com/shared',
+      'https://github.com/example/issue',
+    ]);
   });
 
   it('lists files inside a selected workspace subdirectory only', async () => {
@@ -384,8 +438,8 @@ describe('electron tools helpers', () => {
   });
 });
 
-function extractStructuredResults(output) {
-  return extractStructuredPayload(output, 'Structured Results:');
+function extractStructuredResults(output, marker = 'Structured Results:') {
+  return extractStructuredPayload(output, marker);
 }
 
 function extractStructuredPayload(output, marker) {

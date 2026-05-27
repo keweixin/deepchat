@@ -142,6 +142,29 @@ describe('tool run state', () => {
     expect(evidence.workspaceResults[0]).toMatchObject({ file: 'src/agent.md', startLine: 2 });
   });
 
+  it('keeps multi-query web search plans visible in evidence queries', () => {
+    const tool = createToolRecord({
+      toolCallId: 'web-plan',
+      name: 'web_search',
+      args: { queries: ['official docs', 'github issue'] },
+    });
+    applyToolResult([tool], {
+      toolCallId: 'web-plan',
+      name: 'web_search',
+      ok: true,
+      output: [
+        'Tavily 返回来源（已按 URL 去重）：',
+        '1. Official Docs',
+        '   Query: official docs',
+        '   URL: https://example.com/docs',
+      ].join('\n'),
+    });
+
+    const runs = buildToolRuns([tool]);
+    expect(runs[0].query).toBe('official docs / github issue');
+    expect(runs[0].sources[0].url).toBe('https://example.com/docs');
+  });
+
   it('extracts structured workspace symbol results for evidence panels', () => {
     const output = [
       '符号读取：buildContextBudgetBundle',
