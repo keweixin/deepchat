@@ -321,14 +321,22 @@ async function handleSend() {
   const content = $input.value.trim();
   if (!content && pendingAttachments.length === 0) return;
 
-  if (pendingAttachments.length > 0 && !supportsVisionModel(getSettings())) {
+  const hasImages = pendingAttachments.some(item => String(item.mimeType || '').startsWith('image/'));
+  if (hasImages && !supportsVisionModel(getSettings())) {
     showToast(`当前模型 ${getSettings().model} 未标记为支持图片输入，请切换 vision 模型后再发送。`, 3200);
     return;
   }
 
   const attachments = pendingAttachments.map((item) => ({ ...item }));
   const overrides = getComposerOverrides();
-  const promptContent = applyComposerModeToPrompt(content, composerModeId);
+
+  let finalModelContent = applyComposerModeToPrompt(content, composerModeId);
+  const textAttachments = pendingAttachments.filter(item => !String(item.mimeType || '').startsWith('image/'));
+  if (textAttachments.length > 0) {
+    const textContext = textAttachments.map(item => `[附件文件: ${item.name}]\n\`\`\`\n${item.dataUrl}\n\`\`\``).join('\n\n');
+    finalModelContent = `${finalModelContent}\n\n<uploaded_attachments>\n${textContext}\n</uploaded_attachments>`;
+  }
+
   rememberInput(content);
 
   $input.value = '';
@@ -337,7 +345,7 @@ async function handleSend() {
   clearPendingAttachments();
   $input.dispatchEvent(new Event('input', { bubbles: true }));
 
-  await sendMessage(content, { attachments, composerOverrides: overrides, modelContent: promptContent });
+  await sendMessage(content, { attachments, composerOverrides: overrides, modelContent: finalModelContent });
 }
 
 function loadInputHistory() {
@@ -1130,87 +1138,103 @@ function toggleMarkdownPreview(text) {
 // ─── Drag-and-Drop File Handler ───
 
 function handleDroppedFiles(files, $input) {
-  const imageFiles = files.filter(f => f.type.startsWith('image/'));
-  const textFiles = files.filter(f => !f.type.startsWith('image/'));
-
-  if (imageFiles.length > 0) {
-    const remainingSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - pendingAttachments.length);
-    const acceptedImages = imageFiles.slice(0, remainingSlots);
-    if (acceptedImages.length < imageFiles.length) {
-      showToast(`最多保留 ${MAX_IMAGE_ATTACHMENTS} 张待发送图片，多余图片已忽略。`, 2400);
-    }
-    acceptedImages.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        // Show attachment preview
-        let preview = document.querySelector('.attachment-preview');
-        if (!preview) {
-          preview = document.createElement('div');
-          preview.className = 'attachment-preview';
-          const inputArea = document.querySelector('.input-container');
-          inputArea.parentNode.insertBefore(preview, inputArea);
-        }
-
-        const item = document.createElement('div');
-        item.className = 'attachment-item';
-        const image = document.createElement('img');
-        image.src = reader.result;
-        image.alt = file.name || '图片附件';
-        const name = document.createElement('span');
-        name.className = 'attachment-name';
-        name.textContent = file.name || '图片附件';
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'attachment-remove';
-        remove.title = '移除';
-        remove.setAttribute('aria-label', `移除 ${file.name || '图片附件'}`);
-        remove.textContent = '×';
-        remove.addEventListener('click', () => {
-          pendingAttachments = pendingAttachments.filter((attachment) => attachment.id !== item.dataset.attachmentId);
-          item.remove();
-          if (preview.children.length === 0) preview.remove();
-          document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
-        });
-        item.append(image, name, remove);
-        // Store base64 data for sending
-        item.dataset.base64 = reader.result;
-        item.dataset.mimeType = file.type;
-        const attachment = {
-          id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-          name: file.name,
-          mimeType: file.type,
-          size: file.size,
-          dataUrl: reader.result,
-        };
-        item.dataset.attachmentId = attachment.id;
-        pendingAttachments.push(attachment);
-        preview.appendChild(item);
-        document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
-      };
-      reader.readAsDataURL(file);
-    });
-    if (acceptedImages.length > 0) showToast(`已添加 ${acceptedImages.length} 张图片`, 1500);
+  const remainingSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - pendingAttachments.length);
+  const acceptedFiles = files.slice(0, remainingSlots);
+  if (acceptedFiles.length < files.length) {
+    showToast(`最多保留 ${MAX_IMAGE_ATTACHMENTS} 个附件，多余的文件已忽略。`, 2400);
   }
 
-  if (textFiles.length > 0) {
-    // For non-image files, read as text and paste into input
-    const acceptedTextFiles = textFiles.filter((file) => {
-      if (file.size <= MAX_TEXT_ATTACHMENT_BYTES) return true;
-      showToast(`${file.name} 超过 256KB，已跳过。`, 2600);
-      return false;
-    });
-    acceptedTextFiles.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const content = reader.result;
-        const label = file.type || 'text/plain';
-        $input.value += (($input.value ? '\n' : '') + `文件：${file.name}\n\n\`\`\`${label}\n${content}\n\`\`\``);
-        autoResize($input);
-        document.getElementById('send-btn').disabled = false;
+  acceptedFiles.forEach(file => {
+    const isImage = file.type.startsWith('image/');
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      let preview = document.querySelector('.attachment-preview');
+      if (!preview) {
+        preview = document.createElement('div');
+        preview.className = 'attachment-preview';
+        const inputArea = document.querySelector('.input-container');
+        inputArea.parentNode.insertBefore(preview, inputArea);
+      }
+
+      const item = document.createElement('div');
+      item.className = 'attachment-item' + (isImage ? ' type-image' : ' type-text');
+
+      if (isImage) {
+        const image = document.createElement('img');
+        image.src = String(reader.result || '');
+        image.alt = file.name || '图片附件';
+        item.appendChild(image);
+      } else {
+        const icon = document.createElement('div');
+        icon.className = 'attachment-text-icon';
+        icon.textContent = '📄';
+        item.appendChild(icon);
+      }
+
+      const name = document.createElement('span');
+      name.className = 'attachment-name';
+      name.textContent = file.name || '附件';
+
+      let previewAction = null;
+      if (!isImage) {
+        previewAction = document.createElement('button');
+        previewAction.type = 'button';
+        previewAction.className = 'attachment-preview-action';
+        previewAction.title = '预览文本附件';
+        previewAction.setAttribute('aria-label', `预览 ${file.name || '文本附件'}`);
+        previewAction.textContent = '预览';
+        previewAction.addEventListener('click', () => {
+          const text = String(reader.result || '');
+          toggleMarkdownPreview(`文件：${file.name || '文本附件'}\n\n\`\`\`text\n${text}\n\`\`\``);
+        });
+      }
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'attachment-remove';
+      remove.title = '移除';
+      remove.setAttribute('aria-label', `移除 ${file.name || '附件'}`);
+      remove.textContent = '×';
+
+      remove.addEventListener('click', () => {
+        pendingAttachments = pendingAttachments.filter((attachment) => attachment.id !== item.dataset.attachmentId);
+        item.remove();
+        if (preview.children.length === 0) preview.remove();
+        document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
+      });
+
+      item.append(name);
+      if (previewAction) item.appendChild(previewAction);
+      item.appendChild(remove);
+
+      const attachment = {
+        id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        mimeType: file.type || 'text/plain',
+        size: file.size,
+        dataUrl: reader.result,
       };
+
+      item.dataset.attachmentId = attachment.id;
+      pendingAttachments.push(attachment);
+      preview.appendChild(item);
+      document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
+    };
+
+    if (isImage) {
+      reader.readAsDataURL(file);
+    } else {
+      if (file.size > MAX_TEXT_ATTACHMENT_BYTES) {
+        showToast(`${file.name} 超过 256KB，已跳过。`, 2600);
+        return;
+      }
       reader.readAsText(file);
-    });
-    if (acceptedTextFiles.length > 0) showToast(`已插入 ${acceptedTextFiles.length} 个文件内容`);
+    }
+  });
+
+  if (acceptedFiles.length > 0) {
+    showToast(`已添加 ${acceptedFiles.length} 个附件`, 1500);
   }
 }
 

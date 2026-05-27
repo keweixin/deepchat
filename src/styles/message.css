@@ -295,6 +295,15 @@
   object-fit: cover;
 }
 
+.message-attachment-icon {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  color: var(--accent-primary);
+  font-size: 22px;
+}
+
 .message-attachment figcaption {
   padding: var(--space-2);
   color: var(--text-secondary);

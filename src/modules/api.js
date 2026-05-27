@@ -1262,7 +1262,8 @@ async function streamBrowserChat(messages, opts = {}) {
     return;
   }
 
-  if (!supportsVisionModel(settings) && messages.some((msg) => Array.isArray(msg.attachments) && msg.attachments.length > 0)) {
+  const hasImageAttachments = messages.some((msg) => Array.isArray(msg.attachments) && msg.attachments.some(isImageAttachment));
+  if (!supportsVisionModel(settings) && hasImageAttachments) {
     opts.onError?.(new Error(`当前模型 ${settings.model} 未标记为支持图片输入，请切换到 vision 模型后再发送图片。`));
     return;
   }

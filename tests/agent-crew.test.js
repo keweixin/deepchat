@@ -8,6 +8,7 @@ import {
   markCrewMemberDone,
   finalizeCrewRun
 } from '../src/modules/agent-run-store.js';
+import { renderAgentCrew } from '../src/modules/agent-crew.js';
 
 describe('agent crew state engine', () => {
   it('initializes agentRun with Planner running and other roles idle', () => {
@@ -147,5 +148,70 @@ describe('agent crew state engine', () => {
     const reader = run.crew.find(c => c.id === 'reader');
     expect(reader.status).toBe('error');
     expect(reader.outputSummary).toBe('API request timeout');
+  });
+
+  describe('agent crew DOM component', () => {
+    it('does not throw when renderAgentCrew is called with null container', () => {
+      const run = createAgentRun('auto');
+      expect(() => renderAgentCrew(null, run)).not.toThrow();
+    });
+
+    it('sets container.hidden to true when agentRun is absent', () => {
+      const container = document.createElement('div');
+      container.hidden = false;
+      renderAgentCrew(container, null);
+      expect(container.hidden).toBe(true);
+    });
+
+    it('renders 6 agent crew cards when agentRun is active', () => {
+      const container = document.createElement('div');
+      const run = createAgentRun('auto');
+      renderAgentCrew(container, run);
+      expect(container.hidden).toBe(false);
+      const cards = container.querySelectorAll('.agent-crew-card');
+      expect(cards).toHaveLength(6);
+    });
+
+    it('applies status-running class to running members', () => {
+      const container = document.createElement('div');
+      const run = createAgentRun('auto'); // Planner is running by default
+      renderAgentCrew(container, run);
+      const plannerCard = container.querySelector('.agent-crew-card[data-role-id="planner"]');
+      expect(plannerCard.classList.contains('status-running')).toBe(true);
+    });
+
+    it('applies status-waiting class to waiting members', () => {
+      const container = document.createElement('div');
+      const run = createAgentRun('auto');
+      applyCrewToolRequest(run, { id: 't1', name: 'run_code', status: 'pending' }); // Coder becomes waiting
+      renderAgentCrew(container, run);
+      const coderCard = container.querySelector('.agent-crew-card[data-role-id="coder"]');
+      expect(coderCard.classList.contains('status-waiting')).toBe(true);
+    });
+
+    it('toggles is-expanded class when card is clicked', () => {
+      const container = document.createElement('div');
+      const run = createAgentRun('auto');
+      renderAgentCrew(container, run);
+      const plannerCard = container.querySelector('.agent-crew-card[data-role-id="planner"]');
+      expect(plannerCard.classList.contains('is-expanded')).toBe(false);
+      plannerCard.click();
+      expect(plannerCard.classList.contains('is-expanded')).toBe(true);
+    });
+
+    it('retains expansion state after re-rendering', () => {
+      const container = document.createElement('div');
+      const run = createAgentRun('auto');
+      renderAgentCrew(container, run);
+
+      const plannerCard = container.querySelector('.agent-crew-card[data-role-id="planner"]');
+      plannerCard.click();
+      expect(plannerCard.classList.contains('is-expanded')).toBe(true);
+
+      // Re-render
+      renderAgentCrew(container, run);
+      const reRenderedPlanner = container.querySelector('.agent-crew-card[data-role-id="planner"]');
+      expect(reRenderedPlanner.classList.contains('is-expanded')).toBe(true);
+    });
   });
 });

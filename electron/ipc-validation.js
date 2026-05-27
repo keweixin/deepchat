@@ -95,6 +95,30 @@ const TaskCheckpointSchema = z.object({
   prefixFingerprint: z.string().max(80).optional(),
 }).strip();
 
+const CrewMemberSchema = z.object({
+  id: z.string().max(80),
+  label: z.string().max(80).optional(),
+  icon: z.string().max(20).optional(),
+  title: z.string().max(80).optional(),
+  status: z.enum(['idle', 'running', 'done', 'error', 'waiting', 'skipped']),
+  currentAction: z.string().max(600).optional(),
+  outputSummary: z.string().max(2000).optional(),
+  linkedToolCallIds: z.array(z.string().max(160)).max(100).optional(),
+  linkedStepIds: z.array(z.string().max(160)).max(100).optional(),
+  startedAt: z.string().max(80).nullable().optional(),
+  finishedAt: z.string().max(80).nullable().optional(),
+}).strip();
+
+const AgentRunSchema = z.object({
+  id: z.string().max(160),
+  mode: z.string().max(80).optional(),
+  status: z.enum(['running', 'done', 'error', 'cancelled']),
+  startedAt: z.string().max(80).optional(),
+  finishedAt: z.string().max(80).nullable().optional(),
+  crew: z.array(CrewMemberSchema).max(12),
+  steps: z.array(z.union([z.string().max(1000), z.record(z.string(), z.unknown())])).max(100).optional(),
+}).strip();
+
 const MessageSchema = z.lazy(() => z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().max(MAX_MESSAGE_CONTENT).default(''),
@@ -108,6 +132,7 @@ const MessageSchema = z.lazy(() => z.object({
   toolCalls: z.array(ToolRunSchema).max(100).optional(),
   toolRuns: z.array(ToolRunSchema).max(100).optional(),
   agentStages: z.array(AgentStageSchema).max(200).optional(),
+  agentRun: AgentRunSchema.optional(),
   contextBudget: z.record(z.string(), z.unknown()).nullable().optional(),
   cacheProfile: z.record(z.string(), z.unknown()).nullable().optional(),
   composerOverrides: z.record(z.string(), z.unknown()).nullable().optional(),

@@ -284,3 +284,17 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .crew-pulse-icon,
+  .agent-crew-card.status-running,
+  .agent-crew-card.status-running .agent-crew-status-dot {
+    animation: none !important;
+  }
+
+  .agent-crew-card,
+  .agent-crew-card-details,
+  .agent-crew-wrapper {
+    transition: none !important;
+  }
+}

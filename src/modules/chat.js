@@ -274,7 +274,7 @@ export async function sendMessage(content, options = {}) {
   scrollToBottom($messages);
 
   if (conv.messages.filter(m => m.role === 'user').length === 1) {
-    conv.title = truncate(content.trim() || attachments[0]?.name || '图片对话', 25);
+    conv.title = truncate(content.trim() || attachments[0]?.name || '附件对话', 25);
     renderConversationList();
     updateHeader();
   }
@@ -915,6 +915,11 @@ function renderAttachmentStrip(attachments = []) {
       img.src = attachment.dataUrl;
       img.alt = attachment.name || '图片附件';
       item.appendChild(img);
+    } else {
+      const icon = document.createElement('div');
+      icon.className = 'message-attachment-icon';
+      icon.textContent = '📄';
+      item.appendChild(icon);
     }
     const caption = document.createElement('figcaption');
     caption.textContent = `${attachment.name || '附件'}${attachment.size ? ` · ${formatBytes(attachment.size)}` : ''}`;

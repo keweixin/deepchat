@@ -59,6 +59,46 @@ describe('ipc validation schemas', () => {
     });
     expect(validated[0].taskCheckpoint.unsafeExtra).toBeUndefined();
   });
+
+  it('persists bounded agent crew run state while stripping unknown fields', () => {
+    const validated = validate(schemas.ConversationsSaveSchema, [{
+      id: 'c1',
+      messages: [{
+        id: 'm1',
+        role: 'assistant',
+        content: '处理中',
+        agentRun: {
+          id: 'run1',
+          mode: 'agent_auto',
+          status: 'running',
+          startedAt: '2026-05-27T00:00:00.000Z',
+          crew: [{
+            id: 'planner',
+            label: 'Planner',
+            icon: '🧭',
+            title: '计划员',
+            status: 'running',
+            currentAction: '正在规划',
+            linkedStepIds: ['step1'],
+            unsafeExtra: 'drop me',
+          }],
+          steps: [{ id: 'step1', stage: 'planning' }],
+          unsafeExtra: 'drop me',
+        },
+      }],
+    }], 'conversations:save');
+
+    const agentRun = validated[0].messages[0].agentRun;
+    expect(agentRun.status).toBe('running');
+    expect(agentRun.crew[0]).toMatchObject({
+      id: 'planner',
+      icon: '🧭',
+      status: 'running',
+      currentAction: '正在规划',
+    });
+    expect(agentRun.unsafeExtra).toBeUndefined();
+    expect(agentRun.crew[0].unsafeExtra).toBeUndefined();
+  });
 });
 
 describe('tool security boundaries', () => {

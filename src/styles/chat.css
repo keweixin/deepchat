@@ -1951,11 +1951,40 @@
   border-radius: var(--radius-sm);
   object-fit: cover;
 }
+.attachment-text-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-primary), transparent 90%);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 75%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--accent-primary);
+}
 .attachment-name {
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.attachment-preview-action {
+  height: 22px;
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 70%);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-primary), transparent 92%);
+  color: var(--accent-primary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.attachment-preview-action:hover,
+.attachment-preview-action:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 45%);
+  background: color-mix(in srgb, var(--accent-primary), transparent 86%);
+  outline: none;
 }
 .attachment-remove {
   display: flex;
