@@ -33,6 +33,7 @@ import { enhancePrompt, isEnhanceEnabled } from './settings.js';
 import { renderMarkdown, postProcess } from './renderer.js';
 import { refreshReadingNavigator, resetReadingNavigator } from './reading-navigator.js';
 import { confirmAction, promptText } from './dialogs.js';
+import { buildArtifactDownloadName, createSandboxedHtmlDocument, extractHtmlArtifacts } from './artifacts.js';
 import {
   applyToolDecision,
   applyToolResult,
@@ -527,6 +528,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
 
       addMessageActions(msgEl, fullContent, assistantMsg.tokens, finalSpeed, conv.messages.length - 1);
       if (assistantMsg.stopped) renderStoppedNotice(msgEl.querySelector('.message-body'), conv.messages.length - 1);
+      renderAssistantArtifacts(msgEl.querySelector('.artifact-container'), assistantMsg);
       renderAssistantEvidence(msgEl.querySelector('.message-body'), assistantMsg);
 
       isStreaming = false;
@@ -767,6 +769,7 @@ function renderMessages() {
       }
       renderToolCalls(el.querySelector('.tool-calls-container'), msg.toolCalls || []);
       renderAgentTimeline(el.querySelector('.agent-timeline-container'), msg);
+      renderAssistantArtifacts(el.querySelector('.artifact-container'), msg);
       renderAssistantEvidence(el.querySelector('.message-body'), msg);
     }
   });
@@ -813,6 +816,7 @@ function appendMessageDOM(msg, streaming = false) {
       <div class="agent-timeline-container" hidden></div>
       <div class="tool-calls-container" hidden></div>
       <div class="message-content">${contentHtml}</div>
+      <div class="artifact-container" hidden></div>
     </div>
   `;
 
@@ -1279,6 +1283,139 @@ export function hasSearchWithoutCitedSource(message, content) {
 
 export function hasLocalFilesWithoutCitedSource(message, content) {
   return hasUncitedLocalSource(message, content);
+}
+
+export function renderAssistantArtifacts(container, message) {
+  if (!container) return [];
+  container.innerHTML = '';
+  const artifacts = extractHtmlArtifacts(message?.content || '');
+  if (artifacts.length === 0) {
+    container.hidden = true;
+    return [];
+  }
+
+  container.hidden = false;
+  const section = document.createElement('div');
+  section.className = 'artifact-section';
+
+  const header = document.createElement('div');
+  header.className = 'artifact-section-header';
+  const title = document.createElement('strong');
+  title.textContent = 'Artifacts';
+  const meta = document.createElement('span');
+  meta.textContent = `${artifacts.length} 个可预览结果`;
+  header.append(title, meta);
+  section.appendChild(header);
+
+  for (const [index, artifact] of artifacts.entries()) {
+    section.appendChild(renderArtifactCard(artifact, index));
+  }
+
+  container.appendChild(section);
+  return artifacts;
+}
+
+function renderArtifactCard(artifact, index) {
+  const card = document.createElement('div');
+  card.className = 'artifact-card';
+  card.dataset.artifactType = artifact.type;
+
+  const main = document.createElement('div');
+  main.className = 'artifact-card-main';
+
+  const title = document.createElement('div');
+  title.className = 'artifact-title';
+  title.textContent = artifact.title || 'HTML 预览';
+
+  const meta = document.createElement('div');
+  meta.className = 'artifact-meta';
+  const metaParts = [
+    formatBytes(artifact.size || 0),
+    '脚本禁用',
+    artifact.externalResourceCount ? `${artifact.externalResourceCount} 个外链资源受 CSP 限制` : '',
+    artifact.truncated ? '已按预览上限裁剪' : '',
+  ].filter(Boolean);
+  meta.textContent = metaParts.join(' · ');
+  main.append(title, meta);
+
+  const actions = document.createElement('div');
+  actions.className = 'artifact-actions';
+
+  const previewBtn = document.createElement('button');
+  previewBtn.type = 'button';
+  previewBtn.className = 'artifact-action-btn primary';
+  previewBtn.textContent = '预览';
+  previewBtn.addEventListener('click', () => openHtmlArtifactPreview(artifact));
+
+  const downloadBtn = document.createElement('button');
+  downloadBtn.type = 'button';
+  downloadBtn.className = 'artifact-action-btn';
+  downloadBtn.textContent = '导出 HTML';
+  downloadBtn.addEventListener('click', () => downloadHtmlArtifact(artifact, index));
+
+  actions.append(previewBtn, downloadBtn);
+  card.append(main, actions);
+  return card;
+}
+
+function openHtmlArtifactPreview(artifact) {
+  document.querySelector('.artifact-preview-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'artifact-preview-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'artifact-preview-panel';
+
+  const header = document.createElement('div');
+  header.className = 'artifact-preview-header';
+  const title = document.createElement('h3');
+  title.textContent = artifact.title || 'HTML 预览';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'artifact-preview-close';
+  closeBtn.setAttribute('aria-label', '关闭预览');
+  closeBtn.textContent = '×';
+  header.append(title, closeBtn);
+
+  const warning = document.createElement('div');
+  warning.className = 'artifact-preview-warning';
+  warning.textContent = '沙箱预览：scripts、forms、network connect 和 frame 默认禁用；外链图片仅允许 https/data。';
+
+  const iframe = document.createElement('iframe');
+  iframe.className = 'artifact-preview-frame';
+  iframe.setAttribute('sandbox', '');
+  iframe.setAttribute('referrerpolicy', 'no-referrer');
+  iframe.srcdoc = createSandboxedHtmlDocument(artifact.source, { title: artifact.title });
+
+  panel.append(header, warning, iframe);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const cleanup = () => {
+    document.removeEventListener('keydown', onKeyDown);
+    overlay.remove();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') cleanup();
+  };
+  closeBtn.addEventListener('click', cleanup, { once: true });
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) cleanup();
+  });
+  document.addEventListener('keydown', onKeyDown);
+}
+
+function downloadHtmlArtifact(artifact, index) {
+  const html = createSandboxedHtmlDocument(artifact.source, { title: artifact.title });
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = buildArtifactDownloadName(artifact, index);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function renderAssistantEvidence(container, message) {

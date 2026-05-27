@@ -6,6 +6,7 @@ import {
   hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
   renderAgentTimeline,
+  renderAssistantArtifacts,
   renderAssistantEvidence,
   renderContextMentionStrip,
   renderConversationUsageTelemetryPanel,
@@ -102,6 +103,32 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('本地引用 (1)');
     expect(container.textContent).toContain('src/agent.md:2-3');
     expect(container.textContent).toContain('输出摘要');
+  });
+
+  it('renders assistant HTML artifacts in a sandboxed preview', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const artifacts = renderAssistantArtifacts(container, {
+      content: '```html\n<section><h1>仪表盘</h1><script>window.top.alert(1)</script></section>\n```',
+    });
+
+    expect(artifacts).toHaveLength(1);
+    expect(container.hidden).toBe(false);
+    expect(container.textContent).toContain('Artifacts');
+    expect(container.textContent).toContain('脚本禁用');
+
+    container.querySelector('.artifact-action-btn.primary').click();
+
+    const overlay = document.querySelector('.artifact-preview-overlay');
+    const iframe = overlay.querySelector('iframe');
+    expect(overlay.textContent).toContain('沙箱预览');
+    expect(iframe.getAttribute('sandbox')).toBe('');
+    expect(iframe.srcdoc).toContain("script-src 'none'");
+
+    overlay.querySelector('.artifact-preview-close').click();
+    expect(document.querySelector('.artifact-preview-overlay')).toBeNull();
+    container.remove();
   });
 
   it('renders bounded tool output summaries and copies evidence JSON', async () => {
