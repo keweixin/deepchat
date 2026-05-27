@@ -407,7 +407,7 @@ describe('chat regeneration', () => {
             confidence: 0.8,
             maxRounds: 3,
             steps: ['理解用户目标', '检索外部资料', '整理回答并说明来源'],
-            selectedTools: ['web_search'],
+            selectedTools: ['web_search', 'run_code'],
             searchPlan: [
               {
                 purpose: '官方资料',
@@ -432,6 +432,11 @@ describe('chat regeneration', () => {
     expect(container.hidden).toBe(false);
     expect(container.textContent).toContain('规划工具：web_search');
     expect(container.textContent).toContain('任务计划');
+    expect(container.textContent).toContain('风险：高风险确认');
+    expect(container.textContent).toContain('工具 2 个');
+    expect(container.textContent).toContain('高风险 1 个');
+    expect(container.textContent).toContain('搜索 2 组');
+    expect(container.textContent).toContain('执行前会显示确认边界');
     expect(container.textContent).toContain('检索外部资料');
     expect(container.textContent).toContain('搜索计划');
     expect(container.textContent).toContain('DeepSeek cache official documentation');

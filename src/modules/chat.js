@@ -1333,6 +1333,9 @@ function createAgentPlanCard(plan = null) {
   header.append(title, meta);
   card.appendChild(header);
 
+  const summary = createAgentPlanExecutionSummary(plan);
+  if (summary) card.appendChild(summary);
+
   const steps = document.createElement('ol');
   steps.className = 'agent-plan-steps';
   for (const step of plan.steps.slice(0, 8)) {
@@ -1450,6 +1453,29 @@ function appendAgentPlanChips(card, labelText, values = [], extraClass = '') {
     group.appendChild(chip);
   }
   card.appendChild(group);
+}
+
+function createAgentPlanExecutionSummary(plan = {}) {
+  const selectedTools = Array.isArray(plan.selectedTools) ? plan.selectedTools.map((tool) => String(tool || '').trim()).filter(Boolean) : [];
+  const missing = Array.isArray(plan.missingPrerequisites) ? plan.missingPrerequisites.filter(Boolean) : [];
+  const highRiskTools = selectedTools.filter((tool) => /run_code|write|delete|mcp/i.test(tool));
+  const readOnlyTools = selectedTools.filter((tool) => /read|search|list|web/i.test(tool));
+  const risk = missing.length ? '需配置' : (highRiskTools.length ? '高风险确认' : (readOnlyTools.length ? '低风险读取' : '普通回答'));
+  const parts = [
+    `风险：${risk}`,
+    plan.maxRounds ? `最多 ${plan.maxRounds} 轮` : '',
+    selectedTools.length ? `工具 ${selectedTools.length} 个` : '',
+    highRiskTools.length ? `高风险 ${highRiskTools.length} 个` : '',
+    Array.isArray(plan.searchPlan) && plan.searchPlan.length ? `搜索 ${plan.searchPlan.length} 组` : '',
+    missing.length ? `缺配置 ${missing.length} 项` : '',
+    '执行前会显示确认边界',
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  const box = document.createElement('div');
+  box.className = `agent-plan-execution-summary${highRiskTools.length || missing.length ? ' is-warning' : ''}`;
+  box.textContent = parts.join(' · ');
+  box.title = '根据计划中的工具、搜索计划和缺失配置生成的执行前摘要。';
+  return box;
 }
 
 function collapseAgentStages(stages) {
