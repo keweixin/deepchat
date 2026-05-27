@@ -4596,12 +4596,13 @@ function openConversationMenu(id, anchor) {
   };
   const onReposition = () => positionConversationMenu(menu, anchor);
 
-  setTimeout(() => document.addEventListener('pointerdown', onPointerDown, true), 0);
+  const pointerDownTimeout = setTimeout(() => document.addEventListener('pointerdown', onPointerDown, true), 0);
   document.addEventListener('keydown', onKeyDown);
   window.addEventListener('resize', onReposition, { passive: true });
   window.addEventListener('scroll', onReposition, { passive: true, capture: true });
 
   conversationMenuCleanup = () => {
+    clearTimeout(pointerDownTimeout);
     document.removeEventListener('pointerdown', onPointerDown, true);
     document.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('resize', onReposition);
