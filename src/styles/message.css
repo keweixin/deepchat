@@ -1404,6 +1404,30 @@
   line-height: 1.5;
 }
 
+.tool-evidence-citation-status {
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 76%);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-primary), transparent 93%);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.tool-evidence-citation-status.is-missing {
+  border-color: color-mix(in srgb, #f59e0b, transparent 62%);
+  background: color-mix(in srgb, #f59e0b, transparent 92%);
+  color: color-mix(in srgb, var(--text-primary), #f59e0b 26%);
+}
+
+.tool-evidence-citation-status.is-partial {
+  border-color: color-mix(in srgb, #38bdf8, transparent 62%);
+  background: color-mix(in srgb, #38bdf8, transparent 92%);
+}
+
 .tool-evidence-chip-group {
   display: flex;
   flex-wrap: wrap;

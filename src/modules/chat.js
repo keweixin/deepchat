@@ -1924,7 +1924,7 @@ function appendToolEvidencePanel(container, message = {}, grounding = {}, localG
   grid.className = 'tool-evidence-grid';
 
   for (const run of runs) {
-    grid.appendChild(createToolEvidenceRunCard(run));
+    grid.appendChild(createToolEvidenceRunCard(run, message.content || ''));
   }
 
   const cacheCard = createCacheEvidenceCard(message);
@@ -1969,7 +1969,7 @@ function buildToolEvidenceMeta(runs = [], grounding = {}, localGrounding = {}, m
   return parts.length ? parts.join(' · ') : '无工具调用';
 }
 
-function createToolEvidenceRunCard(run = {}) {
+function createToolEvidenceRunCard(run = {}, answerContent = '') {
   const card = document.createElement('article');
   card.className = `tool-evidence-run status-${run.status || 'unknown'}`;
 
@@ -1993,6 +1993,9 @@ function createToolEvidenceRunCard(run = {}) {
     run.args?.language ? `language: ${run.args.language}` : '',
   ].filter(Boolean).join(' · ');
   if (meta.textContent) card.appendChild(meta);
+
+  const citationStatus = buildToolCitationStatus(run, answerContent);
+  if (citationStatus) appendToolCitationStatus(card, citationStatus);
 
   appendEvidenceChips(card, '来源', (run.sources || []).slice(0, 3).map((source) => source.title || source.url));
   appendEvidenceChips(card, '文件', (run.localCitations || []).slice(0, 6).map((citation) => citation.label));
@@ -2042,6 +2045,14 @@ function appendEvidencePreview(card, text) {
   card.appendChild(preview);
 }
 
+function appendToolCitationStatus(card, status) {
+  const box = document.createElement('div');
+  box.className = `tool-evidence-citation-status ${status.state}`;
+  box.textContent = `${status.label} · ${status.cited}/${status.total} 条证据`;
+  box.title = '根据最终回答文本中是否出现 URL、文件名或 file:line 判断。';
+  card.appendChild(box);
+}
+
 function createCacheEvidenceCard(message = {}) {
   const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
   const profile = message.cacheProfile || {};
@@ -2079,14 +2090,101 @@ function createCacheEvidenceCard(message = {}) {
 }
 
 function buildMessageEvidencePayload(message = {}) {
+  const content = message.content || '';
   return {
     type: 'deepchat.messageEvidence',
     version: 1,
-    toolRuns: (message.toolRuns || []).map((run) => buildToolEvidencePayload(run)),
+    toolRuns: (message.toolRuns || []).map((run) => ({
+      ...buildToolEvidencePayload(run),
+      citationStatus: buildToolCitationStatus(run, content),
+    })),
     tokens: message.tokens ? normalizeTokenUsage(message.tokens) : null,
     cacheProfile: message.cacheProfile || null,
     contextBudget: message.contextBudget || null,
   };
+}
+
+function buildToolCitationStatus(run = {}, answerContent = '') {
+  const refs = collectToolEvidenceRefs(run);
+  if (!refs.length) return null;
+  const content = String(answerContent || '');
+  const cited = refs.filter((ref) => isEvidenceRefMentioned(content, ref)).length;
+  const state = cited === refs.length ? 'is-cited' : (cited > 0 ? 'is-partial' : 'is-missing');
+  return {
+    state,
+    label: state === 'is-cited' ? '已被回答引用' : (state === 'is-partial' ? '部分证据已引用' : '未被回答引用'),
+    cited,
+    total: refs.length,
+    refs: refs.slice(0, 8),
+  };
+}
+
+function collectToolEvidenceRefs(run = {}) {
+  const refs = [];
+  for (const source of Array.isArray(run.sources) ? run.sources : []) {
+    const url = String(source?.url || '').trim();
+    if (url) refs.push({ type: 'url', label: source.title || url, value: url });
+  }
+  for (const citation of Array.isArray(run.localCitations) ? run.localCitations : []) {
+    const file = String(citation?.file || '').trim();
+    const label = String(citation?.label || '').trim();
+    if (file || label) refs.push({
+      type: 'file',
+      label: label || file,
+      value: label || file,
+      file,
+      lineStart: Number(citation?.lineStart || 0),
+      lineEnd: Number(citation?.lineEnd || citation?.lineStart || 0),
+    });
+  }
+  if (run.workspaceSymbol?.result) {
+    const result = run.workspaceSymbol.result;
+    const file = String(result.file || '').trim();
+    if (file) {
+      const range = result.startLine ? `${result.startLine}${result.endLine && result.endLine !== result.startLine ? `-${result.endLine}` : ''}` : '';
+      refs.push({
+        type: 'file',
+        label: `${run.workspaceSymbol.symbol || 'symbol'} ${file}${range ? `:${range}` : ''}`,
+        value: `${file}${range ? `:${range}` : ''}`,
+        file,
+        lineStart: Number(result.startLine || 0),
+        lineEnd: Number(result.endLine || result.startLine || 0),
+      });
+    }
+  }
+  return dedupeEvidenceRefs(refs);
+}
+
+function dedupeEvidenceRefs(refs = []) {
+  const seen = new Set();
+  return refs.filter((ref) => {
+    const key = `${ref.type}:${ref.value || ref.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function isEvidenceRefMentioned(content = '', ref = {}) {
+  const text = String(content || '');
+  if (!text) return false;
+  if (ref.type === 'url') return Boolean(ref.value && text.includes(ref.value));
+  const file = String(ref.file || ref.value || '').trim();
+  const label = String(ref.value || ref.label || '').trim();
+  if (label && text.includes(label)) return true;
+  if (file && text.includes(file)) return true;
+  if (file && ref.lineStart > 0) {
+    const escapedFile = escapeRegExp(file);
+    const start = Number(ref.lineStart || 0);
+    const end = Number(ref.lineEnd || start);
+    const rangePattern = end && end !== start ? `${start}\\s*-\\s*${end}` : String(start);
+    return new RegExp(`${escapedFile}\\s*[:：]\\s*${rangePattern}`).test(text);
+  }
+  return false;
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function appendGroundingCard(container, { warning, title: titleText, meta: metaText, items = [], warningText }) {
@@ -2737,7 +2835,7 @@ export function renderLatestEvidenceDrawer(container, conversation) {
   const grid = document.createElement('div');
   grid.className = 'evidence-drawer-grid';
   for (const run of runs) {
-    grid.appendChild(createToolEvidenceRunCard(run));
+    grid.appendChild(createToolEvidenceRunCard(run, message.content || ''));
   }
   const cacheCard = createCacheEvidenceCard(message);
   if (cacheCard) grid.appendChild(cacheCard);

@@ -141,6 +141,7 @@ describe('chat regeneration', () => {
 
     expect(container.textContent).toContain('本轮工具证据');
     expect(container.textContent).toContain('1 个工具');
+    expect(container.textContent).toContain('未被回答引用');
     expect(container.textContent).toContain('本地文件证据未被明确引用');
     expect(container.textContent).toContain('src/agent.md:2-3');
   });
@@ -198,6 +199,7 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('2 个工具');
     expect(container.textContent).toContain('Agent Notes');
     expect(container.textContent).toContain('buildContextBudgetBundle src/agent.md:2-3');
+    expect(container.textContent).toContain('已被回答引用');
     expect(container.textContent).toContain('已压缩 900→120 tokens');
     expect(container.textContent).toContain('cache 60%');
     expect(container.textContent).toContain('prefix abc123');
@@ -213,6 +215,8 @@ describe('chat regeneration', () => {
     });
     expect(payload.toolRuns).toHaveLength(2);
     expect(payload.toolRuns[1].workspaceSymbol.result.file).toBe('src/agent.md');
+    expect(payload.toolRuns[0].citationStatus).toMatchObject({ state: 'is-cited', cited: 1, total: 1 });
+    expect(payload.toolRuns[1].citationStatus).toMatchObject({ state: 'is-cited', cited: 1, total: 1 });
   });
 
   it('renders local workspace citations in tool result cards', () => {
@@ -643,6 +647,7 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('multi_tool');
     expect(container.textContent).toContain('read_file');
     expect(container.textContent).toContain('src/modules/chat.js:10-12');
+    expect(container.textContent).toContain('已被回答引用');
     expect(container.textContent).toContain('Token / Cache');
     expect(container.textContent).toContain('hit 600');
 
@@ -652,6 +657,7 @@ describe('chat regeneration', () => {
     const payload = JSON.parse(writeText.mock.calls[0][0]);
     expect(payload.type).toBe('deepchat.messageEvidence');
     expect(payload.toolRuns[0].name).toBe('read_file');
+    expect(payload.toolRuns[0].citationStatus).toMatchObject({ state: 'is-cited', cited: 1, total: 1 });
     expect(payload.tokens.cacheHit).toBe(600);
   });
 
