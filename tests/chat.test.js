@@ -5,6 +5,7 @@ import {
   buildAnswerActionMenuGroups,
   buildAssistantHtmlExport,
   buildAnswerActionPrompt,
+  getAgentPlanActionAvailability,
   getCompactMessagePreview,
   getToolRiskMeta,
   buildConversationUsageTelemetryDetails,
@@ -142,6 +143,18 @@ describe('chat regeneration', () => {
       enhance: false,
       activeSkill: 'none',
     });
+  });
+
+  it('disables executable agent plan actions when prerequisites are missing', () => {
+    const available = getAgentPlanActionAvailability({ missingPrerequisites: [] });
+    const blocked = getAgentPlanActionAvailability({ missingPrerequisites: ['Tavily Key', '工作区目录'] });
+
+    expect(available.disabledReasons).toEqual({});
+    expect(blocked.disabledReasons.execute_all).toContain('Tavily Key');
+    expect(blocked.disabledReasons.execute_all).toContain('工作区目录');
+    expect(blocked.disabledReasons.single_step).toBe(blocked.disabledReasons.execute_all);
+    expect(blocked.disabledReasons.revise).toBeUndefined();
+    expect(blocked.disabledReasons.cancel).toBeUndefined();
   });
 
   it('truncates from the selected assistant message instead of the last message', () => {

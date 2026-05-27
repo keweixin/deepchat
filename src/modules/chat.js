@@ -1619,6 +1619,7 @@ function createAgentPlanCard(plan = null, contextBudget = null) {
 function createAgentPlanActions(plan = {}) {
   const actions = document.createElement('div');
   actions.className = 'agent-plan-actions';
+  const availability = getAgentPlanActionAvailability(plan);
   [
     ['execute_all', '执行全部', '按这个计划继续执行'],
     ['single_step', '单步执行', '只执行计划中的下一步'],
@@ -1629,14 +1630,37 @@ function createAgentPlanActions(plan = {}) {
     button.type = 'button';
     button.className = `agent-plan-action-btn action-${action}`;
     button.textContent = label;
-    button.title = title;
+    const disabledReason = availability.disabledReasons[action] || '';
+    button.title = disabledReason || title;
+    if (disabledReason) {
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+    }
     button.addEventListener('click', () => applyAgentPlanAction(action, plan));
     actions.appendChild(button);
   });
   return actions;
 }
 
+export function getAgentPlanActionAvailability(plan = {}) {
+  const missing = Array.isArray(plan.missingPrerequisites)
+    ? plan.missingPrerequisites.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  const disabledReasons = {};
+  if (missing.length) {
+    const reason = `缺少配置：${missing.join('、')}。请先修改计划或完成配置。`;
+    disabledReasons.execute_all = reason;
+    disabledReasons.single_step = reason;
+  }
+  return { missingPrerequisites: missing, disabledReasons };
+}
+
 function applyAgentPlanAction(action, plan = {}) {
+  const disabledReason = getAgentPlanActionAvailability(plan).disabledReasons[action];
+  if (disabledReason) {
+    showToast(disabledReason, 3200);
+    return;
+  }
   if (action === 'cancel') {
     if (isStreaming) {
       stopStreaming();
