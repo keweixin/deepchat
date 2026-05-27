@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildAgentPlanActionPrompt,
+  buildAgentPlanActionComposerOverrides,
   buildAnswerActionMenuGroups,
   buildAssistantHtmlExport,
   buildAnswerActionPrompt,
@@ -124,6 +125,23 @@ describe('chat regeneration', () => {
     expect(prompt).toContain('提示');
     expect(prompt).toContain('缺少 Tavily Key 时不要编造来源');
     expect(buildAgentPlanActionPrompt('unknown', { mode: 'workspace' })).toBe('');
+  });
+
+  it('uses safe composer overrides for agent plan actions', () => {
+    expect(buildAgentPlanActionComposerOverrides('execute_all')).toMatchObject({
+      enhance: false,
+      activeSkill: 'agent_auto',
+      agentExecutionMode: 'execute_all',
+    });
+    expect(buildAgentPlanActionComposerOverrides('single_step')).toMatchObject({
+      enhance: false,
+      activeSkill: 'agent_auto',
+      agentExecutionMode: 'single_step',
+    });
+    expect(buildAgentPlanActionComposerOverrides('revise')).toEqual({
+      enhance: false,
+      activeSkill: 'none',
+    });
   });
 
   it('truncates from the selected assistant message instead of the last message', () => {

@@ -1648,18 +1648,20 @@ function applyAgentPlanAction(action, plan = {}) {
   }
   const prompt = buildAgentPlanActionPrompt(action, plan);
   if (!prompt) return;
-  if ((action === 'execute_all' || action === 'single_step') && !isStreaming) {
+  if (shouldAutoSendAgentPlanAction(action)) {
     sendMessage(prompt, {
-      composerOverrides: {
-        enhance: false,
-        activeSkill: 'agent_auto',
-        agentExecutionMode: action === 'single_step' ? 'single_step' : 'execute_all',
-      },
+      composerOverrides: buildAgentPlanActionComposerOverrides(action),
     });
     return;
   }
   fillComposerPrompt(prompt);
   showToast(action === 'execute_all' ? '当前计划已在执行，已准备继续指令' : '已填入计划控制指令');
+}
+
+function shouldAutoSendAgentPlanAction(action) {
+  if (isStreaming) return false;
+  if (!['execute_all', 'single_step', 'revise'].includes(action)) return false;
+  return Boolean(conversations.find((conv) => conv.id === activeConvId));
 }
 
 function fillComposerPrompt(prompt) {
@@ -2932,6 +2934,20 @@ export function buildAgentPlanActionPrompt(action, plan = {}) {
   const instruction = instructions[action];
   if (!instruction) return '';
   return `${instruction}\n\n<agent_plan>\n${summary}\n</agent_plan>`;
+}
+
+export function buildAgentPlanActionComposerOverrides(action) {
+  if (action === 'revise') {
+    return {
+      enhance: false,
+      activeSkill: 'none',
+    };
+  }
+  return {
+    enhance: false,
+    activeSkill: 'agent_auto',
+    agentExecutionMode: action === 'single_step' ? 'single_step' : 'execute_all',
+  };
 }
 
 function serializeAgentPlanForPrompt(plan = {}) {
