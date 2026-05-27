@@ -707,7 +707,7 @@ function buildCacheStablePrefix(settings, tools, previousProfile = null) {
     ...profile,
     profile,
     systemPrompt,
-    cacheStabilityWarnings: buildCacheStabilityWarnings(previousProfile, profile),
+    ...buildCacheStabilityDiagnostics(previousProfile, profile),
   };
 }
 
@@ -737,22 +737,52 @@ function stableWorkspaceSignature(settings = {}) {
   return crypto.createHash('sha256').update(canonicalStringify(payload)).digest('hex').slice(0, 16);
 }
 
-function buildCacheStabilityWarnings(previousProfile, currentProfile) {
-  if (!previousProfile || typeof previousProfile !== 'object') return [];
-  const warnings = [];
-  if (previousProfile.prefixFingerprint && previousProfile.prefixFingerprint !== currentProfile.prefixFingerprint) {
-    warnings.push('DeepSeek cache prefix 已变化：system prompt 或工具 schema 与上一轮不同，下一轮输入缓存可能明显下降。');
+function buildCacheStabilityDiagnostics(previousProfile, currentProfile) {
+  if (!previousProfile || typeof previousProfile !== 'object') {
+    return { cacheStabilityWarnings: [], cacheStabilityReasons: [], cacheStabilityDetails: {} };
   }
+  const warnings = [];
+  const reasons = [];
+  const details = {};
   if (previousProfile.model && previousProfile.model !== currentProfile.model) {
     warnings.push(`模型从 ${previousProfile.model} 切换到 ${currentProfile.model || 'unknown'}，服务端 prefix cache 通常不能跨模型复用。`);
+    reasons.push('model_changed');
+    details.model = { previous: previousProfile.model, current: currentProfile.model || '' };
+  }
+  if (previousProfile.systemHash && previousProfile.systemHash !== currentProfile.systemHash) {
+    warnings.push('system prompt 指纹发生变化，DeepSeek prefix cache 需要重新建立。');
+    reasons.push('system_prompt_changed');
+    details.systemHash = { previous: previousProfile.systemHash, current: currentProfile.systemHash };
+  }
+  if (previousProfile.toolsHash && previousProfile.toolsHash !== currentProfile.toolsHash) {
+    warnings.push('工具 schema 指纹发生变化，DeepSeek prefix cache 需要重新建立。');
+    reasons.push('tool_schema_changed');
+    details.toolsHash = { previous: previousProfile.toolsHash, current: currentProfile.toolsHash };
   }
   if (previousProfile.workspaceSignature && previousProfile.workspaceSignature !== currentProfile.workspaceSignature) {
     warnings.push('工作区或 MCP 配置发生变化，工具可用边界已改变，下一轮可能出现 cache miss。');
+    reasons.push('workspace_or_mcp_changed');
+    details.workspaceSignature = { previous: previousProfile.workspaceSignature, current: currentProfile.workspaceSignature };
   }
-  if (previousProfile.toolsHash && previousProfile.toolsHash !== currentProfile.toolsHash && !warnings.some((warning) => warning.includes('工具 schema'))) {
-    warnings.push('工具 schema 指纹发生变化，DeepSeek prefix cache 需要重新建立。');
+  if (
+    previousProfile.prefixFingerprint &&
+    previousProfile.prefixFingerprint !== currentProfile.prefixFingerprint &&
+    reasons.length === 0
+  ) {
+    warnings.push('DeepSeek cache prefix 指纹已变化，但缺少上一轮 system/tools 明细，下一轮输入缓存可能明显下降。');
+    reasons.push('prefix_fingerprint_changed');
   }
-  return [...new Set(warnings)];
+  if (previousProfile.prefixFingerprint && previousProfile.prefixFingerprint !== currentProfile.prefixFingerprint) {
+    details.prefixFingerprint = {
+      previous: previousProfile.prefixFingerprint,
+      current: currentProfile.prefixFingerprint,
+    };
+  }
+  return {
+    cacheStabilityWarnings: [...new Set(warnings)],
+    cacheStabilityReasons: [...new Set(reasons)],
+    cacheStabilityDetails: details,
+  };
 }
 
 function buildTurnTailMetadata(intent = {}, settings = {}) {
@@ -813,6 +843,8 @@ function attachPrefixProfile(usage, prefix, settings = {}) {
   usage.prefixBytes = prefix.prefixBytes;
   usage.prefixTokens = prefix.prefixTokens;
   usage.cacheStabilityWarnings = prefix.cacheStabilityWarnings || [];
+  usage.cacheStabilityReasons = prefix.cacheStabilityReasons || [];
+  usage.cacheStabilityDetails = prefix.cacheStabilityDetails || {};
   usage.cacheProfile = {
     ...(prefix.profile || {}),
     model: String(settings.model || prefix.profile?.model || ''),
@@ -821,6 +853,9 @@ function attachPrefixProfile(usage, prefix, settings = {}) {
     cacheHitRate: usage.cacheHitRate,
     estimatedCostUsd: usage.cost?.estimatedCostUsd || 0,
     estimatedSavingsUsd: usage.cost?.estimatedSavingsUsd || 0,
+    cacheStabilityWarnings: prefix.cacheStabilityWarnings || [],
+    cacheStabilityReasons: prefix.cacheStabilityReasons || [],
+    cacheStabilityDetails: prefix.cacheStabilityDetails || {},
   };
   return usage;
 }
@@ -964,6 +999,8 @@ function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, bu
     prefixFingerprint: prefix.prefixFingerprint || '',
     prefixBytes: prefix.prefixBytes || 0,
     cacheStabilityWarnings: prefix.cacheStabilityWarnings || [],
+    cacheStabilityReasons: prefix.cacheStabilityReasons || [],
+    cacheStabilityDetails: prefix.cacheStabilityDetails || {},
   };
 }
 
@@ -1893,5 +1930,6 @@ module.exports = {
   detectAgentIntent,
   mergeTokenUsage,
   normalizeTokenUsage,
+  buildCacheStabilityDiagnostics,
   trimContext,
 };

@@ -1540,6 +1540,11 @@ function formatTokenUsageTitle(tokens) {
   if (profile.toolsHash) lines.push(`Tools hash: ${profile.toolsHash}`);
   if (profile.workspaceSignature) lines.push(`Workspace hash: ${profile.workspaceSignature}`);
   if (Array.isArray(profile.toolNames) && profile.toolNames.length) lines.push(`工具 schema: ${profile.toolNames.join(', ')}`);
+  const reasons = normalizeCacheStabilityReasons(tokens.cacheStabilityReasons || profile.cacheStabilityReasons);
+  if (reasons.length) lines.push(`Cache miss 可能原因: ${reasons.map(formatCacheStabilityReason).join('、')}`);
+  const details = tokens.cacheStabilityDetails || profile.cacheStabilityDetails;
+  const detailText = formatCacheStabilityDetails(details);
+  if (detailText) lines.push(`变化明细: ${detailText}`);
   if (tokens.byPurpose && Object.keys(tokens.byPurpose).length) {
     lines.push(`用途: ${Object.entries(tokens.byPurpose).map(([key, value]) => `${key}=${value}`).join(', ')}`);
   }
@@ -1558,12 +1563,42 @@ function buildCacheProfile(tokens, contextBudget) {
     prefixTokens: contextBudget?.prefixTokens || tokens?.prefixTokens || profile.prefixTokens || 0,
     prefixBytes: contextBudget?.prefixBytes || tokens?.prefixBytes || profile.prefixBytes || 0,
     cacheStabilityWarnings: tokens?.cacheStabilityWarnings || contextBudget?.cacheStabilityWarnings || profile.cacheStabilityWarnings || [],
+    cacheStabilityReasons: tokens?.cacheStabilityReasons || contextBudget?.cacheStabilityReasons || profile.cacheStabilityReasons || [],
+    cacheStabilityDetails: tokens?.cacheStabilityDetails || contextBudget?.cacheStabilityDetails || profile.cacheStabilityDetails || {},
     cacheHit: usage.cacheHit,
     cacheMiss: usage.cacheMiss,
     cacheHitRate: usage.cacheHitRate,
     estimatedCostUsd: usage.cost?.estimatedCostUsd || 0,
     estimatedSavingsUsd: usage.cost?.estimatedSavingsUsd || 0,
   };
+}
+
+function normalizeCacheStabilityReasons(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))];
+}
+
+function formatCacheStabilityReason(reason) {
+  const labels = {
+    model_changed: '模型切换',
+    system_prompt_changed: '系统提示词变化',
+    tool_schema_changed: '工具 schema 变化',
+    workspace_or_mcp_changed: '工作区/MCP 变化',
+    prefix_fingerprint_changed: 'prefix 指纹变化',
+  };
+  return labels[reason] || reason;
+}
+
+function formatCacheStabilityDetails(details) {
+  if (!details || typeof details !== 'object') return '';
+  const parts = [];
+  for (const [key, value] of Object.entries(details)) {
+    if (!value || typeof value !== 'object') continue;
+    const previous = String(value.previous || '').slice(0, 24);
+    const current = String(value.current || '').slice(0, 24);
+    if (previous || current) parts.push(`${key}: ${previous || '-'} -> ${current || '-'}`);
+  }
+  return parts.join('；');
 }
 
 function switchVersion(msgIndex, direction) {

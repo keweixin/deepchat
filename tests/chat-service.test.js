@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
   ChatService,
   compactToolOutputForContext,
+  buildCacheStabilityDiagnostics,
   detectAgentIntent,
   mergeTokenUsage,
   normalizeTokenUsage,
@@ -355,8 +356,44 @@ describe('electron chat service token usage and agent loop', () => {
     const tokenCount = events.find((event) => event.type === 'tokenCount');
     expect(tokenCount.cacheProfile.prefixFingerprint).toBeTruthy();
     expect(tokenCount.cacheProfile.toolNames).toContain('web_search');
+    expect(tokenCount.cacheProfile.cacheStabilityReasons).toEqual(expect.arrayContaining([
+      'model_changed',
+      'tool_schema_changed',
+      'workspace_or_mcp_changed',
+    ]));
+    expect(tokenCount.cacheProfile.cacheStabilityDetails.prefixFingerprint.current).toBeTruthy();
     expect(tokenCount.warnings.join('\n')).toContain('prefix');
-    expect(events.some((event) => event.type === 'contextBudget' && event.cacheStabilityWarnings?.length > 0)).toBe(true);
+    expect(events.some((event) => event.type === 'contextBudget' && event.cacheStabilityReasons?.includes('tool_schema_changed'))).toBe(true);
+  });
+
+  it('attributes cache prefix drift to concrete change reasons', () => {
+    const diagnostics = buildCacheStabilityDiagnostics({
+      prefixFingerprint: 'p1',
+      systemHash: 's1',
+      toolsHash: 't1',
+      workspaceSignature: 'w1',
+      model: 'deepseek-chat',
+    }, {
+      prefixFingerprint: 'p2',
+      systemHash: 's2',
+      toolsHash: 't2',
+      workspaceSignature: 'w2',
+      model: 'deepseek-v4-flash',
+    });
+
+    expect(diagnostics.cacheStabilityReasons).toEqual([
+      'model_changed',
+      'system_prompt_changed',
+      'tool_schema_changed',
+      'workspace_or_mcp_changed',
+    ]);
+    expect(diagnostics.cacheStabilityDetails).toMatchObject({
+      model: { previous: 'deepseek-chat', current: 'deepseek-v4-flash' },
+      systemHash: { previous: 's1', current: 's2' },
+      toolsHash: { previous: 't1', current: 't2' },
+      workspaceSignature: { previous: 'w1', current: 'w2' },
+      prefixFingerprint: { previous: 'p1', current: 'p2' },
+    });
   });
 
   it('reuses a matching summary hash without calling the model again', async () => {

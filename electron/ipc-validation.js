@@ -27,6 +27,9 @@ const TokenUsageSchema = z.object({
   source: z.string().max(40).optional(),
   rounds: z.number().int().nonnegative().optional(),
   warnings: z.array(z.string().max(1000)).max(20).optional(),
+  cacheStabilityWarnings: z.array(z.string().max(1000)).max(20).optional(),
+  cacheStabilityReasons: z.array(z.string().max(80)).max(20).optional(),
+  cacheStabilityDetails: z.record(z.string(), z.unknown()).optional(),
   byPurpose: z.record(z.string(), z.number().nonnegative()).optional(),
   cost: z.object({
     model: z.string().max(200).optional(),
