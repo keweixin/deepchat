@@ -335,10 +335,61 @@ describe('electron tools helpers', () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('reads a code symbol definition with structured evidence', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-symbol-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src', 'budget.js'), [
+        'const unrelated = 1;',
+        '',
+        'export function buildContextBudgetBundle(messages, options = {}) {',
+        '  const maxInputTokens = options.maxInputTokens || 24000;',
+        '  return { messages, maxInputTokens };',
+        '}',
+        '',
+        'export function otherHelper() {',
+        '  return unrelated;',
+        '}',
+      ].join('\n'), 'utf8');
+
+      const output = await executeTool('read_symbol', {
+        symbol: 'buildContextBudgetBundle',
+        directory: 'src',
+        max_lines: 40,
+      }, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('符号读取：buildContextBudgetBundle');
+      expect(output).toContain('结果：src');
+      expect(output).toContain('budget.js:');
+      expect(output).toContain('类型：function');
+      expect(output).toContain('Structured Symbol:');
+      expect(output).toContain('3: export function buildContextBudgetBundle');
+      expect(output).toContain('5:   return { messages, maxInputTokens };');
+
+      const structured = extractStructuredPayload(output, 'Structured Symbol:');
+      expect(structured).toMatchObject({
+        type: 'deepchat.workspaceSymbolResult',
+        symbol: 'buildContextBudgetBundle',
+        result: {
+          file: 'src/budget.js',
+          definitionLine: 3,
+          kind: 'function',
+        },
+      });
+      expect(structured.result.snippet.some((line) => line.text.includes('maxInputTokens'))).toBe(true);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 function extractStructuredResults(output) {
-  const start = output.indexOf('Structured Results:');
+  return extractStructuredPayload(output, 'Structured Results:');
+}
+
+function extractStructuredPayload(output, marker) {
+  const start = output.indexOf(marker);
   const jsonStart = output.indexOf('{', start);
   let depth = 0;
   let inString = false;
@@ -364,5 +415,5 @@ function extractStructuredResults(output) {
       if (depth === 0) return JSON.parse(output.slice(jsonStart, index + 1));
     }
   }
-  throw new Error('Structured Results JSON not found');
+  throw new Error(`${marker} JSON not found`);
 }

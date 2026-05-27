@@ -232,7 +232,7 @@ export const SKILLS = {
     icon: '📄',
     description: '读取已授权工作区内的文本文件',
     needs: ['workspaceRoots'],
-    promptSuffix: '\n\n当前客户端具备文件读取能力。用户提到文件时，客户端会在授权工作区内建立索引、查找并提供带 file:line 的内容。请基于实际提供的文件内容进行分析，不要假装已读取文件。',
+    promptSuffix: '\n\n当前客户端具备文件读取能力。用户提到文件或符号时，客户端会在授权工作区内建立索引、查找并提供带 file:line 的内容；遇到函数/类/变量名或 @symbol 时优先按符号读取定义块。请基于实际提供的文件内容进行分析，不要假装已读取文件。',
   },
   code_runner: {
     name: '代码运行',
@@ -301,12 +301,12 @@ export function appendContextHintsToUserContent(content = '', mentions = [], set
   const lines = [
     '<selected_context>',
     '用户在当前消息中用 @file/@folder/@symbol 显式选择了本地上下文。',
-    '不要声称已经读取这些路径；需要文件内容时必须调用 list_files/search_workspace/read_file，并等待用户确认。搜索结果含 file:start-end 时，可用 read_file 精确读取该行范围。',
+    '不要声称已经读取这些路径；需要文件内容时必须调用 list_files/search_workspace/read_symbol/read_file，并等待用户确认。搜索结果含 file:start-end 时，可用 read_file 精确读取该行范围。',
     workspaceCount > 0 ? `已配置工作区数量：${workspaceCount}` : '缺少工作区配置：请提示用户先在设置中添加工作区。',
     ...selected.map((item) => {
       const value = JSON.stringify(item.path);
       if (item.type === 'folder') return `- folder: ${item.path}；建议先调用 list_files({ "directory": ${value} })`;
-      if (item.type === 'symbol') return `- symbol: ${item.path}；建议先调用 search_workspace({ "symbol": ${value}, "max_results": 8 })，再用 read_file 读取返回的 file:start-end 行范围。`;
+      if (item.type === 'symbol') return `- symbol: ${item.path}；建议先调用 read_symbol({ "symbol": ${value} }) 读取定义块；若未命中，再调用 search_workspace({ "symbol": ${value}, "max_results": 8 }) 查看引用。`;
       return `- file: ${item.path}；建议调用 read_file({ "path": ${value} })`;
     }),
     '</selected_context>',
@@ -746,12 +746,14 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
   if (directives.changed) {
     candidates.add('list_files');
     candidates.add('search_workspace');
+    candidates.add('read_symbol');
     candidates.add('read_file');
     reasons.push('explicit_changed_context');
     score += 0.65;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
       selected.add('list_files');
       selected.add('search_workspace');
+      selected.add('read_symbol');
       selected.add('read_file');
     } else {
       missing.add('工作区目录');
@@ -775,12 +777,14 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
   if (!candidates.has('list_files') && needsFiles(text, lower)) {
     candidates.add('list_files');
     candidates.add('search_workspace');
+    candidates.add('read_symbol');
     candidates.add('read_file');
     reasons.push('local_files');
     score += 0.35;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
       selected.add('list_files');
       selected.add('search_workspace');
+      selected.add('read_symbol');
       selected.add('read_file');
     } else {
       missing.add('工作区目录');
@@ -807,7 +811,7 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
   if (hasBuiltin && hasMcp) toolMode = 'multi_tool';
   else if (hasMcp) toolMode = 'mcp_tool';
   else if (selected.has('web_search') && selected.size === 1) toolMode = 'web_search';
-  else if ((selected.has('list_files') || selected.has('search_workspace') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
+  else if ((selected.has('list_files') || selected.has('search_workspace') || selected.has('read_symbol') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
   else if (selected.has('run_code') && selected.size === 1) toolMode = 'code_runner';
   else if (hasBuiltin) toolMode = 'multi_tool';
 

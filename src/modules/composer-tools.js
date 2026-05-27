@@ -99,7 +99,7 @@ function formatToolLabels(tools = []) {
     if (tool === 'web_search') add('联网搜索');
     else if (tool === 'run_code') add('代码运行');
     else if (tool === 'mcp') add('MCP');
-    else if (tool === 'list_files' || tool === 'search_workspace' || tool === 'read_file') add('工作区文件');
+    else if (tool === 'list_files' || tool === 'search_workspace' || tool === 'read_symbol' || tool === 'read_file') add('工作区文件');
     else add(tool);
   }
   return labels.join('、');

@@ -453,6 +453,7 @@ describe('browser settings fallback', () => {
     expect(content).toContain('不要声称已经读取');
     expect(content).toContain('缺少工作区配置');
     expect(content).toContain('read_file');
+    expect(content).toContain('read_symbol({ "symbol": "buildContextBudgetBundle"');
     expect(content).toContain('search_workspace({ "symbol": "buildContextBudgetBundle"');
   });
 
@@ -478,7 +479,7 @@ describe('browser settings fallback', () => {
     });
 
     expect(intent.toolMode).toBe('file_reader');
-    expect(intent.selectedTools).toEqual(expect.arrayContaining(['search_workspace', 'read_file']));
+    expect(intent.selectedTools).toEqual(expect.arrayContaining(['search_workspace', 'read_symbol', 'read_file']));
   });
 
   it('adds DeepSeek cost metadata when model pricing is known', () => {

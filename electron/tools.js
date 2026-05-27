@@ -113,6 +113,25 @@ const TOOL_SCHEMAS = {
       },
     },
   },
+  read_symbol: {
+    type: 'function',
+    function: {
+      name: 'read_symbol',
+      description: 'Read the definition block for a function, class, variable, or component symbol inside a user-approved workspace. Prefer this before reading broad file ranges when the user names a code symbol.',
+      parameters: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Exact symbol name to locate, such as renderMarkdown or buildContextBudgetBundle.' },
+          root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
+          directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to search.' },
+          pattern: { type: 'string', description: 'Optional filename substring or wildcard, such as *.js or renderer.' },
+          context_lines: { type: 'integer', minimum: 0, maximum: 20, description: 'Extra lines before and after the symbol definition.' },
+          max_lines: { type: 'integer', minimum: 20, maximum: 240, description: 'Maximum lines returned for the symbol block.' },
+        },
+        required: ['symbol'],
+      },
+    },
+  },
   run_code: {
     type: 'function',
     function: {
@@ -134,9 +153,9 @@ const TOOL_SCHEMAS = {
 const MODE_TOOLS = {
   none: [],
   web_search: ['web_search'],
-  file_reader: ['index_workspace', 'list_files', 'search_workspace', 'read_file'],
+  file_reader: ['index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'],
   code_runner: ['run_code'],
-  multi_tool: ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_file', 'run_code'],
+  multi_tool: ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file', 'run_code'],
 };
 
 const workspaceIndexCache = new Map();
@@ -186,6 +205,13 @@ function describeToolRisk(name, args) {
     const lineRange = startLine ? `（行 ${startLine}${endLine && endLine !== startLine ? `-${endLine}` : ''}）` : '';
     return `将读取已授权工作区内的文本文件：${String(citation.path || args.path || '').slice(0, 160)}${lineRange}`;
   }
+  if (name === 'read_symbol') {
+    const directory = String(args.directory || '').trim();
+    const symbol = String(args.symbol || '').trim().slice(0, 160);
+    return directory
+      ? `将在已授权工作区目录 ${directory.slice(0, 160)} 内读取代码符号：${symbol}，并返回定义位置和上下文片段。`
+      : `将在已授权工作区内读取代码符号：${symbol}，并返回定义位置和上下文片段。`;
+  }
   if (name === 'run_code') {
     return [
       '将运行代码片段；请确认代码可信。',
@@ -205,6 +231,7 @@ async function executeTool(name, args, settings) {
   else if (name === 'index_workspace') output = await indexWorkspace(args, settings);
   else if (name === 'search_workspace') output = await searchWorkspace(args, settings);
   else if (name === 'read_file') output = await readFile(args, settings);
+  else if (name === 'read_symbol') output = await readSymbol(args, settings);
   else if (name === 'run_code') output = await runCode(args, settings);
   else throw new Error(`不支持的工具：${name}`);
   return redactSensitiveText(output);
@@ -469,6 +496,172 @@ function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected 
         line: item.line,
         text: item.text,
       })),
+    })),
+  };
+}
+
+async function readSymbol(args, settings) {
+  const symbol = normalizeSearchSymbol(args.symbol);
+  if (!symbol) throw new Error('符号名称不能为空，且只能包含字母、数字、_、$、. 或 -。');
+  const index = await getWorkspaceIndex({ ...args, symbol, query: symbol }, settings);
+  const contextLines = clampInt(args.context_lines, 0, 20, 3);
+  const maxLines = clampInt(args.max_lines, 20, 240, 120);
+  const matches = [];
+
+  for (const file of index.files) {
+    const symbolHits = findSymbolDefinitionHits(file, symbol, { contextLines, maxLines });
+    for (const hit of symbolHits) matches.push(hit);
+  }
+
+  matches.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.startLine - b.startLine);
+  const selected = matches[0] || null;
+  const structured = buildWorkspaceSymbolStructuredResult({
+    symbol,
+    index,
+    selected,
+    alternatives: matches.slice(1, 6),
+  });
+
+  if (!selected) {
+    return [
+      `符号读取：${symbol}`,
+      `工作区：${index.root}`,
+      `目录：${index.relativeDirectory}`,
+      index.pattern ? `文件筛选：${index.pattern}` : '',
+      `索引：${formatWorkspaceIndexCacheLabel(index)} · files=${index.fileCount} · chunks=${index.chunkCount} · snapshot=${index.snapshotHash || 'none'} · hash=${index.hash}`,
+      'Structured Symbol:',
+      JSON.stringify(structured, null, 2),
+      `没有找到 ${symbol} 的明确符号定义。可先调用 search_workspace({ "symbol": "${symbol}" }) 查看引用。`,
+    ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
+  }
+
+  const lines = [
+    `符号读取：${symbol}`,
+    `工作区：${index.root}`,
+    `目录：${index.relativeDirectory}`,
+    index.pattern ? `文件筛选：${index.pattern}` : '',
+    `索引：${formatWorkspaceIndexCacheLabel(index)} · files=${index.fileCount} · chunks=${index.chunkCount} · snapshot=${index.snapshotHash || 'none'} · hash=${index.hash}`,
+    `结果：${selected.file}:${selected.startLine}-${selected.endLine}`,
+    `类型：${selected.kind}`,
+    selected.signature ? `签名：${selected.signature}` : '',
+    'Structured Symbol:',
+    JSON.stringify(structured, null, 2),
+    '',
+    '代码片段:',
+    ...selected.snippet.map((item) => `${item.line}: ${item.text}`),
+  ].filter(Boolean);
+  return lines.join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+function findSymbolDefinitionHits(file, symbol, options = {}) {
+  const lines = String(file.text || '').split(/\r?\n/);
+  const hits = [];
+  const symbolPattern = createSymbolPattern(symbol);
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] || '';
+    if (!symbolPattern.test(line) || !looksLikeSymbolDefinition(line, symbol)) continue;
+    const definitionEnd = inferSymbolDefinitionEnd(lines, index);
+    const contextLines = clampInt(options.contextLines, 0, 20, 3);
+    const maxLines = clampInt(options.maxLines, 20, 240, 120);
+    const startIndex = Math.max(0, index - contextLines);
+    const uncappedEndIndex = Math.min(lines.length - 1, definitionEnd + contextLines);
+    const endIndex = Math.min(uncappedEndIndex, startIndex + maxLines - 1);
+    const snippet = [];
+    for (let lineIndex = startIndex; lineIndex <= endIndex; lineIndex += 1) {
+      snippet.push({ line: lineIndex + 1, text: truncateCodeLine(lines[lineIndex] || '') });
+    }
+    hits.push({
+      file: file.path,
+      startLine: startIndex + 1,
+      endLine: endIndex + 1,
+      definitionLine: index + 1,
+      score: scoreSymbolDefinitionHit(file.path, line, symbol),
+      kind: inferSymbolKind(line, symbol),
+      signature: truncateLine(line),
+      truncated: uncappedEndIndex > endIndex || Boolean(file.truncated),
+      snippet,
+    });
+  }
+  return hits;
+}
+
+function inferSymbolDefinitionEnd(lines, startIndex) {
+  let braceDepth = 0;
+  let sawBrace = false;
+  for (let index = startIndex; index < lines.length; index++) {
+    const line = stripLineComments(lines[index] || '');
+    for (const char of line) {
+      if (char === '{') {
+        braceDepth += 1;
+        sawBrace = true;
+      } else if (char === '}') {
+        braceDepth -= 1;
+      }
+    }
+    if (sawBrace && braceDepth <= 0 && index > startIndex) return index;
+    if (!sawBrace && index > startIndex && !String(lines[index] || '').trim()) return Math.max(startIndex, index - 1);
+  }
+  return Math.min(lines.length - 1, startIndex + 40);
+}
+
+function stripLineComments(line) {
+  return String(line || '').replace(/\/\/.*$/, '');
+}
+
+function scoreSymbolDefinitionHit(filePath, line, symbol) {
+  let score = 20;
+  const fileName = path.basename(String(filePath || '')).toLowerCase();
+  const symbolLower = String(symbol || '').toLowerCase();
+  if (fileName.includes(symbolLower)) score += 3;
+  if (/^\s*export\b/.test(line)) score += 2;
+  if (/^\s*(export\s+)?(async\s+)?function\s+/u.test(line)) score += 2;
+  if (/^\s*(export\s+)?class\s+/u.test(line)) score += 2;
+  return score;
+}
+
+function inferSymbolKind(line, symbol) {
+  const text = String(line || '');
+  if (/^\s*(export\s+)?(async\s+)?function\s+/u.test(text)) return 'function';
+  if (/^\s*(export\s+)?class\s+/u.test(text)) return 'class';
+  if (/^\s*(export\s+)?(?:const|let|var)\s+/u.test(text)) return 'variable';
+  if (new RegExp(`<${symbol}(?:\\s|>|/)`, 'u').test(text)) return 'component';
+  if (new RegExp(`(?:async\\s+)?${symbol}\\s*\\(`, 'u').test(text)) return 'method';
+  return 'symbol';
+}
+
+function buildWorkspaceSymbolStructuredResult({ symbol, index, selected, alternatives = [] }) {
+  return {
+    type: 'deepchat.workspaceSymbolResult',
+    version: 1,
+    symbol,
+    root: index.root,
+    directory: index.relativeDirectory,
+    pattern: index.pattern || '',
+    index: {
+      cache: formatWorkspaceIndexCacheLabel(index),
+      fileCount: index.fileCount,
+      chunkCount: index.chunkCount,
+      snapshotHash: index.snapshotHash || '',
+      hash: index.hash,
+    },
+    result: selected ? formatWorkspaceSymbolHit(selected) : null,
+    alternatives: alternatives.map(formatWorkspaceSymbolHit),
+  };
+}
+
+function formatWorkspaceSymbolHit(hit) {
+  return {
+    file: normalizeWorkspaceResultPath(hit.file),
+    startLine: hit.startLine,
+    endLine: hit.endLine,
+    definitionLine: hit.definitionLine,
+    score: hit.score,
+    kind: hit.kind,
+    signature: hit.signature || '',
+    truncated: Boolean(hit.truncated),
+    snippet: hit.snippet.map((item) => ({
+      line: item.line,
+      text: item.text,
     })),
   };
 }
@@ -933,6 +1126,11 @@ function looksLikeSymbolDefinition(line, symbol) {
 
 function truncateLine(value) {
   const text = String(value || '').trim();
+  return text.length > 240 ? `${text.slice(0, 240)}...` : text;
+}
+
+function truncateCodeLine(value) {
+  const text = String(value || '').replace(/\s+$/g, '');
   return text.length > 240 ? `${text.slice(0, 240)}...` : text;
 }
 

@@ -243,6 +243,7 @@ describe('electron chat service token usage and agent loop', () => {
 
     expect(intent.toolMode).toBe('multi_tool');
     expect(intent.selectedTools).toContain('read_file');
+    expect(intent.selectedTools).toContain('read_symbol');
     expect(intent.selectedTools).toContain('search_workspace');
     expect(intent.selectedTools).toContain('run_code');
   });

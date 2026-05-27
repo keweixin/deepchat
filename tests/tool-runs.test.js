@@ -6,6 +6,7 @@ import {
   buildToolRuns,
   createToolRecord,
   extractLocalCitations,
+  extractWorkspaceSymbolResult,
   extractWorkspaceSearchResults,
   getLocalFileGrounding,
   getSearchGrounding,
@@ -138,6 +139,52 @@ describe('tool run state', () => {
     })]);
     expect(runs[0].workspaceResults[0].snippet[0].text).toContain('DeepSeek cache telemetry');
     expect(evidence.workspaceResults[0]).toMatchObject({ file: 'src/agent.md', startLine: 2 });
+  });
+
+  it('extracts structured workspace symbol results for evidence panels', () => {
+    const output = [
+      '符号读取：buildContextBudgetBundle',
+      '结果：src/budget.js:3-6',
+      '类型：function',
+      '签名：export function buildContextBudgetBundle(messages, options = {}) {',
+      'Structured Symbol:',
+      JSON.stringify({
+        type: 'deepchat.workspaceSymbolResult',
+        version: 1,
+        symbol: 'buildContextBudgetBundle',
+        result: {
+          file: 'src/budget.js',
+          startLine: 3,
+          endLine: 6,
+          definitionLine: 3,
+          score: 24,
+          kind: 'function',
+          signature: 'export function buildContextBudgetBundle(messages, options = {}) {',
+          snippet: [
+            { line: 3, text: 'export function buildContextBudgetBundle(messages, options = {}) {' },
+            { line: 4, text: '  return { messages, options };' },
+          ],
+        },
+        alternatives: [],
+      }, null, 2),
+    ].join('\n');
+    const tool = createToolRecord({ toolCallId: 'sym1', name: 'read_symbol', args: { symbol: 'buildContextBudgetBundle' } });
+    applyToolResult([tool], { toolCallId: 'sym1', name: 'read_symbol', ok: true, output });
+
+    const runs = buildToolRuns([tool]);
+    const evidence = buildToolEvidencePayload(tool);
+
+    expect(extractLocalCitations(output, 'read_symbol')[0]).toMatchObject({
+      file: 'src/budget.js',
+      lineStart: 3,
+      lineEnd: 6,
+    });
+    expect(extractWorkspaceSymbolResult(output, 'read_symbol')).toMatchObject({
+      symbol: 'buildContextBudgetBundle',
+      result: { file: 'src/budget.js', definitionLine: 3, kind: 'function' },
+    });
+    expect(runs[0].workspaceSymbol.result.signature).toContain('buildContextBudgetBundle');
+    expect(evidence.workspaceSymbol.result).toMatchObject({ file: 'src/budget.js', startLine: 3 });
   });
 
   it('builds structured evidence without copying the full raw output', () => {

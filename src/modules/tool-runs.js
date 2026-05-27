@@ -81,6 +81,7 @@ export function buildToolRuns(toolCalls = []) {
     sources: tool.sources || extractToolSources(tool.output || ''),
     localCitations: extractLocalCitations(tool.output || '', getToolName(tool)),
     workspaceResults: extractWorkspaceSearchResults(tool.output || '', getToolName(tool)),
+    workspaceSymbol: extractWorkspaceSymbolResult(tool.output || '', getToolName(tool)),
     query: getToolQuery(tool),
     security: tool.security || null,
     parseError: tool.parseError || '',
@@ -98,6 +99,7 @@ export function buildToolEvidencePayload(tool = {}) {
   const sources = tool.sources || extractToolSources(outputText);
   const localCitations = extractLocalCitations(outputText, getToolName(tool));
   const workspaceResults = extractWorkspaceSearchResults(outputText, getToolName(tool));
+  const workspaceSymbol = extractWorkspaceSymbolResult(outputText, getToolName(tool));
   const id = tool.id || '';
   return {
     type: 'deepchat.toolEvidence',
@@ -119,6 +121,7 @@ export function buildToolEvidencePayload(tool = {}) {
     sources,
     localCitations,
     workspaceResults,
+    workspaceSymbol,
     outputPreview: outputText.slice(0, 1200),
     contextOutput: tool.contextOutput || '',
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
@@ -227,7 +230,7 @@ function getSearchRuns(message) {
 
 function getLocalFileRuns(message) {
   const runs = message.toolRuns?.length ? message.toolRuns : buildToolRuns(message.toolCalls || []);
-  return runs.filter((run) => ['search_workspace', 'read_file'].includes(run.name) && run.status === 'completed');
+  return runs.filter((run) => ['search_workspace', 'read_symbol', 'read_file'].includes(run.name) && run.status === 'completed');
 }
 
 export function extractLocalCitations(outputText = '', toolName = '') {
@@ -247,6 +250,11 @@ export function extractLocalCitations(outputText = '', toolName = '') {
     const rangeMatch = rangeLine?.match(/行范围：\s*(\d+)(?:-(\d+))?/);
     if (file && rangeMatch) citations.push(buildLocalCitation(file, rangeMatch[1], rangeMatch[2]));
     else if (file) citations.push(buildLocalCitation(file, 0, 0));
+  }
+  if (toolName === 'read_symbol') {
+    const resultLine = lines.find((line) => /^\s*结果：/.test(line));
+    const match = resultLine?.match(/结果：\s*(.+?):(\d+)(?:-(\d+))?\s*$/);
+    if (match) citations.push(buildLocalCitation(match[1], match[2], match[3]));
   }
   return dedupeLocalCitations(citations);
 }
@@ -273,6 +281,54 @@ export function extractWorkspaceSearchResults(outputText = '', toolName = '') {
         : [],
     }))
     .filter((result) => result.file);
+}
+
+export function extractWorkspaceSymbolResult(outputText = '', toolName = '') {
+  if (toolName !== 'read_symbol') return null;
+  const payload = extractStructuredJsonAfterMarker(outputText, 'Structured Symbol:');
+  if (!payload || payload.type !== 'deepchat.workspaceSymbolResult') return null;
+  const result = normalizeWorkspaceSymbolHit(payload.result);
+  return {
+    type: payload.type,
+    version: normalizeNumber(payload.version) || 1,
+    symbol: String(payload.symbol || '').trim(),
+    root: String(payload.root || '').trim(),
+    directory: String(payload.directory || '').trim(),
+    pattern: String(payload.pattern || '').trim(),
+    index: payload.index && typeof payload.index === 'object' ? {
+      cache: String(payload.index.cache || '').trim(),
+      fileCount: normalizeNumber(payload.index.fileCount),
+      chunkCount: normalizeNumber(payload.index.chunkCount),
+      snapshotHash: String(payload.index.snapshotHash || '').trim(),
+      hash: String(payload.index.hash || '').trim(),
+    } : null,
+    result,
+    alternatives: Array.isArray(payload.alternatives)
+      ? payload.alternatives.map(normalizeWorkspaceSymbolHit).filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeWorkspaceSymbolHit(hit) {
+  if (!hit || typeof hit !== 'object') return null;
+  const file = String(hit.file || '').trim();
+  if (!file) return null;
+  return {
+    file,
+    startLine: normalizeNumber(hit.startLine),
+    endLine: normalizeNumber(hit.endLine),
+    definitionLine: normalizeNumber(hit.definitionLine),
+    score: normalizeNumber(hit.score),
+    kind: String(hit.kind || 'symbol').trim() || 'symbol',
+    signature: String(hit.signature || '').trim(),
+    truncated: Boolean(hit.truncated),
+    snippet: Array.isArray(hit.snippet)
+      ? hit.snippet.map((item) => ({
+        line: normalizeNumber(item.line),
+        text: String(item.text || ''),
+      })).filter((item) => item.line > 0 || item.text)
+      : [],
+  };
 }
 
 function extractStructuredJsonAfterMarker(outputText = '', marker = '') {

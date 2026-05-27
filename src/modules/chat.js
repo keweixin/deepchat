@@ -42,6 +42,7 @@ import {
   createToolRecord,
   extractLocalCitations,
   extractToolSources,
+  extractWorkspaceSymbolResult,
   formatToolArgs,
   getLocalFileGrounding,
   getSearchGrounding,
@@ -1089,7 +1090,8 @@ function compactToolOutputSummaryText(outputText) {
 function createToolOutputPreview(outputText, toolName = '') {
   const sources = extractToolSources(outputText);
   const localCitations = extractLocalCitations(outputText, toolName);
-  if (sources.length === 0 && localCitations.length === 0) return null;
+  const workspaceSymbol = extractWorkspaceSymbolResult(outputText, toolName);
+  if (sources.length === 0 && localCitations.length === 0 && !workspaceSymbol?.result) return null;
 
   const preview = document.createElement('div');
   preview.className = 'tool-source-preview';
@@ -1142,6 +1144,27 @@ function createToolOutputPreview(outputText, toolName = '') {
       list.appendChild(chip);
     }
     preview.appendChild(list);
+  }
+
+  if (workspaceSymbol?.result) {
+    const label = document.createElement('div');
+    label.className = 'tool-source-label';
+    label.textContent = '符号定义';
+    preview.appendChild(label);
+
+    const item = document.createElement('div');
+    item.className = 'tool-source-item';
+    const title = document.createElement('span');
+    title.className = 'tool-source-title';
+    title.textContent = `${workspaceSymbol.symbol} · ${workspaceSymbol.result.file}:${workspaceSymbol.result.startLine}-${workspaceSymbol.result.endLine}`;
+    item.appendChild(title);
+    if (workspaceSymbol.result.signature) {
+      const signature = document.createElement('span');
+      signature.className = 'tool-source-date';
+      signature.textContent = workspaceSymbol.result.signature;
+      item.appendChild(signature);
+    }
+    preview.appendChild(item);
   }
 
   return preview;

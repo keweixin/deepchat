@@ -27,10 +27,10 @@ const MODE_PROMPTS = {
   none: '',
   agent_auto: '\n\n当前启用了智能 Agent 模式。先判断用户请求是否需要外部工具：需要最新事实时用联网搜索，需要本地资料时用文件工具，需要验证代码或计算时用代码工具，需要外部系统时用 MCP。工具调用前必须等待用户确认；缺少配置时说明需要配置什么，不要假装已经执行。',
   web_search: '\n\n当前启用了联网检索工具。需要最新信息、事实核验、价格、版本、新闻或外部资料时，优先调用 web_search，并在最终回答中给出来源链接。',
-  file_reader: '\n\n当前启用了文件分析工具。需要查看本地项目或资料时，可先调用 index_workspace 建立/刷新轻量索引，再用 search_workspace 定位带 file:line 的引用，最后用 read_file 读取必要行范围；用户用 @symbol:Name 指定符号时，优先调用 search_workspace({ symbol: "Name" }) 找定义/引用，再用 read_file({ path: "file:10-20" }) 或 start_line/end_line 精确追读搜索引用，减少无关上下文。只能基于工具返回内容分析，不要声称读取了未返回的文件。',
+  file_reader: '\n\n当前启用了文件分析工具。需要查看本地项目或资料时，可先调用 index_workspace 建立/刷新轻量索引，再用 search_workspace 定位带 file:line 的引用；用户用 @symbol:Name 指定符号或问题里明确函数/类名时，优先调用 read_symbol({ symbol: "Name" }) 直接读取定义块，再按需用 read_file({ path: "file:10-20" }) 精确追读相邻上下文，减少无关内容。只能基于工具返回内容分析，不要声称读取了未返回的文件。',
   code_runner: '\n\n当前启用了代码运行工具。需要验证小段 JavaScript/Python 代码时，调用 run_code；运行前用户会确认。不要声称执行了未执行的代码。',
   mcp_tool: '\n\n当前启用了 MCP 工具模式。可调用已配置 MCP Server 暴露的工具；每次调用前都需要用户确认。只能基于 MCP 工具返回结果声明已执行外部操作。',
-  multi_tool: '\n\n当前启用了全工具模式。需要联网、读取工作区文件、运行小段代码或调用 MCP Server 时，使用对应工具；本地工作区任务可先 index_workspace 建立索引，再 search_workspace/read_file 获取证据。工具结果不足时要说明限制。',
+  multi_tool: '\n\n当前启用了全工具模式。需要联网、读取工作区文件、运行小段代码或调用 MCP Server 时，使用对应工具；本地工作区任务可先 index_workspace 建立索引，再用 search_workspace/read_symbol/read_file 获取证据。工具结果不足时要说明限制。',
 };
 
 class ChatService {
@@ -719,7 +719,7 @@ function filterStableBuiltInTools(tools, settings = {}) {
   return (tools || []).filter((tool) => {
     const name = tool?.function?.name;
     if (name === 'web_search') return Boolean(settings.tavilyApiKey);
-    if (name === 'index_workspace' || name === 'list_files' || name === 'search_workspace' || name === 'read_file') return Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
+    if (name === 'index_workspace' || name === 'list_files' || name === 'search_workspace' || name === 'read_symbol' || name === 'read_file') return Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
     if (name === 'run_code') return settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false';
     return true;
   });
@@ -1078,12 +1078,14 @@ function detectAgentIntent(messagesOrText, settings = {}) {
   if (directives.changed) {
     candidates.add('list_files');
     candidates.add('search_workspace');
+    candidates.add('read_symbol');
     candidates.add('read_file');
     reasons.push('explicit_changed_context');
     score += 0.65;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
       selected.add('list_files');
       selected.add('search_workspace');
+      selected.add('read_symbol');
       selected.add('read_file');
     } else {
       missing.add('工作区目录');
@@ -1110,12 +1112,14 @@ function detectAgentIntent(messagesOrText, settings = {}) {
   if (!candidates.has('list_files') && needsFiles(text, lower)) {
     candidates.add('list_files');
     candidates.add('search_workspace');
+    candidates.add('read_symbol');
     candidates.add('read_file');
     reasons.push('local_files');
     score += 0.35;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
       selected.add('list_files');
       selected.add('search_workspace');
+      selected.add('read_symbol');
       selected.add('read_file');
     } else {
       missing.add('工作区目录');
@@ -1145,7 +1149,7 @@ function detectAgentIntent(messagesOrText, settings = {}) {
   if (hasBuiltin && hasMcp) toolMode = 'multi_tool';
   else if (hasMcp) toolMode = 'mcp_tool';
   else if (selected.has('web_search') && selected.size === 1) toolMode = 'web_search';
-  else if ((selected.has('list_files') || selected.has('search_workspace') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
+  else if ((selected.has('list_files') || selected.has('search_workspace') || selected.has('read_symbol') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
   else if (selected.has('run_code') && selected.size === 1) toolMode = 'code_runner';
   else if (hasBuiltin) toolMode = 'multi_tool';
 
@@ -1511,6 +1515,16 @@ function buildToolSecurity(name, args = {}, settings = {}) {
       redaction: true,
     };
   }
+  if (name === 'read_symbol') {
+    return {
+      riskLevel: 'medium',
+      symbol: String(args.symbol || ''),
+      directory: String(args.directory || ''),
+      pattern: String(args.pattern || ''),
+      sensitiveDenylist: true,
+      redaction: true,
+    };
+  }
   if (name === 'search_workspace') {
     return {
       riskLevel: 'medium',
@@ -1527,7 +1541,7 @@ function buildToolSecurity(name, args = {}, settings = {}) {
 
 function isParallelSafeToolCall(toolCall = {}) {
   const name = String(toolCall.function?.name || '');
-  return ['web_search', 'list_files', 'search_workspace', 'read_file'].includes(name);
+  return ['web_search', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name);
 }
 
 function resolveToolApprovalTimeout(settings = {}) {
@@ -1827,6 +1841,7 @@ function compactToolOutputForContext(toolName, args, output) {
   const name = String(toolName || '');
   if (name === 'web_search') return compactSearchOutput(text);
   if (name === 'search_workspace') return compactWorkspaceSearchOutput(text);
+  if (name === 'read_symbol') return compactSymbolOutput(text);
   if (name === 'read_file') return compactFileOutput(text);
   if (name === 'run_code') return compactCodeOutput(text);
   if (isMcpToolName(name)) return compactMcpOutput(text);
@@ -1869,6 +1884,15 @@ function compactWorkspaceSearchOutput(text) {
   return [
     '[工作区搜索结果已压缩，完整输出在工具运行卡片中。]',
     important.slice(0, 80).join('\n'),
+  ].join('\n').slice(0, 7000);
+}
+
+function compactSymbolOutput(text) {
+  const lines = text.split('\n');
+  const important = lines.filter((line) => /^\s*(符号读取：|工作区：|目录：|结果：|类型：|签名：|代码片段:|\d+:)/.test(line));
+  return [
+    '[符号读取结果已压缩，完整输出在工具运行卡片中。]',
+    important.slice(0, 120).join('\n'),
   ].join('\n').slice(0, 7000);
 }
 
