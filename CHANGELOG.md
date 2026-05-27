@@ -33,6 +33,8 @@
 - Extracted duplicated Tavily search logic into shared `electron/search-utils.mjs` module.
 - Fixed security scanner regex (`[^>]` matches newlines in JS) causing false positives for inline event handlers.
 - Added minimal `console.warn` logging to empty catch blocks in `destroyChat` and `loadConversations`.
+- Added defensive optional-chaining on `querySelector('.message-body').appendChild()` calls to prevent `TypeError` if DOM templates change.
+- Removed `console.warn` noise from KaTeX, Mermaid, and clipboard-copy fallback paths in `renderer.js`.
 
 ## 1.3.1 - 2026-05-19
 
