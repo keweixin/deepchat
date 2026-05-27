@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+### Features
+
 - **Agent Crew UX**: Added `crewDisplayMode` setting (`auto`/`always`/`tools_only`/`off`) with waiting-state header badges and role-click scrolling.
 - **Evidence Panel**: Added tool evidence sidebar showing tool-call status, duration, and outputs per assistant message.
 - **Artifact Panel**: Extended artifact extraction to support HTML preview, Mermaid diagrams, JSON data, CSV/Markdown tables, and code files with type filtering and deduplication.
@@ -18,6 +20,19 @@
 - Added a lightweight `search_workspace` tool that searches approved workspace text files and returns line citations.
 - Added a GitHub tag release workflow for Windows Setup/Portable builds, SHA256 checksums, artifact upload, and draft releases.
 - Documented CI and release automation in the README and release checklist.
+
+### Fixes
+
+- Fixed `resolveAllowedPath` symlink traversal risk by throwing on `realpath` failure instead of falling back to unverified candidate.
+- Fixed `streamNativeChat` listener leak: abort now unsubscribes from event stream; added 10-minute fallback cleanup if main process never sends `done`/`error`.
+- Fixed `switchConversation` race condition: active stream is now aborted before DOM wipe to prevent writing to detached nodes.
+- Fixed `initChat` global listener leak by tracking all registrations in `_chatCleanupFns` and adding `destroyChat()` teardown.
+- Fixed `openConversationMenu` stale timeout leak by clearing pending `pointerdown` defer on cleanup.
+- Added `.catch()` guards on all `postProcess()` promise chains to prevent unhandled rejections.
+- Added `response.body` null check before `getReader()` to handle proxy/network edge cases.
+- Extracted duplicated Tavily search logic into shared `electron/search-utils.mjs` module.
+- Fixed security scanner regex (`[^>]` matches newlines in JS) causing false positives for inline event handlers.
+- Added minimal `console.warn` logging to empty catch blocks in `destroyChat` and `loadConversations`.
 
 ## 1.3.1 - 2026-05-19
 
