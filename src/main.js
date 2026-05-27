@@ -30,6 +30,12 @@ import { renderMarkdown } from './modules/renderer.js';
 import { onMenuNewChat, onMenuOpenSettings } from './modules/client-store.js';
 import { initReadingNavigator } from './modules/reading-navigator.js';
 import { autoResize, debounce, showToast } from './modules/utils.js';
+import {
+  applyComposerModeToPrompt,
+  buildComposerModeEntries,
+  getComposerMode,
+  getComposerModeOverrides,
+} from './modules/composer-modes.js';
 import { buildComposerIntentPreview, buildComposerToolEntries, getComposerToolModeLabel } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
 import {
@@ -41,6 +47,7 @@ import {
 
 let pendingAttachments = [];
 let composerOverrides = null;
+let composerModeId = 'daily';
 const INPUT_HISTORY_KEY = 'dc_input_history';
 const MAX_TEXT_ATTACHMENT_BYTES = 256 * 1024;
 const MAX_IMAGE_ATTACHMENTS = 8;
@@ -318,6 +325,7 @@ async function handleSend() {
 
   const attachments = pendingAttachments.map((item) => ({ ...item }));
   const overrides = getComposerOverrides();
+  const promptContent = applyComposerModeToPrompt(content, composerModeId);
   rememberInput(content);
 
   $input.value = '';
@@ -326,7 +334,7 @@ async function handleSend() {
   clearPendingAttachments();
   $input.dispatchEvent(new Event('input', { bubbles: true }));
 
-  await sendMessage(content, { attachments, composerOverrides: overrides });
+  await sendMessage(content, { attachments, composerOverrides: overrides, modelContent: promptContent });
 }
 
 function loadInputHistory() {
@@ -362,6 +370,7 @@ const COMPOSER_THINKING_LABELS = new Map([
 ]);
 
 function initComposerOptions(openSettings) {
+  const $mode = document.getElementById('composer-mode-select');
   const $thinking = document.getElementById('composer-thinking-select');
   const $webToggle = document.getElementById('composer-web-search-toggle');
   const $webStatus = document.getElementById('composer-search-status');
@@ -393,6 +402,7 @@ function initComposerOptions(openSettings) {
         enhance: settings.enhance !== false,
       };
     }
+    syncComposerModeSelect($mode, composerModeId, settings);
     syncThinkingSelect($thinking, composerOverrides.thinkingBudget);
 
     const hasSearchKey = Boolean(settings.tavilyApiKey);
@@ -409,6 +419,20 @@ function initComposerOptions(openSettings) {
     updateComposerToolButton($toolDrawerBtn, $toolStatus, { ...settings, activeSkill });
     updateComposerRunStatus($runStatus, { ...settings, ...composerOverrides }, $thinking.value, document.getElementById('message-input')?.value || '');
     syncing = false;
+  }
+
+  if ($mode) {
+    $mode.addEventListener('change', () => {
+      const settings = getSettings();
+      composerModeId = getComposerMode($mode.value).id;
+      const modeOverrides = getComposerModeOverrides(composerModeId, settings);
+      composerOverrides = {
+        ...composerOverrides,
+        ...modeOverrides,
+      };
+      applySettingsToComposer(settings);
+      showToast(`本轮模式：${getComposerMode(composerModeId).label}`, 1200);
+    });
   }
 
   $thinking.addEventListener('change', async () => {
@@ -493,6 +517,22 @@ function initComposerOptions(openSettings) {
     $contextBtn.addEventListener('click', () => toggleContextShortcutMenu($contextBtn, openSettings));
   }
 
+  document.querySelectorAll('[data-context-chip]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const settings = getSettings();
+      const entry = buildContextShortcutEntries(settings).find((item) => item.id === chip.dataset.contextChip);
+      if (!entry) return;
+      if (!entry.available) {
+        showToast(entry.state);
+        if (['需工作区', '需 Tavily Key', '需 MCP'].includes(entry.state)) openSettings?.();
+        return;
+      }
+      const input = document.getElementById('message-input');
+      insertIntoComposer(input, entry);
+      input?.focus();
+    });
+  });
+
   window.addEventListener('deepchat:settings-changed', (event) => {
     applySettingsToComposer(event.detail?.settings || getSettings());
   });
@@ -502,6 +542,18 @@ function initComposerOptions(openSettings) {
   });
 
   applySettingsToComposer();
+}
+
+function syncComposerModeSelect(select, activeModeId, settings = {}) {
+  if (!select) return;
+  const entries = buildComposerModeEntries(settings);
+  for (const option of select.options) {
+    const entry = entries.find((item) => item.id === option.value);
+    if (!entry) continue;
+    option.textContent = entry.label;
+    option.title = `${entry.description}${entry.state && entry.state !== '可用' ? ` · ${entry.state}` : ''}`;
+  }
+  select.value = getComposerMode(activeModeId).id;
 }
 
 const PROMPT_TEMPLATES = [
@@ -727,10 +779,12 @@ function toggleExportMenu(anchor) {
 
 function getComposerOverrides() {
   const settings = getSettings();
+  const modeOverrides = getComposerModeOverrides(composerModeId, settings);
   return {
+    ...modeOverrides,
     thinkingBudget: composerOverrides?.thinkingBudget ?? settings.thinkingBudget,
-    activeSkill: composerOverrides?.activeSkill ?? settings.activeSkill,
-    enhance: composerOverrides?.enhance ?? (settings.enhance !== false),
+    activeSkill: composerOverrides?.activeSkill ?? modeOverrides.activeSkill ?? settings.activeSkill,
+    enhance: composerOverrides?.enhance ?? modeOverrides.enhance ?? (settings.enhance !== false),
   };
 }
 
@@ -766,11 +820,12 @@ function updateComposerRunStatus(target, settings, thinkingValue, inputText = ''
   if (!target) return;
   const thinking = getThinkingLabel(String(Number.parseInt(thinkingValue, 10) || 0));
   const tool = getComposerToolModeLabel(settings.activeSkill);
+  const mode = getComposerMode(composerModeId);
   const search = getSearchStatusText(settings);
   const enhance = settings.enhance === false ? '增强关闭' : '增强开启';
   const caps = getModelCapabilities(settings);
   const preview = buildComposerIntentPreview(inputText, settings);
-  const base = `本轮：${tool} · ${thinking}思考 · 搜索${search} · ${enhance} · 图片${caps.vision ? '可用' : '不可用'}`;
+  const base = `本轮：${mode.label}模式 · ${tool} · ${thinking}思考 · 搜索${search} · ${enhance} · 图片${caps.vision ? '可用' : '不可用'}`;
   target.textContent = preview.text ? `${base} · ${preview.text}` : base;
   target.title = preview.title || '根据当前设置展示本轮模型、工具和输入意图预判。';
   target.dataset.intentState = preview.state || 'idle';

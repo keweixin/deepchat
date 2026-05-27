@@ -256,6 +256,7 @@ export async function sendMessage(content, options = {}) {
   const userMsg = {
     role: 'user',
     content: content.trim(),
+    modelContent: options.modelContent ? String(options.modelContent).trim() : '',
     timestamp: Date.now(),
     attachments,
     composerOverrides: options.composerOverrides || null,
@@ -400,7 +401,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
 
   const apiMessages = conv.messages
     .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => ({ role: m.role, content: m.content, attachments: m.attachments || [] }));
+    .map(m => ({ role: m.role, content: m.modelContent || m.content, attachments: m.attachments || [] }));
 
   const enhanceEnabled = composerOverrides?.enhance ?? isEnhanceEnabled();
   if (enhanceEnabled && apiMessages.length > 0) {

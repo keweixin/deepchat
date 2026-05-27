@@ -93,6 +93,7 @@ const TaskCheckpointSchema = z.object({
 const MessageSchema = z.lazy(() => z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().max(MAX_MESSAGE_CONTENT).default(''),
+  modelContent: z.string().max(MAX_MESSAGE_CONTENT).optional(),
   timestamp: z.number().nonnegative().optional(),
   attachments: z.array(AttachmentSchema).max(8).optional(),
   thinking: z.string().max(200000).optional(),

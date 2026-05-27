@@ -97,6 +97,16 @@
       </div>
       <div class="input-area">
         <div class="composer-toolbar" aria-label="发送选项">
+          <label class="composer-control composer-mode-control" for="composer-mode-select">
+            <span class="composer-control-label">模式</span>
+            <select id="composer-mode-select" class="composer-select composer-mode-select" title="选择本轮回答模式">
+              <option value="daily">日常</option>
+              <option value="project">项目</option>
+              <option value="research">研究</option>
+              <option value="code">代码</option>
+              <option value="writing">写作</option>
+            </select>
+          </label>
           <label class="composer-control" for="composer-thinking-select">
             <span class="composer-control-label">思考程度</span>
             <select id="composer-thinking-select" class="composer-select" title="控制本应用保存的思考 token 预算">
@@ -134,6 +144,14 @@
           <span id="composer-run-status" class="composer-run-status">本轮：自动思考 · 离线 · 增强开启</span>
           <button id="composer-template-btn" class="composer-settings-shortcut" type="button" title="插入常用提示词">模板</button>
           <button id="composer-settings-shortcut" class="composer-settings-shortcut" type="button" title="打开设置">设置</button>
+        </div>
+        <div class="composer-chip-row" aria-label="本轮上下文快捷选择">
+          <span class="composer-chip-label">上下文</span>
+          <button class="composer-context-chip" type="button" data-context-chip="file" title="插入 @file">文件</button>
+          <button class="composer-context-chip" type="button" data-context-chip="folder" title="插入 @folder">目录</button>
+          <button class="composer-context-chip" type="button" data-context-chip="symbol" title="插入 @symbol">符号</button>
+          <button class="composer-context-chip" type="button" data-context-chip="web" title="插入 @web">联网</button>
+          <button class="composer-context-chip" type="button" data-context-chip="run" title="插入 @run">运行</button>
         </div>
         <div class="input-container">
           <textarea id="message-input" class="message-input" placeholder="输入你的问题… (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
