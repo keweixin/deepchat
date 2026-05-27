@@ -8,7 +8,7 @@ const DANGEROUS_PATTERNS = [
   { name: 'eval()', pattern: /\beval\s*\(/ },
   { name: 'new Function', pattern: /\bnew\s+Function\b/ },
   { name: 'executeJavaScript', pattern: /\bexecuteJavaScript\b/ },
-  { name: 'inline event handler', pattern: /<[^>]+\son[a-z]+\s*=/i },
+  { name: 'inline event handler', pattern: /<[^>\n]*\son[a-z]+\s*=/i },
 ];
 const SECURITY_PATTERNS = [
   {

@@ -108,6 +108,13 @@ const HISTORICAL_COMPACT_MIN_CHARS = 800;
 const ANSWER_ACTION_CONTEXT_LIMIT = 6000;
 const markdownRenderCache = new Map();
 
+let _chatCleanupFns = [];
+
+function _on(el, type, fn, opts) {
+  el.addEventListener(type, fn, opts);
+  _chatCleanupFns.push(() => el.removeEventListener(type, fn, opts));
+}
+
 export async function initChat() {
   $messages = document.getElementById('chat-messages');
   $welcome = document.getElementById('welcome-screen');
@@ -128,7 +135,7 @@ export async function initChat() {
 
   // Smart scroll: detect when user scrolls up during streaming
   let scrollRaf = 0;
-  $messages.addEventListener('scroll', () => {
+  _on($messages, 'scroll', () => {
     if (!isStreaming) return;
     if (scrollRaf) return;
     scrollRaf = requestAnimationFrame(() => {
@@ -142,18 +149,33 @@ export async function initChat() {
   // Search
   const searchInput = document.getElementById('search-input');
   if (searchInput) {
-    searchInput.addEventListener('input', () => {
-      renderConversationList(searchInput.value.trim());
-    });
+    const onInput = () => renderConversationList(searchInput.value.trim());
+    searchInput.addEventListener('input', onInput);
+    _chatCleanupFns.push(() => searchInput.removeEventListener('input', onInput));
   }
   bindConversationToolbar();
 
-  document.addEventListener('deepchat:run-code-block', (event) => {
+  const runCodeHandler = (event) => {
     handleRunCodeBlock(event.detail).catch((error) => showToast(error.message || '代码运行失败'));
-  });
-  window.addEventListener('deepchat:reload-conversations', () => {
+  };
+  document.addEventListener('deepchat:run-code-block', runCodeHandler);
+  _chatCleanupFns.push(() => document.removeEventListener('deepchat:run-code-block', runCodeHandler));
+
+  const reloadHandler = () => {
     reloadConversations().catch(() => showToast('刷新对话失败'));
+  };
+  window.addEventListener('deepchat:reload-conversations', reloadHandler);
+  _chatCleanupFns.push(() => window.removeEventListener('deepchat:reload-conversations', reloadHandler));
+}
+
+export function destroyChat() {
+  if (isStreaming) stopStreaming();
+  _chatCleanupFns.forEach((fn) => {
+    try {
+      fn();
+    } catch {}
   });
+  _chatCleanupFns = [];
 }
 
 async function reloadConversations() {
@@ -197,6 +219,7 @@ export function createConversation() {
 }
 
 function switchConversation(id) {
+  if (isStreaming) stopStreaming();
   activeConvId = id;
   userScrolledUp = false;
   resetReadingNavigator();
