@@ -52,6 +52,22 @@ export function hasAnyToolConfigured(settings = {}) {
   return hasEnabledMcpServer(settings);
 }
 
+export function resolveActiveSkillForExplicitDirectives(inputText = '', settings = {}, fallbackActiveSkill = settings.activeSkill || 'agent_auto') {
+  const text = String(inputText || '');
+  const requested = new Set();
+  if (/(?:^|[\s([，,;；])@(?:file|folder|symbol|changed)\b/i.test(text)) requested.add('file_reader');
+  if (/(?:^|[\s([，,;；])@(?:web|search)\b/i.test(text)) requested.add('web_search');
+  if (/(?:^|[\s([，,;；])@(?:run|code)\b/i.test(text)) requested.add('code_runner');
+  if (/(?:^|[\s([，,;；])@mcp\b/i.test(text)) requested.add('mcp_tool');
+  if (!requested.size) return fallbackActiveSkill || 'agent_auto';
+
+  const available = [...requested].filter((skill) => isSkillRunnable(skill, { ...settings, activeSkill: skill }));
+  if (!available.length) return fallbackActiveSkill || 'agent_auto';
+  if (available.length === 1) return available[0];
+  if (isSkillRunnable('multi_tool', { ...settings, activeSkill: 'multi_tool' })) return 'multi_tool';
+  return available[0];
+}
+
 export function buildComposerIntentPreview(inputText = '', settings = {}) {
   const text = String(inputText || '').trim();
   if (!text || settings.activeSkill !== 'agent_auto') {

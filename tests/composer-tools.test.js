@@ -8,6 +8,7 @@ import {
   getComposerToolRisk,
   getComposerToolUnavailableReason,
   hasAnyToolConfigured,
+  resolveActiveSkillForExplicitDirectives,
 } from '../src/modules/composer-tools.js';
 
 describe('composer tool drawer helpers', () => {
@@ -70,6 +71,37 @@ describe('composer tool drawer helpers', () => {
     expect(ready.state).toBe('tool');
     expect(ready.text).toContain('联网搜索');
     expect(ready.text).toContain('执行前会确认');
+  });
+
+  it('promotes explicit context directives to runnable tool modes before send', () => {
+    window.deepchat = {};
+    const settings = {
+      activeSkill: 'none',
+      tavilyApiKey: 'tvly-test',
+      workspaceRoots: ['E:/repo'],
+      runCodeEnabled: true,
+      mcpServers: [{ command: 'node', enabled: true }],
+    };
+
+    expect(resolveActiveSkillForExplicitDirectives('请查 @web 最新资料', settings, 'none')).toBe('web_search');
+    expect(resolveActiveSkillForExplicitDirectives('读取 @file:src/main.js', settings, 'none')).toBe('file_reader');
+    expect(resolveActiveSkillForExplicitDirectives('@run 验证这段逻辑', settings, 'none')).toBe('code_runner');
+    expect(resolveActiveSkillForExplicitDirectives('@mcp 查询 issue', settings, 'none')).toBe('mcp_tool');
+    expect(resolveActiveSkillForExplicitDirectives('@web @file:README.md 交叉检查', settings, 'none')).toBe('multi_tool');
+  });
+
+  it('keeps the fallback tool mode when explicit directives lack prerequisites', () => {
+    const settings = {
+      activeSkill: 'none',
+      tavilyApiKey: '',
+      workspaceRoots: [],
+      runCodeEnabled: false,
+      mcpServers: [],
+    };
+
+    expect(resolveActiveSkillForExplicitDirectives('@web 查资料', settings, 'agent_auto')).toBe('agent_auto');
+    expect(resolveActiveSkillForExplicitDirectives('@file:README.md', settings, 'none')).toBe('none');
+    expect(resolveActiveSkillForExplicitDirectives('普通问题', settings, 'agent_auto')).toBe('agent_auto');
   });
 
   it('previews generic project advice as chat but local project checks as file work', () => {

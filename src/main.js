@@ -36,7 +36,7 @@ import {
   getComposerMode,
   getComposerModeOverrides,
 } from './modules/composer-modes.js';
-import { buildComposerContextPreview, buildComposerIntentPreview, buildComposerToolEntries, getComposerToolApprovalSummary, getComposerToolModeLabel } from './modules/composer-tools.js';
+import { buildComposerContextPreview, buildComposerIntentPreview, buildComposerToolEntries, getComposerToolApprovalSummary, getComposerToolModeLabel, resolveActiveSkillForExplicitDirectives } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
 import { applyPromptTemplate, getPromptTemplateEntries } from './modules/prompt-templates.js';
 import {
@@ -837,10 +837,13 @@ function toggleExportMenu(anchor) {
 function getComposerOverrides() {
   const settings = getSettings();
   const modeOverrides = getComposerModeOverrides(composerModeId, settings);
+  const inputText = document.getElementById('message-input')?.value || '';
+  const baseActiveSkill = composerOverrides?.activeSkill ?? modeOverrides.activeSkill ?? settings.activeSkill;
+  const activeSkill = resolveActiveSkillForExplicitDirectives(inputText, settings, baseActiveSkill);
   return {
     ...modeOverrides,
     thinkingBudget: composerOverrides?.thinkingBudget ?? settings.thinkingBudget,
-    activeSkill: composerOverrides?.activeSkill ?? modeOverrides.activeSkill ?? settings.activeSkill,
+    activeSkill,
     enhance: composerOverrides?.enhance ?? modeOverrides.enhance ?? (settings.enhance !== false),
   };
 }
