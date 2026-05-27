@@ -20,6 +20,7 @@ import './styles/widgets.css';
 import './styles/settings.css';
 import './styles/reading-navigator.css';
 import './styles/animations.css';
+import './styles/agent-crew.css';
 
 // Modules
 import { initApiSettings, estimateTokens, extractContextMentions, getSettings, isSkillRunnable, supportsVisionModel, getModelCapabilities } from './modules/api.js';

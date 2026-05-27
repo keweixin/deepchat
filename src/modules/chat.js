@@ -55,6 +55,8 @@ import {
   hasLocalFilesWithoutCitedSource as hasUncitedLocalSource,
 } from './tool-runs.js';
 import { uid, formatTime, relativeTime, scrollToBottom, truncate, copyToClipboard, showToast, escapeHtml } from './utils.js';
+import { createAgentRun, applyCrewToolRequest, applyCrewToolResult, handleCrewAgentStage, finalizeCrewRun } from './agent-run-store.js';
+import { renderAgentCrew } from './agent-crew.js';
 
 let conversations = [];
 let activeConvId = null;
@@ -353,7 +355,9 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     tokens: null,
     versions: inheritVersions || [],
     toolRuns: [],
+    toolCalls: [],
     agentStages: [],
+    agentRun: createAgentRun(composerOverrides?.activeSkill || getSettings().activeSkill || 'auto'),
     contextBudget: null,
     composerOverrides,
   };
@@ -361,8 +365,10 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
   msgEl.classList.add('streaming');
   const contentEl = msgEl.querySelector('.message-content');
   const thinkingContent = msgEl.querySelector('.thinking-content');
+  const crewContainer = msgEl.querySelector('.agent-crew-container');
   const toolContainer = msgEl.querySelector('.tool-calls-container');
   const agentContainer = msgEl.querySelector('.agent-timeline-container');
+  renderAgentCrew(crewContainer, assistantMsg.agentRun);
   smartScroll();
 
   let fullContent = '';
@@ -386,7 +392,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       renderTimer = null;
       if (fullContent.length - lastRenderLen < 3 && fullContent.length > 50) return;
       lastRenderLen = fullContent.length;
-      
+
       contentEl.innerHTML = renderMarkdown(fullContent);
       contentEl.classList.add('streaming-cursor');
       attachCopyHandlersOnly(contentEl);
@@ -468,11 +474,15 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       const tool = createToolRecord(event);
       assistantMsg.toolCalls.push(tool);
       syncToolRuns(assistantMsg);
+      applyCrewToolRequest(assistantMsg.agentRun, tool);
+      renderAgentCrew(crewContainer, assistantMsg.agentRun);
       renderToolCalls(toolContainer, assistantMsg.toolCalls, {
         requestId: event.requestId,
         onDecision(toolCallId, approved) {
           applyToolDecision(tool, approved);
           syncToolRuns(assistantMsg);
+          applyCrewToolResult(assistantMsg.agentRun, tool, assistantMsg.toolCalls);
+          renderAgentCrew(crewContainer, assistantMsg.agentRun);
           approveToolRequest(event.requestId, toolCallId, approved);
           renderToolCalls(toolContainer, assistantMsg.toolCalls);
         }
@@ -483,6 +493,8 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       applyToolResult(assistantMsg.toolCalls, event);
       syncToolRuns(assistantMsg);
       renderToolCalls(toolContainer, assistantMsg.toolCalls);
+      applyCrewToolResult(assistantMsg.agentRun, event, assistantMsg.toolCalls);
+      renderAgentCrew(crewContainer, assistantMsg.agentRun);
     },
     onAgentStage(event) {
       assistantMsg.agentStages.push({
@@ -490,6 +502,8 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         at: new Date().toISOString(),
       });
       renderAgentTimeline(agentContainer, assistantMsg);
+      handleCrewAgentStage(assistantMsg.agentRun, event);
+      renderAgentCrew(crewContainer, assistantMsg.agentRun);
     },
     onContextBudget(event) {
       assistantMsg.contextBudget = event;
@@ -503,6 +517,8 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     },
     async onDone(doneEvent = {}) {
       clearTimeout(renderTimer);
+      finalizeCrewRun(assistantMsg.agentRun, Boolean(doneEvent.aborted));
+      renderAgentCrew(crewContainer, assistantMsg.agentRun);
       
       // Calculate final speed
       const elapsed = streamStartTime > 0 ? (Date.now() - streamStartTime) / 1000 : 0;
@@ -565,6 +581,9 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         setTimeout(() => doStream(conv, retryCount + 1), 1500);
         return;
       }
+
+      finalizeCrewRun(assistantMsg.agentRun, false, err.message);
+      renderAgentCrew(crewContainer, assistantMsg.agentRun);
 
       assistantMsg.content = fullContent;
       assistantMsg.thinking = fullThinking;
@@ -788,6 +807,24 @@ function renderMessages() {
       }
       renderToolCalls(el.querySelector('.tool-calls-container'), msg.toolCalls || []);
       renderAgentTimeline(el.querySelector('.agent-timeline-container'), msg);
+
+      let agentRun = msg.agentRun;
+      if (!agentRun && ((msg.toolCalls && msg.toolCalls.length > 0) || (msg.agentStages && msg.agentStages.length > 0))) {
+        agentRun = createAgentRun(msg.composerOverrides?.activeSkill || 'auto');
+        if (msg.agentStages && msg.agentStages.length > 0) {
+          msg.agentStages.forEach(stage => handleCrewAgentStage(agentRun, stage));
+        }
+        if (msg.toolCalls && msg.toolCalls.length > 0) {
+          msg.toolCalls.forEach(tool => {
+            applyCrewToolRequest(agentRun, tool);
+            applyCrewToolResult(agentRun, tool, msg.toolCalls);
+          });
+        }
+        finalizeCrewRun(agentRun, msg.stopped, msg.error);
+        msg.agentRun = agentRun;
+      }
+      renderAgentCrew(el.querySelector('.agent-crew-container'), agentRun);
+
       renderAssistantArtifacts(el.querySelector('.artifact-container'), msg);
       renderAssistantEvidence(el.querySelector('.message-body'), msg);
     }
@@ -833,6 +870,7 @@ function appendMessageDOM(msg, streaming = false) {
       </div>
       ${msg.role === 'assistant' ? '<div class="answer-header-container" hidden></div>' : ''}
       ${thinkingHtml}
+      ${msg.role === 'assistant' ? '<section class="agent-crew-container" hidden></section>' : ''}
       <div class="agent-timeline-container" hidden></div>
       <div class="tool-calls-container" hidden></div>
       ${msg.role === 'assistant' ? '<nav class="answer-toc-container" hidden aria-label="回答目录"></nav>' : ''}

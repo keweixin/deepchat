@@ -1,0 +1,286 @@
+/* ==========================================================================
+   Agent Crew Style — Premium visual coordination team view
+   ========================================================================== */
+
+.agent-crew-container {
+  width: 100%;
+  margin: 0 0 var(--space-3) 0;
+  display: block;
+}
+
+.agent-crew-container[hidden] {
+  display: none !important;
+}
+
+.agent-crew-wrapper {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 85%);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 15%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+}
+
+[data-theme="light"] .agent-crew-wrapper {
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 5%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.agent-crew-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  font-size: 11px;
+}
+
+.agent-crew-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.crew-pulse-icon {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  display: inline-block;
+  transition: background 0.3s;
+}
+
+.crew-pulse-icon[data-status="running"] {
+  background: var(--accent-primary);
+  animation: pulseCrew 1.5s infinite alternate ease-in-out;
+}
+
+.crew-pulse-icon[data-status="done"] {
+  background: #10b981;
+}
+
+.crew-pulse-icon[data-status="error"] {
+  background: #ef4444;
+}
+
+.agent-crew-status-text {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.agent-crew-badge {
+  background: color-mix(in srgb, var(--accent-primary), transparent 90%);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 75%);
+  color: var(--accent-primary);
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.agent-crew-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px;
+}
+
+/* Card design */
+.agent-crew-card {
+  background: color-mix(in srgb, var(--surface-card-strong), #000 8%);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  justify-content: center;
+}
+
+.agent-crew-card:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 60%);
+  background: color-mix(in srgb, var(--surface-card-strong), var(--accent-soft) 8%);
+}
+
+.agent-crew-card-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.agent-crew-role-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.agent-crew-role-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.agent-crew-role-label {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.agent-crew-role-title {
+  font-size: 8.5px;
+  color: var(--text-muted);
+}
+
+.agent-crew-status-dot {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: bold;
+  opacity: 0.85;
+}
+
+/* Status variants */
+.agent-crew-card.status-idle {
+  opacity: 0.6;
+}
+
+.agent-crew-card.status-running {
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 30%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary), transparent 93%), color-mix(in srgb, var(--surface-card-strong), transparent 20%));
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.08);
+  animation: cardBreath 3s infinite ease-in-out;
+}
+
+.agent-crew-card.status-running .agent-crew-status-dot {
+  color: var(--accent-primary);
+  animation: textBlink 1.5s infinite alternate;
+}
+
+.agent-crew-card.status-waiting {
+  border-color: color-mix(in srgb, #f59e0b, transparent 30%);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), color-mix(in srgb, var(--surface-card-strong), transparent 20%));
+}
+
+.agent-crew-card.status-waiting .agent-crew-status-dot {
+  color: #f59e0b;
+}
+
+.agent-crew-card.status-done {
+  border-color: color-mix(in srgb, #10b981, transparent 60%);
+  background: color-mix(in srgb, #10b981, transparent 95%);
+}
+
+.agent-crew-card.status-done .agent-crew-status-dot {
+  color: #10b981;
+}
+
+.agent-crew-card.status-error {
+  border-color: color-mix(in srgb, #ef4444, transparent 60%);
+  background: color-mix(in srgb, #ef4444, transparent 95%);
+}
+
+.agent-crew-card.status-error .agent-crew-status-dot {
+  color: #ef4444;
+}
+
+.agent-crew-card.status-skipped {
+  opacity: 0.45;
+  background: transparent;
+  border-color: color-mix(in srgb, var(--glass-border), transparent 50%);
+}
+
+.agent-crew-card.status-skipped .agent-crew-status-dot {
+  color: var(--text-muted);
+}
+
+/* Card details expansion */
+.agent-crew-card-details {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, margin-top 0.25s ease;
+  font-size: 10px;
+}
+
+.agent-crew-card.is-expanded {
+  grid-column: 1 / -1; /* spans full width on details expansion! */
+  background: color-mix(in srgb, var(--surface-card-strong), #000 4%);
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 45%);
+}
+
+.agent-crew-card.is-expanded .agent-crew-card-details {
+  max-height: 200px;
+  opacity: 1;
+  margin-top: 8px;
+  border-top: 1px solid var(--glass-border);
+  padding-top: 6px;
+}
+
+.crew-detail-row {
+  display: flex;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.crew-detail-label {
+  color: var(--text-muted);
+  width: 54px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.crew-detail-val {
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.crew-detail-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.crew-meta-badge {
+  background: color-mix(in srgb, var(--text-secondary), transparent 92%);
+  border: 1px solid var(--glass-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+
+/* Animations */
+@keyframes pulseCrew {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  100% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 6px var(--accent-primary); }
+}
+
+@keyframes cardBreath {
+  0%, 100% { box-shadow: 0 0 8px rgba(45, 212, 191, 0.04); }
+  50% { box-shadow: 0 0 16px rgba(45, 212, 191, 0.15); border-color: var(--accent-primary); }
+}
+
+@keyframes textBlink {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+/* Responsive adjustment */
+@media (max-width: 640px) {
+  .agent-crew-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 440px) {
+  .agent-crew-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
