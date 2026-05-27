@@ -421,11 +421,13 @@ class ChatService {
     if (parsedArgs.error) {
       const message = `工具 ${fn.name || 'unknown_tool'} 参数 JSON 解析失败：${parsedArgs.error}`;
       this.emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: message });
+      const contextMeta = buildToolContextOutput(fn.name, args, message);
       this.emit(requestId, 'toolResult', {
         toolCallId: toolCall.id,
         name: fn.name,
         ok: false,
         output: message,
+        ...contextMeta,
         rawArguments: fn.arguments || '',
         parseError: parsedArgs.error,
       });
@@ -438,7 +440,7 @@ class ChatService {
         ? `工具 ${fn.name} 等待确认超过 ${Math.round(resolveToolApprovalTimeout(settings) / 1000)} 秒，已自动拒绝。`
         : `用户拒绝执行工具 ${fn.name}。`;
       this.emit(requestId, 'agentStage', { stage: 'tool_denied', round, maxRounds, toolName: fn.name, stopReason: denied });
-      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: denied });
+      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: denied, ...buildToolContextOutput(fn.name, args, denied) });
       return denied;
     }
 
@@ -448,13 +450,28 @@ class ChatService {
         ? await this.mcpManager.callOpenAiTool(fn.name, args, settings)
         : await executeTool(fn.name, args, settings);
       this.emit(requestId, 'agentStage', { stage: 'tool_result', round, maxRounds, toolName: fn.name });
-      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: true, output, security: buildToolSecurity(fn.name, args, settings) });
+      this.emit(requestId, 'toolResult', {
+        toolCallId: toolCall.id,
+        name: fn.name,
+        ok: true,
+        output,
+        ...buildToolContextOutput(fn.name, args, output),
+        security: buildToolSecurity(fn.name, args, settings),
+      });
       return output;
     } catch (error) {
       const message = normalizeError(error);
+      const returned = `工具 ${fn.name} 执行失败：${message}`;
       this.emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: message });
-      this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: message, security: buildToolSecurity(fn.name, args, settings) });
-      return `工具 ${fn.name} 执行失败：${message}`;
+      this.emit(requestId, 'toolResult', {
+        toolCallId: toolCall.id,
+        name: fn.name,
+        ok: false,
+        output: message,
+        ...buildToolContextOutput(fn.name, args, returned),
+        security: buildToolSecurity(fn.name, args, settings),
+      });
+      return returned;
     }
   }
 
@@ -1719,6 +1736,17 @@ function compactToolOutputForContext(toolName, args, output) {
     '',
     head,
   ].filter(Boolean).join('\n').slice(0, 7000);
+}
+
+function buildToolContextOutput(toolName, args, output) {
+  const raw = String(output || '');
+  const contextOutput = compactToolOutputForContext(toolName, args, raw);
+  return {
+    contextOutput,
+    rawOutputTokens: estimateTokens(raw),
+    contextOutputTokens: estimateTokens(contextOutput),
+    contextCompacted: contextOutput !== raw,
+  };
 }
 
 function compactSearchOutput(text) {

@@ -97,4 +97,30 @@ describe('tool run state', () => {
     expect(evidence.outputPreview.length).toBeLessThanOrEqual(1200);
     expect(buildToolRuns([tool])[0].evidence).toMatchObject({ id: 'e1', name: 'web_search' });
   });
+
+  it('stores compacted context output and token metadata from tool results', () => {
+    const tool = createToolRecord({ toolCallId: 'ctx1', name: 'read_file', args: { path: 'README.md' } });
+    applyToolResult([tool], {
+      toolCallId: 'ctx1',
+      name: 'read_file',
+      ok: true,
+      output: 'raw output '.repeat(200),
+      contextOutput: 'compacted output',
+      rawOutputTokens: 800,
+      contextOutputTokens: 20,
+      contextCompacted: true,
+    });
+
+    const run = buildToolRuns([tool])[0];
+    expect(run.contextOutput).toBe('compacted output');
+    expect(run.rawOutputTokens).toBe(800);
+    expect(run.contextOutputTokens).toBe(20);
+    expect(run.contextCompacted).toBe(true);
+    expect(run.evidence).toMatchObject({
+      contextOutput: 'compacted output',
+      rawOutputTokens: 800,
+      contextOutputTokens: 20,
+      contextCompacted: true,
+    });
+  });
 });

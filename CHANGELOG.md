@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added auditable tool context-output metadata so users can inspect the compacted output sent to the next model round.
 - Flattened complex MCP tool schemas into dot-path parameters and restored them before tool execution.
 - Added conservative repair for truncated JSON tool arguments before approval.
 - Routed DeepSeek context-summary auxiliary calls to `deepseek-v4-flash` and recorded the auxiliary model in summary metadata.

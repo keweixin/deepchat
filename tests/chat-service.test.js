@@ -621,6 +621,30 @@ describe('electron chat service token usage and agent loop', () => {
     expect(compacted).toContain('开头片段');
     expect(compacted.length).toBeLessThan(output.length);
   });
+
+  it('emits compacted context output metadata with successful tool results', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.waitForApproval = vi.fn(async () => ({ approved: true }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [{ title: 'DeepSeek Cache', url: 'https://example.com/cache', content: 'cache details' }] }),
+    });
+    const output = await service.handleToolCall(
+      'req-context-output',
+      { id: 'tool-context', function: { name: 'web_search', arguments: '{"query":"DeepSeek cache"}' } },
+      baseSettings({ tavilyApiKey: 'tvly-test' }),
+      new AbortController().signal,
+    );
+
+    expect(output).toContain('DeepSeek Cache');
+    const result = events.find((event) => event.type === 'toolResult');
+    expect(result.ok).toBe(true);
+    expect(result.contextOutput).toContain('DeepSeek Cache');
+    expect(result.rawOutputTokens).toBeGreaterThan(0);
+    expect(result.contextOutputTokens).toBeGreaterThan(0);
+    expect(result.contextCompacted).toBe(false);
+  });
 });
 
 function baseSettings(overrides = {}) {

@@ -944,6 +944,20 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
       output.append(summary, pre);
       block.appendChild(output);
     }
+    if (tool.contextOutput && tool.contextOutput !== tool.output) {
+      const contextOutput = document.createElement('details');
+      contextOutput.className = 'tool-call-output tool-context-output';
+      const summary = document.createElement('summary');
+      const rawTokens = tool.rawOutputTokens || 0;
+      const contextTokens = tool.contextOutputTokens || 0;
+      summary.textContent = rawTokens && contextTokens
+        ? `查看进入上下文的压缩输出 (${rawTokens}→${contextTokens} tokens)`
+        : '查看进入上下文的压缩输出';
+      const pre = document.createElement('pre');
+      pre.textContent = tool.contextOutput;
+      contextOutput.append(summary, pre);
+      block.appendChild(contextOutput);
+    }
 
     const copyRow = document.createElement('div');
     copyRow.className = 'tool-copy-row';
@@ -966,6 +980,17 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
         showToast('工具输出已复制');
       });
       copyRow.appendChild(copyOutput);
+    }
+    if (tool.contextOutput && tool.contextOutput !== tool.output) {
+      const copyContext = document.createElement('button');
+      copyContext.type = 'button';
+      copyContext.className = 'tool-copy-btn';
+      copyContext.textContent = '复制上下文输出';
+      copyContext.addEventListener('click', async () => {
+        await copyToClipboard(tool.contextOutput);
+        showToast('上下文输出已复制');
+      });
+      copyRow.appendChild(copyContext);
     }
     block.appendChild(copyRow);
 

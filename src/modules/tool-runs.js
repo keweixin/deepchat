@@ -52,6 +52,10 @@ export function applyToolResult(toolCalls = [], event = {}, now = new Date()) {
   if (event.rawArguments) tool.rawArguments = event.rawArguments;
   if (event.parseError) tool.parseError = event.parseError;
   if (event.security) tool.security = event.security;
+  if (event.contextOutput !== undefined) tool.contextOutput = event.contextOutput;
+  if (event.rawOutputTokens !== undefined) tool.rawOutputTokens = event.rawOutputTokens;
+  if (event.contextOutputTokens !== undefined) tool.contextOutputTokens = event.contextOutputTokens;
+  if (event.contextCompacted !== undefined) tool.contextCompacted = event.contextCompacted;
   if (event.expiresAt) tool.expiresAt = event.expiresAt;
   if (event.risk) tool.risk = event.risk;
   tool.status = event.ok ? 'completed' : (tool.status === 'denied' ? 'denied' : 'failed');
@@ -79,6 +83,9 @@ export function buildToolRuns(toolCalls = []) {
     security: tool.security || null,
     parseError: tool.parseError || '',
     contextOutput: tool.contextOutput || '',
+    rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
+    contextOutputTokens: normalizeNumber(tool.contextOutputTokens),
+    contextCompacted: Boolean(tool.contextCompacted),
     expiresAt: tool.expiresAt || '',
     evidence: buildToolEvidencePayload(tool),
   }));
@@ -108,6 +115,9 @@ export function buildToolEvidencePayload(tool = {}) {
     sources,
     outputPreview: outputText.slice(0, 1200),
     contextOutput: tool.contextOutput || '',
+    rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
+    contextOutputTokens: normalizeNumber(tool.contextOutputTokens),
+    contextCompacted: Boolean(tool.contextCompacted),
     rawOutputRef: outputText ? `tool-output:${id || getToolName(tool)}` : '',
   };
 }
@@ -199,4 +209,9 @@ function parseFunctionArgs(value) {
   } catch {
     return {};
   }
+}
+
+function normalizeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.round(number) : 0;
 }
