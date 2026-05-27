@@ -209,6 +209,11 @@
   background: color-mix(in srgb, var(--accent-secondary), transparent 93%);
 }
 
+.message-context-chip.type-symbol {
+  border-color: color-mix(in srgb, #22c55e, transparent 76%);
+  background: color-mix(in srgb, #22c55e, transparent 93%);
+}
+
 .message.assistant .message-content {
   background: var(--msg-ai-bg);
   border: 1px solid var(--msg-ai-border);

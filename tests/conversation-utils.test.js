@@ -137,6 +137,30 @@ describe('conversation utilities', () => {
     expect(memory.text).toBe('');
   });
 
+  it('uses @symbol values as memory terms without matching directive words', () => {
+    const memory = buildRelevantMemoryContext([
+      {
+        id: 'prior',
+        title: '项目符号分析',
+        messages: [{
+          role: 'assistant',
+          content: 'buildContextBudgetBundle 会保留当前用户消息，并把 prefix cache 信息放进 contextBudget。',
+          timestamp: 1,
+        }],
+      },
+      {
+        id: 'noise',
+        title: '普通说明',
+        messages: [{ role: 'assistant', content: 'symbol 只是一个英文词，不应该单独触发历史命中。', timestamp: 2 }],
+      },
+    ], 'current', '继续解释 @symbol:buildContextBudgetBundle', { maxHits: 3 });
+
+    expect(memory.terms).toContain('buildcontextbudgetbundle');
+    expect(memory.terms).not.toContain('symbol');
+    expect(memory.text).toContain('buildContextBudgetBundle');
+    expect(memory.text).not.toContain('symbol 只是一个英文词');
+  });
+
   it('builds cache-friendly task checkpoint context for the next turn tail', () => {
     const checkpoint = buildTaskCheckpoint({
       contextSummary: '已经完成 Agent 循环和 token 预算裁剪。',

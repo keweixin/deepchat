@@ -227,18 +227,18 @@ function normalizeSearchQuery(value) {
 }
 
 function extractMemoryTerms(content = '') {
-  const cleaned = stripGeneratedMemoryBlocks(content)
+  const cleaned = normalizeContextDirectivesForMemory(stripGeneratedMemoryBlocks(content))
     .replace(/```[\s\S]*?```/g, ' ')
     .toLowerCase();
   const matches = cleaned.match(/[a-z0-9_./-]{3,}|[\u4e00-\u9fa5]{2,}/g) || [];
   const stopWords = new Set([
     '这个', '那个', '一下', '帮我', '请你', '请帮', '怎么', '为什么', '进行', '根据', '优化', '问题',
-    'the', 'and', 'for', 'with', 'this', 'that', 'from',
+    'the', 'and', 'for', 'with', 'this', 'that', 'from', 'file', 'folder', 'symbol', 'web', 'run',
   ]);
   const terms = [];
   const seen = new Set();
   for (const match of matches) {
-    const term = match.replace(/^@(?:file|folder):/i, '').trim();
+    const term = match.trim();
     const candidates = /[\u4e00-\u9fa5]/.test(term)
       ? [term, ...buildChineseSubTerms(term)]
       : [term];
@@ -251,6 +251,13 @@ function extractMemoryTerms(content = '') {
     if (terms.length >= 12) break;
   }
   return terms;
+}
+
+function normalizeContextDirectivesForMemory(content = '') {
+  return String(content || '').replace(
+    /@(file|folder|symbol)\s*:\s*(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s,，;；)\]]+))/gi,
+    (_match, _type, doubleQuoted, singleQuoted, backticked, bare) => ` ${doubleQuoted || singleQuoted || backticked || bare || ''} `,
+  );
 }
 
 function buildChineseSubTerms(term) {
