@@ -371,6 +371,7 @@ const COMPOSER_THINKING_LABELS = new Map([
 ]);
 
 function initComposerOptions(openSettings) {
+  const $toolbar = document.querySelector('.composer-toolbar');
   const $mode = document.getElementById('composer-mode-select');
   const $thinking = document.getElementById('composer-thinking-select');
   const $webToggle = document.getElementById('composer-web-search-toggle');
@@ -380,6 +381,7 @@ function initComposerOptions(openSettings) {
   const $toolDrawerBtn = document.getElementById('composer-tool-drawer-btn');
   const $toolStatus = document.getElementById('composer-tool-status');
   const $contextBtn = document.getElementById('composer-context-btn');
+  const $advancedToggle = document.getElementById('composer-advanced-toggle');
   const $runStatus = document.getElementById('composer-run-status');
   const $contextPreview = document.getElementById('composer-context-preview');
   const $templateBtn = document.getElementById('composer-template-btn');
@@ -508,6 +510,14 @@ function initComposerOptions(openSettings) {
 
   if ($templateBtn) {
     $templateBtn.addEventListener('click', () => togglePromptTemplateMenu($templateBtn));
+  }
+
+  if ($advancedToggle && $toolbar) {
+    $advancedToggle.addEventListener('click', () => {
+      const expanded = $toolbar.classList.toggle('is-advanced-open');
+      $advancedToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      $advancedToggle.textContent = expanded ? '收起' : '选项';
+    });
   }
 
   if ($toolDrawerBtn) {

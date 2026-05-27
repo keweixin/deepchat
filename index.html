@@ -113,43 +113,46 @@
               <option value="polish">美化</option>
             </select>
           </label>
-          <label class="composer-control" for="composer-thinking-select">
-            <span class="composer-control-label">思考程度</span>
-            <select id="composer-thinking-select" class="composer-select" title="控制本应用保存的思考 token 预算">
-              <option value="0">自动</option>
-              <option value="4096">轻量</option>
-              <option value="8192">标准</option>
-              <option value="16384">深度</option>
-              <option value="32768">极深</option>
-            </select>
-          </label>
-          <button id="composer-tool-drawer-btn" class="composer-tool-drawer-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="选择本轮可用工具">
-            <span class="composer-tool-icon" aria-hidden="true">✦</span>
-            <span class="composer-tool-copy">
-              <span class="composer-tool-title">工具</span>
-              <span id="composer-tool-status" class="composer-toggle-status">智能 Agent</span>
-            </span>
-          </button>
           <button id="composer-context-btn" class="composer-context-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="插入 @file / @folder / @symbol 等显式上下文">上下文</button>
-          <label class="composer-search-toggle" for="composer-web-search-toggle" title="开启后切换到 Tavily 联网检索模式">
-            <input type="checkbox" id="composer-web-search-toggle" />
-            <span class="composer-toggle-track" aria-hidden="true"></span>
-            <span class="composer-toggle-copy">
-              <span class="composer-toggle-title">联网搜索</span>
-              <span id="composer-search-status" class="composer-toggle-status">关闭</span>
-            </span>
-          </label>
-          <label class="composer-search-toggle composer-enhance-toggle" for="composer-enhance-toggle" title="开启后会按问题类型自动补充输出要求">
-            <input type="checkbox" id="composer-enhance-toggle" />
-            <span class="composer-toggle-track" aria-hidden="true"></span>
-            <span class="composer-toggle-copy">
-              <span class="composer-toggle-title">自动增强</span>
-              <span id="composer-enhance-status" class="composer-toggle-status">开启</span>
-            </span>
-          </label>
-          <span id="composer-run-status" class="composer-run-status">本轮：自动思考 · 离线 · 增强开启</span>
-          <button id="composer-template-btn" class="composer-settings-shortcut" type="button" title="插入常用提示词">模板</button>
-          <button id="composer-settings-shortcut" class="composer-settings-shortcut" type="button" title="打开设置">设置</button>
+          <button id="composer-advanced-toggle" class="composer-advanced-toggle" type="button" aria-expanded="false" aria-controls="composer-advanced-options" title="展开思考、工具、联网和模板选项">选项</button>
+          <div id="composer-advanced-options" class="composer-advanced-options" aria-label="高级发送选项">
+            <label class="composer-control" for="composer-thinking-select">
+              <span class="composer-control-label">思考程度</span>
+              <select id="composer-thinking-select" class="composer-select" title="控制本应用保存的思考 token 预算">
+                <option value="0">自动</option>
+                <option value="4096">轻量</option>
+                <option value="8192">标准</option>
+                <option value="16384">深度</option>
+                <option value="32768">极深</option>
+              </select>
+            </label>
+            <button id="composer-tool-drawer-btn" class="composer-tool-drawer-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="选择本轮可用工具">
+              <span class="composer-tool-icon" aria-hidden="true">✦</span>
+              <span class="composer-tool-copy">
+                <span class="composer-tool-title">工具</span>
+                <span id="composer-tool-status" class="composer-toggle-status">智能 Agent</span>
+              </span>
+            </button>
+            <label class="composer-search-toggle" for="composer-web-search-toggle" title="开启后切换到 Tavily 联网检索模式">
+              <input type="checkbox" id="composer-web-search-toggle" />
+              <span class="composer-toggle-track" aria-hidden="true"></span>
+              <span class="composer-toggle-copy">
+                <span class="composer-toggle-title">联网搜索</span>
+                <span id="composer-search-status" class="composer-toggle-status">关闭</span>
+              </span>
+            </label>
+            <label class="composer-search-toggle composer-enhance-toggle" for="composer-enhance-toggle" title="开启后会按问题类型自动补充输出要求">
+              <input type="checkbox" id="composer-enhance-toggle" />
+              <span class="composer-toggle-track" aria-hidden="true"></span>
+              <span class="composer-toggle-copy">
+                <span class="composer-toggle-title">自动增强</span>
+                <span id="composer-enhance-status" class="composer-toggle-status">开启</span>
+              </span>
+            </label>
+            <span id="composer-run-status" class="composer-run-status">本轮：自动思考 · 离线 · 增强开启</span>
+            <button id="composer-template-btn" class="composer-settings-shortcut" type="button" title="插入常用提示词">模板</button>
+            <button id="composer-settings-shortcut" class="composer-settings-shortcut" type="button" title="打开设置">设置</button>
+          </div>
         </div>
         <div class="composer-chip-row" aria-label="本轮上下文快捷选择">
           <span class="composer-chip-label">上下文</span>

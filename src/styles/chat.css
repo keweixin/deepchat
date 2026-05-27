@@ -765,6 +765,19 @@
   flex-wrap: wrap;
 }
 
+.composer-advanced-options {
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: 100%;
+  padding-top: var(--space-1);
+}
+
+.composer-toolbar.is-advanced-open .composer-advanced-options {
+  display: flex;
+}
+
 .composer-control,
 .composer-search-toggle,
 .composer-tool-drawer-btn {
@@ -1143,6 +1156,7 @@
 }
 
 .composer-settings-shortcut,
+.composer-advanced-toggle,
 .composer-context-btn {
   min-height: 32px;
   padding: 0 var(--space-3);
@@ -1156,6 +1170,9 @@
 
 .composer-settings-shortcut:hover,
 .composer-settings-shortcut:focus-visible,
+.composer-advanced-toggle:hover,
+.composer-advanced-toggle:focus-visible,
+.composer-advanced-toggle[aria-expanded="true"],
 .composer-context-btn:hover,
 .composer-context-btn:focus-visible,
 .composer-context-btn[aria-expanded="true"] {
