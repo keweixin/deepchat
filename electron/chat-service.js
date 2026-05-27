@@ -777,14 +777,21 @@ function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
   const toolMode = intent.toolMode || 'none';
+  const explicitDirectives = Array.isArray(intent.explicitDirectives) ? intent.explicitDirectives : [];
+  const wantsChangedContext = explicitDirectives.includes('changed');
   const steps = [];
 
   steps.push('理解用户目标并确认本轮需要的上下文。');
   if (selectedTools.includes('web_search')) {
     steps.push('检索外部资料，优先保留可引用来源。');
   }
+  if (wantsChangedContext && selectedTools.includes('list_files')) {
+    steps.push('先列出最近 7 天修改的工作区文件，按修改时间筛出候选变更。');
+  }
   if (selectedTools.some((name) => ['list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name))) {
-    steps.push('搜索或读取工作区文件，收集 file:line 证据。');
+    steps.push(wantsChangedContext
+      ? '读取关键变更文件或相关符号，收集 file:line 证据并区分已验证与待确认。'
+      : '搜索或读取工作区文件，收集 file:line 证据。');
   }
   if (selectedTools.includes('run_code')) {
     steps.push('在用户确认后运行小段代码或实验，并记录退出码与输出。');
@@ -805,6 +812,9 @@ function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds
   }
   if (settings.activeSkill === 'agent_auto' && toolMode === 'none' && candidateTools.length > 0) {
     warnings.push('检测到可能需要工具，但当前可用工具不足，本轮会先提示配置。');
+  }
+  if (wantsChangedContext && selectedTools.includes('list_files')) {
+    warnings.push('变更分析会优先查看最近修改文件；如工作区未启用 Git，只按文件修改时间判断。');
   }
 
   return {

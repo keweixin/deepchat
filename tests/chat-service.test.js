@@ -348,12 +348,14 @@ describe('electron chat service token usage and agent loop', () => {
       maxRounds: 4,
     });
     expect(plan.steps.join('\n')).toContain('检索外部资料');
-    expect(plan.steps.join('\n')).toContain('工作区文件');
+    expect(plan.steps.join('\n')).toContain('最近 7 天修改');
+    expect(plan.steps.join('\n')).toContain('关键变更文件');
     expect(plan.steps.join('\n')).toContain('运行小段代码');
     expect(plan.selectedTools).toEqual(expect.arrayContaining(['web_search', 'read_file', 'run_code']));
     expect(plan.availableToolNames).toEqual(['read_file', 'run_code', 'web_search']);
     expect(plan.searchPlan.map((item) => item.purpose)).toContain('官方资料');
     expect(plan.approvalPolicy.join('\n')).toContain('代码运行必须确认');
+    expect(plan.warnings.join('\n')).toContain('只按文件修改时间判断');
   });
 
   it('builds multi-query research search plans for web agent tasks', () => {
@@ -390,8 +392,10 @@ describe('electron chat service token usage and agent loop', () => {
       mode: 'file_reader',
       selectedTools: expect.arrayContaining(['list_files', 'search_workspace', 'read_file']),
     });
-    expect(planEvent.planSummary.steps.join('\n')).toContain('工作区文件');
+    expect(planEvent.planSummary.steps.join('\n')).toContain('最近 7 天修改');
+    expect(planEvent.planSummary.steps.join('\n')).toContain('关键变更文件');
     expect(planEvent.planSummary.approvalPolicy.join('\n')).toContain('读取/搜索类工具');
+    expect(planEvent.planSummary.warnings.join('\n')).toContain('只按文件修改时间判断');
   });
 
   it('injects smart-agent search plans into volatile turn metadata', async () => {
