@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_SYSTEM_PROMPT,
   PROVIDER_PRESETS,
+  appendContextHintsToUserContent,
+  applyContextMentionsToMessages,
   buildContextBudgetBundle,
   buildContextWithBudget,
   buildTavilySearchRequest,
   detectAgentIntent,
+  extractContextMentions,
   getEffectiveSystemPrompt,
   getConversationUsageSummary,
   getModelCapabilities,
@@ -242,6 +245,44 @@ describe('browser settings fallback', () => {
     expect(intent.selectedTools).not.toContain('web_search');
     expect(intent.candidateTools).toContain('web_search');
     expect(intent.missingPrerequisites).toContain('Tavily API Key');
+  });
+
+  it('extracts @file/@folder context mentions outside code blocks', () => {
+    const mentions = extractContextMentions([
+      '请看 @file:src/modules/api.js 和 @folder:"src/modules"',
+      '```txt',
+      '@file:should-not-read.env',
+      '```',
+      '重复 @file:src/modules/api.js',
+    ].join('\n'));
+
+    expect(mentions).toEqual([
+      { type: 'file', path: 'src/modules/api.js', label: '文件 src/modules/api.js' },
+      { type: 'folder', path: 'src/modules', label: '目录 src/modules' },
+    ]);
+  });
+
+  it('adds selected context hints only to the latest user message', () => {
+    const messages = applyContextMentionsToMessages([
+      { role: 'user', content: '旧问题 @file:README.md' },
+      { role: 'assistant', content: '旧回答' },
+      { role: 'user', content: '检查 @folder:src' },
+    ], { workspaceRoots: ['E:/repo'] });
+
+    expect(messages[0].content).toBe('旧问题 @file:README.md');
+    expect(messages[2].content).toContain('<selected_context>');
+    expect(messages[2].content).toContain('folder: src');
+    expect(messages[2].content).toContain('list_files');
+  });
+
+  it('does not claim selected context was already read', () => {
+    const content = appendContextHintsToUserContent('分析 @file:README.md', [
+      { type: 'file', path: 'README.md' },
+    ], { workspaceRoots: [] });
+
+    expect(content).toContain('不要声称已经读取');
+    expect(content).toContain('缺少工作区配置');
+    expect(content).toContain('read_file');
   });
 
   it('adds DeepSeek cost metadata when model pricing is known', () => {

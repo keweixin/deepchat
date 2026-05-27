@@ -13,7 +13,7 @@
  * - Adaptive render throttling
  */
 
-import { approveToolRequest, streamChat, getSettings, runTool, normalizeTokenUsage, getConversationUsageSummary } from './api.js';
+import { approveToolRequest, streamChat, extractContextMentions, getSettings, runTool, normalizeTokenUsage, getConversationUsageSummary } from './api.js';
 import { loadConversations, saveConversations } from './client-store.js';
 import {
   SIDEBAR_FILTERS,
@@ -789,6 +789,10 @@ function appendMessageDOM(msg, streaming = false) {
     const content = el.querySelector('.message-content');
     content.appendChild(renderAttachmentStrip(msg.attachments));
   }
+  if (msg.role === 'user') {
+    const contextStrip = renderContextMentionStrip(msg.content);
+    if (contextStrip) el.querySelector('.message-content')?.appendChild(contextStrip);
+  }
 
   const thinkingHeader = el.querySelector('.thinking-header');
   if (thinkingHeader) {
@@ -822,6 +826,25 @@ function renderAttachmentStrip(attachments = []) {
     caption.textContent = `${attachment.name || '附件'}${attachment.size ? ` · ${formatBytes(attachment.size)}` : ''}`;
     item.appendChild(caption);
     strip.appendChild(item);
+  }
+  return strip;
+}
+
+function renderContextMentionStrip(content = '') {
+  const mentions = extractContextMentions(content);
+  if (mentions.length === 0) return null;
+  const strip = document.createElement('div');
+  strip.className = 'message-context-mentions';
+  const label = document.createElement('span');
+  label.className = 'message-context-label';
+  label.textContent = '选定上下文';
+  strip.appendChild(label);
+  for (const mention of mentions) {
+    const chip = document.createElement('span');
+    chip.className = `message-context-chip type-${mention.type}`;
+    chip.textContent = mention.type === 'folder' ? `目录 ${mention.path}` : `文件 ${mention.path}`;
+    chip.title = mention.path;
+    strip.appendChild(chip);
   }
   return strip;
 }

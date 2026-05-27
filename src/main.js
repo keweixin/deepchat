@@ -22,7 +22,7 @@ import './styles/reading-navigator.css';
 import './styles/animations.css';
 
 // Modules
-import { initApiSettings, estimateTokens, getSettings, isSkillRunnable, supportsVisionModel, getModelCapabilities } from './modules/api.js';
+import { initApiSettings, estimateTokens, extractContextMentions, getSettings, isSkillRunnable, supportsVisionModel, getModelCapabilities } from './modules/api.js';
 import { initTheme, toggleTheme } from './modules/theme.js';
 import { initSettings } from './modules/settings.js';
 import { initChat, createConversation, sendMessage, stopStreaming, clearCurrentChat, updateModelDisplay, exportCurrentChat } from './modules/chat.js';
@@ -112,10 +112,15 @@ function bindEvents() {
     const text = $input.value.trim();
     if (text.length > 0) {
       const tokens = estimateTokens(text);
-      badge.textContent = `≈${tokens} tokens · ${text.length} 字符`;
+      const contextMentions = extractContextMentions(text);
+      badge.textContent = `≈${tokens} tokens · ${text.length} 字符${contextMentions.length ? ` · 上下文 ${contextMentions.length}` : ''}`;
+      badge.title = contextMentions.length
+        ? contextMentions.map((item) => `${item.type === 'folder' ? '目录' : '文件'}：${item.path}`).join('\n')
+        : '';
       badge.classList.remove('hidden');
     } else {
       badge.classList.add('hidden');
+      badge.title = '';
     }
   }, 100);
 

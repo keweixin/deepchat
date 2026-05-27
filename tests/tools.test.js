@@ -1,9 +1,11 @@
 import { createRequire } from 'module';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { buildTavilySearchRequest, isPathInsideRoot, normalizeTavilyResults } = require('../electron/tools');
+const { buildTavilySearchRequest, executeTool, isPathInsideRoot, normalizeTavilyResults } = require('../electron/tools');
 
 describe('electron tools helpers', () => {
   it('keeps file paths inside the approved workspace root', () => {
@@ -36,5 +38,25 @@ describe('electron tools helpers', () => {
     expect(request.payload.time_range).toBe('week');
     expect(request.payload.days).toBe(7);
     expect(request.payload.max_results).toBe(1);
+  });
+
+  it('lists files inside a selected workspace subdirectory only', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-list-files-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src', 'nested'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'README.md'), 'root', 'utf8');
+      await fs.writeFile(path.join(tmpDir, 'src', 'index.js'), 'console.log(1)', 'utf8');
+      await fs.writeFile(path.join(tmpDir, 'src', 'nested', 'note.md'), 'note', 'utf8');
+
+      const output = await executeTool('list_files', { directory: 'src' }, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('目录：src');
+      expect(output).toContain('- index.js');
+      expect(output).toContain('- nested');
+      expect(output).not.toContain('README.md');
+      await expect(executeTool('list_files', { directory: '..' }, { workspaceRoots: [tmpDir] })).rejects.toThrow('不在已授权工作区');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
   });
 });

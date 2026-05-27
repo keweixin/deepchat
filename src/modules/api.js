@@ -266,6 +266,74 @@ const VISION_MODEL_PATTERNS = [
   /claude-3/i,
 ];
 
+const CONTEXT_MENTION_LIMIT = 8;
+const CONTEXT_MENTION_PATH_LIMIT = 300;
+
+export function extractContextMentions(content = '') {
+  const text = String(content || '').replace(/```[\s\S]*?```/g, ' ');
+  const pattern = /(?:^|[\s([，,;；])@(file|folder)\s*:\s*(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s,，;；)\]]+))/gi;
+  const mentions = [];
+  const seen = new Set();
+  let match;
+  while ((match = pattern.exec(text)) && mentions.length < CONTEXT_MENTION_LIMIT) {
+    const type = String(match[1] || '').toLowerCase();
+    const rawPath = match[2] ?? match[3] ?? match[4] ?? match[5] ?? '';
+    const pathValue = normalizeContextMentionPath(rawPath);
+    if (!pathValue) continue;
+    const key = `${type}:${pathValue.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    mentions.push({
+      type,
+      path: pathValue,
+      label: type === 'folder' ? `目录 ${pathValue}` : `文件 ${pathValue}`,
+    });
+  }
+  return mentions;
+}
+
+export function appendContextHintsToUserContent(content = '', mentions = [], settings = {}) {
+  const selected = (Array.isArray(mentions) ? mentions : []).slice(0, CONTEXT_MENTION_LIMIT);
+  if (selected.length === 0 || String(content || '').includes('<selected_context>')) return String(content || '');
+  const workspaceCount = Array.isArray(settings.workspaceRoots) ? settings.workspaceRoots.length : 0;
+  const lines = [
+    '<selected_context>',
+    '用户在当前消息中用 @file/@folder 显式选择了本地上下文。',
+    '不要声称已经读取这些路径；需要文件内容时必须调用 list_files/read_file，并等待用户确认。',
+    workspaceCount > 0 ? `已配置工作区数量：${workspaceCount}` : '缺少工作区配置：请提示用户先在设置中添加工作区。',
+    ...selected.map((item) => {
+      if (item.type === 'folder') return `- folder: ${item.path}；建议先调用 list_files({ "directory": "${item.path}" })`;
+      return `- file: ${item.path}；建议调用 read_file({ "path": "${item.path}" })`;
+    }),
+    '</selected_context>',
+  ];
+  return `${String(content || '').trim()}\n\n${lines.join('\n')}`.trim();
+}
+
+export function applyContextMentionsToMessages(messages = [], settings = {}) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages;
+  const latestUserIndex = findLatestUserIndex(messages);
+  if (latestUserIndex < 0) return messages;
+  const latest = messages[latestUserIndex];
+  const mentions = extractContextMentions(latest?.content || '');
+  if (mentions.length === 0) return messages;
+  return messages.map((message, index) => {
+    if (index !== latestUserIndex) return message;
+    return {
+      ...message,
+      content: appendContextHintsToUserContent(message.content, mentions, settings),
+    };
+  });
+}
+
+function normalizeContextMentionPath(value) {
+  return String(value || '')
+    .replace(/\0/g, '')
+    .trim()
+    .replace(/[.。；;，,]+$/g, '')
+    .slice(0, CONTEXT_MENTION_PATH_LIMIT);
+}
+
 const TOOL_MODEL_PATTERNS = [
   /deepseek/i,
   /gpt/i,
@@ -891,7 +959,8 @@ function needsSearch(text, lower) {
 
 function needsFiles(text, lower) {
   return /文件|目录|项目|代码库|仓库|读取|检查|分析.*代码|打开|路径|工作区|本地|报错日志|readme|package\.json|\.js|\.ts|\.vue|\.md|\.py|[a-z]:\\/i.test(text)
-    || lower.includes('workspace');
+    || lower.includes('workspace')
+    || /@(file|folder)\s*:/i.test(text);
 }
 
 function needsCode(text, lower) {
@@ -911,8 +980,10 @@ export function trimContext(messages, maxMessages = 20) {
 }
 
 export async function streamChat(messages, opts = {}) {
-  if (hasNativeBridge()) return streamNativeChat(messages, opts);
-  return streamBrowserChat(messages, opts);
+  const settings = applyComposerOverrides(getSettings(), opts.overrides || {});
+  const preparedMessages = applyContextMentionsToMessages(messages, settings);
+  if (hasNativeBridge()) return streamNativeChat(preparedMessages, opts);
+  return streamBrowserChat(preparedMessages, opts);
 }
 
 export function approveToolRequest(requestId, toolCallId, approved) {

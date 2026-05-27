@@ -172,6 +172,43 @@
   overflow-wrap: anywhere;
 }
 
+.message-context-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.message-context-label,
+.message-context-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.message-context-label {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 25%);
+}
+
+.message-context-chip {
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent-primary), transparent 93%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-context-chip.type-folder {
+  border-color: color-mix(in srgb, var(--accent-secondary), transparent 76%);
+  background: color-mix(in srgb, var(--accent-secondary), transparent 93%);
+}
+
 .message.assistant .message-content {
   background: var(--msg-ai-bg);
   border: 1px solid var(--msg-ai-border);

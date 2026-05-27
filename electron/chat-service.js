@@ -925,7 +925,8 @@ function needsSearch(text, lower) {
 
 function needsFiles(text, lower) {
   return /文件|目录|项目|代码库|仓库|读取|检查|分析.*代码|打开|路径|工作区|本地|报错日志|readme|package\.json|\.js|\.ts|\.vue|\.md|\.py|[a-z]:\\/i.test(text)
-    || lower.includes('workspace');
+    || lower.includes('workspace')
+    || /@(file|folder)\s*:/i.test(text);
 }
 
 function needsCode(text, lower) {

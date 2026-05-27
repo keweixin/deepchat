@@ -46,6 +46,7 @@ const TOOL_SCHEMAS = {
         type: 'object',
         properties: {
           root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
+          directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to list.' },
           pattern: { type: 'string', description: 'Optional filename substring or simple wildcard pattern.' },
         },
       },
@@ -112,7 +113,10 @@ function describeToolRisk(name, args) {
     return `将使用 Tavily 搜索网络：${String(args.query || '').slice(0, 120)}`;
   }
   if (name === 'list_files') {
-    return '将列出已授权工作区内的文件名，不会读取文件内容。';
+    const directory = String(args.directory || '').trim();
+    return directory
+      ? `将列出已授权工作区目录 ${directory.slice(0, 160)} 内的文件名，不会读取文件内容。`
+      : '将列出已授权工作区内的文件名，不会读取文件内容。';
   }
   if (name === 'read_file') {
     return `将读取已授权工作区内的文本文件：${String(args.path || '').slice(0, 160)}`;
@@ -260,13 +264,18 @@ function formatTavilyResults(request, results) {
 
 async function listFiles(args, settings) {
   const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
+  const directory = String(args.directory || '').trim();
+  const scanRoot = directory ? await resolveAllowedDirectory(directory, [root]) : root;
+  const realRoot = await fs.realpath(root).catch(() => root);
   const pattern = String(args.pattern || '').trim();
   const matcher = createMatcher(pattern);
   const files = [];
-  await walk(root, root, files, matcher);
-  if (files.length === 0) return `工作区 ${root} 中没有找到匹配文件。`;
+  await walk(scanRoot, scanRoot, files, matcher);
+  const relativeDirectory = path.relative(realRoot, scanRoot) || '.';
+  if (files.length === 0) return `工作区 ${root} 的目录 ${relativeDirectory} 中没有找到匹配文件。`;
   return [
     `工作区：${root}`,
+    `目录：${relativeDirectory}`,
     `匹配文件数：${files.length}`,
     '',
     ...files.slice(0, 200).map((file) => `- ${file}`),
@@ -364,6 +373,13 @@ async function resolveAllowedPath(inputPath, workspaceRoots) {
     }
   }
   throw new Error('文件路径不在已授权工作区中。');
+}
+
+async function resolveAllowedDirectory(inputPath, workspaceRoots) {
+  const directoryPath = await resolveAllowedPath(inputPath || '.', workspaceRoots);
+  const stat = await fs.stat(directoryPath);
+  if (!stat.isDirectory()) throw new Error('只能列出目录，不能把文件作为 list_files 的 directory。');
+  return directoryPath;
 }
 
 function isSensitivePath(filePath) {
