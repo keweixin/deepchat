@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAssetManifestHtml,
+  buildConversationHtml,
   buildConversationMarkdown,
   buildToolEvidence,
 } from '../src/modules/exporters.js';
@@ -74,6 +75,42 @@ describe('conversation exporters', () => {
     expect(markdown).toContain('prefix abc123');
     expect(markdown).toContain('裁剪 2 条历史');
     expect(markdown).toContain('已使用长期摘要');
+  });
+
+  it('adds evidence citation and cache audit details to html exports', () => {
+    const html = buildConversationHtml({
+      title: 'HTML 审计',
+      messages: [{
+        role: 'assistant',
+        timestamp: 100,
+        content: '引用 https://example.com/a。',
+        tokens: {
+          input: 80,
+          output: 20,
+          total: 100,
+          cacheHit: 40,
+          cacheMiss: 40,
+          source: 'provider',
+        },
+        contextBudget: { prefixFingerprint: 'html123', trimmed: true, droppedCount: 1 },
+        toolRuns: [{
+          name: 'web_search',
+          status: 'completed',
+          output: '1. A\nURL: https://example.com/a\n2. B\nURL: https://example.com/b',
+        }],
+      }],
+    });
+
+    expect(html).toContain('class="audit"');
+    expect(html).toContain('工具调用');
+    expect(html).toContain('web_search：已完成 · 证据部分引用 (1/2)');
+    expect(html).toContain('已引用: A');
+    expect(html).toContain('未引用: B');
+    expect(html).toContain('Token / Cache');
+    expect(html).toContain('输入 80');
+    expect(html).toContain('cache 50%');
+    expect(html).toContain('prefix html123');
+    expect(html).toContain('裁剪 1 条历史');
   });
 
   it('builds auditable tool evidence with message indexes', () => {

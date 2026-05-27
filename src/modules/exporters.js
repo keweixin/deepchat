@@ -69,32 +69,36 @@ export function buildConversationMarkdown(conversation, options = {}) {
       markdown += `\n`;
     }
     if (message.error) markdown += `> 生成失败：${message.error}\n\n`;
-    const runs = getMessageToolEvidenceRuns(message);
-    if (runs?.length) {
-      markdown += `#### 工具调用\n\n`;
-      for (const tool of runs) {
-        const evidence = tool.evidence?.type === 'deepchat.toolEvidence'
-          ? tool.evidence
-          : buildToolEvidencePayload(tool);
-        const citationStatus = buildEvidenceCitationStatus(evidence, message.content || '');
-        markdown += `- ${evidence.name || 'unknown'}：${getToolStatusText(evidence.status)} · 证据${formatCitationStatusText(citationStatus)}\n`;
-        if (evidence.query) markdown += `  - query: ${evidence.query}\n`;
-        if (evidence.durationMs) markdown += `  - 耗时: ${evidence.durationMs}ms\n`;
-        if (evidence.contextCompacted) {
-          markdown += `  - 上下文压缩: ${evidence.rawOutputTokens || 0} → ${evidence.contextOutputTokens || 0} tokens\n`;
-        }
-        for (const ref of citationStatus.refs.slice(0, 6)) {
-          markdown += `  - ${ref.cited ? '已引用' : '未引用'}: ${ref.label || ref.value}\n`;
-        }
-      }
-      markdown += `\n`;
-    }
-    const usageMarkdown = buildMessageUsageMarkdown(message);
-    if (usageMarkdown) markdown += usageMarkdown;
+    markdown += buildMessageAuditMarkdown(message);
     if (message.sourceWarning) markdown += `> 注意：本轮调用了联网搜索，但最终回答没有引用搜索来源 URL。\n\n`;
     markdown += `---\n\n`;
   }
   return markdown;
+}
+
+function buildMessageAuditMarkdown(message = {}) {
+  let markdown = '';
+  const runs = getMessageToolEvidenceRuns(message);
+  if (runs?.length) {
+    markdown += `#### 工具调用\n\n`;
+    for (const tool of runs) {
+      const evidence = tool.evidence?.type === 'deepchat.toolEvidence'
+        ? tool.evidence
+        : buildToolEvidencePayload(tool);
+      const citationStatus = buildEvidenceCitationStatus(evidence, message.content || '');
+      markdown += `- ${evidence.name || 'unknown'}：${getToolStatusText(evidence.status)} · 证据${formatCitationStatusText(citationStatus)}\n`;
+      if (evidence.query) markdown += `  - query: ${evidence.query}\n`;
+      if (evidence.durationMs) markdown += `  - 耗时: ${evidence.durationMs}ms\n`;
+      if (evidence.contextCompacted) {
+        markdown += `  - 上下文压缩: ${evidence.rawOutputTokens || 0} → ${evidence.contextOutputTokens || 0} tokens\n`;
+      }
+      for (const ref of citationStatus.refs.slice(0, 6)) {
+        markdown += `  - ${ref.cited ? '已引用' : '未引用'}: ${ref.label || ref.value}\n`;
+      }
+    }
+    markdown += `\n`;
+  }
+  return markdown + buildMessageUsageMarkdown(message);
 }
 
 function buildMessageUsageMarkdown(message = {}) {
@@ -120,9 +124,11 @@ function buildMessageUsageMarkdown(message = {}) {
 export function buildConversationHtml(conversation) {
   const body = conversation.messages.map((message) => {
     const role = message.role === 'user' ? '你' : 'DeepChat';
-    return `<section class="msg ${message.role}"><h2>${escapeHtml(role)} · ${escapeHtml(formatTime(message.timestamp))}</h2><div>${renderMarkdown(message.content || '')}</div></section>`;
+    const audit = buildMessageAuditMarkdown(message);
+    const auditHtml = audit ? `<aside class="audit">${renderMarkdown(audit)}</aside>` : '';
+    return `<section class="msg ${message.role}"><h2>${escapeHtml(role)} · ${escapeHtml(formatTime(message.timestamp))}</h2><div>${renderMarkdown(message.content || '')}</div>${auditHtml}</section>`;
   }).join('\n');
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(conversation.title)}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.7;max-width:860px;margin:40px auto;padding:0 24px;color:#111827}.msg{border-top:1px solid #e5e7eb;padding:20px 0}.msg h2{font-size:14px;color:#6b7280}pre{overflow:auto;background:#111827;color:#f9fafb;padding:14px;border-radius:8px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #d1d5db;padding:8px}.asset{max-width:100%;border:1px solid #e5e7eb;border-radius:8px}</style></head><body><h1>${escapeHtml(conversation.title)}</h1>${body}</body></html>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(conversation.title)}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.7;max-width:860px;margin:40px auto;padding:0 24px;color:#111827}.msg{border-top:1px solid #e5e7eb;padding:20px 0}.msg h2{font-size:14px;color:#6b7280}pre{overflow:auto;background:#111827;color:#f9fafb;padding:14px;border-radius:8px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #d1d5db;padding:8px}.asset{max-width:100%;border:1px solid #e5e7eb;border-radius:8px}.audit{margin-top:16px;padding:12px 14px;border:1px solid #d1d5db;border-radius:8px;background:#f8fafc}.audit h4{margin:0 0 8px;font-size:13px;color:#374151}.audit ul{margin:8px 0 0 20px}</style></head><body><h1>${escapeHtml(conversation.title)}</h1>${body}</body></html>`;
 }
 
 export function buildToolEvidence(conversation) {
