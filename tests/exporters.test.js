@@ -28,16 +28,75 @@ describe('conversation exporters', () => {
       tags: ['搜索'],
       folderId: '工具',
       messages: [
-        { role: 'assistant', timestamp: 100, toolRuns: [{ name: 'web_search', status: 'completed', args: { query: 'AI' } }] },
-        { role: 'assistant', timestamp: 200, toolRuns: [{ name: 'run_code', status: 'failed', durationMs: 1000 }] },
+        {
+          role: 'assistant',
+          timestamp: 100,
+          content: '来源：https://example.com/ai',
+          toolRuns: [{
+            id: 'web1',
+            name: 'web_search',
+            status: 'completed',
+            args: { query: 'AI' },
+            output: '1. AI Source\nURL: https://example.com/ai',
+          }],
+        },
+        {
+          role: 'assistant',
+          timestamp: 200,
+          content: '运行失败，见 stderr。',
+          toolRuns: [{ id: 'run1', name: 'run_code', status: 'failed', durationMs: 1000 }],
+        },
       ],
     });
 
     expect(evidence.version).toBe(1);
     expect(evidence.conversation).toMatchObject({ id: 'c1', title: '联网验证', folderId: '工具' });
     expect(evidence.toolRuns).toHaveLength(2);
-    expect(evidence.toolRuns[0]).toMatchObject({ messageIndex: 0, name: 'web_search', status: 'completed' });
-    expect(evidence.toolRuns[1]).toMatchObject({ messageIndex: 1, name: 'run_code', status: 'failed' });
+    expect(evidence.toolRuns[0]).toMatchObject({
+      type: 'deepchat.toolEvidence',
+      messageIndex: 0,
+      messageRole: 'assistant',
+      name: 'web_search',
+      status: 'completed',
+      citationStatus: { state: 'is-cited', cited: 1, total: 1 },
+    });
+    expect(evidence.toolRuns[0].citationStatus.refs[0]).toMatchObject({
+      type: 'url',
+      value: 'https://example.com/ai',
+      cited: true,
+    });
+    expect(evidence.toolRuns[1]).toMatchObject({
+      messageIndex: 1,
+      name: 'run_code',
+      status: 'failed',
+      citationStatus: { state: 'no-evidence', cited: 0, total: 0 },
+    });
+  });
+
+  it('marks uncited local evidence in exported tool evidence', () => {
+    const evidence = buildToolEvidence({
+      id: 'c2',
+      title: '本地证据',
+      messages: [{
+        role: 'assistant',
+        content: '根据本地文件可以优化缓存。',
+        toolRuns: [{
+          name: 'read_file',
+          status: 'completed',
+          output: '文件：src/modules/api.js\n行范围：10-20\n\n内容...',
+        }],
+      }],
+    });
+
+    expect(evidence.toolRuns[0]).toMatchObject({
+      name: 'read_file',
+      citationStatus: { state: 'uncited', cited: 0, total: 1 },
+    });
+    expect(evidence.toolRuns[0].citationStatus.refs[0]).toMatchObject({
+      type: 'file',
+      label: 'src/modules/api.js:10-20',
+      cited: false,
+    });
   });
 
   it('includes image attachments and Mermaid code in the asset manifest', () => {

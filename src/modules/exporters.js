@@ -1,4 +1,5 @@
 import { renderMarkdown } from './renderer.js';
+import { buildToolEvidencePayload } from './tool-runs.js';
 import { escapeHtml, formatTime, showToast } from './utils.js';
 
 export function exportConversation(conversation, format = 'markdown') {
@@ -94,6 +95,19 @@ export function buildConversationHtml(conversation) {
 }
 
 export function buildToolEvidence(conversation) {
+  const toolRuns = [];
+  for (const [messageIndex, message] of (conversation.messages || []).entries()) {
+    for (const run of message.toolRuns || []) {
+      const evidence = buildToolEvidencePayload(run);
+      toolRuns.push({
+        messageIndex,
+        messageRole: message.role || '',
+        messageTime: message.timestamp || null,
+        ...evidence,
+        citationStatus: buildEvidenceCitationStatus(evidence, message.content || ''),
+      });
+    }
+  }
   return {
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -103,14 +117,91 @@ export function buildToolEvidence(conversation) {
       tags: conversation.tags || [],
       folderId: conversation.folderId || '',
     },
-    toolRuns: conversation.messages.flatMap((message, messageIndex) =>
-      (message.toolRuns || []).map((run) => ({
-        messageIndex,
-        messageTime: message.timestamp || null,
-        ...run,
-      }))
-    ),
+    toolRuns,
   };
+}
+
+function buildEvidenceCitationStatus(evidence = {}, content = '') {
+  const refs = collectEvidenceRefs(evidence);
+  const checked = refs.map((ref) => ({
+    ...ref,
+    cited: isEvidenceRefMentioned(content, ref),
+  }));
+  const cited = checked.filter((ref) => ref.cited).length;
+  const total = checked.length;
+  return {
+    state: total === 0 ? 'no-evidence' : (cited === total ? 'is-cited' : (cited > 0 ? 'partially-cited' : 'uncited')),
+    cited,
+    total,
+    refs: checked,
+  };
+}
+
+function collectEvidenceRefs(evidence = {}) {
+  const refs = [];
+  for (const source of Array.isArray(evidence.sources) ? evidence.sources : []) {
+    const url = String(source?.url || '').trim();
+    if (url) refs.push({ type: 'url', label: source.title || url, value: url });
+  }
+  for (const citation of Array.isArray(evidence.localCitations) ? evidence.localCitations : []) {
+    const file = String(citation?.file || '').trim();
+    if (!file) continue;
+    refs.push({
+      type: 'file',
+      label: citation.label || file,
+      value: citation.label || file,
+      file,
+      lineStart: citation.lineStart || 0,
+      lineEnd: citation.lineEnd || citation.lineStart || 0,
+    });
+  }
+  const symbol = evidence.workspaceSymbol;
+  if (symbol?.result?.file) {
+    const start = symbol.result.startLine || symbol.result.definitionLine || 0;
+    const end = symbol.result.endLine || start;
+    refs.push({
+      type: 'symbol',
+      label: `${symbol.symbol || 'symbol'} ${symbol.result.file}${start ? `:${start}${end && end !== start ? `-${end}` : ''}` : ''}`,
+      value: symbol.result.file,
+      file: symbol.result.file,
+      lineStart: start,
+      lineEnd: end,
+    });
+  }
+  return dedupeEvidenceRefs(refs);
+}
+
+function isEvidenceRefMentioned(content = '', ref = {}) {
+  const text = String(content || '').replace(/\\/g, '/');
+  if (ref.type === 'url') return Boolean(ref.value && text.includes(ref.value));
+  const file = String(ref.file || ref.value || '').replace(/\\/g, '/');
+  const basename = file.split('/').filter(Boolean).at(-1) || file;
+  const start = ref.lineStart ? String(ref.lineStart) : '';
+  const end = ref.lineEnd && ref.lineEnd !== ref.lineStart ? String(ref.lineEnd) : '';
+  return [
+    ref.label,
+    ref.value,
+    file,
+    basename,
+    start ? `${file}:${start}` : '',
+    start ? `${basename}:${start}` : '',
+    start && end ? `${file}:${start}-${end}` : '',
+    start && end ? `${basename}:${start}-${end}` : '',
+  ].filter(Boolean)
+    .map((item) => String(item).replace(/\\/g, '/'))
+    .some((label) => text.includes(label));
+}
+
+function dedupeEvidenceRefs(refs = []) {
+  const seen = new Set();
+  const out = [];
+  for (const ref of refs) {
+    const key = `${ref.type}:${ref.value}:${ref.file || ''}:${ref.lineStart || ''}:${ref.lineEnd || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(ref);
+  }
+  return out;
 }
 
 export function buildAssetManifestHtml(conversation) {
