@@ -398,6 +398,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     signal: abortController.signal,
     contextSummary: conv.contextSummary || '',
     contextSummaryMeta: conv.contextSummaryMeta || null,
+    cacheProfile: conv.cacheProfile || null,
     onToken(token) {
       if (streamStartTime === 0) streamStartTime = Date.now();
       tokenCount++;
@@ -1314,10 +1315,13 @@ function formatTokenUsageTitle(tokens) {
 
 function buildCacheProfile(tokens, contextBudget) {
   const usage = normalizeTokenUsage(tokens);
+  const profile = tokens?.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : {};
   return {
-    prefixFingerprint: contextBudget?.prefixFingerprint || tokens?.prefixFingerprint || '',
-    prefixTokens: contextBudget?.prefixTokens || 0,
-    prefixBytes: contextBudget?.prefixBytes || 0,
+    ...profile,
+    prefixFingerprint: contextBudget?.prefixFingerprint || tokens?.prefixFingerprint || profile.prefixFingerprint || '',
+    prefixTokens: contextBudget?.prefixTokens || tokens?.prefixTokens || profile.prefixTokens || 0,
+    prefixBytes: contextBudget?.prefixBytes || tokens?.prefixBytes || profile.prefixBytes || 0,
+    cacheStabilityWarnings: tokens?.cacheStabilityWarnings || contextBudget?.cacheStabilityWarnings || profile.cacheStabilityWarnings || [],
     cacheHit: usage.cacheHit,
     cacheMiss: usage.cacheMiss,
     cacheHitRate: usage.cacheHitRate,

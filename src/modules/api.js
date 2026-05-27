@@ -769,17 +769,10 @@ async function streamNativeChat(messages, opts) {
     if (!event || event.requestId !== requestId) return;
     if (event.type === 'token') opts.onToken?.(event.token);
     if (event.type === 'thinking') opts.onThinking?.(event.token);
-    if (event.type === 'tokenCount') opts.onTokenCount?.(event.usage || {
-      input: event.input,
-      output: event.output,
-      total: event.total,
-      reasoning: event.reasoning,
-      cacheHit: event.cacheHit,
-      cacheMiss: event.cacheMiss,
-      cacheHitRate: event.cacheHitRate,
-      source: event.source,
-      rounds: event.rounds,
-    });
+    if (event.type === 'tokenCount') {
+      const { type: _type, requestId: _requestId, ...usageEvent } = event;
+      opts.onTokenCount?.(event.usage || usageEvent);
+    }
     if (event.type === 'toolRequest') opts.onToolRequest?.(event);
     if (event.type === 'toolResult') opts.onToolResult?.(event);
     if (event.type === 'agentStage') opts.onAgentStage?.(event);
@@ -807,6 +800,7 @@ async function streamNativeChat(messages, opts) {
     overrides: opts.overrides || {},
     contextSummary: opts.contextSummary || '',
     contextSummaryMeta: opts.contextSummaryMeta || null,
+    cacheProfile: opts.cacheProfile || null,
   });
 }
 

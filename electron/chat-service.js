@@ -84,7 +84,7 @@ class ChatService {
     const messages = sanitizeMessages(request.messages || []);
     const intent = detectAgentIntent(messages, settings);
     const tools = await this.getAvailableTools(settings, intent);
-    const prefix = buildCacheStablePrefix(settings, tools);
+    const prefix = buildCacheStablePrefix(settings, tools, request.cacheProfile);
     const systemPrompt = prefix.systemPrompt;
     const prefixTokens = prefix.prefixTokens;
     let contextBundle = buildContextBudgetBundle(messages, {
@@ -99,15 +99,12 @@ class ChatService {
     const warnings = [];
     const seenToolCalls = new Set();
 
+    const prefixWarnings = prefix.cacheStabilityWarnings || [];
+    if (prefixWarnings.length > 0) warnings.push(...prefixWarnings);
+
     let workingMessages = [
       { role: 'system', content: systemPrompt },
     ];
-    if (settings.activeSkill === 'agent_auto') {
-      workingMessages.push({
-        role: 'system',
-        content: formatTurnIntentMetadata(intent),
-      });
-    }
 
     this.emit(requestId, 'agentStage', {
       stage: 'plan',
@@ -122,10 +119,9 @@ class ChatService {
       const warning = `智能 Agent 判断本轮可能需要 ${(intent.candidateTools || intent.selectedTools).join(', ') || intent.reason}，但缺少配置：${intent.missingPrerequisites.join('、')}。`;
       warnings.push(warning);
       this.emit(requestId, 'agentStage', { stage: 'warning', round: 0, maxRounds: maxToolRounds, warning });
-      workingMessages.push({
-        role: 'system',
-        content: `${warning}\n请直接告诉用户需要完成这些配置后才能使用对应工具，不要声称已经调用工具。`,
-      });
+    }
+    for (const warning of prefixWarnings) {
+      this.emit(requestId, 'agentStage', { stage: 'warning', round: 0, maxRounds: maxToolRounds, warning });
     }
 
     if (settings.autoContextSummary !== false) {
@@ -153,7 +149,7 @@ class ChatService {
       }
     }
 
-    workingMessages.push(...apiMessages);
+    workingMessages.push(...appendTurnTailMetadata(apiMessages, buildTurnTailMetadata(intent, settings)));
     this.emit(requestId, 'contextBudget', contextBundle.meta);
 
     for (let round = 0; round <= maxToolRounds; round++) {
@@ -174,7 +170,7 @@ class ChatService {
       if (!result.toolCalls.length) {
         this.emit(requestId, 'agentStage', { stage: 'final', round: round + 1, maxRounds: maxToolRounds, stopReason: 'final' });
         const usage = mergeTokenUsage(usageRounds, { warnings });
-        usage.prefixFingerprint = prefix.prefixFingerprint;
+        attachPrefixProfile(usage, prefix, settings);
         this.emit(requestId, 'tokenCount', usage);
         this.emit(requestId, 'done', { aborted: false });
         return;
@@ -184,7 +180,7 @@ class ChatService {
         const stopReason = `工具调用超过 ${maxToolRounds} 轮，已停止。`;
         this.emit(requestId, 'agentStage', { stage: 'stop', round: round + 1, maxRounds: maxToolRounds, stopReason });
         const usage = mergeTokenUsage(usageRounds, { warnings });
-        usage.prefixFingerprint = prefix.prefixFingerprint;
+        attachPrefixProfile(usage, prefix, settings);
         this.emit(requestId, 'tokenCount', usage);
         throw new Error(stopReason);
       }
@@ -576,21 +572,34 @@ function filterStableBuiltInTools(tools, settings = {}) {
   });
 }
 
-function buildCacheStablePrefix(settings, tools) {
+function buildCacheStablePrefix(settings, tools, previousProfile = null) {
   const systemPrompt = buildSystemPrompt(settings, detectAgentIntent([], settings));
-  const prefixBlob = JSON.stringify({
+  const toolPayload = stableToolFingerprintPayload(tools);
+  const prefixBlob = canonicalStringify({
     system: systemPrompt,
-    tools: stableToolFingerprintPayload(tools),
+    tools: toolPayload,
   });
   const prefixBytes = Buffer.byteLength(prefixBlob, 'utf8');
   const prefixFingerprint = crypto.createHash('sha256').update(prefixBlob).digest('hex').slice(0, 16);
-  const prefixTokens = estimateMessagesTokens([{ role: 'system', content: systemPrompt }]) + estimateTokens(JSON.stringify(tools || [])) + 16;
-  return {
-    systemPrompt,
+  const systemHash = crypto.createHash('sha256').update(systemPrompt).digest('hex').slice(0, 16);
+  const toolsHash = crypto.createHash('sha256').update(canonicalStringify(toolPayload)).digest('hex').slice(0, 16);
+  const workspaceSignature = stableWorkspaceSignature(settings);
+  const prefixTokens = estimateMessagesTokens([{ role: 'system', content: systemPrompt }]) + estimateTokens(canonicalStringify(tools || [])) + 16;
+  const profile = {
     prefixFingerprint,
     prefixBytes,
     prefixTokens,
-    cacheStabilityWarnings: [],
+    systemHash,
+    toolsHash,
+    toolNames: toolPayload.map((tool) => tool.name).filter(Boolean),
+    model: String(settings.model || ''),
+    workspaceSignature,
+  };
+  return {
+    ...profile,
+    profile,
+    systemPrompt,
+    cacheStabilityWarnings: buildCacheStabilityWarnings(previousProfile, profile),
   };
 }
 
@@ -599,21 +608,96 @@ function stableToolFingerprintPayload(tools = []) {
     .map((tool) => tool?.function ? {
       name: tool.function.name,
       description: tool.function.description,
-      parameters: tool.function.parameters,
+      parameters: sortObject(tool.function.parameters || {}),
     } : tool)
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 }
 
-function formatTurnIntentMetadata(intent = {}) {
-  return [
-    '本轮动态 Agent 规划元信息（不要把它当成长期系统规则）：',
-    `toolMode=${intent.toolMode || 'none'}`,
-    `confidence=${intent.confidence ?? 0}`,
-    `candidateTools=${(intent.candidateTools || []).join(', ') || 'none'}`,
-    `selectedTools=${(intent.selectedTools || []).join(', ') || 'none'}`,
-    `missingPrerequisites=${(intent.missingPrerequisites || []).join(', ') || 'none'}`,
-    `reason=${intent.reason || 'plain_chat'}`,
-  ].join('\n');
+function stableWorkspaceSignature(settings = {}) {
+  const roots = Array.isArray(settings.workspaceRoots) ? settings.workspaceRoots : [];
+  const payload = {
+    roots: roots.map((root) => String(root || '').trim().toLowerCase()).filter(Boolean).sort(),
+    mcpServers: (Array.isArray(settings.mcpServers) ? settings.mcpServers : [])
+      .filter((server) => server?.enabled !== false && server?.command)
+      .map((server) => ({
+        name: String(server.name || server.id || ''),
+        command: String(server.command || ''),
+        args: Array.isArray(server.args) ? server.args.map(String) : [],
+      }))
+      .sort((a, b) => `${a.name}:${a.command}`.localeCompare(`${b.name}:${b.command}`)),
+  };
+  return crypto.createHash('sha256').update(canonicalStringify(payload)).digest('hex').slice(0, 16);
+}
+
+function buildCacheStabilityWarnings(previousProfile, currentProfile) {
+  if (!previousProfile || typeof previousProfile !== 'object') return [];
+  const warnings = [];
+  if (previousProfile.prefixFingerprint && previousProfile.prefixFingerprint !== currentProfile.prefixFingerprint) {
+    warnings.push('DeepSeek cache prefix 已变化：system prompt 或工具 schema 与上一轮不同，下一轮输入缓存可能明显下降。');
+  }
+  if (previousProfile.model && previousProfile.model !== currentProfile.model) {
+    warnings.push(`模型从 ${previousProfile.model} 切换到 ${currentProfile.model || 'unknown'}，服务端 prefix cache 通常不能跨模型复用。`);
+  }
+  if (previousProfile.workspaceSignature && previousProfile.workspaceSignature !== currentProfile.workspaceSignature) {
+    warnings.push('工作区或 MCP 配置发生变化，工具可用边界已改变，下一轮可能出现 cache miss。');
+  }
+  if (previousProfile.toolsHash && previousProfile.toolsHash !== currentProfile.toolsHash && !warnings.some((warning) => warning.includes('工具 schema'))) {
+    warnings.push('工具 schema 指纹发生变化，DeepSeek prefix cache 需要重新建立。');
+  }
+  return [...new Set(warnings)];
+}
+
+function buildTurnTailMetadata(intent = {}, settings = {}) {
+  const lines = [];
+  const missing = Array.isArray(intent.missingPrerequisites) ? intent.missingPrerequisites : [];
+  if (settings.activeSkill === 'agent_auto' && missing.length > 0) {
+    lines.push('DeepChat 本轮工具可用性提示：');
+    lines.push(`需要的能力：${(intent.candidateTools || []).join(', ') || intent.reason || 'unknown'}`);
+    lines.push(`缺少配置：${missing.join('、')}`);
+    lines.push('请直接告诉用户需要完成这些配置后才能使用对应工具，不要声称已经调用工具。');
+  }
+  return lines.join('\n');
+}
+
+function appendTurnTailMetadata(messages = [], metadata = '') {
+  const text = String(metadata || '').trim();
+  if (!text) return messages;
+  const next = messages.map((message) => ({ ...message }));
+  for (let i = next.length - 1; i >= 0; i--) {
+    if (next[i]?.role !== 'user') continue;
+    const note = `\n\n[DeepChat volatile turn metadata]\n${text}`;
+    if (typeof next[i].content === 'string') {
+      next[i] = { ...next[i], content: `${next[i].content}${note}` };
+    } else if (Array.isArray(next[i].content)) {
+      next[i] = {
+        ...next[i],
+        content: next[i].content.map((part, index) => (
+          index === 0 && part?.type === 'text'
+            ? { ...part, text: `${part.text || ''}${note}` }
+            : part
+        )),
+      };
+    }
+    return next;
+  }
+  return next;
+}
+
+function attachPrefixProfile(usage, prefix, settings = {}) {
+  usage.prefixFingerprint = prefix.prefixFingerprint;
+  usage.prefixBytes = prefix.prefixBytes;
+  usage.prefixTokens = prefix.prefixTokens;
+  usage.cacheStabilityWarnings = prefix.cacheStabilityWarnings || [];
+  usage.cacheProfile = {
+    ...(prefix.profile || {}),
+    model: String(settings.model || prefix.profile?.model || ''),
+    cacheHit: usage.cacheHit,
+    cacheMiss: usage.cacheMiss,
+    cacheHitRate: usage.cacheHitRate,
+    estimatedCostUsd: usage.cost?.estimatedCostUsd || 0,
+    estimatedSavingsUsd: usage.cost?.estimatedSavingsUsd || 0,
+  };
+  return usage;
 }
 
 function buildSystemPrompt(settings, intent = detectAgentIntent([], settings)) {
@@ -925,9 +1009,13 @@ function toolCallSignature(toolCall = {}) {
   return `${fn.name || 'unknown'}:${canonicalJson(fn.arguments || '{}')}`;
 }
 
+function canonicalStringify(value) {
+  return JSON.stringify(sortObject(value));
+}
+
 function canonicalJson(value) {
   try {
-    return JSON.stringify(sortObject(JSON.parse(value)));
+    return canonicalStringify(JSON.parse(value));
   } catch {
     return String(value || '');
   }

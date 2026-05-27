@@ -185,6 +185,7 @@ const ChatStartSchema = z.object({
   overrides: ComposerOverridesSchema.optional().default({}),
   contextSummary: z.string().max(12000).optional().default(''),
   contextSummaryMeta: z.record(z.string(), z.unknown()).optional(),
+  cacheProfile: z.record(z.string(), z.unknown()).nullable().optional(),
 }).strip().superRefine((value, ctx) => {
   const bytes = Buffer.byteLength(JSON.stringify(value), 'utf8');
   if (bytes > 8 * 1024 * 1024) {

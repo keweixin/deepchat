@@ -202,6 +202,78 @@ describe('electron chat service token usage and agent loop', () => {
     expect(seen[0].tools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'read_file', 'run_code']));
   });
 
+  it('keeps smart-agent scratch out of the cache-stable prefix and retained history', async () => {
+    const service = new ChatService(() => fakeWindow());
+    let sentMessages = [];
+    service.streamOnce = vi.fn(async (_requestId, messages) => {
+      sentMessages = messages;
+      return { content: 'ok', thinking: '', usage: normalizeTokenUsage(null, { input: 1, output: 1 }), toolCalls: [] };
+    });
+
+    await service.runWithSettings(
+      { requestId: 'req-scratch', messages: [{ role: 'user', content: '搜索今天新闻' }] },
+      baseSettings({ activeSkill: 'agent_auto', tavilyApiKey: 'tvly-test' }),
+      new AbortController(),
+    );
+
+    expect(sentMessages[0].role).toBe('system');
+    expect(sentMessages.slice(1).some((message) => message.role === 'system')).toBe(false);
+    expect(JSON.stringify(sentMessages)).not.toContain('本轮动态 Agent 规划元信息');
+  });
+
+  it('puts missing tool prerequisites at the current turn tail instead of before history', async () => {
+    const service = new ChatService(() => fakeWindow());
+    let sentMessages = [];
+    service.streamOnce = vi.fn(async (_requestId, messages) => {
+      sentMessages = messages;
+      return { content: 'ok', thinking: '', usage: normalizeTokenUsage(null, { input: 1, output: 1 }), toolCalls: [] };
+    });
+
+    await service.runWithSettings(
+      { requestId: 'req-missing-tail', messages: [{ role: 'user', content: '搜索今天新闻' }] },
+      baseSettings({ activeSkill: 'agent_auto', tavilyApiKey: '' }),
+      new AbortController(),
+    );
+
+    expect(sentMessages[0].role).toBe('system');
+    expect(sentMessages.slice(1).some((message) => message.role === 'system')).toBe(false);
+    expect(sentMessages.at(-1).role).toBe('user');
+    expect(sentMessages.at(-1).content).toContain('[DeepChat volatile turn metadata]');
+    expect(sentMessages.at(-1).content).toContain('缺少配置：Tavily API Key');
+  });
+
+  it('warns when a conversation cache prefix profile drifts between turns', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.streamOnce = vi.fn(async () => ({
+      content: 'ok',
+      thinking: '',
+      usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1, prompt_cache_hit_tokens: 8, prompt_cache_miss_tokens: 2 }, { model: 'deepseek-v4-flash' }),
+      toolCalls: [],
+    }));
+
+    await service.runWithSettings(
+      {
+        requestId: 'req-prefix-drift',
+        messages: [{ role: 'user', content: '继续' }],
+        cacheProfile: {
+          prefixFingerprint: 'old-prefix',
+          model: 'deepseek-chat',
+          workspaceSignature: 'old-workspace',
+          toolsHash: 'old-tools',
+        },
+      },
+      baseSettings({ activeSkill: 'agent_auto', tavilyApiKey: 'tvly-test', workspaceRoots: ['E:\\demo'] }),
+      new AbortController(),
+    );
+
+    const tokenCount = events.find((event) => event.type === 'tokenCount');
+    expect(tokenCount.cacheProfile.prefixFingerprint).toBeTruthy();
+    expect(tokenCount.cacheProfile.toolNames).toContain('web_search');
+    expect(tokenCount.warnings.join('\n')).toContain('prefix');
+    expect(events.some((event) => event.type === 'contextBudget' && event.cacheStabilityWarnings?.length > 0)).toBe(true);
+  });
+
   it('reuses a matching summary hash without calling the model again', async () => {
     const service = new ChatService(() => fakeWindow());
     service.summarizeContext = vi.fn(async () => 'new summary');
