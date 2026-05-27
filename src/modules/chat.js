@@ -41,6 +41,7 @@ import {
   buildToolRuns,
   createToolRecord,
   extractLocalCitations,
+  extractRunCodeResult,
   extractToolSources,
   extractWorkspaceSymbolResult,
   formatToolArgs,
@@ -967,6 +968,9 @@ export function renderToolCalls(container, toolCalls = [], options = {}) {
       const preview = createToolOutputPreview(tool.output, getToolName(tool));
       if (preview) block.appendChild(preview);
 
+      const runCard = createRunCodeExperimentCard(tool);
+      if (runCard) block.appendChild(runCard);
+
       const output = document.createElement('details');
       output.className = 'tool-call-output';
       const summary = document.createElement('summary');
@@ -1169,6 +1173,60 @@ function createToolOutputPreview(outputText, toolName = '') {
   }
 
   return preview;
+}
+
+function createRunCodeExperimentCard(tool = {}) {
+  if (getToolName(tool) !== 'run_code' || !tool.output) return null;
+  const result = tool.runResult || extractRunCodeResult(tool.output, 'run_code');
+  if (!result) return null;
+  const card = document.createElement('div');
+  card.className = `run-experiment-card${result.ok ? ' is-success' : ' is-failed'}`;
+
+  const header = document.createElement('div');
+  header.className = 'run-experiment-header';
+  const title = document.createElement('strong');
+  title.textContent = '代码实验';
+  const status = document.createElement('span');
+  status.className = 'run-experiment-status';
+  status.textContent = result.ok ? '成功' : (result.timedOut ? '超时' : '失败');
+  header.append(title, status);
+  card.appendChild(header);
+
+  const meta = document.createElement('div');
+  meta.className = 'run-experiment-meta';
+  meta.textContent = [
+    `语言 ${result.language || tool.args?.language || 'unknown'}`,
+    `退出码 ${result.exitCode ?? 'unknown'}`,
+    `耗时 ${result.durationMs}ms`,
+    `代码 ${result.codeLength} chars`,
+    result.stdinBytes ? `stdin ${result.stdinBytes} bytes` : '',
+  ].filter(Boolean).join(' · ');
+  card.appendChild(meta);
+
+  if (result.failureHint) {
+    const hint = document.createElement('div');
+    hint.className = 'run-experiment-hint';
+    hint.textContent = result.failureHint;
+    card.appendChild(hint);
+  }
+
+  const outputs = document.createElement('div');
+  outputs.className = 'run-experiment-outputs';
+  if (result.stdoutPreview) outputs.appendChild(createRunOutputBlock('STDOUT', result.stdoutPreview, result.stdoutBytes));
+  if (result.stderrPreview) outputs.appendChild(createRunOutputBlock('STDERR', result.stderrPreview, result.stderrBytes));
+  if (outputs.children.length) card.appendChild(outputs);
+  return card;
+}
+
+function createRunOutputBlock(label, text, bytes) {
+  const block = document.createElement('details');
+  block.className = 'run-output-block';
+  const summary = document.createElement('summary');
+  summary.textContent = `${label}${bytes ? ` · ${bytes} bytes` : ''}`;
+  const pre = document.createElement('pre');
+  pre.textContent = text;
+  block.append(summary, pre);
+  return block;
 }
 
 export function renderAgentTimeline(container, message = {}) {
@@ -1581,6 +1639,12 @@ function createToolEvidenceRunCard(run = {}) {
   }
   if (run.workspaceSymbol?.result) {
     appendEvidenceChips(card, '符号', [`${run.workspaceSymbol.symbol} ${run.workspaceSymbol.result.file}:${run.workspaceSymbol.result.startLine}-${run.workspaceSymbol.result.endLine}`]);
+  }
+  if (run.runResult) {
+    appendEvidenceChips(card, '实验', [
+      `${run.runResult.language || run.args?.language || 'unknown'} · exit ${run.runResult.exitCode ?? 'unknown'} · ${run.runResult.durationMs}ms`,
+      run.runResult.failureHint,
+    ]);
   }
   if (run.contextCompacted) {
     appendEvidenceChips(card, '上下文', [`已压缩 ${run.rawOutputTokens || 0}→${run.contextOutputTokens || 0} tokens`]);

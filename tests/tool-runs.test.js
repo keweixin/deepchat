@@ -6,6 +6,7 @@ import {
   buildToolRuns,
   createToolRecord,
   extractLocalCitations,
+  extractRunCodeResult,
   extractWorkspaceSymbolResult,
   extractWorkspaceSearchResults,
   getLocalFileGrounding,
@@ -222,6 +223,52 @@ describe('tool run state', () => {
     expect(evidence.sources[0].url).toBe('https://example.com');
     expect(evidence.outputPreview.length).toBeLessThanOrEqual(1200);
     expect(buildToolRuns([tool])[0].evidence).toMatchObject({ id: 'e1', name: 'web_search' });
+  });
+
+  it('extracts structured run_code experiment results for evidence panels', () => {
+    const output = [
+      '语言：javascript',
+      '退出码：1',
+      '耗时：42ms',
+      'Structured Run:',
+      JSON.stringify({
+        type: 'deepchat.runCodeResult',
+        version: 1,
+        language: 'javascript',
+        codeLength: 32,
+        stdinBytes: 0,
+        durationMs: 42,
+        exitCode: 1,
+        timedOut: false,
+        ok: false,
+        stdoutBytes: 6,
+        stderrBytes: 17,
+        stdoutPreview: 'before',
+        stderrPreview: 'ReferenceError: x',
+        failureHint: '变量或函数未定义：请检查上下文是否完整。',
+      }, null, 2),
+      '',
+      'STDOUT:',
+      'before',
+      '',
+      'STDERR:',
+      'ReferenceError: x',
+    ].join('\n');
+    const tool = createToolRecord({ toolCallId: 'run1', name: 'run_code', args: { language: 'javascript' } });
+    applyToolResult([tool], { toolCallId: 'run1', name: 'run_code', ok: false, output });
+
+    const runs = buildToolRuns([tool]);
+    const evidence = buildToolEvidencePayload(tool);
+
+    expect(extractRunCodeResult(output, 'run_code')).toMatchObject({
+      language: 'javascript',
+      exitCode: 1,
+      durationMs: 42,
+      ok: false,
+      failureHint: expect.stringContaining('变量或函数未定义'),
+    });
+    expect(runs[0].runResult.stderrPreview).toContain('ReferenceError');
+    expect(evidence.runResult).toMatchObject({ codeLength: 32, stdoutBytes: 6 });
   });
 
   it('stores compacted context output and token metadata from tool results', () => {

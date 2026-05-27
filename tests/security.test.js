@@ -87,6 +87,9 @@ describe('tool security boundaries', () => {
     }, { runCodeEnabled: true });
 
     expect(output).toContain('"secret":""');
+    expect(output).toContain('Structured Run:');
+    expect(output).toContain('"type": "deepchat.runCodeResult"');
+    expect(output).toContain('耗时：');
     expect(output).toContain('沙箱目录');
     expect(output).toContain('环境变量：仅传递');
   });

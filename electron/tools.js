@@ -1372,14 +1372,31 @@ async function runCode(args, settings = {}) {
     ? (process.env.DEEPCHAT_PYTHON_PATH || 'python')
     : (process.env.DEEPCHAT_NODE_PATH || process.execPath);
   const env = buildSandboxEnv(language, tempDir);
+  const startedAt = Date.now();
   const output = await spawnWithLimits(command, [filePath], String(args.stdin || ''), env, tempDir);
+  const durationMs = Date.now() - startedAt;
+  const structured = buildRunCodeStructuredResult({
+    language,
+    codeLength: code.length,
+    stdinBytes: Buffer.byteLength(String(args.stdin || ''), 'utf8'),
+    durationMs,
+    exitCode: output.exitCode,
+    timedOut: output.timedOut,
+    stdout: output.stdout,
+    stderr: output.stderr,
+  });
   await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
   return [
     `语言：${language}`,
     `退出码：${output.exitCode ?? 'unknown'}${output.timedOut ? '（超时终止）' : ''}`,
+    `耗时：${durationMs}ms`,
+    `代码长度：${code.length} chars`,
+    `stdin：${structured.stdinBytes} bytes`,
     `沙箱目录：${tempDir}`,
     '环境变量：仅传递 PATH/SystemRoot/TEMP/HOME 等最小集合，已移除 token/key/secret/password 类变量。',
     '网络：Windows 轻沙箱未做硬阻断，请只运行可信代码。',
+    'Structured Run:',
+    JSON.stringify(structured, null, 2),
     '',
     'STDOUT:',
     output.stdout || '(empty)',
@@ -1387,6 +1404,44 @@ async function runCode(args, settings = {}) {
     'STDERR:',
     output.stderr || '(empty)',
   ].join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+function buildRunCodeStructuredResult(result) {
+  const stdout = String(result.stdout || '');
+  const stderr = String(result.stderr || '');
+  return {
+    type: 'deepchat.runCodeResult',
+    version: 1,
+    language: result.language,
+    codeLength: result.codeLength || 0,
+    stdinBytes: result.stdinBytes || 0,
+    durationMs: result.durationMs || 0,
+    exitCode: result.exitCode ?? null,
+    timedOut: Boolean(result.timedOut),
+    ok: result.exitCode === 0 && !result.timedOut,
+    stdoutBytes: Buffer.byteLength(stdout, 'utf8'),
+    stderrBytes: Buffer.byteLength(stderr, 'utf8'),
+    stdoutPreview: compactHeadTailText(stdout, 1600, 800),
+    stderrPreview: compactHeadTailText(stderr, 1200, 600),
+    failureHint: buildRunFailureHint(result.exitCode, result.timedOut, stderr),
+  };
+}
+
+function compactHeadTailText(text, headLength, tailLength) {
+  const value = String(text || '');
+  if (value.length <= headLength + tailLength + 80) return value;
+  return `${value.slice(0, headLength)}\n\n[中间输出已省略]\n\n${value.slice(-tailLength)}`;
+}
+
+function buildRunFailureHint(exitCode, timedOut, stderr) {
+  if (timedOut) return '代码运行超时，可减少输入、拆分任务或检查是否存在死循环。';
+  if (exitCode === 0) return '';
+  const text = String(stderr || '');
+  if (/SyntaxError/i.test(text)) return '语法错误：请检查括号、引号、缩进或语言模式。';
+  if (/ModuleNotFoundError|Cannot find module/i.test(text)) return '依赖缺失：当前轻沙箱不会自动安装依赖。';
+  if (/NameError|ReferenceError/i.test(text)) return '变量或函数未定义：请检查上下文是否完整。';
+  if (/PermissionError|EACCES/i.test(text)) return '权限错误：轻沙箱目录隔离，无法访问未授权路径。';
+  return exitCode === null ? '运行进程启动失败，请检查本机运行时配置。' : '代码运行失败，请查看 stderr 首尾输出定位原因。';
 }
 
 function buildSandboxEnv(language, tempDir) {

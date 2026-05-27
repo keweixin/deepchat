@@ -82,6 +82,7 @@ export function buildToolRuns(toolCalls = []) {
     localCitations: extractLocalCitations(tool.output || '', getToolName(tool)),
     workspaceResults: extractWorkspaceSearchResults(tool.output || '', getToolName(tool)),
     workspaceSymbol: extractWorkspaceSymbolResult(tool.output || '', getToolName(tool)),
+    runResult: extractRunCodeResult(tool.output || '', getToolName(tool)),
     query: getToolQuery(tool),
     security: tool.security || null,
     parseError: tool.parseError || '',
@@ -100,6 +101,7 @@ export function buildToolEvidencePayload(tool = {}) {
   const localCitations = extractLocalCitations(outputText, getToolName(tool));
   const workspaceResults = tool.workspaceResults || extractWorkspaceSearchResults(outputText, getToolName(tool));
   const workspaceSymbol = tool.workspaceSymbol || extractWorkspaceSymbolResult(outputText, getToolName(tool));
+  const runResult = tool.runResult || extractRunCodeResult(outputText, getToolName(tool));
   const id = tool.id || '';
   return {
     type: 'deepchat.toolEvidence',
@@ -122,6 +124,7 @@ export function buildToolEvidencePayload(tool = {}) {
     localCitations,
     workspaceResults,
     workspaceSymbol,
+    runResult,
     outputPreview: outputText.slice(0, 1200),
     contextOutput: tool.contextOutput || '',
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
@@ -306,6 +309,28 @@ export function extractWorkspaceSymbolResult(outputText = '', toolName = '') {
     alternatives: Array.isArray(payload.alternatives)
       ? payload.alternatives.map(normalizeWorkspaceSymbolHit).filter(Boolean)
       : [],
+  };
+}
+
+export function extractRunCodeResult(outputText = '', toolName = '') {
+  if (toolName !== 'run_code') return null;
+  const payload = extractStructuredJsonAfterMarker(outputText, 'Structured Run:');
+  if (!payload || payload.type !== 'deepchat.runCodeResult') return null;
+  return {
+    type: payload.type,
+    version: normalizeNumber(payload.version) || 1,
+    language: String(payload.language || '').trim(),
+    codeLength: normalizeNumber(payload.codeLength),
+    stdinBytes: normalizeNumber(payload.stdinBytes),
+    durationMs: normalizeNumber(payload.durationMs),
+    exitCode: payload.exitCode === null || payload.exitCode === undefined ? null : normalizeNumber(payload.exitCode),
+    timedOut: Boolean(payload.timedOut),
+    ok: Boolean(payload.ok),
+    stdoutBytes: normalizeNumber(payload.stdoutBytes),
+    stderrBytes: normalizeNumber(payload.stderrBytes),
+    stdoutPreview: String(payload.stdoutPreview || ''),
+    stderrPreview: String(payload.stderrPreview || ''),
+    failureHint: String(payload.failureHint || ''),
   };
 }
 

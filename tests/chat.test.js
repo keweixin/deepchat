@@ -238,6 +238,24 @@ describe('chat regeneration', () => {
       completedAt: '2026-05-27T12:00:01.000Z',
       output: [
         '退出码：0',
+        '耗时：8ms',
+        'Structured Run:',
+        JSON.stringify({
+          type: 'deepchat.runCodeResult',
+          version: 1,
+          language: 'javascript',
+          codeLength: 24,
+          stdinBytes: 0,
+          durationMs: 8,
+          exitCode: 0,
+          timedOut: false,
+          ok: true,
+          stdoutBytes: 12,
+          stderrBytes: 0,
+          stdoutPreview: '测试完成',
+          stderrPreview: '',
+          failureHint: '',
+        }),
         'stdout:',
         '测试完成',
         '```js',
@@ -247,8 +265,10 @@ describe('chat regeneration', () => {
     }]);
 
     expect(container.textContent).toContain('输出摘要');
+    expect(container.textContent).toContain('代码实验');
+    expect(container.textContent).toContain('语言 javascript');
+    expect(container.textContent).toContain('STDOUT · 12 bytes');
     expect(container.textContent).toContain('退出码：0');
-    expect(container.textContent).toContain('[代码片段]');
 
     container.querySelector('.tool-copy-btn').click();
     await Promise.resolve();
@@ -262,6 +282,7 @@ describe('chat regeneration', () => {
       ok: true,
       durationMs: 1000,
       rawOutputRef: 'tool-output:tool-code',
+      runResult: { language: 'javascript', exitCode: 0, durationMs: 8 },
     });
     expect(payload.outputPreview).toContain('测试完成');
   });

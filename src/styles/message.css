@@ -924,6 +924,77 @@
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
+.run-experiment-card {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, #22c55e, transparent 68%);
+  border-radius: 9px;
+  background: color-mix(in srgb, #22c55e, transparent 94%);
+}
+
+.run-experiment-card.is-failed {
+  border-color: color-mix(in srgb, #ef4444, transparent 64%);
+  background: color-mix(in srgb, #ef4444, transparent 94%);
+}
+
+.run-experiment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.run-experiment-header strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+}
+
+.run-experiment-status {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.run-experiment-meta,
+.run-experiment-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.run-experiment-hint {
+  color: color-mix(in srgb, var(--text-primary), #ef4444 30%);
+}
+
+.run-experiment-outputs {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.run-output-block summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.run-output-block pre {
+  max-height: 180px;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  overflow: auto;
+  background: var(--surface-code);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+}
 .tool-call-output summary {
   cursor: pointer;
   color: var(--text-secondary);
