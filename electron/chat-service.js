@@ -25,6 +25,11 @@ const DEEPSEEK_PRICING = {
   'deepseek-reasoner': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
 };
 
+const MIMO_PRICING = {
+  'mimo-v2.5': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+  'mimo-v2.5-pro': { inputCacheHit: 0.0036, inputCacheMiss: 0.435, output: 0.87 },
+};
+
 const MODE_PROMPTS = {
   none: '',
   agent_auto:
@@ -1981,6 +1986,7 @@ function resolveAuxiliaryModel(settings = {}) {
   const model = String(settings.model || '').trim();
   const provider = String(settings.providerId || inferProviderIdFromBase(settings.apiBase)).toLowerCase();
   if (provider === 'deepseek' || /^deepseek-/i.test(model)) return 'deepseek-v4-flash';
+  if (provider === 'xiaomimimo' || /^mimo-/i.test(model)) return 'mimo-v2.5';
   return model;
 }
 
@@ -1994,6 +2000,8 @@ function inferProviderIdFromBase(apiBase = '') {
   if (base.startsWith('https://openrouter.ai/api/v1')) return 'openrouter';
   if (base.startsWith('https://api.siliconflow.cn/v1')) return 'siliconflow';
   if (base.startsWith('https://dashscope.aliyuncs.com/compatible-mode/v1')) return 'dashscope';
+  if (base.startsWith('https://token-plan-sgp.xiaomimimo.com')) return 'xiaomimimo';
+  if (base.startsWith('https://token-plan.xiaomimimo.com')) return 'xiaomimimo';
   if (base.startsWith('http://localhost:11434/v1')) return 'ollama';
   if (base.startsWith('http://localhost:1234/v1')) return 'lmstudio';
   return 'custom';
@@ -2373,6 +2381,9 @@ function pricingForModel(model) {
   if (DEEPSEEK_PRICING[id]) return DEEPSEEK_PRICING[id];
   if (/deepseek-v4-flash|deepseek-chat|deepseek-reasoner/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-flash'];
   if (/deepseek-v4-pro/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-pro'];
+  if (MIMO_PRICING[id]) return MIMO_PRICING[id];
+  if (/mimo-v2\.5-pro/i.test(id)) return MIMO_PRICING['mimo-v2.5-pro'];
+  if (/mimo-v2\.5/i.test(id)) return MIMO_PRICING['mimo-v2.5'];
   return null;
 }
 

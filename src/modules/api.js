@@ -209,6 +209,36 @@ export const PROVIDER_PRESETS = Object.freeze([
     models: [{ id: 'local-model', label: 'local' }],
   },
   {
+    id: 'xiaomimimo',
+    name: 'MiMo (Token Plan)',
+    apiBase: 'https://token-plan-sgp.xiaomimimo.com/v1',
+    defaultModel: 'mimo-v2.5',
+    authType: 'bearer',
+    supportsTools: true,
+    supportsVision: false,
+    supportsReasoning: true,
+    supportsPromptCacheUsage: true,
+    supportsStreamUsage: true,
+    models: [
+      {
+        id: 'mimo-v2.5',
+        label: 'MiMo v2.5',
+        tools: true,
+        reasoning: true,
+        promptCacheUsage: true,
+        streamUsage: true,
+      },
+      {
+        id: 'mimo-v2.5-pro',
+        label: 'MiMo v2.5 Pro',
+        tools: true,
+        reasoning: true,
+        promptCacheUsage: true,
+        streamUsage: true,
+      },
+    ],
+  },
+  {
     id: 'custom',
     name: '自定义',
     apiBase: '',
@@ -372,6 +402,11 @@ const DEEPSEEK_PRICING = {
   'deepseek-v4-pro': { inputCacheHit: 0.003625, inputCacheMiss: 0.435, output: 0.87 },
   'deepseek-chat': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
   'deepseek-reasoner': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+};
+
+const MIMO_PRICING = {
+  'mimo-v2.5': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
+  'mimo-v2.5-pro': { inputCacheHit: 0.0036, inputCacheMiss: 0.435, output: 0.87 },
 };
 
 export function getModelCapabilities(settings = getSettings()) {
@@ -1132,6 +1167,9 @@ function pricingForModel(model) {
   if (DEEPSEEK_PRICING[id]) return DEEPSEEK_PRICING[id];
   if (/deepseek-v4-flash|deepseek-chat|deepseek-reasoner/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-flash'];
   if (/deepseek-v4-pro/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-pro'];
+  if (MIMO_PRICING[id]) return MIMO_PRICING[id];
+  if (/mimo-v2\.5-pro/i.test(id)) return MIMO_PRICING['mimo-v2.5-pro'];
+  if (/mimo-v2\.5/i.test(id)) return MIMO_PRICING['mimo-v2.5'];
   return null;
 }
 
