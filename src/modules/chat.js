@@ -2103,6 +2103,26 @@ function appendToolCitationStatus(card, status) {
   box.textContent = `${status.label} · ${status.cited}/${status.total} 条证据`;
   box.title = '根据最终回答文本中是否出现 URL、文件名或 file:line 判断。';
   card.appendChild(box);
+  appendEvidenceRefBreakdown(card, status.refs);
+}
+
+function appendEvidenceRefBreakdown(card, refs = []) {
+  const visible = (Array.isArray(refs) ? refs : []).slice(0, 6);
+  if (!visible.length) return;
+  const group = document.createElement('div');
+  group.className = 'tool-evidence-ref-list';
+  const label = document.createElement('span');
+  label.className = 'tool-evidence-chip-label';
+  label.textContent = '引用明细';
+  group.appendChild(label);
+  for (const ref of visible) {
+    const item = document.createElement('span');
+    item.className = `tool-evidence-ref ${ref.cited ? 'is-cited' : 'is-missing'}`;
+    item.textContent = `${ref.cited ? '已引用' : '未引用'}: ${ref.label || ref.value || ref.file || ref.type}`;
+    item.title = ref.value || ref.file || ref.label || '';
+    group.appendChild(item);
+  }
+  card.appendChild(group);
 }
 
 function createCacheEvidenceCard(message = {}) {
@@ -2160,14 +2180,18 @@ function buildToolCitationStatus(run = {}, answerContent = '') {
   const refs = collectToolEvidenceRefs(run);
   if (!refs.length) return null;
   const content = String(answerContent || '');
-  const cited = refs.filter((ref) => isEvidenceRefMentioned(content, ref)).length;
-  const state = cited === refs.length ? 'is-cited' : (cited > 0 ? 'is-partial' : 'is-missing');
+  const checkedRefs = refs.map((ref) => ({
+    ...ref,
+    cited: isEvidenceRefMentioned(content, ref),
+  }));
+  const cited = checkedRefs.filter((ref) => ref.cited).length;
+  const state = cited === checkedRefs.length ? 'is-cited' : (cited > 0 ? 'is-partial' : 'is-missing');
   return {
     state,
     label: state === 'is-cited' ? '已被回答引用' : (state === 'is-partial' ? '部分证据已引用' : '未被回答引用'),
     cited,
-    total: refs.length,
-    refs: refs.slice(0, 8),
+    total: checkedRefs.length,
+    refs: checkedRefs.slice(0, 8),
   };
 }
 

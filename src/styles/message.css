@@ -1443,6 +1443,36 @@
   background: color-mix(in srgb, #38bdf8, transparent 92%);
 }
 
+.tool-evidence-ref-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.tool-evidence-ref {
+  max-width: 100%;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--border-primary), transparent 34%);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 16%);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-evidence-ref.is-cited {
+  border-color: color-mix(in srgb, #22c55e, transparent 66%);
+  background: color-mix(in srgb, #22c55e, transparent 94%);
+}
+
+.tool-evidence-ref.is-missing {
+  border-color: color-mix(in srgb, #f59e0b, transparent 62%);
+  background: color-mix(in srgb, #f59e0b, transparent 94%);
+}
+
 .tool-evidence-chip-group {
   display: flex;
   flex-wrap: wrap;

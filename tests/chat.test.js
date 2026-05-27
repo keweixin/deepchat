@@ -176,6 +176,8 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('本轮工具证据');
     expect(container.textContent).toContain('1 个工具');
     expect(container.textContent).toContain('未被回答引用');
+    expect(container.textContent).toContain('引用明细');
+    expect(container.textContent).toContain('未引用: src/agent.md:2-3');
     expect(container.textContent).toContain('本地文件证据未被明确引用');
     expect(container.textContent).toContain('src/agent.md:2-3');
   });
@@ -234,6 +236,8 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('Agent Notes');
     expect(container.textContent).toContain('buildContextBudgetBundle src/agent.md:2-3');
     expect(container.textContent).toContain('已被回答引用');
+    expect(container.textContent).toContain('已引用: Agent Notes');
+    expect(container.textContent).toContain('已引用: src/agent.md:2-3');
     expect(container.textContent).toContain('已压缩 900→120 tokens');
     expect(container.textContent).toContain('cache 60%');
     expect(container.textContent).toContain('prefix abc123');
@@ -251,6 +255,31 @@ describe('chat regeneration', () => {
     expect(payload.toolRuns[1].workspaceSymbol.result.file).toBe('src/agent.md');
     expect(payload.toolRuns[0].citationStatus).toMatchObject({ state: 'is-cited', cited: 1, total: 1 });
     expect(payload.toolRuns[1].citationStatus).toMatchObject({ state: 'is-cited', cited: 1, total: 1 });
+    expect(payload.toolRuns[0].citationStatus.refs[0]).toMatchObject({ cited: true });
+    expect(payload.toolRuns[1].citationStatus.refs[0]).toMatchObject({ cited: true });
+  });
+
+  it('shows per-source citation status for partially cited evidence', async () => {
+    const container = document.createElement('div');
+    const message = {
+      content: '最终回答只引用 https://example.com/used。',
+      toolRuns: [{
+        id: 'web1',
+        name: 'web_search',
+        status: 'completed',
+        ok: true,
+        sources: [
+          { title: 'Used Source', url: 'https://example.com/used' },
+          { title: 'Missed Source', url: 'https://example.com/missed' },
+        ],
+      }],
+    };
+
+    renderAssistantEvidence(container, message);
+
+    expect(container.textContent).toContain('部分证据已引用');
+    expect(container.textContent).toContain('已引用: Used Source');
+    expect(container.textContent).toContain('未引用: Missed Source');
   });
 
   it('renders local workspace citations in tool result cards', () => {
@@ -696,6 +725,7 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('read_file');
     expect(container.textContent).toContain('src/modules/chat.js:10-12');
     expect(container.textContent).toContain('已被回答引用');
+    expect(container.textContent).toContain('已引用: src/modules/chat.js:10-12');
     expect(container.textContent).toContain('Token / Cache');
     expect(container.textContent).toContain('hit 600');
 
@@ -706,6 +736,7 @@ describe('chat regeneration', () => {
     expect(payload.type).toBe('deepchat.messageEvidence');
     expect(payload.toolRuns[0].name).toBe('read_file');
     expect(payload.toolRuns[0].citationStatus).toMatchObject({ state: 'is-cited', cited: 1, total: 1 });
+    expect(payload.toolRuns[0].citationStatus.refs[0].cited).toBe(true);
     expect(payload.tokens.cacheHit).toBe(600);
   });
 
