@@ -212,6 +212,12 @@
 .message-content .answer-component-source {
   --component-color: #22c55e;
 }
+.message-content .answer-component-evidence {
+  --component-color: #06b6d4;
+}
+.message-content .answer-component-tradeoff {
+  --component-color: #a855f7;
+}
 .message-content .answer-component-next {
   --component-color: #f59e0b;
 }

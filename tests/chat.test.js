@@ -34,8 +34,8 @@ describe('chat regeneration', () => {
 
     expect(groups.rewrite.map((item) => item.action)).toEqual(['table', 'polish', 'code', 'todo', 'report']);
     expect(groups.rewrite.map((item) => item.label)).toEqual(['转表格', '精排', '转代码', 'TODO', '报告']);
-    expect(groups.export.map((item) => item.action)).toEqual(['markdown', 'html']);
-    expect(groups.export.map((item) => item.label)).toEqual(['Markdown', 'HTML']);
+    expect(groups.export.map((item) => item.action)).toEqual(['markdown', 'html', 'artifact']);
+    expect(groups.export.map((item) => item.label)).toEqual(['Markdown', 'HTML', 'Artifact']);
   });
 
   it('builds bounded follow-up prompts for answer action buttons', () => {

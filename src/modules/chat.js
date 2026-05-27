@@ -3365,6 +3365,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
           onClick: () => {
             if (item.action === 'markdown') exportAssistantMarkdown(content, msgIndex);
             if (item.action === 'html') exportAssistantHtml(msgEl, content, msgIndex);
+            if (item.action === 'artifact') exportAssistantArtifact(content, msgIndex);
           },
         }))
       )
@@ -3482,6 +3483,7 @@ export function buildAnswerActionMenuGroups() {
     export: [
       { action: 'markdown', label: 'Markdown', title: '导出这条回答为 Markdown' },
       { action: 'html', label: 'HTML', title: '导出这条回答为可离线查看的 HTML' },
+      { action: 'artifact', label: 'Artifact', title: '把这条回答保存为可下载的 Artifact' },
     ],
   };
 }
@@ -3676,6 +3678,22 @@ function exportAssistantHtml(msgEl, content, msgIndex) {
   });
   downloadTextFile(html, fileName, 'text/html;charset=utf-8');
   showToast('已导出当前回答 HTML');
+}
+
+function exportAssistantArtifact(content, msgIndex) {
+  const artifacts = extractArtifacts(content || '');
+  if (artifacts.length > 0) {
+    for (const [index, artifact] of artifacts.entries()) {
+      const fileName = buildArtifactDownloadName(artifact, index);
+      downloadTextFile(artifact.source || '', fileName, 'text/plain;charset=utf-8');
+    }
+    showToast(`已下载 ${artifacts.length} 个 Artifact`);
+  } else {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `deepchat-artifact-${msgIndex + 1}-${stamp}.md`;
+    downloadTextFile(content || '', fileName, 'text/markdown;charset=utf-8');
+    showToast('已保存当前回答为 Artifact');
+  }
 }
 
 export function buildAssistantHtmlExport(contentHtml = '', options = {}) {

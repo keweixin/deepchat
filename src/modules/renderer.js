@@ -78,6 +78,8 @@ const ANSWER_COMPONENT_TYPES = Object.freeze({
   steps: { label: '步骤', className: 'answer-component-steps' },
   decision: { label: '决策', className: 'answer-component-decision' },
   source: { label: '来源', className: 'answer-component-source' },
+  evidence: { label: '证据', className: 'answer-component-evidence' },
+  tradeoff: { label: '取舍', className: 'answer-component-tradeoff' },
   next: { label: '下一步', className: 'answer-component-next' },
   todo: { label: 'TODO', className: 'answer-component-todo' },
   'tool-result': { label: '工具结果', className: 'answer-component-tool-result' },
@@ -661,7 +663,7 @@ function extractAnswerComponents(markdown = '') {
   const components = [];
   const source = String(markdown || '');
   const output = source.replace(
-    /^:::(summary|warning|steps|decision|source|next|todo|tool-result)[ \t]*\n([\s\S]*?)^:::[ \t]*$/gim,
+    /^:::(summary|warning|steps|decision|source|evidence|tradeoff|next|todo|tool-result)[ \t]*\n([\s\S]*?)^:::[ \t]*$/gim,
     (_match, type, body) => {
       const normalizedType = String(type || '').toLowerCase();
       const config = ANSWER_COMPONENT_TYPES[normalizedType];
