@@ -14,6 +14,7 @@ const CODE_RUN_TIMEOUT_MS = 5000;
 const DIRECTIVE_TEXT_PATTERN = /```[\s\S]*?```/g;
 const TOOL_REPAIR_SCAN_LIMIT = 24000;
 const TOOL_REPAIR_MAX_CALLS = 4;
+const TOOL_ARG_REPAIR_LIMIT = 12000;
 
 const DEEPSEEK_PRICING = {
   'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
@@ -403,12 +404,16 @@ class ChatService {
     const parsedArgs = parseToolArgsDetailed(fn.arguments);
     const args = parsedArgs.args;
     this.emit(requestId, 'agentStage', { stage: 'tool_pending', round, maxRounds, toolName: fn.name });
+    if (parsedArgs.repaired) {
+      this.emit(requestId, 'agentStage', { stage: 'tool_repair', round, maxRounds, toolName: fn.name, warning: parsedArgs.warning });
+    }
     this.emit(requestId, 'toolRequest', {
       toolCallId: toolCall.id,
       name: fn.name,
       args,
       rawArguments: fn.arguments || '',
       parseError: parsedArgs.error,
+      parseRepair: parsedArgs.repaired ? parsedArgs.warning : '',
       risk: this.describeRisk(fn.name, args, settings),
       security: buildToolSecurity(fn.name, args, settings),
       expiresAt: new Date(Date.now() + resolveToolApprovalTimeout(settings)).toISOString(),
@@ -1414,15 +1419,65 @@ function parseToolArgs(raw) {
 }
 
 function parseToolArgsDetailed(raw) {
+  const text = String(raw || '{}');
   try {
-    const parsed = JSON.parse(raw || '{}');
+    const parsed = JSON.parse(text);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return { args: {}, error: '工具参数必须是 JSON object。' };
     }
     return { args: parsed, error: '' };
   } catch (error) {
+    const repaired = repairTruncatedJsonObject(text);
+    if (repaired) {
+      try {
+        const parsed = JSON.parse(repaired);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return {
+            args: parsed,
+            error: '',
+            repaired: true,
+            warning: '工具参数 JSON 看起来被截断，已自动补齐结尾引号/括号；请确认参数后再批准执行。',
+          };
+        }
+      } catch {
+        // Fall through to the original parse error.
+      }
+    }
     return { args: {}, error: error.message || 'JSON parse error' };
   }
+}
+
+function repairTruncatedJsonObject(raw) {
+  const text = String(raw || '').trim();
+  if (!text || text.length > TOOL_ARG_REPAIR_LIMIT || !text.startsWith('{')) return '';
+  if (/[,:\[]\s*$/.test(text)) return '';
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+    } else if (char === '{') {
+      stack.push('}');
+    } else if (char === '[') {
+      stack.push(']');
+    } else if (char === '}' || char === ']') {
+      if (stack.pop() !== char) return '';
+    }
+  }
+  if (escaped) return '';
+  let repaired = text;
+  if (inString) repaired += '"';
+  if (stack.length === 0 && !inString) return '';
+  for (let i = stack.length - 1; i >= 0; i--) repaired += stack[i];
+  return repaired;
 }
 
 function parseApiError(status, text) {

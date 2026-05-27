@@ -9,7 +9,7 @@ DeepChat 的定位不是大而全 Web 平台，也不是完整 IDE，而是一�
 - 多 Provider：DeepSeek、OpenAI、OpenRouter、硅基流动、DashScope、Ollama、LM Studio、自定义 OpenAI-compatible endpoint。
 - 智能 Agent：自动判断联网搜索、文件读取、代码运行、MCP 或普通聊天；所有工具调用都需要用户确认。
 - 可审计工具：工具请求、审批、拒绝、失败、输出摘要、安全提示和来源会写入消息记录。
-- 工具调用修复：模型把工具 JSON 写进正文或 reasoning text 时，会保守修复为正常工具调用，并继续走用户确认。
+- 工具调用修复：模型把工具 JSON 写进正文或 reasoning text 时，会保守修复为正常工具调用；截断参数 JSON 会在审批前尝试补齐。
 - 只读工具并发：同一轮里的搜索、列目录、工作区搜索和读文件可并行等待确认/执行，结果仍按模型声明顺序进入上下文。
 - Workspace Knowledge Lite：在授权工作区内搜索文本文件，返回 `file:line-line` 引用，适合先定位资料再精读文件。
 - DeepSeek cache-first：稳定 system prompt 和工具 schema 前缀，记录 prefix hash、cache hit/miss、命中率、估算成本和节省金额。

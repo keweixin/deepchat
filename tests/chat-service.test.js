@@ -441,6 +441,25 @@ describe('electron chat service token usage and agent loop', () => {
     expect(toolResult.ok).toBe(false);
   });
 
+  it('repairs clearly truncated tool argument JSON before approval', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.waitForApproval = vi.fn(async () => ({ approved: false }));
+    const result = await service.handleToolCall(
+      'req-arg-repair',
+      { id: 'tool-repair-args', function: { name: 'web_search', arguments: '{"query":"DeepSeek cache hit' } },
+      baseSettings({ tavilyApiKey: 'tvly-test' }),
+      new AbortController().signal,
+    );
+
+    const toolRequest = events.find((event) => event.type === 'toolRequest');
+    expect(toolRequest.parseError).toBe('');
+    expect(toolRequest.parseRepair).toContain('已自动补齐');
+    expect(toolRequest.args).toEqual({ query: 'DeepSeek cache hit' });
+    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'tool_repair')).toBe(true);
+    expect(result).toContain('用户拒绝执行工具');
+  });
+
   it('auto-denies pending tool approval after the configured timeout', async () => {
     vi.useFakeTimers();
     const events = [];
