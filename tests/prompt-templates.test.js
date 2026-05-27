@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyPromptTemplate,
   getPromptTemplateEntries,
+  getPromptTemplateRecommendedModeId,
 } from '../src/modules/prompt-templates.js';
 
 describe('prompt templates', () => {
@@ -30,8 +31,12 @@ describe('prompt templates', () => {
     expect(entries.find((entry) => entry.id === 'agent-execute').text).toContain(':::tool-result');
     expect(entries.find((entry) => entry.id === 'agent-execute')).toMatchObject({
       mode: 'Agent',
+      recommendedModeId: 'agent',
       intent: expect.stringContaining('Plan/Execute/Evidence/Final'),
     });
+    expect(entries.find((entry) => entry.id === 'project-audit').recommendedModeId).toBe('project');
+    expect(entries.find((entry) => entry.id === 'research-topic').recommendedModeId).toBe('research');
+    expect(entries.find((entry) => entry.id === 'file-review').recommendedModeId).toBe('code');
     expect(entries.find((entry) => entry.id === 'research-topic').text).toContain('@web');
     expect(entries.find((entry) => entry.id === 'research-topic').text).toContain('官方文档');
     expect(entries.find((entry) => entry.id === 'file-review').text).toContain(':::decision');
@@ -44,5 +49,13 @@ describe('prompt templates', () => {
     expect(applyPromptTemplate('', '  请分析当前项目  ')).toBe('请分析当前项目');
     expect(applyPromptTemplate('已有内容\n', '模板内容')).toBe('已有内容\n\n模板内容');
     expect(applyPromptTemplate('已有内容', '')).toBe('已有内容');
+  });
+
+  it('maps template display modes to composer mode ids', () => {
+    expect(getPromptTemplateRecommendedModeId({ mode: '项目' })).toBe('project');
+    expect(getPromptTemplateRecommendedModeId({ mode: 'Agent' })).toBe('agent');
+    expect(getPromptTemplateRecommendedModeId({ mode: '研究' })).toBe('research');
+    expect(getPromptTemplateRecommendedModeId({ mode: '代码' })).toBe('code');
+    expect(getPromptTemplateRecommendedModeId({ mode: 'unknown' })).toBe('daily');
   });
 });

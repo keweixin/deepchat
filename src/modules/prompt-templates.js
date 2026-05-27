@@ -116,8 +116,22 @@ export const PROMPT_TEMPLATES = Object.freeze([
   },
 ]);
 
+const TEMPLATE_MODE_TO_COMPOSER_MODE = Object.freeze({
+  日常: 'daily',
+  深析: 'analysis',
+  项目: 'project',
+  Agent: 'agent',
+  研究: 'research',
+  代码: 'code',
+  写作: 'writing',
+  美化: 'polish',
+});
+
 export function getPromptTemplateEntries() {
-  return PROMPT_TEMPLATES.map((template) => ({ ...template }));
+  return PROMPT_TEMPLATES.map((template) => ({
+    ...template,
+    recommendedModeId: getPromptTemplateRecommendedModeId(template),
+  }));
 }
 
 export function applyPromptTemplate(currentValue = '', templateText = '') {
@@ -125,4 +139,9 @@ export function applyPromptTemplate(currentValue = '', templateText = '') {
   const text = String(templateText || '').trim();
   if (!text) return current;
   return current.trim() ? `${current.trimEnd()}\n\n${text}` : text;
+}
+
+export function getPromptTemplateRecommendedModeId(template = {}) {
+  const mode = String(template.mode || '').trim();
+  return TEMPLATE_MODE_TO_COMPOSER_MODE[mode] || 'daily';
 }

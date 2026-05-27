@@ -511,7 +511,17 @@ function initComposerOptions(openSettings) {
   }
 
   if ($templateBtn) {
-    $templateBtn.addEventListener('click', () => togglePromptTemplateMenu($templateBtn));
+    $templateBtn.addEventListener('click', () => togglePromptTemplateMenu($templateBtn, (template) => {
+      const modeId = getComposerMode(template.recommendedModeId || 'daily').id;
+      const settings = getSettings();
+      composerModeId = modeId;
+      composerOverrides = {
+        ...composerOverrides,
+        ...getComposerModeOverrides(composerModeId, settings),
+      };
+      applySettingsToComposer(settings);
+      showToast(`已套用模板：${template.title} · ${getComposerMode(composerModeId).label}模式`, 1600);
+    }));
   }
 
   if ($advancedToggle && $toolbar) {
@@ -586,7 +596,7 @@ let exportMenu = null;
 let composerToolMenu = null;
 let contextShortcutMenu = null;
 
-function togglePromptTemplateMenu(anchor) {
+function togglePromptTemplateMenu(anchor, onApplyTemplate) {
   if (promptTemplateMenu) {
     promptTemplateMenu.remove();
     promptTemplateMenu = null;
@@ -622,6 +632,7 @@ function togglePromptTemplateMenu(anchor) {
       autoResize(input);
       document.getElementById('send-btn').disabled = false;
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      onApplyTemplate?.(template);
       promptTemplateMenu?.remove();
       promptTemplateMenu = null;
       input.focus();
