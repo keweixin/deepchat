@@ -13,7 +13,7 @@
  * - Adaptive render throttling
  */
 
-import { approveToolRequest, streamChat, getSettings, runTool } from './api.js';
+import { approveToolRequest, streamChat, getSettings, runTool, normalizeTokenUsage, getConversationUsageSummary } from './api.js';
 import { loadConversations, saveConversations } from './client-store.js';
 import {
   SIDEBAR_FILTERS,
@@ -327,6 +327,8 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     tokens: null,
     versions: inheritVersions || [],
     toolRuns: [],
+    agentStages: [],
+    contextBudget: null,
     composerOverrides,
   };
   const msgEl = appendMessageDOM(assistantMsg, true);
@@ -334,6 +336,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
   const contentEl = msgEl.querySelector('.message-content');
   const thinkingContent = msgEl.querySelector('.thinking-content');
   const toolContainer = msgEl.querySelector('.tool-calls-container');
+  const agentContainer = msgEl.querySelector('.agent-timeline-container');
   smartScroll();
 
   let fullContent = '';
@@ -393,6 +396,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
 
   await streamChat(apiMessages, {
     signal: abortController.signal,
+    contextSummary: conv.contextSummary || '',
     onToken(token) {
       if (streamStartTime === 0) streamStartTime = Date.now();
       tokenCount++;
@@ -431,6 +435,22 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       syncToolRuns(assistantMsg);
       renderToolCalls(toolContainer, assistantMsg.toolCalls);
     },
+    onAgentStage(event) {
+      assistantMsg.agentStages.push({
+        ...event,
+        at: new Date().toISOString(),
+      });
+      renderAgentTimeline(agentContainer, assistantMsg);
+    },
+    onContextBudget(event) {
+      assistantMsg.contextBudget = event;
+      renderAgentTimeline(agentContainer, assistantMsg);
+    },
+    onContextSummary(event) {
+      conv.contextSummary = event.summary || conv.contextSummary || '';
+      conv.contextSummaryUpdatedAt = event.updatedAt || new Date().toISOString();
+      renderAgentTimeline(agentContainer, assistantMsg);
+    },
     async onDone(doneEvent = {}) {
       clearTimeout(renderTimer);
       
@@ -455,9 +475,12 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.stopped = Boolean(doneEvent.aborted);
       assistantMsg.speed = finalSpeed;
       assistantMsg.sourceWarning = hasUncitedSearchSource(assistantMsg, fullContent);
+      if (assistantMsg.agentStages?.length) renderAgentTimeline(agentContainer, assistantMsg);
       conv.messages.push(assistantMsg);
+      conv.usageTotals = getConversationUsageSummary(conv);
       msgEl.dataset.messageIndex = String(conv.messages.length - 1);
       persist();
+      updateHeader();
 
       addMessageActions(msgEl, fullContent, assistantMsg.tokens, finalSpeed, conv.messages.length - 1);
       if (assistantMsg.stopped) renderStoppedNotice(msgEl.querySelector('.message-body'), conv.messages.length - 1);
@@ -492,8 +515,10 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.error = err.message;
       syncToolRuns(assistantMsg);
       conv.messages.push(assistantMsg);
+      conv.usageTotals = getConversationUsageSummary(conv);
       msgEl.dataset.messageIndex = String(conv.messages.length - 1);
       persist();
+      updateHeader();
       const renderRetry = () => {
         // Retry: remove failed message and re-stream
         conv.messages.pop();
@@ -603,6 +628,7 @@ function renderMessages() {
         }
       }
       renderToolCalls(el.querySelector('.tool-calls-container'), msg.toolCalls || []);
+      renderAgentTimeline(el.querySelector('.agent-timeline-container'), msg);
       renderAssistantEvidence(el.querySelector('.message-body'), msg);
     }
   });
@@ -646,6 +672,7 @@ function appendMessageDOM(msg, streaming = false) {
         <span class="message-time" title="${fullTime}">${time}</span>
       </div>
       ${thinkingHtml}
+      <div class="agent-timeline-container" hidden></div>
       <div class="tool-calls-container" hidden></div>
       <div class="message-content">${contentHtml}</div>
     </div>
@@ -823,6 +850,87 @@ function createToolOutputPreview(outputText) {
   }
 
   return preview;
+}
+
+export function renderAgentTimeline(container, message = {}) {
+  if (!container) return;
+  container.innerHTML = '';
+  const stages = Array.isArray(message.agentStages) ? message.agentStages : [];
+  const contextBudget = message.contextBudget;
+  if (stages.length === 0 && !contextBudget) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  const panel = document.createElement('div');
+  panel.className = 'agent-timeline';
+  const header = document.createElement('div');
+  header.className = 'agent-timeline-header';
+  const latest = stages[stages.length - 1];
+  header.textContent = latest ? `Agent：${formatAgentStageLabel(latest)}` : 'Agent 过程';
+  panel.appendChild(header);
+
+  if (contextBudget) {
+    const budget = document.createElement('div');
+    budget.className = `agent-budget${contextBudget.trimmed ? ' is-trimmed' : ''}`;
+    const parts = [
+      `输入预算 ${contextBudget.maxInputTokens || 0}`,
+      `预计 ${contextBudget.estimatedInputTokens || 0}`,
+      contextBudget.trimmed ? `裁剪 ${contextBudget.droppedCount || 0} 条` : '未裁剪',
+      contextBudget.summaryUsed ? '已用摘要' : '',
+    ].filter(Boolean);
+    budget.textContent = parts.join(' · ');
+    panel.appendChild(budget);
+  }
+
+  const list = document.createElement('ol');
+  list.className = 'agent-stage-list';
+  for (const stage of collapseAgentStages(stages)) {
+    const item = document.createElement('li');
+    item.className = `agent-stage stage-${String(stage.stage || 'unknown').replace(/[^a-z0-9_-]/gi, '-')}`;
+    const title = document.createElement('span');
+    title.className = 'agent-stage-title';
+    title.textContent = formatAgentStageLabel(stage);
+    const meta = document.createElement('span');
+    meta.className = 'agent-stage-meta';
+    meta.textContent = [
+      stage.round ? `第 ${stage.round} 轮` : '',
+      stage.toolName || '',
+      stage.warning || stage.stopReason || '',
+    ].filter(Boolean).join(' · ');
+    item.append(title);
+    if (meta.textContent) item.appendChild(meta);
+    list.appendChild(item);
+  }
+  panel.appendChild(list);
+  container.appendChild(panel);
+}
+
+function collapseAgentStages(stages) {
+  return stages.slice(-12);
+}
+
+function formatAgentStageLabel(stage = {}) {
+  const labels = {
+    plan: '规划工具',
+    summary: '压缩记忆',
+    warning: '配置提示',
+    model: '模型思考',
+    tool: '准备工具',
+    tool_pending: '等待确认',
+    tool_approved: '已确认工具',
+    tool_denied: '工具被拒绝',
+    tool_result: '已获得结果',
+    tool_failed: '工具失败',
+    final: '整理回答',
+    stop: '已停止',
+  };
+  if (stage.stage === 'plan' && stage.intent?.toolMode) {
+    const mode = stage.intent.toolMode === 'none' ? '普通回答' : stage.intent.toolMode;
+    return `规划工具：${mode}`;
+  }
+  return labels[stage.stage] || String(stage.stage || 'Agent');
 }
 
 function syncToolRuns(message) {
@@ -1120,16 +1228,38 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
     badge.className = 'token-badge';
     const parts = [];
     if (tokens) {
-      const total = (tokens.input || 0) + (tokens.output || 0);
-      parts.push(`≈${total} tokens`);
+      const usage = normalizeTokenUsage(tokens);
+      const prefix = usage.source === 'provider' ? '实测' : (usage.source === 'mixed' ? '混合' : '估算');
+      parts.push(`${prefix} ${usage.total} tokens`);
+      if (usage.cacheHit > 0) parts.push(`命中 ${Math.round(usage.cacheHitRate * 100)}%`);
+      if (usage.rounds > 1) parts.push(`${usage.rounds} 轮`);
     }
     if (speed) parts.push(`${speed} tok/s`);
     badge.textContent = parts.join(' · ');
-    if (tokens) badge.title = `输入: ≈${tokens.input || '?'} | 输出: ≈${tokens.output || '?'}`;
+    if (tokens) badge.title = formatTokenUsageTitle(tokens);
     actions.appendChild(badge);
   }
 
   msgEl.querySelector('.message-body').appendChild(actions);
+}
+
+function formatTokenUsageTitle(tokens) {
+  const usage = normalizeTokenUsage(tokens);
+  const lines = [
+    `输入: ${usage.input}`,
+    `输出: ${usage.output}`,
+    `总计: ${usage.total}`,
+    `统计来源: ${usage.source === 'provider' ? '服务商真实 usage' : (usage.source === 'mixed' ? '真实和估算混合' : '本地估算')}`,
+  ];
+  if (usage.reasoning > 0) lines.push(`思考: ${usage.reasoning}`);
+  if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
+    lines.push(`缓存命中: ${usage.cacheHit}`);
+    lines.push(`缓存未命中: ${usage.cacheMiss}`);
+    lines.push(`命中率: ${Math.round(usage.cacheHitRate * 100)}%`);
+  }
+  if (usage.rounds > 1) lines.push(`Agent 轮次: ${usage.rounds}`);
+  if (usage.warnings?.length) lines.push(`提示: ${usage.warnings.join('；')}`);
+  return lines.join('\n');
 }
 
 function switchVersion(msgIndex, direction) {
@@ -1711,7 +1841,14 @@ function updateHeader() {
   const conv = getActiveConversation();
   const settings = getSettings();
   $chatTitle.textContent = conv ? conv.title : '新的对话';
-  $modelName.textContent = settings.model;
+  const usage = conv ? getConversationUsageSummary(conv) : null;
+  const usageText = usage && usage.total > 0
+    ? ` · 本会话 ${usage.total} tokens${usage.cacheHit > 0 ? ` · 命中 ${Math.round(usage.cacheHitRate * 100)}%` : ''}`
+    : '';
+  $modelName.textContent = `${settings.model}${usageText}`;
+  $modelName.title = usage && usage.total > 0
+    ? `输入 ${usage.input} · 输出 ${usage.output} · 思考 ${usage.reasoning} · 缓存命中 ${usage.cacheHit}`
+    : settings.model;
 }
 
 export function updateModelDisplay(model) {

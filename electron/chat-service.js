@@ -2,10 +2,14 @@ const { getSettings } = require('./storage');
 const { getToolDefinitions, describeToolRisk, executeTool } = require('./tools');
 const { McpManager, isMcpToolName } = require('./mcp-manager');
 
-const MAX_TOOL_ROUNDS = 3;
+const DEFAULT_AGENT_MAX_ROUNDS = 3;
+const DEFAULT_MAX_INPUT_TOKENS = 24000;
+const MAX_TOOL_CONTEXT_TOKENS = 3500;
+const SUMMARY_TRIGGER_RATIO = 0.8;
 
 const MODE_PROMPTS = {
   none: '',
+  agent_auto: '\n\n当前启用了智能 Agent 模式。先判断用户请求是否需要外部工具：需要最新事实时用联网搜索，需要本地资料时用文件工具，需要验证代码或计算时用代码工具，需要外部系统时用 MCP。工具调用前必须等待用户确认；缺少配置时说明需要配置什么，不要假装已经执行。',
   web_search: '\n\n当前启用了联网检索工具。需要最新信息、事实核验、价格、版本、新闻或外部资料时，优先调用 web_search，并在最终回答中给出来源链接。',
   file_reader: '\n\n当前启用了文件分析工具。需要查看本地项目或资料时，先调用 list_files/read_file；只能基于工具返回内容分析，不要声称读取了未返回的文件。',
   code_runner: '\n\n当前启用了代码运行工具。需要验证小段 JavaScript/Python 代码时，调用 run_code；运行前用户会确认。不要声称执行了未执行的代码。',
@@ -60,33 +64,102 @@ class ChatService {
   async run(request, abortController) {
     const requestId = request.requestId;
     const settings = applyRequestOverrides(await getSettings(), request.overrides || {});
+    return this.runWithSettings(request, settings, abortController);
+  }
+
+  async runWithSettings(request, settings, abortController) {
+    const requestId = request.requestId;
     const messages = sanitizeMessages(request.messages || []);
-    const apiMessages = trimContext(messages, settings.maxContextMessages);
-    const tools = await this.getAvailableTools(settings);
+    const intent = detectAgentIntent(messages, settings);
+    const tools = await this.getAvailableTools(settings, intent);
+    const systemPrompt = buildSystemPrompt(settings, intent);
+    const prefixTokens = estimateMessagesTokens([{ role: 'system', content: systemPrompt }]) + estimateTokens(JSON.stringify(tools)) + 16;
+    let contextBundle = buildContextBudgetBundle(messages, {
+      maxMessages: settings.maxContextMessages,
+      maxInputTokens: settings.maxInputTokens,
+      prefixTokens,
+    });
+    const apiMessages = [...contextBundle.messages];
+    const maxToolRounds = resolveAgentMaxRounds(settings);
+    const usageRounds = [];
+    const warnings = [];
 
     let workingMessages = [
-      { role: 'system', content: buildSystemPrompt(settings) },
-      ...apiMessages,
+      { role: 'system', content: systemPrompt },
     ];
 
-    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+    this.emit(requestId, 'agentStage', {
+      stage: 'plan',
+      round: 0,
+      maxRounds: maxToolRounds,
+      intent,
+      selectedTools: intent.selectedTools,
+      missingPrerequisites: intent.missingPrerequisites,
+    });
+    if (intent.missingPrerequisites.length > 0) {
+      const warning = `智能 Agent 判断本轮可能需要 ${intent.selectedTools.join(', ') || intent.toolMode}，但缺少配置：${intent.missingPrerequisites.join('、')}。`;
+      warnings.push(warning);
+      this.emit(requestId, 'agentStage', { stage: 'warning', round: 0, maxRounds: maxToolRounds, warning });
+      workingMessages.push({
+        role: 'system',
+        content: `${warning}\n请直接告诉用户需要完成这些配置后才能使用对应工具，不要声称已经调用工具。`,
+      });
+    }
+
+    if (settings.autoContextSummary !== false) {
+      const summaryResult = await this.maybeBuildContextSummary(request, settings, contextBundle, prefixTokens, abortController.signal);
+      if (summaryResult?.summary) {
+        workingMessages.push({
+          role: 'system',
+          content: `以下是本对话较早内容的压缩记忆，仅用于保持任务连续性：\n${summaryResult.summary}`,
+        });
+        usageRounds.push(summaryResult.usage);
+        contextBundle = {
+          ...contextBundle,
+          meta: {
+            ...contextBundle.meta,
+            summaryUsed: true,
+            summaryGenerated: summaryResult.generated,
+          },
+        };
+        this.emit(requestId, 'contextSummary', {
+          summary: summaryResult.summary,
+          generated: summaryResult.generated,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    workingMessages.push(...apiMessages);
+    this.emit(requestId, 'contextBudget', contextBundle.meta);
+
+    for (let round = 0; round <= maxToolRounds; round++) {
+      this.emit(requestId, 'agentStage', { stage: 'model', round: round + 1, maxRounds: maxToolRounds });
       const result = await this.streamOnce(requestId, workingMessages, settings, tools, abortController.signal);
+      if (Array.isArray(result.warnings)) warnings.push(...result.warnings);
+      usageRounds.push(normalizeTokenUsage(result.usage, {
+        input: estimateMessagesTokens(workingMessages),
+        output: estimateTokens(result.content),
+      }));
       if (abortController.signal.aborted) {
         this.emit(requestId, 'done', { aborted: true });
         return;
       }
 
       if (!result.toolCalls.length) {
-        this.emit(requestId, 'tokenCount', {
-          input: estimateMessagesTokens(workingMessages),
-          output: estimateTokens(result.content),
-        });
+        this.emit(requestId, 'agentStage', { stage: 'final', round: round + 1, maxRounds: maxToolRounds, stopReason: 'final' });
+        const usage = mergeTokenUsage(usageRounds, { warnings });
+        this.emit(requestId, 'tokenCount', usage);
         this.emit(requestId, 'done', { aborted: false });
         return;
       }
 
-      if (round >= MAX_TOOL_ROUNDS) {
-        throw new Error(`工具调用超过 ${MAX_TOOL_ROUNDS} 轮，已停止。`);
+      if (round >= maxToolRounds) {
+        const stopReason = `工具调用超过 ${maxToolRounds} 轮，已停止。`;
+        this.emit(requestId, 'agentStage', { stage: 'stop', round: round + 1, maxRounds: maxToolRounds, stopReason });
+        const usage = mergeTokenUsage(usageRounds, { warnings });
+        this.emit(requestId, 'tokenCount', usage);
+        throw new Error(stopReason);
       }
 
       workingMessages.push({
@@ -96,55 +169,107 @@ class ChatService {
       });
 
       for (const toolCall of result.toolCalls) {
-        const output = await this.handleToolCall(requestId, toolCall, settings, abortController.signal);
+        this.emit(requestId, 'agentStage', { stage: 'tool', round: round + 1, maxRounds: maxToolRounds });
+        const output = await this.handleToolCall(requestId, toolCall, settings, abortController.signal, round + 1, maxToolRounds);
         workingMessages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
-          content: output,
+          content: compactToolOutputForContext(toolCall.function?.name, parseToolArgs(toolCall.function?.arguments), output),
         });
       }
     }
   }
 
-  async streamOnce(requestId, messages, settings, tools, signal) {
+  async maybeBuildContextSummary(request, settings, contextBundle, prefixTokens, signal) {
+    const existingSummary = String(request.contextSummary || '').trim();
+    const droppedMessages = contextBundle.meta.droppedMessages || [];
+    const summarySourceMessages = droppedMessages.length > 0
+      ? droppedMessages
+      : contextBundle.messages.slice(0, Math.max(0, contextBundle.messages.length - 1));
+    const shouldSummarize = droppedMessages.length > 0 || contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO;
+    if (!shouldSummarize) return existingSummary ? { summary: existingSummary, generated: false } : null;
+    if (summarySourceMessages.length === 0) return existingSummary ? { summary: existingSummary, generated: false } : null;
+
+    this.emit(request.requestId, 'agentStage', { stage: 'summary', round: 0, maxRounds: resolveAgentMaxRounds(settings) });
+    try {
+      const summary = await this.summarizeContext(settings, existingSummary, summarySourceMessages, signal);
+      const input = estimateMessagesTokens([
+        { role: 'system', content: 'Summarize conversation context.' },
+        { role: 'user', content: `${existingSummary}\n${formatMessagesForSummary(summarySourceMessages)}` },
+      ]) + prefixTokens;
+      return {
+        summary,
+        generated: true,
+        usage: normalizeTokenUsage(null, { input, output: estimateTokens(summary) }),
+      };
+    } catch {
+      if (existingSummary) return { summary: existingSummary, generated: false };
+      return null;
+    }
+  }
+
+  async summarizeContext(settings, existingSummary, droppedMessages, signal) {
+    const prompt = [
+      '请把下面较早的对话压缩成 DeepChat 后续回答可用的短记忆。',
+      '保留用户目标、关键约束、已确认事实、文件/工具结果、未完成事项。',
+      '不要添加新事实。控制在 220 个中文字以内。',
+      existingSummary ? `已有记忆：\n${existingSummary}` : '',
+      '较早对话：',
+      formatMessagesForSummary(droppedMessages),
+    ].filter(Boolean).join('\n\n');
     const body = {
       model: settings.model,
-      messages,
-      stream: true,
-      temperature: settings.temperature,
-      max_tokens: settings.maxTokens,
+      messages: [
+        { role: 'system', content: '你负责压缩对话记忆，只输出摘要正文。' },
+        { role: 'user', content: prompt },
+      ],
+      stream: false,
+      temperature: 0.2,
+      max_tokens: 500,
     };
-
-    const modelLower = String(settings.model || '').toLowerCase();
-    if (modelLower.includes('reasoner') || modelLower.includes('o1') || modelLower.includes('r1')) {
-      body.thinking = { type: 'enabled' };
-      if (settings.thinkingBudget > 0) body.thinking.budget_tokens = settings.thinkingBudget;
-    } else if (settings.thinkingBudget > 0) {
-      body.thinking = { type: 'enabled', budget_tokens: settings.thinkingBudget };
-    }
-
-    if (tools.length > 0) {
-      body.tools = tools;
-      body.tool_choice = 'auto';
-    }
-
     const response = await fetch(`${normalizeBaseUrl(settings.apiBase)}/chat/completions`, {
       method: 'POST',
       headers: buildHeaders(settings.apiKey),
       body: JSON.stringify(body),
       signal,
     });
+    if (!response.ok) throw new Error('summary failed');
+    const json = await response.json();
+    const content = json.choices?.[0]?.message?.content || '';
+    return String(content).trim().slice(0, 1200);
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      throw new Error(parseApiError(response.status, errorText));
+  async streamOnce(requestId, messages, settings, tools, signal) {
+    const baseBody = {
+      model: settings.model,
+      messages,
+      stream: true,
+      stream_options: { include_usage: true },
+      temperature: settings.temperature,
+      max_tokens: settings.maxTokens,
+    };
+
+    const modelLower = String(settings.model || '').toLowerCase();
+    if (modelLower.includes('reasoner') || modelLower.includes('o1') || modelLower.includes('r1')) {
+      baseBody.thinking = { type: 'enabled' };
+      if (settings.thinkingBudget > 0) baseBody.thinking.budget_tokens = settings.thinkingBudget;
+    } else if (settings.thinkingBudget > 0) {
+      baseBody.thinking = { type: 'enabled', budget_tokens: settings.thinkingBudget };
     }
+
+    if (tools.length > 0) {
+      baseBody.tools = tools;
+      baseBody.tool_choice = 'auto';
+    }
+
+    const { response, warnings } = await fetchChatCompletionWithFallback(settings, baseBody, signal);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let content = '';
     let thinking = '';
+    let usage = null;
     const toolCalls = [];
 
     while (true) {
@@ -158,10 +283,11 @@ class ChatService {
         const trimmed = line.trim();
         if (!trimmed || !trimmed.startsWith('data:')) continue;
         const data = trimmed.slice(5).trim();
-        if (data === '[DONE]') return { content, thinking, toolCalls: compactToolCalls(toolCalls) };
+        if (data === '[DONE]') return { content, thinking, usage, toolCalls: compactToolCalls(toolCalls), warnings };
 
         try {
           const json = JSON.parse(data);
+          if (json.usage) usage = normalizeTokenUsage(json.usage);
           const delta = json.choices?.[0]?.delta;
           if (!delta) continue;
           if (delta.content) {
@@ -179,12 +305,13 @@ class ChatService {
       }
     }
 
-    return { content, thinking, toolCalls: compactToolCalls(toolCalls) };
+    return { content, thinking, usage, toolCalls: compactToolCalls(toolCalls), warnings };
   }
 
-  async handleToolCall(requestId, toolCall, settings, signal) {
+  async handleToolCall(requestId, toolCall, settings, signal, round = 0, maxRounds = 0) {
     const fn = toolCall.function || {};
     const args = parseToolArgs(fn.arguments);
+    this.emit(requestId, 'agentStage', { stage: 'tool_pending', round, maxRounds, toolName: fn.name });
     this.emit(requestId, 'toolRequest', {
       toolCallId: toolCall.id,
       name: fn.name,
@@ -195,18 +322,22 @@ class ChatService {
     const decision = await this.waitForApproval(requestId, toolCall.id, signal);
     if (!decision.approved) {
       const denied = `用户拒绝执行工具 ${fn.name}。`;
+      this.emit(requestId, 'agentStage', { stage: 'tool_denied', round, maxRounds, toolName: fn.name, stopReason: denied });
       this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: denied });
       return denied;
     }
 
     try {
+      this.emit(requestId, 'agentStage', { stage: 'tool_approved', round, maxRounds, toolName: fn.name });
       const output = isMcpToolName(fn.name)
         ? await this.mcpManager.callOpenAiTool(fn.name, args, settings)
         : await executeTool(fn.name, args, settings);
+      this.emit(requestId, 'agentStage', { stage: 'tool_result', round, maxRounds, toolName: fn.name });
       this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: true, output });
       return output;
     } catch (error) {
       const message = normalizeError(error);
+      this.emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: message });
       this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: message });
       return `工具 ${fn.name} 执行失败：${message}`;
     }
@@ -235,9 +366,10 @@ class ChatService {
     win.webContents.send('chat:event', { requestId, type, ...payload });
   }
 
-  async getAvailableTools(settings) {
-    const builtIn = getToolDefinitions(settings.activeSkill);
-    if (settings.activeSkill !== 'mcp_tool' && settings.activeSkill !== 'multi_tool') return builtIn;
+  async getAvailableTools(settings, intent = detectAgentIntent([], settings)) {
+    const activeSkill = settings.activeSkill === 'agent_auto' ? intent.toolMode : settings.activeSkill;
+    const builtIn = getToolDefinitions(activeSkill);
+    if (activeSkill !== 'mcp_tool' && activeSkill !== 'multi_tool') return builtIn;
     const mcpTools = await this.mcpManager.getToolDefinitions(settings);
     return [...builtIn, ...mcpTools];
   }
@@ -280,14 +412,50 @@ function buildHeaders(apiKey) {
   return headers;
 }
 
+async function fetchChatCompletionWithFallback(settings, body, signal) {
+  const warnings = [];
+  let currentBody = { ...body };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await fetch(`${normalizeBaseUrl(settings.apiBase)}/chat/completions`, {
+      method: 'POST',
+      headers: buildHeaders(settings.apiKey),
+      body: JSON.stringify(currentBody),
+      signal,
+    });
+    if (response.ok) return { response, warnings };
+
+    const errorText = await response.text().catch(() => '');
+    const message = parseApiError(response.status, errorText);
+    if (response.status === 400 && currentBody.stream_options && isUnsupportedParameterError(errorText, 'stream_options')) {
+      currentBody = { ...currentBody };
+      delete currentBody.stream_options;
+      warnings.push('当前服务商不支持 stream_options.include_usage，已自动重试并使用本地估算 token。');
+      continue;
+    }
+    if (response.status === 400 && currentBody.thinking && isUnsupportedParameterError(errorText, 'thinking')) {
+      currentBody = { ...currentBody };
+      delete currentBody.thinking;
+      warnings.push('当前服务商不支持 thinking 参数，已自动关闭思考预算后重试。');
+      continue;
+    }
+    if (response.status === 400 && (currentBody.tools || currentBody.tool_choice) && isToolParameterError(errorText)) {
+      throw new Error(`当前模型或服务商不支持工具调用参数，请切换支持工具调用的模型，或把回答模式改为“标准”。原始错误：${message}`);
+    }
+    throw new Error(message);
+  }
+  throw new Error('API 请求参数降级后仍然失败。');
+}
+
 function normalizeBaseUrl(apiBase) {
   let baseUrl = String(apiBase || 'https://api.deepseek.com').replace(/\/+$/, '');
   if (!baseUrl.endsWith('/v1') && !baseUrl.includes('/v1/')) baseUrl += '/v1';
   return baseUrl;
 }
 
-function buildSystemPrompt(settings) {
-  const suffix = MODE_PROMPTS[settings.activeSkill] || '';
+function buildSystemPrompt(settings, intent = detectAgentIntent([], settings)) {
+  const suffix = settings.activeSkill === 'agent_auto'
+    ? `${MODE_PROMPTS.agent_auto}${MODE_PROMPTS[intent.toolMode] || ''}`
+    : (MODE_PROMPTS[settings.activeSkill] || '');
   const skills = formatExternalSkills(settings.externalSkills || []);
   return `${settings.systemPrompt || ''}${suffix}${skills}`;
 }
@@ -297,6 +465,8 @@ function applyRequestOverrides(settings, overrides = {}) {
   if (overrides.thinkingBudget !== undefined) next.thinkingBudget = Number.parseInt(overrides.thinkingBudget, 10) || 0;
   if (overrides.activeSkill !== undefined) next.activeSkill = String(overrides.activeSkill || 'none');
   if (overrides.enhance !== undefined) next.enhance = overrides.enhance !== false;
+  if (overrides.agentMaxRounds !== undefined) next.agentMaxRounds = Number.parseInt(overrides.agentMaxRounds, 10) || DEFAULT_AGENT_MAX_ROUNDS;
+  if (overrides.maxInputTokens !== undefined) next.maxInputTokens = Number.parseInt(overrides.maxInputTokens, 10) || DEFAULT_MAX_INPUT_TOKENS;
   return next;
 }
 
@@ -345,10 +515,158 @@ function isImageAttachment(attachment) {
 }
 
 function trimContext(messages, maxMessages = 20) {
-  if (messages.length <= maxMessages) return messages;
-  let trimmed = messages.slice(-maxMessages);
-  if (trimmed.length > 0 && trimmed[0].role === 'assistant') trimmed = trimmed.slice(1);
-  return trimmed;
+  return buildContextWithBudget(messages, {
+    maxMessages,
+    maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
+  });
+}
+
+function buildContextWithBudget(messages, options = {}) {
+  return buildContextBudgetBundle(messages, options).messages;
+}
+
+function buildContextBudgetBundle(messages, options = {}) {
+  const maxMessages = Math.round(clampNumber(options.maxMessages, 1, 100, 20));
+  const maxInputTokens = Math.round(clampNumber(options.maxInputTokens, 1, 262144, DEFAULT_MAX_INPUT_TOKENS));
+  const prefixTokens = Math.max(0, toTokenNumber(options.prefixTokens));
+  const budget = Math.max(1, maxInputTokens - prefixTokens);
+  const clean = (Array.isArray(messages) ? messages : [])
+    .filter((message) => message && ['system', 'user', 'assistant', 'tool'].includes(message.role));
+  if (clean.length === 0) {
+    return {
+      messages: [],
+      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped: [], retained: [], used: 0 }),
+    };
+  }
+
+  const capped = clean.slice(-maxMessages);
+  const anchorIndex = findLatestUserIndex(capped);
+  if (anchorIndex < 0) {
+    const retained = dropLeadingAssistant(trimByRecentBudget(capped, budget));
+    return {
+      messages: retained,
+      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used: estimateMessagesTokens(retained) }),
+    };
+  }
+
+  const anchor = capped[anchorIndex];
+  const retained = [anchor];
+  let used = estimateMessagesTokens([anchor]);
+
+  for (let i = anchorIndex - 1; i >= 0; i--) {
+    const candidate = capped[i];
+    const cost = estimateMessagesTokens([candidate]);
+    if (used + cost > budget) continue;
+    retained.unshift(candidate);
+    used += cost;
+  }
+
+  const messagesOut = dropLeadingAssistant(retained);
+  return {
+    messages: messagesOut,
+    meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained: messagesOut, used: estimateMessagesTokens(messagesOut) }),
+  };
+}
+
+function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used }) {
+  const retainedSet = new Set(retained);
+  const droppedMessages = capped.filter((message) => !retainedSet.has(message));
+  const omittedByMessageLimit = Math.max(0, clean.length - capped.length);
+  const estimatedInputTokens = used + prefixTokens;
+  return {
+    maxMessages,
+    maxInputTokens,
+    prefixTokens,
+    availableHistoryTokens: budget,
+    estimatedHistoryTokens: used,
+    estimatedInputTokens,
+    budgetRatio: maxInputTokens > 0 ? estimatedInputTokens / maxInputTokens : 0,
+    originalMessages: clean.length,
+    consideredMessages: capped.length,
+    retainedMessages: retained.length,
+    droppedMessages,
+    droppedCount: droppedMessages.length + omittedByMessageLimit,
+    omittedByMessageLimit,
+    trimmed: droppedMessages.length > 0 || omittedByMessageLimit > 0,
+  };
+}
+
+function detectAgentIntent(messagesOrText, settings = {}) {
+  const text = Array.isArray(messagesOrText)
+    ? getLastUserText(messagesOrText)
+    : String(messagesOrText || '');
+  const lower = text.toLowerCase();
+  const selected = new Set();
+  const missing = new Set();
+  const reasons = [];
+
+  if (needsSearch(text, lower)) {
+    selected.add('web_search');
+    reasons.push('fresh_or_external_facts');
+    if (!settings.tavilyApiKey) missing.add('Tavily API Key');
+  }
+  if (needsFiles(text, lower)) {
+    selected.add('list_files');
+    selected.add('read_file');
+    reasons.push('local_files');
+    if (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0) missing.add('工作区目录');
+  }
+  if (needsCode(text, lower)) {
+    selected.add('run_code');
+    reasons.push('code_or_calculation');
+  }
+  if (needsMcp(text, lower)) {
+    reasons.push('external_mcp');
+    if ((settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command)) {
+      selected.add('mcp');
+    } else {
+      missing.add('MCP Server');
+    }
+  }
+
+  let toolMode = 'none';
+  const hasBuiltin = [...selected].some((name) => name !== 'mcp');
+  const hasMcp = selected.has('mcp');
+  if (hasBuiltin && hasMcp) toolMode = 'multi_tool';
+  else if (hasMcp) toolMode = 'mcp_tool';
+  else if (selected.has('web_search') && selected.size === 1) toolMode = 'web_search';
+  else if ((selected.has('list_files') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
+  else if (selected.has('run_code') && selected.size === 1) toolMode = 'code_runner';
+  else if (hasBuiltin) toolMode = 'multi_tool';
+
+  return {
+    kind: toolMode === 'none' ? 'chat' : 'tool',
+    toolMode,
+    selectedTools: [...selected],
+    missingPrerequisites: [...missing],
+    reason: reasons.join(',') || 'plain_chat',
+  };
+}
+
+function getLastUserText(messages = []) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return String(messages[i].content || '');
+  }
+  return '';
+}
+
+function needsSearch(text, lower) {
+  return /最新|新闻|今日|今天|实时|刚刚|本周|价格|版本|政策|法规|官网|资料|搜索|查询|查一下|联网|来源|引用|current|latest|today|news|price|version|release|search|source/i.test(text)
+    || /20\d{2}/.test(lower);
+}
+
+function needsFiles(text, lower) {
+  return /文件|目录|项目|代码库|仓库|读取|检查|分析.*代码|打开|路径|工作区|本地|报错日志|readme|package\.json|\.js|\.ts|\.vue|\.md|\.py|[a-z]:\\/i.test(text)
+    || lower.includes('workspace');
+}
+
+function needsCode(text, lower) {
+  return /运行|执行|调试|复现|验证.*代码|算一下|计算|单元测试|测试一下|run code|debug|reproduce|calculate|execute/i.test(text)
+    || /```/.test(lower);
+}
+
+function needsMcp(text, lower) {
+  return /mcp|notion|github|jira|linear|slack|数据库|外部系统|server 工具/i.test(lower);
 }
 
 function mergeToolCalls(target, incoming) {
@@ -400,6 +718,16 @@ function parseApiError(status, text) {
   return message;
 }
 
+function isUnsupportedParameterError(text, parameter) {
+  const body = String(text || '').toLowerCase();
+  return body.includes(parameter.toLowerCase()) && /unsupported|unknown|unrecognized|invalid|not support|不支持|未知|无效/.test(body);
+}
+
+function isToolParameterError(text) {
+  const body = String(text || '').toLowerCase();
+  return /(tools|tool_choice|function_call|tool_calls)/.test(body) && /unsupported|unknown|unrecognized|invalid|not support|不支持|未知|无效/.test(body);
+}
+
 function normalizeError(error) {
   if (!error) return '未知错误';
   if (error.name === 'AbortError') return '请求已取消';
@@ -424,9 +752,238 @@ function estimateMessagesTokens(messages) {
   return messages.reduce((total, msg) => total + estimateTokens(msg.content || '') + 4, 0);
 }
 
+function normalizeTokenUsage(usage, fallback = {}) {
+  const inputFallback = toTokenNumber(fallback.input ?? fallback.fallbackInput);
+  const outputFallback = toTokenNumber(fallback.output ?? fallback.fallbackOutput);
+
+  if (!usage || typeof usage !== 'object') {
+    return finalizeTokenUsage({
+      input: inputFallback,
+      output: outputFallback,
+      reasoning: toTokenNumber(fallback.reasoning),
+      cacheHit: toTokenNumber(fallback.cacheHit),
+      cacheMiss: fallback.cacheMiss === undefined ? inputFallback : toTokenNumber(fallback.cacheMiss),
+      source: 'estimated',
+      warnings: fallback.warnings || [],
+    });
+  }
+
+  const input = toTokenNumber(usage.prompt_tokens ?? usage.input_tokens ?? usage.input, inputFallback);
+  const output = toTokenNumber(usage.completion_tokens ?? usage.output_tokens ?? usage.output, outputFallback);
+  const total = toTokenNumber(usage.total_tokens ?? usage.total, input + output);
+  const reasoning = toTokenNumber(
+    usage.completion_tokens_details?.reasoning_tokens ??
+    usage.reasoning_tokens ??
+    usage.reasoning
+  );
+  const cacheHit = toTokenNumber(
+    usage.prompt_cache_hit_tokens ??
+    usage.prompt_tokens_details?.cached_tokens ??
+    usage.cached_tokens ??
+    usage.cacheHit
+  );
+  const cacheMiss = usage.prompt_cache_miss_tokens !== undefined
+    ? toTokenNumber(usage.prompt_cache_miss_tokens)
+    : toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  const hasProviderFields = (
+    usage.prompt_tokens !== undefined ||
+    usage.completion_tokens !== undefined ||
+    usage.total_tokens !== undefined ||
+    usage.prompt_cache_hit_tokens !== undefined ||
+    usage.prompt_cache_miss_tokens !== undefined ||
+    usage.prompt_tokens_details !== undefined
+  );
+  const source = usage.source === 'provider' || usage.source === 'estimated' || usage.source === 'mixed'
+    ? usage.source
+    : (hasProviderFields ? 'provider' : 'estimated');
+
+  return finalizeTokenUsage({ input, output, total, reasoning, cacheHit, cacheMiss, source, warnings: usage.warnings || fallback.warnings || [] });
+}
+
+function mergeTokenUsage(usages = [], options = {}) {
+  const normalized = (Array.isArray(usages) ? usages : [])
+    .filter(Boolean)
+    .map((usage) => normalizeTokenUsage(usage));
+  const totals = normalized.reduce((acc, usage) => {
+    acc.input += usage.input;
+    acc.output += usage.output;
+    acc.total += usage.total;
+    acc.reasoning += usage.reasoning;
+    acc.cacheHit += usage.cacheHit;
+    acc.cacheMiss += usage.cacheMiss;
+    return acc;
+  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0 });
+  const sources = new Set(normalized.map((usage) => usage.source));
+  const source = sources.size === 0 ? 'estimated' : (sources.size === 1 ? [...sources][0] : 'mixed');
+  return finalizeTokenUsage({ ...totals, source, rounds: normalized.length, warnings: options.warnings || [] });
+}
+
+function finalizeTokenUsage(usage) {
+  const input = toTokenNumber(usage.input);
+  const output = toTokenNumber(usage.output);
+  const total = toTokenNumber(usage.total, input + output);
+  const reasoning = toTokenNumber(usage.reasoning);
+  const cacheHit = toTokenNumber(usage.cacheHit);
+  const cacheMiss = toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  return {
+    input,
+    output,
+    total,
+    reasoning,
+    cacheHit,
+    cacheMiss,
+    cacheHitRate: input > 0 ? cacheHit / input : 0,
+    source: usage.source || 'estimated',
+    rounds: usage.rounds,
+    warnings: Array.isArray(usage.warnings) ? usage.warnings : [],
+  };
+}
+
+function compactToolOutputForContext(toolName, args, output) {
+  const text = String(output || '');
+  if (estimateTokens(text) <= MAX_TOOL_CONTEXT_TOKENS) return text;
+  const name = String(toolName || '');
+  if (name === 'web_search') return compactSearchOutput(text);
+  if (name === 'read_file') return compactFileOutput(text);
+  if (name === 'run_code') return compactCodeOutput(text);
+  if (isMcpToolName(name)) return compactMcpOutput(text);
+
+  const lines = text.split('\n');
+  const important = lines.filter((line) => /^\s*(MCP Server|Tool|URL:|Published:|\d+\.|搜索时间|实际搜索 query|文件：|大小：)/.test(line));
+  const head = text.slice(0, 3200);
+  return [
+    '[工具输出已为后续上下文压缩，完整输出已记录在工具运行卡片中。]',
+    args && Object.keys(args).length ? `参数：${JSON.stringify(args).slice(0, 800)}` : '',
+    important.slice(0, 40).join('\n'),
+    '',
+    head,
+  ].filter(Boolean).join('\n').slice(0, 7000);
+}
+
+function compactSearchOutput(text) {
+  const lines = text.split('\n');
+  const important = lines.filter((line) => /^\s*(搜索时间|用户原始问题|实际搜索 query|Tavily 参数|\d+\.|URL:|Published:|摘要:)/.test(line));
+  return [
+    '[联网搜索结果已压缩，完整输出在工具运行卡片中。]',
+    ...important.slice(0, 80),
+  ].join('\n').slice(0, 7000);
+}
+
+function compactFileOutput(text) {
+  const lines = text.split('\n');
+  const meta = lines.filter((line) => /^\s*(文件：|大小：)/.test(line));
+  const body = lines.filter((line) => !/^\s*(文件：|大小：)/.test(line)).join('\n').trim();
+  return [
+    '[文件内容已压缩，完整输出在工具运行卡片中。]',
+    ...meta,
+    '',
+    '开头片段：',
+    body.slice(0, 2600),
+    '',
+    '结尾片段：',
+    body.slice(-1800),
+  ].filter(Boolean).join('\n').slice(0, 7000);
+}
+
+function compactCodeOutput(text) {
+  const stdout = extractSection(text, 'STDOUT:', 'STDERR:');
+  const stderr = extractSection(text, 'STDERR:');
+  const header = text.split('\n').filter((line) => /^\s*(语言：|退出码：)/.test(line));
+  return [
+    '[代码运行结果已压缩，完整输出在工具运行卡片中。]',
+    ...header,
+    '',
+    'STDOUT 首尾：',
+    compactHeadTail(stdout, 1800, 1000),
+    '',
+    'STDERR 首尾：',
+    compactHeadTail(stderr, 1400, 800),
+  ].filter(Boolean).join('\n').slice(0, 7000);
+}
+
+function compactMcpOutput(text) {
+  const lines = text.split('\n');
+  const meta = lines.filter((line) => /^\s*(MCP Server：|Tool：|MCP 工具返回错误|Structured Content:)/.test(line));
+  return [
+    '[MCP 工具输出已压缩，完整输出在工具运行卡片中。]',
+    ...meta.slice(0, 20),
+    '',
+    compactHeadTail(text, 2600, 1800),
+  ].filter(Boolean).join('\n').slice(0, 7000);
+}
+
+function extractSection(text, startMarker, endMarker) {
+  const start = text.indexOf(startMarker);
+  if (start < 0) return '';
+  const from = start + startMarker.length;
+  const end = endMarker ? text.indexOf(endMarker, from) : -1;
+  return text.slice(from, end >= 0 ? end : undefined).trim();
+}
+
+function compactHeadTail(text, headLength, tailLength) {
+  const value = String(text || '').trim();
+  if (value.length <= headLength + tailLength + 100) return value || '(empty)';
+  return `${value.slice(0, headLength)}\n...\n${value.slice(-tailLength)}`;
+}
+
+function formatMessagesForSummary(messages = []) {
+  return messages.map((message) => {
+    const role = message.role === 'assistant' ? '助手' : '用户';
+    return `${role}: ${String(message.content || '').slice(0, 1200)}`;
+  }).join('\n\n---\n\n').slice(0, 10000);
+}
+
+function resolveAgentMaxRounds(settings = {}) {
+  return Math.round(clampNumber(settings.agentMaxRounds, 1, 10, DEFAULT_AGENT_MAX_ROUNDS));
+}
+
+function findLatestUserIndex(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return i;
+  }
+  return -1;
+}
+
+function trimByRecentBudget(messages, budget) {
+  const retained = [];
+  let used = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const candidate = messages[i];
+    const cost = estimateMessagesTokens([candidate]);
+    if (retained.length > 0 && used + cost > budget) continue;
+    retained.unshift(candidate);
+    used += cost;
+  }
+  return retained;
+}
+
+function dropLeadingAssistant(messages) {
+  let next = [...messages];
+  while (next.length > 0 && next[0]?.role === 'assistant') next = next.slice(1);
+  return next;
+}
+
+function toTokenNumber(value, fallback = 0) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return Math.max(0, Math.round(Number(fallback) || 0));
+  return Math.round(number);
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(Math.max(number, min), max);
+}
+
 module.exports = {
   ChatService,
   testApiConnection,
   normalizeBaseUrl,
+  buildContextWithBudget,
+  buildContextBudgetBundle,
+  compactToolOutputForContext,
+  detectAgentIntent,
+  mergeTokenUsage,
+  normalizeTokenUsage,
   trimContext,
 };

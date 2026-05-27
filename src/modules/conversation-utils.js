@@ -11,6 +11,9 @@ export function normalizeConversation(conversation = {}) {
     tags: normalizeTags(conversation.tags),
     folderId: normalizeFolderName(conversation.folderId),
     archivedAt: normalizeArchiveTime(conversation.archivedAt),
+    contextSummary: typeof conversation.contextSummary === 'string' ? conversation.contextSummary : '',
+    contextSummaryUpdatedAt: conversation.contextSummaryUpdatedAt || null,
+    usageTotals: conversation.usageTotals && typeof conversation.usageTotals === 'object' ? conversation.usageTotals : null,
     messages: Array.isArray(conversation.messages) ? conversation.messages : [],
   };
 }

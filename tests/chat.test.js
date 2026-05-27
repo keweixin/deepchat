@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasSearchWithoutCitedSource, trimMessagesForRegeneration } from '../src/modules/chat.js';
+import { hasSearchWithoutCitedSource, renderAgentTimeline, trimMessagesForRegeneration } from '../src/modules/chat.js';
 
 describe('chat regeneration', () => {
   it('truncates from the selected assistant message instead of the last message', () => {
@@ -35,5 +35,28 @@ describe('chat regeneration', () => {
 
     expect(hasSearchWithoutCitedSource(message, '根据搜索结果，新闻如下。')).toBe(true);
     expect(hasSearchWithoutCitedSource(message, '来源：https://example.com/news')).toBe(false);
+  });
+
+  it('renders agent stages and context budget metadata', () => {
+    const container = document.createElement('div');
+    renderAgentTimeline(container, {
+      contextBudget: {
+        maxInputTokens: 24000,
+        estimatedInputTokens: 12000,
+        trimmed: true,
+        droppedCount: 3,
+        summaryUsed: true,
+      },
+      agentStages: [
+        { stage: 'plan', intent: { toolMode: 'web_search' }, round: 0 },
+        { stage: 'tool_pending', toolName: 'web_search', round: 1 },
+        { stage: 'final', round: 2 },
+      ],
+    });
+
+    expect(container.hidden).toBe(false);
+    expect(container.textContent).toContain('规划工具：web_search');
+    expect(container.textContent).toContain('裁剪 3 条');
+    expect(container.textContent).toContain('等待确认');
   });
 });

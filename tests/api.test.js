@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_SYSTEM_PROMPT,
+  buildContextBudgetBundle,
+  buildContextWithBudget,
   buildTavilySearchRequest,
+  detectAgentIntent,
   getEffectiveSystemPrompt,
+  getConversationUsageSummary,
   getModelCapabilities,
   getSettings,
   initApiSettings,
   isSkillRunnable,
+  mergeTokenUsage,
+  normalizeTokenUsage,
   saveSettings,
   supportsVisionModel,
 } from '../src/modules/api.js';
@@ -86,5 +92,155 @@ describe('browser settings fallback', () => {
     settings = await saveSettings({ model: 'gpt-4o' });
     expect(supportsVisionModel(settings)).toBe(true);
     expect(getModelCapabilities(settings)).toMatchObject({ vision: true, streaming: true });
+  });
+
+  it('normalizes DeepSeek cache hit and miss usage fields', () => {
+    const usage = normalizeTokenUsage({
+      prompt_tokens: 100,
+      completion_tokens: 20,
+      total_tokens: 120,
+      prompt_cache_hit_tokens: 60,
+      prompt_cache_miss_tokens: 40,
+      completion_tokens_details: { reasoning_tokens: 5 },
+    });
+
+    expect(usage).toMatchObject({
+      input: 100,
+      output: 20,
+      total: 120,
+      reasoning: 5,
+      cacheHit: 60,
+      cacheMiss: 40,
+      cacheHitRate: 0.6,
+      source: 'provider',
+    });
+  });
+
+  it('normalizes OpenAI cached token usage fields', () => {
+    const usage = normalizeTokenUsage({
+      prompt_tokens: 80,
+      completion_tokens: 10,
+      total_tokens: 90,
+      prompt_tokens_details: { cached_tokens: 32 },
+      completion_tokens_details: { reasoning_tokens: 4 },
+    });
+
+    expect(usage).toMatchObject({
+      input: 80,
+      output: 10,
+      total: 90,
+      reasoning: 4,
+      cacheHit: 32,
+      cacheMiss: 48,
+      cacheHitRate: 0.4,
+      source: 'provider',
+    });
+  });
+
+  it('falls back to estimated token usage when provider usage is absent', () => {
+    expect(normalizeTokenUsage(null, { input: 12, output: 8 })).toMatchObject({
+      input: 12,
+      output: 8,
+      total: 20,
+      cacheHit: 0,
+      cacheMiss: 12,
+      cacheHitRate: 0,
+      source: 'estimated',
+    });
+  });
+
+  it('merges token usage across agent rounds', () => {
+    const merged = mergeTokenUsage([
+      { input: 100, output: 20, total: 120, reasoning: 4, cacheHit: 50, cacheMiss: 50, source: 'provider' },
+      { input: 40, output: 10, total: 50, reasoning: 2, cacheHit: 10, cacheMiss: 30, source: 'provider' },
+    ]);
+
+    expect(merged).toMatchObject({
+      input: 140,
+      output: 30,
+      total: 170,
+      reasoning: 6,
+      cacheHit: 60,
+      cacheMiss: 80,
+      cacheHitRate: 60 / 140,
+      source: 'provider',
+      rounds: 2,
+    });
+  });
+
+  it('trims context by token budget while keeping the latest user message', () => {
+    const messages = [
+      { role: 'user', content: 'old question' },
+      { role: 'assistant', content: 'a'.repeat(200) },
+      { role: 'user', content: 'latest question' },
+    ];
+
+    const trimmed = buildContextWithBudget(messages, {
+      maxMessages: 20,
+      maxInputTokens: 14,
+    });
+
+    expect(trimmed).toEqual([{ role: 'user', content: 'latest question' }]);
+  });
+
+  it('returns context budget metadata with dropped message counts', () => {
+    const bundle = buildContextBudgetBundle([
+      { role: 'user', content: 'old question' },
+      { role: 'assistant', content: 'a'.repeat(200) },
+      { role: 'user', content: 'latest question' },
+    ], { maxMessages: 20, maxInputTokens: 14 });
+
+    expect(bundle.messages).toEqual([{ role: 'user', content: 'latest question' }]);
+    expect(bundle.meta).toMatchObject({
+      trimmed: true,
+      retainedMessages: 1,
+      droppedCount: 2,
+    });
+  });
+
+  it('detects smart agent intent and missing prerequisites', () => {
+    const intent = detectAgentIntent('帮我搜索今天的 AI 新闻并引用来源', {
+      tavilyApiKey: '',
+      workspaceRoots: [],
+      mcpServers: [],
+    });
+
+    expect(intent.toolMode).toBe('web_search');
+    expect(intent.selectedTools).toContain('web_search');
+    expect(intent.missingPrerequisites).toContain('Tavily API Key');
+  });
+
+  it('summarizes token usage for a conversation', () => {
+    const summary = getConversationUsageSummary({
+      messages: [
+        { role: 'assistant', tokens: { input: 10, output: 2, total: 12, cacheHit: 5, cacheMiss: 5 } },
+        { role: 'assistant', tokens: { input: 20, output: 4, total: 24, cacheHit: 5, cacheMiss: 15 } },
+      ],
+    });
+
+    expect(summary).toMatchObject({
+      input: 30,
+      output: 6,
+      total: 36,
+      cacheHit: 10,
+      cacheMiss: 20,
+      cacheHitRate: 10 / 30,
+    });
+  });
+
+  it('does not leave assistant as the first retained context message', () => {
+    const messages = [
+      { role: 'user', content: 'first' },
+      { role: 'assistant', content: 'second' },
+      { role: 'user', content: 'third' },
+    ];
+
+    const trimmed = buildContextWithBudget(messages, {
+      maxMessages: 2,
+      maxInputTokens: 100,
+    });
+
+    expect(trimmed[0].role).toBe('user');
+    expect(trimmed.at(-1)).toEqual({ role: 'user', content: 'third' });
   });
 });

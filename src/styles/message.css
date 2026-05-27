@@ -537,6 +537,76 @@
 .tool-calls-container {
   margin: var(--space-2) 0;
 }
+
+.agent-timeline-container {
+  margin: var(--space-2) 0;
+}
+
+.agent-timeline {
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 82%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 18%);
+  padding: var(--space-2) var(--space-3);
+}
+
+.agent-timeline-header {
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 750;
+}
+
+.agent-budget {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.agent-budget.is-trimmed {
+  color: #d97706;
+}
+
+.agent-stage-list {
+  display: grid;
+  gap: 4px;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-stage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.agent-stage::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-primary), transparent 25%);
+  flex: 0 0 auto;
+}
+
+.agent-stage-title {
+  font-weight: 650;
+}
+
+.agent-stage-meta {
+  color: var(--text-muted);
+}
+
+.agent-stage.stage-warning::before,
+.agent-stage.stage-tool_failed::before,
+.agent-stage.stage-stop::before {
+  background: #f59e0b;
+}
+
 .tool-call-block {
   margin: var(--space-2) 0;
   border-radius: 10px;

@@ -47,10 +47,13 @@ const DEFAULT_SETTINGS = {
   model: DEFAULT_MODEL,
   temperature: 0.7,
   maxTokens: 4096,
+  maxInputTokens: 24000,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   maxContextMessages: 20,
+  agentMaxRounds: 3,
   thinkingBudget: 0,
-  activeSkill: 'none',
+  activeSkill: 'agent_auto',
+  autoContextSummary: true,
   enhance: true,
   tavilyApiKey: '',
   tavilyMaxResults: 5,
@@ -64,6 +67,13 @@ let settingsCache = { ...DEFAULT_SETTINGS };
 let settingsLoaded = false;
 
 export const SKILLS = {
+  agent_auto: {
+    name: '智能 Agent',
+    icon: '✦',
+    description: '自动判断是否需要联网、读文件、运行代码或 MCP',
+    needs: [],
+    promptSuffix: '\n\n当前客户端启用了智能 Agent。你需要先判断是否需要工具：最新事实用联网搜索，本地资料用文件工具，代码验证用代码工具，外部系统用 MCP。所有工具调用都必须等待用户确认；缺少配置时说明需要配置什么。',
+  },
   none: {
     name: '标准',
     icon: '💬',
@@ -157,6 +167,7 @@ export function hasNativeBridge() {
 
 export function isSkillRunnable(id, settings = getSettings()) {
   if (!id || !SKILLS[id]) return false;
+  if (id === 'agent_auto') return true;
   if (id === 'none') return true;
   if (!hasNativeBridge()) {
     return id === 'web_search' && Boolean(settings.tavilyApiKey);
@@ -181,7 +192,7 @@ function formatExternalSkills(skills = []) {
 }
 
 export function resolveRunnableSkill(settings = getSettings()) {
-  return isSkillRunnable(settings.activeSkill, settings) ? settings.activeSkill : 'none';
+  return isSkillRunnable(settings.activeSkill, settings) ? settings.activeSkill : DEFAULT_SETTINGS.activeSkill;
 }
 
 export async function initApiSettings() {
@@ -336,11 +347,285 @@ export function estimateMessagesTokens(messages) {
   return messages.reduce((total, msg) => total + estimateTokens(msg.content || '') + 4, 0);
 }
 
+export function detectAgentIntent(messagesOrText, settings = getSettings()) {
+  const text = Array.isArray(messagesOrText)
+    ? getLastUserContent(messagesOrText)
+    : String(messagesOrText || '');
+  const lower = text.toLowerCase();
+  const selected = new Set();
+  const missing = new Set();
+  const reasons = [];
+
+  if (needsSearch(text, lower)) {
+    selected.add('web_search');
+    reasons.push('fresh_or_external_facts');
+    if (!settings.tavilyApiKey) missing.add('Tavily API Key');
+  }
+  if (needsFiles(text, lower)) {
+    selected.add('list_files');
+    selected.add('read_file');
+    reasons.push('local_files');
+    if (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0) missing.add('工作区目录');
+  }
+  if (needsCode(text, lower)) {
+    selected.add('run_code');
+    reasons.push('code_or_calculation');
+  }
+  if (needsMcp(text, lower)) {
+    reasons.push('external_mcp');
+    if ((settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command)) selected.add('mcp');
+    else missing.add('MCP Server');
+  }
+
+  let toolMode = 'none';
+  const hasBuiltin = [...selected].some((name) => name !== 'mcp');
+  const hasMcp = selected.has('mcp');
+  if (hasBuiltin && hasMcp) toolMode = 'multi_tool';
+  else if (hasMcp) toolMode = 'mcp_tool';
+  else if (selected.has('web_search') && selected.size === 1) toolMode = 'web_search';
+  else if ((selected.has('list_files') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
+  else if (selected.has('run_code') && selected.size === 1) toolMode = 'code_runner';
+  else if (hasBuiltin) toolMode = 'multi_tool';
+
+  return {
+    kind: toolMode === 'none' ? 'chat' : 'tool',
+    toolMode,
+    selectedTools: [...selected],
+    missingPrerequisites: [...missing],
+    reason: reasons.join(',') || 'plain_chat',
+  };
+}
+
+export function normalizeTokenUsage(usage, fallback = {}) {
+  const inputFallback = toTokenNumber(fallback.input ?? fallback.fallbackInput);
+  const outputFallback = toTokenNumber(fallback.output ?? fallback.fallbackOutput);
+
+  if (!usage || typeof usage !== 'object') {
+    return finalizeTokenUsage({
+      input: inputFallback,
+      output: outputFallback,
+      reasoning: toTokenNumber(fallback.reasoning),
+      cacheHit: toTokenNumber(fallback.cacheHit),
+      cacheMiss: fallback.cacheMiss === undefined ? inputFallback : toTokenNumber(fallback.cacheMiss),
+      source: 'estimated',
+      warnings: fallback.warnings || [],
+    });
+  }
+
+  const input = toTokenNumber(usage.prompt_tokens ?? usage.input_tokens ?? usage.input, inputFallback);
+  const output = toTokenNumber(usage.completion_tokens ?? usage.output_tokens ?? usage.output, outputFallback);
+  const total = toTokenNumber(usage.total_tokens ?? usage.total, input + output);
+  const reasoning = toTokenNumber(
+    usage.completion_tokens_details?.reasoning_tokens ??
+    usage.reasoning_tokens ??
+    usage.reasoning
+  );
+  const cacheHit = toTokenNumber(
+    usage.prompt_cache_hit_tokens ??
+    usage.prompt_tokens_details?.cached_tokens ??
+    usage.cached_tokens ??
+    usage.cacheHit
+  );
+  const cacheMiss = usage.prompt_cache_miss_tokens !== undefined
+    ? toTokenNumber(usage.prompt_cache_miss_tokens)
+    : toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  const hasProviderFields = (
+    usage.prompt_tokens !== undefined ||
+    usage.completion_tokens !== undefined ||
+    usage.total_tokens !== undefined ||
+    usage.prompt_cache_hit_tokens !== undefined ||
+    usage.prompt_cache_miss_tokens !== undefined ||
+    usage.prompt_tokens_details !== undefined
+  );
+  const source = usage.source === 'provider' || usage.source === 'estimated' || usage.source === 'mixed'
+    ? usage.source
+    : (hasProviderFields ? 'provider' : 'estimated');
+
+  return finalizeTokenUsage({ input, output, total, reasoning, cacheHit, cacheMiss, source, warnings: usage.warnings || fallback.warnings || [] });
+}
+
+export function mergeTokenUsage(usages = [], options = {}) {
+  const normalized = (Array.isArray(usages) ? usages : [])
+    .filter(Boolean)
+    .map((usage) => normalizeTokenUsage(usage));
+  const totals = normalized.reduce((acc, usage) => {
+    acc.input += usage.input;
+    acc.output += usage.output;
+    acc.total += usage.total;
+    acc.reasoning += usage.reasoning;
+    acc.cacheHit += usage.cacheHit;
+    acc.cacheMiss += usage.cacheMiss;
+    return acc;
+  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0 });
+  const sources = new Set(normalized.map((usage) => usage.source));
+  const source = sources.size === 0 ? 'estimated' : (sources.size === 1 ? [...sources][0] : 'mixed');
+  return finalizeTokenUsage({ ...totals, source, rounds: normalized.length, warnings: options.warnings || [] });
+}
+
+export function buildContextWithBudget(messages, options = {}) {
+  return buildContextBudgetBundle(messages, options).messages;
+}
+
+export function buildContextBudgetBundle(messages, options = {}) {
+  const maxMessages = Math.round(clampNumber(options.maxMessages, 1, 100, DEFAULT_SETTINGS.maxContextMessages));
+  const maxInputTokens = Math.round(clampNumber(options.maxInputTokens, 1, 262144, DEFAULT_SETTINGS.maxInputTokens));
+  const prefixTokens = Math.max(0, toTokenNumber(options.prefixTokens));
+  const budget = Math.max(1, maxInputTokens - prefixTokens);
+  const clean = (Array.isArray(messages) ? messages : [])
+    .filter((message) => message && ['system', 'user', 'assistant', 'tool'].includes(message.role));
+  if (clean.length === 0) {
+    return {
+      messages: [],
+      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped: [], retained: [], used: 0 }),
+    };
+  }
+
+  const capped = clean.slice(-maxMessages);
+  const anchorIndex = findLatestUserIndex(capped);
+  if (anchorIndex < 0) {
+    const retained = dropLeadingAssistant(trimByRecentBudget(capped, budget));
+    return {
+      messages: retained,
+      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used: estimateMessagesTokens(retained) }),
+    };
+  }
+
+  const anchor = capped[anchorIndex];
+  const retained = [anchor];
+  let used = estimateMessagesTokens([anchor]);
+
+  for (let i = anchorIndex - 1; i >= 0; i--) {
+    const candidate = capped[i];
+    const cost = estimateMessagesTokens([candidate]);
+    if (used + cost > budget) continue;
+    retained.unshift(candidate);
+    used += cost;
+  }
+
+  const messagesOut = dropLeadingAssistant(retained);
+  return {
+    messages: messagesOut,
+    meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained: messagesOut, used: estimateMessagesTokens(messagesOut) }),
+  };
+}
+
+function finalizeTokenUsage(usage) {
+  const input = toTokenNumber(usage.input);
+  const output = toTokenNumber(usage.output);
+  const total = toTokenNumber(usage.total, input + output);
+  const reasoning = toTokenNumber(usage.reasoning);
+  const cacheHit = toTokenNumber(usage.cacheHit);
+  const cacheMiss = toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  return {
+    input,
+    output,
+    total,
+    reasoning,
+    cacheHit,
+    cacheMiss,
+    cacheHitRate: input > 0 ? cacheHit / input : 0,
+    source: usage.source || 'estimated',
+    rounds: usage.rounds,
+    warnings: Array.isArray(usage.warnings) ? usage.warnings : [],
+  };
+}
+
+export function getConversationUsageSummary(conversation) {
+  const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
+  const summary = messages.reduce((acc, message) => {
+    if (!message?.tokens) return acc;
+    const usage = normalizeTokenUsage(message.tokens);
+    acc.input += usage.input;
+    acc.output += usage.output;
+    acc.total += usage.total;
+    acc.reasoning += usage.reasoning;
+    acc.cacheHit += usage.cacheHit;
+    acc.cacheMiss += usage.cacheMiss;
+    acc.rounds += usage.rounds || 1;
+    return acc;
+  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, rounds: 0 });
+  return finalizeTokenUsage({ ...summary, source: 'mixed' });
+}
+
+function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used }) {
+  const retainedSet = new Set(retained);
+  const droppedMessages = capped.filter((message) => !retainedSet.has(message));
+  const omittedByMessageLimit = Math.max(0, clean.length - capped.length);
+  const estimatedInputTokens = used + prefixTokens;
+  return {
+    maxMessages,
+    maxInputTokens,
+    prefixTokens,
+    availableHistoryTokens: budget,
+    estimatedHistoryTokens: used,
+    estimatedInputTokens,
+    budgetRatio: maxInputTokens > 0 ? estimatedInputTokens / maxInputTokens : 0,
+    originalMessages: clean.length,
+    consideredMessages: capped.length,
+    retainedMessages: retained.length,
+    droppedMessages,
+    droppedCount: droppedMessages.length + omittedByMessageLimit,
+    omittedByMessageLimit,
+    trimmed: droppedMessages.length > 0 || omittedByMessageLimit > 0,
+  };
+}
+
+function toTokenNumber(value, fallback = 0) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return Math.max(0, Math.round(Number(fallback) || 0));
+  return Math.round(number);
+}
+
+function findLatestUserIndex(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === 'user') return i;
+  }
+  return -1;
+}
+
+function trimByRecentBudget(messages, budget) {
+  const retained = [];
+  let used = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const candidate = messages[i];
+    const cost = estimateMessagesTokens([candidate]);
+    if (retained.length > 0 && used + cost > budget) continue;
+    retained.unshift(candidate);
+    used += cost;
+  }
+  return retained;
+}
+
+function dropLeadingAssistant(messages) {
+  let next = [...messages];
+  while (next.length > 0 && next[0]?.role === 'assistant') next = next.slice(1);
+  return next;
+}
+
+function needsSearch(text, lower) {
+  return /最新|新闻|今日|今天|实时|刚刚|本周|价格|版本|政策|法规|官网|资料|搜索|查询|查一下|联网|来源|引用|current|latest|today|news|price|version|release|search|source/i.test(text)
+    || /20\d{2}/.test(lower);
+}
+
+function needsFiles(text, lower) {
+  return /文件|目录|项目|代码库|仓库|读取|检查|分析.*代码|打开|路径|工作区|本地|报错日志|readme|package\.json|\.js|\.ts|\.vue|\.md|\.py|[a-z]:\\/i.test(text)
+    || lower.includes('workspace');
+}
+
+function needsCode(text, lower) {
+  return /运行|执行|调试|复现|验证.*代码|算一下|计算|单元测试|测试一下|run code|debug|reproduce|calculate|execute/i.test(text)
+    || /```/.test(lower);
+}
+
+function needsMcp(text, lower) {
+  return /mcp|notion|github|jira|linear|slack|数据库|外部系统|server 工具/i.test(lower);
+}
+
 export function trimContext(messages, maxMessages = 20) {
-  if (messages.length <= maxMessages) return messages;
-  let trimmed = messages.slice(-maxMessages);
-  if (trimmed.length > 0 && trimmed[0].role === 'assistant') trimmed = trimmed.slice(1);
-  return trimmed;
+  return buildContextWithBudget(messages, {
+    maxMessages,
+    maxInputTokens: DEFAULT_SETTINGS.maxInputTokens,
+  });
 }
 
 export async function streamChat(messages, opts = {}) {
@@ -365,9 +650,22 @@ async function streamNativeChat(messages, opts) {
     if (!event || event.requestId !== requestId) return;
     if (event.type === 'token') opts.onToken?.(event.token);
     if (event.type === 'thinking') opts.onThinking?.(event.token);
-    if (event.type === 'tokenCount') opts.onTokenCount?.({ input: event.input, output: event.output });
+    if (event.type === 'tokenCount') opts.onTokenCount?.(event.usage || {
+      input: event.input,
+      output: event.output,
+      total: event.total,
+      reasoning: event.reasoning,
+      cacheHit: event.cacheHit,
+      cacheMiss: event.cacheMiss,
+      cacheHitRate: event.cacheHitRate,
+      source: event.source,
+      rounds: event.rounds,
+    });
     if (event.type === 'toolRequest') opts.onToolRequest?.(event);
     if (event.type === 'toolResult') opts.onToolResult?.(event);
+    if (event.type === 'agentStage') opts.onAgentStage?.(event);
+    if (event.type === 'contextBudget') opts.onContextBudget?.(event);
+    if (event.type === 'contextSummary') opts.onContextSummary?.(event);
     if (event.type === 'done') {
       settled = true;
       unsubscribe();
@@ -384,7 +682,12 @@ async function streamNativeChat(messages, opts) {
     if (!settled) window.deepchat.chat.cancel(requestId);
   };
   opts.signal?.addEventListener('abort', abort, { once: true });
-  window.deepchat.chat.start({ requestId, messages, overrides: opts.overrides || {} });
+  window.deepchat.chat.start({
+    requestId,
+    messages,
+    overrides: opts.overrides || {},
+    contextSummary: opts.contextSummary || '',
+  });
 }
 
 async function streamBrowserChat(messages, opts = {}) {
@@ -400,10 +703,26 @@ async function streamBrowserChat(messages, opts = {}) {
   }
 
   const cleanMessages = messages.map(normalizeClientMessage).filter(Boolean);
-  const trimmedMessages = trimContext(cleanMessages, settings.maxContextMessages);
+  const contextBundle = buildContextBudgetBundle(cleanMessages, {
+    maxMessages: settings.maxContextMessages,
+    maxInputTokens: settings.maxInputTokens,
+  });
+  opts.onContextBudget?.(contextBundle.meta);
+  const trimmedMessages = contextBundle.messages;
   let requestMessages = trimmedMessages;
+  const intent = settings.activeSkill === 'agent_auto'
+    ? detectAgentIntent(trimmedMessages, settings)
+    : { toolMode: settings.activeSkill, selectedTools: [], missingPrerequisites: [] };
+  opts.onAgentStage?.({
+    stage: 'plan',
+    round: 0,
+    maxRounds: settings.agentMaxRounds,
+    intent,
+    selectedTools: intent.selectedTools || [],
+    missingPrerequisites: intent.missingPrerequisites || [],
+  });
 
-  if (settings.activeSkill === 'web_search' && settings.tavilyApiKey) {
+  if ((settings.activeSkill === 'web_search' || intent.toolMode === 'web_search' || intent.toolMode === 'multi_tool') && settings.tavilyApiKey) {
     const searchQuery = getLastUserContent(trimmedMessages);
     if (searchQuery) {
       try {
@@ -432,8 +751,10 @@ async function streamBrowserChat(messages, opts = {}) {
           },
         ];
       } catch (error) {
-        opts.onError?.(error);
-        return;
+        if (settings.activeSkill === 'web_search') {
+          opts.onError?.(error);
+          return;
+        }
       }
     }
   }
@@ -445,6 +766,7 @@ async function streamBrowserChat(messages, opts = {}) {
       ...requestMessages.map(toApiMessage),
     ],
     stream: true,
+    stream_options: { include_usage: true },
     temperature: settings.temperature,
     max_tokens: settings.maxTokens,
   };
@@ -461,21 +783,24 @@ async function streamBrowserChat(messages, opts = {}) {
   const inputTokens = estimateMessagesTokens(body.messages);
   let fullOutput = '';
   let doneCalled = false;
+  let providerUsage = null;
+  const warnings = [];
 
   function callDone(output, meta = {}) {
     if (doneCalled) return;
     doneCalled = true;
-    opts.onTokenCount?.({ input: inputTokens, output: estimateTokens(output) });
+    const usage = normalizeTokenUsage(providerUsage, {
+      input: inputTokens,
+      output: estimateTokens(output),
+      warnings,
+    });
+    opts.onTokenCount?.(usage);
     opts.onDone?.(meta);
   }
 
   try {
-    const response = await fetch(`${normalizeBaseUrl(settings.apiBase)}/chat/completions`, {
-      method: 'POST',
-      headers: buildHeaders(settings.apiKey, 'text/event-stream'),
-      body: JSON.stringify(body),
-      signal: opts.signal,
-    });
+    const { response, warnings: fallbackWarnings } = await fetchBrowserChatCompletionWithFallback(settings, body, opts.signal);
+    warnings.push(...fallbackWarnings);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
@@ -501,6 +826,7 @@ async function streamBrowserChat(messages, opts = {}) {
         if (data === '[DONE]') { callDone(fullOutput); return; }
         try {
           const json = JSON.parse(data);
+          if (json.usage) providerUsage = normalizeTokenUsage(json.usage);
           const delta = json.choices?.[0]?.delta;
           if (delta?.content) {
             fullOutput += delta.content;
@@ -518,6 +844,35 @@ async function streamBrowserChat(messages, opts = {}) {
     if (err.name === 'AbortError') callDone(fullOutput, { aborted: true });
     else opts.onError?.(err);
   }
+}
+
+async function fetchBrowserChatCompletionWithFallback(settings, body, signal) {
+  const warnings = [];
+  let currentBody = { ...body };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await fetch(`${normalizeBaseUrl(settings.apiBase)}/chat/completions`, {
+      method: 'POST',
+      headers: buildHeaders(settings.apiKey, 'text/event-stream'),
+      body: JSON.stringify(currentBody),
+      signal,
+    });
+    if (response.ok) return { response, warnings };
+    const errorText = await response.text().catch(() => '');
+    if (response.status === 400 && currentBody.stream_options && isUnsupportedParameterError(errorText, 'stream_options')) {
+      currentBody = { ...currentBody };
+      delete currentBody.stream_options;
+      warnings.push('当前服务商不支持 stream_options.include_usage，已自动重试并使用本地估算 token。');
+      continue;
+    }
+    if (response.status === 400 && currentBody.thinking && isUnsupportedParameterError(errorText, 'thinking')) {
+      currentBody = { ...currentBody };
+      delete currentBody.thinking;
+      warnings.push('当前服务商不支持 thinking 参数，已自动关闭思考预算后重试。');
+      continue;
+    }
+    return { response, warnings };
+  }
+  throw new Error('API 请求参数降级后仍然失败。');
 }
 
 function applyComposerOverrides(settings, overrides = {}) {
@@ -663,10 +1018,13 @@ function loadBrowserSettings() {
     model: localStorage.getItem('dc_model') || DEFAULT_MODEL,
     temperature: parseFloat(localStorage.getItem('dc_temperature') || String(DEFAULT_SETTINGS.temperature)),
     maxTokens: parseInt(localStorage.getItem('dc_maxTokens') || String(DEFAULT_SETTINGS.maxTokens), 10),
+    maxInputTokens: parseInt(localStorage.getItem('dc_maxInputTokens') || String(DEFAULT_SETTINGS.maxInputTokens), 10),
     systemPrompt: localStorage.getItem('dc_systemPrompt') || DEFAULT_SYSTEM_PROMPT,
     maxContextMessages: parseInt(localStorage.getItem('dc_maxContext') || String(DEFAULT_SETTINGS.maxContextMessages), 10),
+    agentMaxRounds: parseInt(localStorage.getItem('dc_agentMaxRounds') || String(DEFAULT_SETTINGS.agentMaxRounds), 10),
     thinkingBudget: parseInt(localStorage.getItem('dc_thinkingBudget') || String(DEFAULT_SETTINGS.thinkingBudget), 10),
-    activeSkill: localStorage.getItem('dc_activeSkill') || 'none',
+    activeSkill: localStorage.getItem('dc_activeSkill') || DEFAULT_SETTINGS.activeSkill,
+    autoContextSummary: localStorage.getItem('dc_autoContextSummary') !== 'false',
     enhance: localStorage.getItem('dc_enhance') !== 'false',
     tavilyApiKey: localStorage.getItem('dc_tavilyApiKey') || '',
     tavilyMaxResults: parseInt(localStorage.getItem('dc_tavilyMaxResults') || String(DEFAULT_SETTINGS.tavilyMaxResults), 10),
@@ -682,10 +1040,13 @@ function saveBrowserSettings(patch) {
     model: 'dc_model',
     temperature: 'dc_temperature',
     maxTokens: 'dc_maxTokens',
+    maxInputTokens: 'dc_maxInputTokens',
     systemPrompt: 'dc_systemPrompt',
     maxContextMessages: 'dc_maxContext',
+    agentMaxRounds: 'dc_agentMaxRounds',
     thinkingBudget: 'dc_thinkingBudget',
     activeSkill: 'dc_activeSkill',
+    autoContextSummary: 'dc_autoContextSummary',
     enhance: 'dc_enhance',
     tavilyMaxResults: 'dc_tavilyMaxResults',
     workspaceRoots: 'dc_workspaceRoots',
@@ -702,12 +1063,15 @@ function normalizeSettings(input = {}) {
   const next = { ...DEFAULT_SETTINGS, ...input };
   next.temperature = clampNumber(next.temperature, 0, 2, DEFAULT_SETTINGS.temperature);
   next.maxTokens = Math.round(clampNumber(next.maxTokens, 256, 65536, DEFAULT_SETTINGS.maxTokens));
+  next.maxInputTokens = Math.round(clampNumber(next.maxInputTokens, 1024, 262144, DEFAULT_SETTINGS.maxInputTokens));
   next.maxContextMessages = Math.round(clampNumber(next.maxContextMessages, 2, 100, DEFAULT_SETTINGS.maxContextMessages));
+  next.agentMaxRounds = Math.round(clampNumber(next.agentMaxRounds, 1, 10, DEFAULT_SETTINGS.agentMaxRounds));
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
   next.workspaceRoots = Array.isArray(next.workspaceRoots) ? next.workspaceRoots : [];
   next.externalSkills = Array.isArray(next.externalSkills) ? next.externalSkills : [];
   next.mcpServers = Array.isArray(next.mcpServers) ? next.mcpServers : [];
+  next.autoContextSummary = next.autoContextSummary !== false && next.autoContextSummary !== 'false';
   next.enhance = next.enhance !== false && next.enhance !== 'false';
   return next;
 }
@@ -720,8 +1084,8 @@ function clampNumber(value, min, max, fallback) {
 
 function parseStoredValue(key, value) {
   if (['temperature'].includes(key)) return parseFloat(value);
-  if (['maxTokens', 'maxContextMessages', 'thinkingBudget', 'tavilyMaxResults'].includes(key)) return parseInt(value, 10);
-  if (key === 'enhance') return value !== 'false';
+  if (['maxTokens', 'maxInputTokens', 'maxContextMessages', 'agentMaxRounds', 'thinkingBudget', 'tavilyMaxResults'].includes(key)) return parseInt(value, 10);
+  if (key === 'enhance' || key === 'autoContextSummary') return value !== 'false';
   return value;
 }
 
@@ -759,4 +1123,9 @@ function parseApiError(status, text) {
   let msg = `API 错误 (${status})`;
   try { msg = JSON.parse(text).error?.message || msg; } catch {}
   return msg;
+}
+
+function isUnsupportedParameterError(text, parameter) {
+  const body = String(text || '').toLowerCase();
+  return body.includes(parameter.toLowerCase()) && /unsupported|unknown|unrecognized|invalid|not support|不支持|未知|无效/.test(body);
 }

@@ -253,7 +253,19 @@
           <div class="form-group"><label for="temperature-input">Temperature: <span id="temperature-value">0.7</span></label><input type="range" id="temperature-input" class="form-range" min="0" max="2" step="0.1" value="0.7" /><div class="range-labels"><span>精确</span><span>创意</span></div></div>
           <div class="form-group"><label for="thinking-budget-input">思考深度: <span id="thinking-budget-value">自动</span></label><input type="range" id="thinking-budget-input" class="form-range" min="0" max="32768" step="1024" value="0" /><div class="range-labels"><span>自动/关闭</span><span>深度思考 (32K)</span></div><p class="form-hint">控制 AI 思考时消耗的 token 数，0=自动。适用于 reasoner 和支持思考的模型</p></div>
           <div class="form-group"><label for="max-tokens-input">最大 Tokens</label><input type="number" id="max-tokens-input" class="form-input" value="4096" min="256" max="65536" step="256" /></div>
+          <div class="form-group"><label for="max-input-tokens-input">输入 Token 预算</label><input type="number" id="max-input-tokens-input" class="form-input" value="24000" min="1024" max="262144" step="1024" /><p class="form-hint">限制每次请求送入模型的系统提示、历史消息和工具上下文，当前用户消息会优先保留。</p></div>
           <div class="form-group"><label for="max-context-input">上下文消息数</label><input type="number" id="max-context-input" class="form-input" value="20" min="2" max="50" step="2" /><p class="form-hint">发送给 API 的历史消息条数上限，越少越省 token</p></div>
+          <div class="form-group"><label for="agent-max-rounds-input">Agent 最大工具轮数</label><input type="number" id="agent-max-rounds-input" class="form-input" value="3" min="1" max="10" step="1" /><p class="form-hint">限制模型连续规划并请求工具的轮数，超过后停止并保留已执行记录。</p></div>
+        </div>
+        <div class="settings-section">
+          <h3>Agent 与 Token</h3>
+          <div class="form-group">
+            <label class="toggle-row">
+              <input type="checkbox" id="auto-context-summary-toggle" checked />
+              <span>自动摘要长上下文</span>
+            </label>
+            <p class="form-hint">历史消息被预算裁剪或接近输入预算时，自动生成短记忆并计入本轮 token 用量。</p>
+          </div>
         </div>
         <div class="settings-section">
           <h3>回答模式</h3>

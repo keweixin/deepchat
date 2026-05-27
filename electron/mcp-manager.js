@@ -5,18 +5,24 @@ const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio
 const CONNECT_TIMEOUT_MS = 15000;
 const CALL_TIMEOUT_MS = 60000;
 const MAX_MCP_OUTPUT = 16000;
+const TOOL_DEFINITION_CACHE_TTL_MS = 5 * 60 * 1000;
 
 class McpManager {
   constructor() {
     this.sessions = new Map();
+    this.toolDefinitionsCache = new Map();
   }
 
   async getToolDefinitions(settings) {
-    const servers = getEnabledServers(settings);
+    const servers = getEnabledServers(settings).sort(compareServers);
+    const cacheKey = servers.map(serverFingerprint).join('\n');
+    const cached = this.toolDefinitionsCache.get(cacheKey);
+    if (cached && Date.now() - cached.createdAt < TOOL_DEFINITION_CACHE_TTL_MS) return cached.definitions;
+
     const definitions = [];
     for (const server of servers) {
       try {
-        const tools = await this.listTools(server);
+        const tools = (await this.listTools(server)).sort(compareTools);
         for (const tool of tools) {
           definitions.push(toOpenAiTool(server, tool));
         }
@@ -24,11 +30,14 @@ class McpManager {
         // Broken MCP servers should not prevent normal chat.
       }
     }
+    definitions.sort((a, b) => String(a.function?.name || '').localeCompare(String(b.function?.name || '')));
+    this.toolDefinitionsCache.set(cacheKey, { definitions, createdAt: Date.now() });
     return definitions;
   }
 
   async listStatus(settings) {
-    const servers = Array.isArray(settings.mcpServers) ? settings.mcpServers : [];
+    this.refreshToolDefinitions();
+    const servers = (Array.isArray(settings.mcpServers) ? settings.mcpServers : []).sort(compareServers);
     const result = [];
     for (const server of servers) {
       const checkedAt = new Date().toISOString();
@@ -93,13 +102,26 @@ class McpManager {
   async closeAll() {
     const sessions = [...this.sessions.values()];
     this.sessions.clear();
+    this.refreshToolDefinitions();
     await Promise.all(sessions.map(closeSession));
+  }
+
+  refreshToolDefinitions() {
+    this.toolDefinitionsCache.clear();
   }
 }
 
 function getEnabledServers(settings) {
   return (Array.isArray(settings.mcpServers) ? settings.mcpServers : [])
     .filter((server) => server && server.enabled !== false && server.command && server.id);
+}
+
+function compareServers(a, b) {
+  return String(a.id || a.name || '').localeCompare(String(b.id || b.name || ''));
+}
+
+function compareTools(a, b) {
+  return String(a.name || '').localeCompare(String(b.name || ''));
 }
 
 function isMcpToolName(name) {

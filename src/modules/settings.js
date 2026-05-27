@@ -135,7 +135,10 @@ export function initSettings(onModelChange) {
     thinkingBudget: document.getElementById('thinking-budget-input'),
     thinkingBudgetVal: document.getElementById('thinking-budget-value'),
     maxTokens: document.getElementById('max-tokens-input'),
+    maxInputTokens: document.getElementById('max-input-tokens-input'),
     maxContext: document.getElementById('max-context-input'),
+    agentMaxRounds: document.getElementById('agent-max-rounds-input'),
+    autoContextSummary: document.getElementById('auto-context-summary-toggle'),
     systemPrompt: document.getElementById('system-prompt-input'),
     modelCapabilityStatus: document.getElementById('model-capability-status'),
     toggleKeyVis: document.getElementById('toggle-key-visibility'),
@@ -175,7 +178,10 @@ export function initSettings(onModelChange) {
   els.temperature.value = settings.temperature;
   els.temperatureVal.textContent = settings.temperature;
   els.maxTokens.value = settings.maxTokens;
+  if (els.maxInputTokens) els.maxInputTokens.value = settings.maxInputTokens;
   if (els.maxContext) els.maxContext.value = settings.maxContextMessages;
+  if (els.agentMaxRounds) els.agentMaxRounds.value = settings.agentMaxRounds;
+  if (els.autoContextSummary) els.autoContextSummary.checked = settings.autoContextSummary !== false;
   els.systemPrompt.value = settings.systemPrompt;
 
   // Thinking budget
@@ -239,6 +245,7 @@ export function initSettings(onModelChange) {
       patch.model !== undefined ||
       patch.apiBase !== undefined ||
       patch.maxContextMessages !== undefined ||
+      patch.maxInputTokens !== undefined ||
       patch.maxTokens !== undefined
     ) {
       renderModelCapabilities(els.modelCapabilityStatus, next);
@@ -328,12 +335,25 @@ export function initSettings(onModelChange) {
   }
 
   els.maxTokens.addEventListener('change', () => saveSettings({ maxTokens: parseInt(els.maxTokens.value) }));
+  if (els.maxInputTokens) {
+    els.maxInputTokens.addEventListener('change', () => {
+      const maxInputTokens = parseInt(els.maxInputTokens.value, 10);
+      saveSettings({ maxInputTokens });
+      renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), maxInputTokens });
+    });
+  }
   if (els.maxContext) {
     els.maxContext.addEventListener('change', () => {
       const maxContextMessages = parseInt(els.maxContext.value);
       saveSettings({ maxContextMessages });
       renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), maxContextMessages });
     });
+  }
+  if (els.agentMaxRounds) {
+    els.agentMaxRounds.addEventListener('change', () => saveSettings({ agentMaxRounds: parseInt(els.agentMaxRounds.value, 10) }));
+  }
+  if (els.autoContextSummary) {
+    els.autoContextSummary.addEventListener('change', () => saveSettings({ autoContextSummary: els.autoContextSummary.checked }));
   }
   els.systemPrompt.addEventListener('input', () => saveSettings({ systemPrompt: els.systemPrompt.value }));
   els.toggleKeyVis.addEventListener('click', () => {
@@ -508,7 +528,8 @@ function renderModelCapabilities(container, settings = getSettings()) {
     `<span class="capability-pill ${enabled ? 'is-on' : 'is-off'}">${label}${enabled ? '可用' : '不可用'}</span>`
   )).join('');
   const contextText = caps.maxContextMessages ? `${caps.maxContextMessages} 条上下文` : '上下文按默认';
-  container.title = `${contextText}；能力来自模型名称规则，最终以服务商实际支持为准。`;
+  const inputBudget = settings.maxInputTokens ? `输入预算 ${settings.maxInputTokens} tokens` : '输入预算按默认';
+  container.title = `${contextText}；${inputBudget}；能力来自模型名称规则，最终以服务商实际支持为准。`;
 }
 
 function renderExternalSkillList(container, skills = [], onChange) {
@@ -739,7 +760,10 @@ function applySettingsToInputs(els, settings, onModelChange) {
   if (els.temperature) els.temperature.value = settings.temperature;
   if (els.temperatureVal) els.temperatureVal.textContent = settings.temperature;
   if (els.maxTokens) els.maxTokens.value = settings.maxTokens;
+  if (els.maxInputTokens) els.maxInputTokens.value = settings.maxInputTokens;
   if (els.maxContext) els.maxContext.value = settings.maxContextMessages;
+  if (els.agentMaxRounds) els.agentMaxRounds.value = settings.agentMaxRounds;
+  if (els.autoContextSummary) els.autoContextSummary.checked = settings.autoContextSummary !== false;
   if (els.thinkingBudget) els.thinkingBudget.value = settings.thinkingBudget;
   if (els.thinkingBudgetVal) els.thinkingBudgetVal.textContent = settings.thinkingBudget === 0 ? '自动' : `${settings.thinkingBudget} tokens`;
   if (els.systemPrompt) els.systemPrompt.value = settings.systemPrompt || '';
@@ -758,7 +782,7 @@ function buildSettingsTabs(panel) {
 
   const groups = [
     { id: 'common', label: '常用', match: /API 配置|联网搜索|工作区与备份|智能增强/ },
-    { id: 'tools', label: '工具', match: /回答模式|外部 Skill|MCP Server/ },
+    { id: 'tools', label: '工具', match: /回答模式|Agent 与 Token|外部 Skill|MCP Server/ },
     { id: 'model', label: '模型', match: /模型设置|系统提示词/ },
   ];
 

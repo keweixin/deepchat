@@ -27,10 +27,13 @@ const DEFAULT_SETTINGS = {
   model: 'deepseek-v4-flash',
   temperature: 0.7,
   maxTokens: 4096,
+  maxInputTokens: 24000,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   maxContextMessages: 20,
+  agentMaxRounds: 3,
   thinkingBudget: 0,
-  activeSkill: 'none',
+  activeSkill: 'agent_auto',
+  autoContextSummary: true,
   enhance: true,
   tavilyMaxResults: 5,
   workspaceRoots: [],
@@ -74,9 +77,12 @@ function normalizeSettings(input = {}) {
   const next = { ...DEFAULT_SETTINGS, ...input };
   next.temperature = clampNumber(next.temperature, 0, 2, DEFAULT_SETTINGS.temperature);
   next.maxTokens = Math.round(clampNumber(next.maxTokens, 256, 65536, DEFAULT_SETTINGS.maxTokens));
+  next.maxInputTokens = Math.round(clampNumber(next.maxInputTokens, 1024, 262144, DEFAULT_SETTINGS.maxInputTokens));
   next.maxContextMessages = Math.round(clampNumber(next.maxContextMessages, 2, 100, DEFAULT_SETTINGS.maxContextMessages));
+  next.agentMaxRounds = Math.round(clampNumber(next.agentMaxRounds, 1, 10, DEFAULT_SETTINGS.agentMaxRounds));
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
+  next.autoContextSummary = next.autoContextSummary !== false && next.autoContextSummary !== 'false';
   next.workspaceRoots = normalizeWorkspaceRoots(next.workspaceRoots);
   next.externalSkills = normalizeExternalSkills(next.externalSkills);
   next.mcpServers = normalizeMcpServers(next.mcpServers);
