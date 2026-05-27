@@ -393,9 +393,10 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
   const toolContainer = msgEl.querySelector('.tool-calls-container');
   const agentContainer = msgEl.querySelector('.agent-timeline-container');
 
-  function shouldShowAgentCrew() {
+  function shouldShowAgentCrewEarly() {
     const skill = composerOverrides?.activeSkill || getSettings().activeSkill || 'auto';
-    return ['agent_auto', 'web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill);
+    // Only explicit tool modes show Crew early; agent_auto waits for actual tool/agent events
+    return ['web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill);
   }
 
   function ensureAgentRun() {
@@ -405,7 +406,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     return assistantMsg.agentRun;
   }
 
-  if (shouldShowAgentCrew()) {
+  if (shouldShowAgentCrewEarly()) {
     ensureAgentRun();
     renderAgentCrew(crewContainer, assistantMsg.agentRun);
   }
@@ -561,7 +562,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     async onDone(doneEvent = {}) {
       clearTimeout(renderTimer);
       if (assistantMsg.agentRun) {
-        finalizeCrewRun(assistantMsg.agentRun, Boolean(doneEvent.aborted));
+        finalizeCrewRun(assistantMsg.agentRun, { aborted: Boolean(doneEvent.aborted) });
         renderAgentCrew(crewContainer, assistantMsg.agentRun);
       }
 
@@ -635,7 +636,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       }
 
       if (assistantMsg.agentRun) {
-        finalizeCrewRun(assistantMsg.agentRun, false, err.message, { source: 'model_stream' });
+        finalizeCrewRun(assistantMsg.agentRun, { error: err.message, source: 'model_stream' });
         renderAgentCrew(crewContainer, assistantMsg.agentRun);
       }
 
@@ -882,7 +883,7 @@ function renderMessages() {
             applyCrewToolResult(agentRun, tool, msg.toolCalls);
           });
         }
-        finalizeCrewRun(agentRun, msg.stopped, msg.error);
+        finalizeCrewRun(agentRun, { aborted: msg.stopped, error: msg.error });
         msg.agentRun = agentRun;
       }
       renderAgentCrew(el.querySelector('.agent-crew-container'), agentRun);

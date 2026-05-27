@@ -92,8 +92,9 @@ export function applyCrewToolRequest(agentRun, tool = {}) {
   const member = agentRun.crew.find((m) => m.id === roleId);
   if (!member) return;
 
-  if (!member.linkedToolCallIds.includes(tool.id)) {
-    member.linkedToolCallIds.push(tool.id);
+  const toolId = tool.id || tool.toolCallId || tool.callId || `${toolName}_${Date.now().toString(36)}`;
+  if (!member.linkedToolCallIds.includes(toolId)) {
+    member.linkedToolCallIds.push(toolId);
   }
 
   // Update status based on tool status
@@ -115,7 +116,12 @@ export function applyCrewToolResult(agentRun, event = {}, toolCalls = []) {
   if (!agentRun || !agentRun.crew) return;
   const toolId = event.toolCallId || event.id;
   const tool = toolCalls.find((t) => t.id === toolId) || event;
-  const toolName = tool.name || '';
+  const toolName = tool.name || event.name || event.toolName || '';
+  if (!toolName) {
+    // Cannot attribute to any role; record as orphan step
+    agentRun.steps.push({ type: 'tool', status: 'unknown', label: '未知工具结果' });
+    return;
+  }
   const roleId = getCrewRoleForTool(toolName);
   const member = agentRun.crew.find((m) => m.id === roleId);
   if (!member) return;
@@ -222,15 +228,16 @@ export function markCrewMemberDone(agentRun, roleId, action = '已完成') {
   }
 }
 
-export function finalizeCrewRun(agentRun, isAborted = false, errorMsg = '', opts = {}) {
+export function finalizeCrewRun(agentRun, options = {}) {
   if (!agentRun || !agentRun.crew) return;
+  const { aborted = false, error = '', source = 'unknown' } = options;
 
   // 1. If error occurred
-  if (errorMsg) {
+  if (error) {
     agentRun.status = 'error';
     agentRun.finishedAt = new Date().toISOString();
 
-    if (opts.source === 'model_stream') {
+    if (source === 'model_stream') {
       // Model/API/stream errors belong to Writer or Planner, not arbitrary running tool roles
       const writer = agentRun.crew.find((m) => m.id === 'writer');
       const planner = agentRun.crew.find((m) => m.id === 'planner');
@@ -238,7 +245,7 @@ export function finalizeCrewRun(agentRun, isAborted = false, errorMsg = '', opts
       if (target) {
         target.status = 'error';
         target.currentAction = '模型输出或网络流中断';
-        target.outputSummary = errorMsg;
+        target.outputSummary = error;
         target.finishedAt = new Date().toISOString();
       }
       // Mark other running/waiting members as skipped (not error) since the fault isn't theirs
@@ -257,42 +264,57 @@ export function finalizeCrewRun(agentRun, isAborted = false, errorMsg = '', opts
       if (member.status === 'running' || member.status === 'waiting') {
         member.status = 'error';
         member.currentAction = '执行中途出错中断';
-        member.outputSummary = errorMsg;
+        member.outputSummary = error;
         member.finishedAt = new Date().toISOString();
       }
     });
     return;
   }
 
-  // 2. Mark Reviewer and Writer done
+  // 2. Mark Reviewer and Writer done (or skipped if aborted)
   const reviewer = agentRun.crew.find((m) => m.id === 'reviewer');
   if (reviewer && (reviewer.status === 'idle' || reviewer.status === 'running')) {
-    reviewer.status = 'done';
-    reviewer.currentAction = '已完成证据审查';
-    reviewer.outputSummary = '已校验所有运行工具与引用证据';
+    if (aborted) {
+      reviewer.status = 'skipped';
+      reviewer.currentAction = '因用户停止跳过复核';
+    } else {
+      reviewer.status = 'done';
+      reviewer.currentAction = '已完成证据审查';
+      reviewer.outputSummary = '已校验所有运行工具与引用证据';
+    }
     reviewer.finishedAt = new Date().toISOString();
   }
 
   const writer = agentRun.crew.find((m) => m.id === 'writer');
   if (writer && (writer.status === 'idle' || writer.status === 'running')) {
-    writer.status = 'done';
-    writer.currentAction = isAborted ? '已停止' : '已完成最终回答';
-    writer.outputSummary = isAborted ? '回答被用户终止' : '内容整理已全部输出';
+    if (aborted) {
+      writer.status = 'skipped';
+      writer.currentAction = '已停止输出';
+      writer.outputSummary = '回答被用户终止';
+    } else {
+      writer.status = 'done';
+      writer.currentAction = '已完成最终回答';
+      writer.outputSummary = '内容整理已全部输出';
+    }
     writer.finishedAt = new Date().toISOString();
   }
 
-  // 3. Mark all remaining 'idle' agents as 'skipped'
+  // 3. Mark all remaining agents
   agentRun.crew.forEach((member) => {
     if (member.status === 'idle') {
       member.status = 'skipped';
       member.currentAction = '本轮跳过';
       member.outputSummary = '无相关动作';
-    } else if (member.status === 'running' || member.status === 'waiting') {
-      member.status = 'done';
+    } else if (member.status === 'waiting') {
+      member.status = aborted ? 'skipped' : 'waiting';
+      member.currentAction = aborted ? '已取消等待确认' : '仍在等待确认';
+      if (!member.finishedAt) member.finishedAt = new Date().toISOString();
+    } else if (member.status === 'running') {
+      member.status = aborted ? 'skipped' : 'done';
       if (!member.finishedAt) member.finishedAt = new Date().toISOString();
     }
   });
 
-  agentRun.status = isAborted ? 'cancelled' : 'done';
+  agentRun.status = aborted ? 'cancelled' : 'done';
   agentRun.finishedAt = new Date().toISOString();
 }

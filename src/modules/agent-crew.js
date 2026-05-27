@@ -42,7 +42,7 @@ export function renderAgentCrew(container, agentRun) {
   const activeStatusText = statusLabels[agentRun.status] || '智能团队';
   header.replaceChildren(
     createCrewHeaderTitle(agentRun.status, activeStatusText),
-    createTextElement('div', 'agent-crew-badge', `${runningOrDoneCount}/${totalCount} 激活`)
+    createTextElement('div', 'agent-crew-badge', `${runningOrDoneCount}/${totalCount} 参与`)
   );
 
   // Render Grid Container

@@ -119,7 +119,7 @@ describe('agent crew state engine', () => {
     // Make planner done
     markCrewMemberDone(run, 'planner', '已生成计划');
 
-    finalizeCrewRun(run, false);
+    finalizeCrewRun(run, { aborted: false });
 
     expect(run.status).toBe('done');
 
@@ -141,7 +141,7 @@ describe('agent crew state engine', () => {
     const run = createAgentRun('auto');
     applyCrewToolRequest(run, { id: 't1', name: 'read_file', status: 'approved' });
 
-    finalizeCrewRun(run, false, 'API request timeout');
+    finalizeCrewRun(run, { aborted: false, error: 'API request timeout' });
 
     expect(run.status).toBe('error');
 
@@ -154,7 +154,7 @@ describe('agent crew state engine', () => {
     const run = createAgentRun('auto');
     applyCrewToolRequest(run, { id: 't1', name: 'read_file', status: 'approved' });
 
-    finalizeCrewRun(run, false, 'Stream was interrupted', { source: 'model_stream' });
+    finalizeCrewRun(run, { aborted: false, error: 'Stream was interrupted', source: 'model_stream' });
 
     expect(run.status).toBe('error');
 
