@@ -8,6 +8,7 @@ import {
   hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
   renderAgentTimeline,
+  renderAssistantAnswerHeader,
   renderAssistantArtifacts,
   renderAssistantEvidence,
   renderContextMentionStrip,
@@ -230,6 +231,45 @@ describe('chat regeneration', () => {
 
     expect(container.textContent).toContain('下一步');
     expect(container.textContent).toContain('检查 Tavily Key 后重试');
+  });
+
+  it('renders assistant answer header with model, tools, usage, and cache', () => {
+    const container = document.createElement('div');
+    renderAssistantAnswerHeader(container, {
+      content: '根据工具结果，下一步先修复 Tavily 配置。',
+      model: 'deepseek-v4-flash',
+      tokens: {
+        input: 1000,
+        output: 250,
+        total: 1250,
+        reasoning: 30,
+        cacheHit: 750,
+        cacheMiss: 250,
+        source: 'provider',
+      },
+      contextBudget: {
+        trimmed: true,
+        droppedCount: 2,
+        prefixFingerprint: 'abc123',
+      },
+      agentStages: [{ stage: 'plan', round: 0 }, { stage: 'tool_result', round: 2 }],
+      toolRuns: [
+        { name: 'read_file', status: 'completed', ok: true },
+        { name: 'web_search', status: 'failed', ok: false },
+      ],
+    });
+
+    expect(container.hidden).toBe(false);
+    expect(container.textContent).toContain('回答概览');
+    expect(container.textContent).toContain('执行结果');
+    expect(container.textContent).toContain('deepseek-v4-flash');
+    expect(container.textContent).toContain('工具 2 · 1 失败');
+    expect(container.textContent).toContain('Agent 2 轮');
+    expect(container.textContent).toContain('实测 1.3k tok');
+    expect(container.textContent).toContain('缓存 75%');
+    expect(container.textContent).toContain('思考 30 tok');
+    expect(container.textContent).toContain('裁剪 2 条历史');
+    expect(container.querySelector('.answer-header').title).toContain('Prefix: abc123');
   });
 
   it('renders assistant HTML artifacts in a sandboxed preview', () => {

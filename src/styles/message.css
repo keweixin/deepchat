@@ -121,6 +121,72 @@
   color: var(--text-muted);
 }
 
+.answer-header-container {
+  margin: 0 0 var(--space-2);
+}
+
+.answer-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 84%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 24%);
+}
+
+.answer-header-title {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.answer-header-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.answer-header-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(260px, 100%);
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent-primary), transparent 94%);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.answer-header-chip.chip-model,
+.answer-header-chip.chip-token,
+.answer-header-chip.chip-thinking {
+  font-family: var(--font-mono);
+}
+
+.answer-header-chip.chip-cache {
+  border-color: color-mix(in srgb, #22c55e, transparent 76%);
+  background: color-mix(in srgb, #22c55e, transparent 93%);
+}
+
+.answer-header-chip.chip-tool-warning {
+  border-color: color-mix(in srgb, #ef4444, transparent 72%);
+  background: color-mix(in srgb, #ef4444, transparent 94%);
+}
+
+.answer-header-chip.chip-budget {
+  border-color: color-mix(in srgb, var(--accent-secondary), transparent 76%);
+  background: color-mix(in srgb, var(--accent-secondary), transparent 93%);
+}
+
 /* Message Content */
 .message-content {
   width: 100%;

@@ -349,6 +349,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     content: '',
     thinking: '',
     timestamp: Date.now(),
+    model: getSettings().model || '',
     tokens: null,
     versions: inheritVersions || [],
     toolRuns: [],
@@ -534,6 +535,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       persist();
       updateHeader();
 
+      renderAssistantAnswerHeader(msgEl.querySelector('.answer-header-container'), assistantMsg);
       addMessageActions(msgEl, fullContent, assistantMsg.tokens, finalSpeed, conv.messages.length - 1);
       if (assistantMsg.stopped) renderStoppedNotice(msgEl.querySelector('.message-body'), conv.messages.length - 1);
       renderAssistantArtifacts(msgEl.querySelector('.artifact-container'), assistantMsg);
@@ -567,6 +569,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.thinking = fullThinking;
       assistantMsg.error = err.message;
       syncToolRuns(assistantMsg);
+      renderAssistantAnswerHeader(msgEl.querySelector('.answer-header-container'), assistantMsg);
       conv.messages.push(assistantMsg);
       refreshConversationTaskCheckpoint(conv);
       conv.usageTotals = getConversationUsageSummary(conv);
@@ -764,6 +767,7 @@ function renderMessages() {
         contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
         postProcess(contentEl).then(refreshReadingNavigator);
       }
+      renderAssistantAnswerHeader(el.querySelector('.answer-header-container'), msg);
       addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
       if (msg.stopped) renderStoppedNotice(el.querySelector('.message-body'), idx);
 
@@ -820,6 +824,7 @@ function appendMessageDOM(msg, streaming = false) {
         <span class="message-role">${roleText}</span>
         <span class="message-time" title="${fullTime}">${time}</span>
       </div>
+      ${msg.role === 'assistant' ? '<div class="answer-header-container" hidden></div>' : ''}
       ${thinkingHtml}
       <div class="agent-timeline-container" hidden></div>
       <div class="tool-calls-container" hidden></div>
@@ -1629,6 +1634,120 @@ function renderArtifactCard(artifact, index) {
   actions.append(previewBtn, downloadBtn);
   card.append(main, actions);
   return card;
+}
+
+export function renderAssistantAnswerHeader(container, message = {}) {
+  if (!container) return null;
+  container.innerHTML = '';
+  const items = buildAssistantAnswerHeaderItems(message);
+  if (!items.length) {
+    container.hidden = true;
+    return null;
+  }
+  container.hidden = false;
+
+  const header = document.createElement('div');
+  header.className = 'answer-header';
+  header.title = buildAssistantAnswerHeaderTitle(message);
+
+  const title = document.createElement('div');
+  title.className = 'answer-header-title';
+  title.textContent = '回答概览';
+  header.appendChild(title);
+
+  const list = document.createElement('div');
+  list.className = 'answer-header-chips';
+  for (const item of items) {
+    const chip = document.createElement('span');
+    chip.className = `answer-header-chip chip-${item.kind}`;
+    chip.textContent = item.label;
+    list.appendChild(chip);
+  }
+  header.appendChild(list);
+  container.appendChild(header);
+  return header;
+}
+
+function buildAssistantAnswerHeaderItems(message = {}) {
+  const items = [];
+  const type = inferAnswerType(message);
+  if (type) items.push({ kind: 'type', label: type });
+
+  const model = String(message.model || message.tokens?.model || message.cacheProfile?.model || '').trim();
+  if (model) items.push({ kind: 'model', label: model });
+
+  const runs = getAssistantHeaderToolRuns(message);
+  if (runs.length) {
+    const failed = runs.filter((run) => isFailedToolStatus(run.status) || run.ok === false).length;
+    const completed = runs.filter((run) => run.status === 'completed' || run.ok === true).length;
+    const suffix = failed ? ` · ${failed} 失败` : (completed ? ` · ${completed} 完成` : '');
+    items.push({ kind: failed ? 'tool-warning' : 'tool', label: `工具 ${runs.length}${suffix}` });
+  }
+
+  if (Array.isArray(message.agentStages) && message.agentStages.length) {
+    const rounds = Math.max(...message.agentStages.map((stage) => Number(stage.round || 0)).filter(Number.isFinite), 0);
+    items.push({ kind: 'agent', label: rounds > 0 ? `Agent ${rounds} 轮` : 'Agent 过程' });
+  }
+
+  if (message.tokens) {
+    const usage = normalizeTokenUsage(message.tokens);
+    const source = usage.source === 'provider' ? '实测' : (usage.source === 'mixed' ? '混合' : '估算');
+    items.push({ kind: 'token', label: `${source} ${formatCompactTokenCount(usage.total)} tok` });
+    if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
+      items.push({ kind: 'cache', label: `缓存 ${Math.round((usage.cacheHitRate || 0) * 100)}%` });
+    }
+    if (usage.reasoning > 0) items.push({ kind: 'thinking', label: `思考 ${formatCompactTokenCount(usage.reasoning)} tok` });
+  }
+
+  if (message.contextBudget?.trimmed) {
+    items.push({ kind: 'budget', label: `裁剪 ${message.contextBudget.droppedCount || 0} 条历史` });
+  } else if (message.contextBudget?.summaryUsed) {
+    items.push({ kind: 'budget', label: '已用长期记忆' });
+  }
+
+  return items;
+}
+
+function buildAssistantAnswerHeaderTitle(message = {}) {
+  const lines = ['回答头部'];
+  const type = inferAnswerType(message);
+  if (type) lines.push(`类型: ${type}`);
+  const model = String(message.model || message.tokens?.model || message.cacheProfile?.model || '').trim();
+  if (model) lines.push(`模型: ${model}`);
+  const runs = getAssistantHeaderToolRuns(message);
+  if (runs.length) {
+    const names = runs.map((run) => `${getToolName(run)}:${run.status || (run.ok === true ? 'completed' : 'unknown')}`);
+    lines.push(`工具: ${names.join(', ')}`);
+  }
+  if (message.tokens) lines.push(formatTokenUsageTitle(message.tokens));
+  if (message.contextBudget?.prefixFingerprint) lines.push(`Prefix: ${message.contextBudget.prefixFingerprint}`);
+  if (message.contextBudget?.trimmed) lines.push(`上下文裁剪: ${message.contextBudget.droppedCount || 0} 条`);
+  if (message.contextBudget?.summaryUsed) lines.push('上下文摘要: 已使用');
+  return lines.join('\n');
+}
+
+function inferAnswerType(message = {}) {
+  if (message.error) return '执行错误';
+  const content = String(message.content || '');
+  const runs = getAssistantHeaderToolRuns(message);
+  if (runs.length) return '执行结果';
+  if (Array.isArray(message.agentStages) && message.agentStages.length) return 'Agent';
+  if (/```|补丁|代码|函数|组件|接口/.test(content)) return '代码';
+  if (/审查|风险|漏洞|安全|性能|可维护/.test(content)) return '代码审查';
+  if (/调研|来源|引用|官方|文档|资料/.test(content)) return '调研';
+  if (/方案|计划|步骤|优先级|P0|P1|P2/.test(content)) return '方案';
+  return content ? '解释' : '';
+}
+
+function getAssistantHeaderToolRuns(message = {}) {
+  return [
+    ...(Array.isArray(message.toolRuns) ? message.toolRuns : []),
+    ...(Array.isArray(message.toolCalls) ? message.toolCalls : []),
+  ].filter(Boolean);
+}
+
+function isFailedToolStatus(status) {
+  return ['failed', 'error', 'denied', 'timeout', 'cancelled', 'canceled'].includes(String(status || '').toLowerCase());
 }
 
 function openHtmlArtifactPreview(artifact) {
