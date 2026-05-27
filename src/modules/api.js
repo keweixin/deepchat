@@ -6,6 +6,12 @@
  */
 
 import { uid } from './utils.js';
+import {
+  buildTavilySearchRequest,
+  normalizeSearchQuery,
+  deriveSearchMaxResults,
+  getFreshnessWindow,
+} from '../../electron/search-utils.js';
 
 export const DEFAULT_SYSTEM_PROMPT = `你是一位专业、严谨且善于深度思考的AI助手。
 
@@ -699,66 +705,7 @@ async function requestTavilySearch(query, settings, maxResults = settings.tavily
   return { response, request };
 }
 
-export function buildTavilySearchRequest(rawQuery, settings = {}, explicitMaxResults) {
-  const originalQuery = String(rawQuery || '').trim();
-  const cleanedQuery = normalizeSearchQuery(originalQuery);
-  const maxResults = deriveSearchMaxResults(originalQuery, explicitMaxResults ?? settings.tavilyMaxResults);
-  const freshness = getFreshnessWindow(originalQuery);
-  const payload = {
-    query: cleanedQuery,
-    max_results: maxResults,
-    search_depth: 'basic',
-    include_answer: false,
-    include_raw_content: false,
-  };
-
-  if (freshness) {
-    payload.topic = 'news';
-    payload.time_range = freshness.timeRange;
-    payload.days = freshness.days;
-  }
-
-  return {
-    originalQuery,
-    payload,
-    freshness,
-    requestedAt: new Date().toISOString().slice(0, 10),
-  };
-}
-
-function normalizeSearchQuery(query) {
-  const trimmed = String(query || '').trim();
-  const compact = stripExplicitToolDirectives(trimmed)
-    .replace(/[，。！？?]/g, ' ')
-    .replace(/帮我|请|麻烦|一下|搜索|搜一下|查找|查询|查一下|给我|告诉我/g, ' ')
-    .replace(/一个就行|一条就行|一篇就行|就行|即可/g, ' ')
-    .replace(/["'`]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (/ai|人工智能/i.test(compact) && /新闻|news|最新|today|recent|latest/i.test(compact)) {
-    return `latest AI news ${new Date().toISOString().slice(0, 10)}`;
-  }
-  return compact || trimmed || 'latest news';
-}
-
-function stripExplicitToolDirectives(text) {
-  return String(text || '').replace(/(^|[\s([，,;；])@(web|search|run|code|changed|recent|mcp)\s*:?\s*/gi, '$1');
-}
-
-function deriveSearchMaxResults(query, requested) {
-  const explicit = Number(requested);
-  if (/一个|一条|一篇|\b1\b|one/i.test(String(query || ''))) return 1;
-  if (Number.isFinite(explicit)) return Math.round(clampNumber(explicit, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
-  return DEFAULT_SETTINGS.tavilyMaxResults;
-}
-
-function getFreshnessWindow(query) {
-  const text = String(query || '');
-  if (!/最新|新闻|今日|今天|实时|刚刚|本周|recent|latest|news|today|current/i.test(text)) return null;
-  if (/今日|今天|today|刚刚/i.test(text)) return { timeRange: 'day', days: 1 };
-  return { timeRange: 'week', days: 7 };
-}
+export { buildTavilySearchRequest };
 
 export function isEnhanceEnabledSetting() {
   return getSettings().enhance !== false;

@@ -5,8 +5,9 @@ import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
+import { buildTavilySearchRequest } from '../electron/search-utils.js';
+
 const {
-  buildTavilySearchRequest,
   clearWorkspaceIndexCache,
   clearWorkspaceIndexDiskCache,
   executeTool,
