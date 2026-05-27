@@ -407,8 +407,8 @@ describe('browser settings fallback', () => {
   it('summarizes token usage for a conversation', () => {
     const summary = getConversationUsageSummary({
       messages: [
-        { role: 'assistant', tokens: { input: 10, output: 2, total: 12, cacheHit: 5, cacheMiss: 5 } },
-        { role: 'assistant', tokens: { input: 20, output: 4, total: 24, cacheHit: 5, cacheMiss: 15 } },
+        { role: 'assistant', tokens: { input: 10, output: 2, total: 12, cacheHit: 5, cacheMiss: 5, source: 'provider' } },
+        { role: 'assistant', tokens: { input: 20, output: 4, total: 24, cacheHit: 5, cacheMiss: 15, source: 'provider' } },
       ],
     });
 
@@ -419,7 +419,19 @@ describe('browser settings fallback', () => {
       cacheHit: 10,
       cacheMiss: 20,
       cacheHitRate: 10 / 30,
+      source: 'provider',
     });
+  });
+
+  it('marks conversation usage as mixed only when message sources differ', () => {
+    const summary = getConversationUsageSummary({
+      messages: [
+        { role: 'assistant', tokens: { input: 10, output: 2, total: 12, source: 'provider' } },
+        { role: 'assistant', tokens: { input: 20, output: 4, total: 24, source: 'estimated' } },
+      ],
+    });
+
+    expect(summary.source).toBe('mixed');
   });
 
   it('does not leave assistant as the first retained context message', () => {

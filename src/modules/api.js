@@ -949,9 +949,11 @@ function roundCost(value) {
 
 export function getConversationUsageSummary(conversation) {
   const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
+  const sources = new Set();
   const summary = messages.reduce((acc, message) => {
     if (!message?.tokens) return acc;
     const usage = normalizeTokenUsage(message.tokens);
+    sources.add(usage.source || 'estimated');
     acc.input += usage.input;
     acc.output += usage.output;
     acc.total += usage.total;
@@ -963,7 +965,8 @@ export function getConversationUsageSummary(conversation) {
     acc.cost = mergeUsageCost(acc.cost, usage.cost);
     return acc;
   }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, rounds: 0, byPurpose: {}, cost: null });
-  return finalizeTokenUsage({ ...summary, source: 'mixed' });
+  const source = sources.size === 0 ? 'estimated' : (sources.size === 1 ? [...sources][0] : 'mixed');
+  return finalizeTokenUsage({ ...summary, source });
 }
 
 function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used }) {

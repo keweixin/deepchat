@@ -63,6 +63,7 @@ let bulkMode = false;
 let selectedConversationIds = new Set();
 let conversationMenuEl = null;
 let conversationMenuCleanup = null;
+let usageTelemetryPanelEl = null;
 
 let $messages, $welcome, $convList, $chatTitle, $modelName, $chatUsageBadge;
 
@@ -78,6 +79,7 @@ export async function initChat() {
   $chatTitle = document.getElementById('chat-title');
   $modelName = document.getElementById('model-name');
   $chatUsageBadge = document.getElementById('chat-usage-badge');
+  bindUsageTelemetryPanel();
 
   conversations = normalizeConversations(await loadConversations());
 
@@ -1647,12 +1649,25 @@ function formatTokenUsageTitle(tokens) {
 }
 
 export function formatConversationUsageTelemetry(conversation) {
+  const details = buildConversationUsageTelemetryDetails(conversation);
+  if (!details) return null;
+  return {
+    text: details.text,
+    title: details.title,
+    hitRate: details.hitRate,
+    total: details.usage.total,
+  };
+}
+
+export function buildConversationUsageTelemetryDetails(conversation) {
   const usage = getConversationUsageSummary(conversation);
   if (!usage || usage.total <= 0) return null;
-  const profile = getConversationCacheProfile(conversation);
+  const profile = getConversationCacheProfile(conversation) || {};
   const hitRate = usage.cacheHit > 0 || usage.cacheMiss > 0
     ? Math.round(usage.cacheHitRate * 100)
     : null;
+  const reasons = normalizeCacheStabilityReasons(profile.cacheStabilityReasons);
+  const warnings = [...new Set([...(usage.warnings || []), ...(profile.cacheStabilityWarnings || [])])];
   const textParts = [`${formatCompactTokenCount(usage.total)} tok`];
   if (hitRate !== null) textParts.push(`缓存 ${hitRate}%`);
   if (usage.cost?.estimatedSavingsUsd > 0) textParts.push(`省 ${formatUsd(usage.cost.estimatedSavingsUsd)}`);
@@ -1676,20 +1691,138 @@ export function formatConversationUsageTelemetry(conversation) {
     titleLines.push(`缓存节省: ${formatUsd(usage.cost.estimatedSavingsUsd || 0)}`);
   }
   if (usage.rounds > 1) titleLines.push(`Agent 轮次: ${usage.rounds}`);
-  if (profile?.prefixFingerprint) titleLines.push(`Prefix: ${profile.prefixFingerprint}`);
-  if (profile?.prefixTokens) titleLines.push(`Prefix tokens: ${profile.prefixTokens}`);
-  if (profile?.cacheStabilityReasons?.length) {
-    titleLines.push(`Cache miss 可能原因: ${profile.cacheStabilityReasons.map(formatCacheStabilityReason).join('、')}`);
-  }
-  const detailText = formatCacheStabilityDetails(profile?.cacheStabilityDetails);
+  if (profile.prefixFingerprint) titleLines.push(`Prefix: ${profile.prefixFingerprint}`);
+  if (profile.prefixTokens) titleLines.push(`Prefix tokens: ${profile.prefixTokens}`);
+  if (reasons.length) titleLines.push(`Cache miss 可能原因: ${reasons.map(formatCacheStabilityReason).join('、')}`);
+  const detailText = formatCacheStabilityDetails(profile.cacheStabilityDetails);
   if (detailText) titleLines.push(`变化明细: ${detailText}`);
+  if (warnings.length) titleLines.push(`提示: ${warnings.join('；')}`);
 
   return {
     text: textParts.join(' · '),
     title: titleLines.join('\n'),
+    sourceLabel: formatUsageSourceLabel(usage.source),
     hitRate,
-    total: usage.total,
+    hitRateLabel: hitRate === null ? '无缓存 usage' : `${hitRate}%`,
+    usage,
+    profile,
+    reasons,
+    warnings,
+    detailText,
   };
+}
+
+export function renderConversationUsageTelemetryPanel(container, conversation) {
+  const details = buildConversationUsageTelemetryDetails(conversation);
+  container.replaceChildren();
+  if (!details) {
+    container.hidden = true;
+    return null;
+  }
+  container.hidden = false;
+  container.classList.add('usage-telemetry-panel');
+
+  const header = document.createElement('div');
+  header.className = 'usage-panel-header';
+  const title = document.createElement('div');
+  title.className = 'usage-panel-title';
+  title.textContent = '本会话 Token / Cache';
+  const source = document.createElement('span');
+  source.className = 'usage-panel-source';
+  source.textContent = details.sourceLabel;
+  header.append(title, source);
+
+  const metrics = document.createElement('div');
+  metrics.className = 'usage-panel-grid';
+  [
+    ['输入', details.usage.input],
+    ['输出', details.usage.output],
+    ['思考', details.usage.reasoning],
+    ['总计', details.usage.total],
+    ['Cache hit', details.usage.cacheHit],
+    ['Cache miss', details.usage.cacheMiss],
+    ['命中率', details.hitRateLabel],
+    ['Agent 轮次', details.usage.rounds || 1],
+  ].forEach(([label, value]) => metrics.appendChild(createUsageMetric(label, value)));
+
+  const cost = document.createElement('div');
+  cost.className = 'usage-panel-section';
+  cost.appendChild(createUsageSectionTitle('成本解释'));
+  const costRows = [
+    ['估算成本', details.usage.cost ? formatUsd(details.usage.cost.estimatedCostUsd || 0) : '无价格表'],
+    ['缓存节省', details.usage.cost ? formatUsd(details.usage.cost.estimatedSavingsUsd || 0) : '无价格表'],
+    ['命中输入成本', details.usage.cost ? formatUsd(details.usage.cost.inputCacheHitCostUsd || 0) : '无价格表'],
+    ['未命中输入成本', details.usage.cost ? formatUsd(details.usage.cost.inputCacheMissCostUsd || 0) : '无价格表'],
+    ['输出成本', details.usage.cost ? formatUsd(details.usage.cost.outputCostUsd || 0) : '无价格表'],
+  ];
+  costRows.forEach(([label, value]) => cost.appendChild(createUsageRow(label, value)));
+
+  const prefix = document.createElement('div');
+  prefix.className = 'usage-panel-section';
+  prefix.appendChild(createUsageSectionTitle('Cache-first 前缀'));
+  [
+    ['Prefix hash', details.profile.prefixFingerprint || '无'],
+    ['Prefix tokens', details.profile.prefixTokens || 0],
+    ['Prefix bytes', details.profile.prefixBytes || 0],
+    ['System hash', details.profile.systemHash || '无'],
+    ['Tools hash', details.profile.toolsHash || '无'],
+    ['Workspace hash', details.profile.workspaceSignature || '无'],
+  ].forEach(([label, value]) => prefix.appendChild(createUsageRow(label, value)));
+
+  const reasons = document.createElement('div');
+  reasons.className = 'usage-panel-section';
+  reasons.appendChild(createUsageSectionTitle('缓存变化原因'));
+  const reasonText = details.reasons.length
+    ? details.reasons.map(formatCacheStabilityReason).join('、')
+    : '未检测到 prefix 变化';
+  reasons.appendChild(createUsageRow('Cache miss 可能原因', reasonText));
+  if (details.detailText) reasons.appendChild(createUsageRow('变化明细', details.detailText));
+  if (details.warnings.length) reasons.appendChild(createUsageRow('提示', details.warnings.join('；')));
+
+  const purposeEntries = Object.entries(details.usage.byPurpose || {});
+  if (purposeEntries.length) {
+    const purpose = document.createElement('div');
+    purpose.className = 'usage-panel-section';
+    purpose.appendChild(createUsageSectionTitle('用途拆分'));
+    purposeEntries.forEach(([label, value]) => purpose.appendChild(createUsageRow(label, value)));
+    container.append(header, metrics, cost, prefix, reasons, purpose);
+  } else {
+    container.append(header, metrics, cost, prefix, reasons);
+  }
+  return details;
+}
+
+function createUsageMetric(label, value) {
+  const item = document.createElement('div');
+  item.className = 'usage-panel-metric';
+  const name = document.createElement('span');
+  name.className = 'usage-panel-metric-label';
+  name.textContent = label;
+  const number = document.createElement('strong');
+  number.className = 'usage-panel-metric-value';
+  number.textContent = String(value ?? 0);
+  item.append(name, number);
+  return item;
+}
+
+function createUsageSectionTitle(text) {
+  const title = document.createElement('div');
+  title.className = 'usage-panel-section-title';
+  title.textContent = text;
+  return title;
+}
+
+function createUsageRow(label, value) {
+  const row = document.createElement('div');
+  row.className = 'usage-panel-row';
+  const name = document.createElement('span');
+  name.className = 'usage-panel-row-label';
+  name.textContent = label;
+  const content = document.createElement('code');
+  content.className = 'usage-panel-row-value';
+  content.textContent = String(value ?? '');
+  row.append(name, content);
+  return row;
 }
 
 function getConversationCacheProfile(conversation) {
@@ -1715,6 +1848,12 @@ function formatCompactTokenCount(value) {
 
 function formatUsd(value) {
   return `$${Number(value || 0).toFixed(6)}`;
+}
+
+function formatUsageSourceLabel(source) {
+  if (source === 'provider') return '服务商真实 usage';
+  if (source === 'mixed') return '真实和估算混合';
+  return '本地估算';
 }
 
 function buildCacheProfile(tokens, contextBudget) {
@@ -2361,12 +2500,77 @@ function updateHeaderUsageBadge(conversation) {
     $chatUsageBadge.classList.add('hidden');
     $chatUsageBadge.textContent = '';
     $chatUsageBadge.title = '';
+    $chatUsageBadge.removeAttribute('role');
+    $chatUsageBadge.removeAttribute('tabindex');
+    closeUsageTelemetryPanel();
     return;
   }
   $chatUsageBadge.classList.remove('hidden');
   $chatUsageBadge.textContent = telemetry.text;
   $chatUsageBadge.title = telemetry.title;
+  $chatUsageBadge.setAttribute('role', 'button');
+  $chatUsageBadge.setAttribute('tabindex', '0');
+  $chatUsageBadge.setAttribute('aria-label', '查看会话 Token 与缓存详情');
   $chatUsageBadge.dataset.hitRate = telemetry.hitRate === null ? '' : String(telemetry.hitRate);
+  if (usageTelemetryPanelEl) renderConversationUsageTelemetryPanel(usageTelemetryPanelEl, conversation);
+}
+
+function bindUsageTelemetryPanel() {
+  if (!$chatUsageBadge || $chatUsageBadge.dataset.panelBound === 'true') return;
+  $chatUsageBadge.dataset.panelBound = 'true';
+  $chatUsageBadge.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleUsageTelemetryPanel();
+  });
+  $chatUsageBadge.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    toggleUsageTelemetryPanel();
+  });
+  document.addEventListener('click', (event) => {
+    if (!usageTelemetryPanelEl) return;
+    if (usageTelemetryPanelEl.contains(event.target) || $chatUsageBadge.contains(event.target)) return;
+    closeUsageTelemetryPanel();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeUsageTelemetryPanel();
+  });
+  window.addEventListener('resize', () => {
+    if (usageTelemetryPanelEl) positionUsageTelemetryPanel();
+  });
+}
+
+function toggleUsageTelemetryPanel() {
+  if (usageTelemetryPanelEl) {
+    closeUsageTelemetryPanel();
+    return;
+  }
+  const conv = getActiveConversation();
+  const details = buildConversationUsageTelemetryDetails(conv);
+  if (!details) return;
+  usageTelemetryPanelEl = document.createElement('aside');
+  usageTelemetryPanelEl.className = 'usage-telemetry-panel';
+  usageTelemetryPanelEl.setAttribute('role', 'dialog');
+  usageTelemetryPanelEl.setAttribute('aria-label', '会话 Token 与缓存详情');
+  document.body.appendChild(usageTelemetryPanelEl);
+  renderConversationUsageTelemetryPanel(usageTelemetryPanelEl, conv);
+  positionUsageTelemetryPanel();
+}
+
+function closeUsageTelemetryPanel() {
+  if (!usageTelemetryPanelEl) return;
+  usageTelemetryPanelEl.remove();
+  usageTelemetryPanelEl = null;
+}
+
+function positionUsageTelemetryPanel() {
+  if (!usageTelemetryPanelEl || !$chatUsageBadge) return;
+  const rect = $chatUsageBadge.getBoundingClientRect();
+  const margin = 12;
+  const right = Math.max(margin, window.innerWidth - rect.right);
+  const top = Math.min(window.innerHeight - margin, rect.bottom + 8);
+  usageTelemetryPanelEl.style.top = `${top}px`;
+  usageTelemetryPanelEl.style.right = `${right}px`;
 }
 
 function toggleStreamingUI(streaming) {

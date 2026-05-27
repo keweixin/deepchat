@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   getCompactMessagePreview,
+  buildConversationUsageTelemetryDetails,
   formatConversationUsageTelemetry,
   hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
   renderAgentTimeline,
   renderAssistantEvidence,
   renderContextMentionStrip,
+  renderConversationUsageTelemetryPanel,
   renderToolCalls,
   shouldCompactHistoricalMessage,
   trimMessagesForRegeneration,
@@ -217,8 +219,91 @@ describe('chat regeneration', () => {
     expect(telemetry.title).toContain('工具 schema 变化');
   });
 
+  it('builds detailed cache telemetry for the conversation panel', () => {
+    const details = buildConversationUsageTelemetryDetails({
+      cacheProfile: {
+        prefixFingerprint: 'abc123',
+        prefixTokens: 480,
+        prefixBytes: 2048,
+        systemHash: 'sys1',
+        toolsHash: 'tools1',
+        workspaceSignature: 'workspace1',
+        cacheStabilityReasons: ['system_prompt_changed'],
+        cacheStabilityDetails: {
+          systemHash: { previous: 'old', current: 'sys1' },
+        },
+        cacheStabilityWarnings: ['下一轮缓存可能下降'],
+      },
+      messages: [{
+        role: 'assistant',
+        tokens: {
+          input: 1000,
+          output: 250,
+          total: 1250,
+          cacheHit: 700,
+          cacheMiss: 300,
+          source: 'provider',
+          byPurpose: { main: 1250 },
+          cost: {
+            estimatedCostUsd: 0.0002,
+            estimatedSavingsUsd: 0.00009,
+            inputCacheHitCostUsd: 0.00001,
+            inputCacheMissCostUsd: 0.00004,
+            outputCostUsd: 0.00007,
+          },
+        },
+      }],
+    });
+
+    expect(details.sourceLabel).toBe('服务商真实 usage');
+    expect(details.hitRateLabel).toBe('70%');
+    expect(details.profile.systemHash).toBe('sys1');
+    expect(details.reasons).toEqual(['system_prompt_changed']);
+    expect(details.detailText).toContain('systemHash');
+    expect(details.warnings).toContain('下一轮缓存可能下降');
+  });
+
+  it('renders a readable cache telemetry panel', () => {
+    const container = document.createElement('div');
+
+    renderConversationUsageTelemetryPanel(container, {
+      cacheProfile: {
+        prefixFingerprint: 'abc123',
+        prefixTokens: 480,
+        systemHash: 'sys1',
+        toolsHash: 'tools1',
+        cacheStabilityReasons: ['workspace_or_mcp_changed'],
+      },
+      messages: [{
+        role: 'assistant',
+        tokens: {
+          input: 1000,
+          output: 200,
+          total: 1200,
+          cacheHit: 800,
+          cacheMiss: 200,
+          cost: {
+            estimatedCostUsd: 0.0002,
+            estimatedSavingsUsd: 0.0001,
+          },
+        },
+      }],
+    });
+
+    expect(container.hidden).toBe(false);
+    expect(container.textContent).toContain('本会话 Token / Cache');
+    expect(container.textContent).toContain('Cache hit');
+    expect(container.textContent).toContain('800');
+    expect(container.textContent).toContain('Prefix hash');
+    expect(container.textContent).toContain('abc123');
+    expect(container.textContent).toContain('工作区/MCP 变化');
+  });
+
   it('hides conversation usage telemetry when there is no token usage', () => {
     expect(formatConversationUsageTelemetry({ messages: [] })).toBeNull();
+    const container = document.createElement('div');
+    expect(renderConversationUsageTelemetryPanel(container, { messages: [] })).toBeNull();
+    expect(container.hidden).toBe(true);
   });
 
   it('compacts only old long assistant messages without execution evidence', () => {
