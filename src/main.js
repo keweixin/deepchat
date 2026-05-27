@@ -36,7 +36,7 @@ import {
   getComposerMode,
   getComposerModeOverrides,
 } from './modules/composer-modes.js';
-import { buildComposerContextPreview, buildComposerIntentPreview, buildComposerToolEntries, getComposerToolModeLabel } from './modules/composer-tools.js';
+import { buildComposerContextPreview, buildComposerIntentPreview, buildComposerToolEntries, getComposerToolApprovalSummary, getComposerToolModeLabel } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
 import { applyPromptTemplate, getPromptTemplateEntries } from './modules/prompt-templates.js';
 import {
@@ -701,7 +701,7 @@ function toggleComposerToolMenu(anchor, onChange, openSettings) {
 
   const footer = document.createElement('div');
   footer.className = 'composer-tool-menu-footer';
-  footer.textContent = '所有工具调用仍需你确认后才会执行。';
+  footer.textContent = getComposerToolApprovalSummary(settings);
   menu.appendChild(footer);
 
   anchor.closest('.composer-toolbar')?.appendChild(menu);

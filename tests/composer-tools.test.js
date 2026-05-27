@@ -3,7 +3,9 @@ import {
   buildComposerContextPreview,
   buildComposerIntentPreview,
   buildComposerToolEntries,
+  getComposerToolApprovalSummary,
   getComposerToolModeLabel,
+  getComposerToolRisk,
   getComposerToolUnavailableReason,
   hasAnyToolConfigured,
 } from '../src/modules/composer-tools.js';
@@ -19,6 +21,7 @@ describe('composer tool drawer helpers', () => {
       tavilyApiKey: '',
       workspaceRoots: [],
       runCodeEnabled: true,
+      toolApprovalPolicy: 'confirm_all',
       mcpServers: [],
     });
 
@@ -31,6 +34,18 @@ describe('composer tool drawer helpers', () => {
     expect(entries.find((entry) => entry.id === 'web_search')).toMatchObject({ risk: '低风险确认' });
     expect(entries.find((entry) => entry.id === 'code_runner')).toMatchObject({ risk: '高风险确认' });
     expect(entries.find((entry) => entry.id === 'multi_tool')).toMatchObject({ risk: '混合风险确认' });
+  });
+
+  it('labels tool risk according to the active approval policy', () => {
+    const confirmAll = { toolApprovalPolicy: 'confirm_all' };
+    const autoReadonly = { toolApprovalPolicy: 'auto_readonly' };
+
+    expect(getComposerToolRisk('web_search', confirmAll)).toBe('低风险确认');
+    expect(getComposerToolRisk('file_reader', autoReadonly)).toBe('低风险自动');
+    expect(getComposerToolRisk('multi_tool', autoReadonly)).toBe('只读自动 · 高风险确认');
+    expect(getComposerToolRisk('code_runner', autoReadonly)).toBe('高风险确认');
+    expect(getComposerToolApprovalSummary(confirmAll)).toContain('所有工具调用');
+    expect(getComposerToolApprovalSummary(autoReadonly)).toContain('低风险读取/搜索工具可自动通过');
   });
 
   it('previews agent_auto tool intent and missing prerequisites before send', () => {

@@ -25,7 +25,7 @@ export function buildComposerToolEntries(settings = {}, activeSkill = settings.a
         active: id === current,
         available,
         state: available ? '可用' : getComposerToolUnavailableReason(id, settings),
-        risk: getComposerToolRisk(id),
+        risk: getComposerToolRisk(id, settings),
       };
     });
 }
@@ -294,13 +294,20 @@ function buildIntentPreviewTitle(intent = {}, missing = []) {
   ].filter(Boolean).join('\n');
 }
 
-function getComposerToolRisk(id) {
+export function getComposerToolRisk(id, settings = {}) {
+  const autoReadonly = settings.toolApprovalPolicy === 'auto_readonly';
   if (id === 'none') return '无工具';
   if (id === 'agent_auto') return '自动判断';
-  if (id === 'web_search' || id === 'file_reader') return '低风险确认';
+  if (id === 'web_search' || id === 'file_reader') return autoReadonly ? '低风险自动' : '低风险确认';
   if (id === 'code_runner' || id === 'mcp_tool') return '高风险确认';
-  if (id === 'multi_tool') return '混合风险确认';
+  if (id === 'multi_tool') return autoReadonly ? '只读自动 · 高风险确认' : '混合风险确认';
   return '需确认';
+}
+
+export function getComposerToolApprovalSummary(settings = {}) {
+  return settings.toolApprovalPolicy === 'auto_readonly'
+    ? '低风险读取/搜索工具可自动通过；运行代码、MCP 外部操作和写入类动作仍需确认。'
+    : '所有工具调用都会等待你确认后才会执行。';
 }
 
 function limitPreviewItems(items = [], limit = 12) {
