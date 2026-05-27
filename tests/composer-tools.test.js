@@ -91,6 +91,30 @@ describe('composer tool drawer helpers', () => {
     expect(preview.title).toContain('@file');
   });
 
+  it('shows MCP server status lights in the send-time context preview', () => {
+    window.deepchat = {};
+    const preview = buildComposerContextPreview('请用 @mcp 查一下 issue 状态', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [
+        { name: 'GitHub', command: 'node', enabled: true },
+        { name: 'Notion', command: 'node', enabled: false },
+        { name: 'Filesystem', command: '', enabled: true },
+      ],
+    });
+
+    expect(preview.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'MCP 1 个', tone: 'ready' }),
+      expect.objectContaining({ label: 'MCP GitHub ✓', tone: 'ready' }),
+      expect.objectContaining({ label: 'MCP Notion ×', tone: 'warning' }),
+      expect.objectContaining({ label: 'MCP Filesystem ×', tone: 'warning' }),
+    ]));
+    expect(preview.items.find((item) => item.label === 'MCP Notion ×').title).toContain('已关闭');
+    expect(preview.items.find((item) => item.label === 'MCP Filesystem ×').title).toContain('缺少启动命令');
+  });
+
   it('warns in the context preview when explicit local context lacks a workspace', () => {
     const preview = buildComposerContextPreview('读取 @file:README.md', {
       activeSkill: 'agent_auto',

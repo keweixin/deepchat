@@ -150,12 +150,21 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
   }
 
   if (activeSkill === 'mcp_tool' || hasMcpDirective) {
-    const count = (settings.mcpServers || []).filter((server) => server?.enabled !== false && server?.command).length;
+    const servers = getMcpServerPreviewItems(settings);
+    const count = servers.filter((server) => server.enabled).length;
     items.push({
       kind: 'mcp',
       label: count ? `MCP ${count} 个` : 'MCP 未配置',
       tone: count ? 'ready' : 'warning',
     });
+    for (const server of servers.slice(0, 4)) {
+      items.push({
+        kind: 'mcp-server',
+        label: `MCP ${server.name} ${server.enabled ? '✓' : '×'}`,
+        tone: server.enabled ? 'ready' : 'warning',
+        title: server.enabled ? '该 MCP Server 已启用并配置命令。' : server.reason,
+      });
+    }
   }
 
   items.push({
@@ -172,6 +181,21 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
 
 function hasEnabledMcpServer(settings = {}) {
   return (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
+}
+
+function getMcpServerPreviewItems(settings = {}) {
+  return (Array.isArray(settings.mcpServers) ? settings.mcpServers : [])
+    .map((server, index) => {
+      const name = String(server?.name || server?.id || `server-${index + 1}`).trim();
+      const command = String(server?.command || '').trim();
+      const disabled = server?.enabled === false;
+      return {
+        name,
+        enabled: Boolean(!disabled && command),
+        reason: disabled ? '该 MCP Server 已关闭。' : '该 MCP Server 缺少启动命令。',
+      };
+    })
+    .filter((server) => server.name);
 }
 
 function formatToolLabels(tools = []) {
