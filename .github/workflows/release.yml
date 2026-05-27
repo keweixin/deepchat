@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify
+        run: npm run verify
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --registry=https://registry.npmjs.org
+
+      - name: Set build timestamp
+        shell: pwsh
+        run: |
+          $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+          "BUILD_TIMESTAMP=$stamp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build Windows setup
+        run: npm run electron:build
+
+      - name: Preserve setup artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-setup | Out-Null
+          Copy-Item -Path release/* -Destination release-setup -Recurse -Force
+
+      - name: Build Windows portable
+        run: npm run electron:build:portable
+
+      - name: Merge setup and portable artifacts
+        shell: pwsh
+        run: |
+          Copy-Item -Path release-setup/* -Destination release -Recurse -Force
+
+      - name: Generate SHA256 checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Path release -File |
+            Where-Object { $_.Extension -in '.exe', '.blockmap', '.yml' } |
+            Sort-Object Name
+          $lines = foreach ($file in $files) {
+            $hash = Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256
+            "$($hash.Hash)  $($file.Name)"
+          }
+          $lines | Set-Content -LiteralPath release/SHA256SUMS.txt -Encoding utf8
+          Get-Content -LiteralPath release/SHA256SUMS.txt
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepchat-windows
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/*.yml
+            release/SHA256SUMS.txt
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            release/*.exe
+            release/*.blockmap
+            release/*.yml
+            release/SHA256SUMS.txt

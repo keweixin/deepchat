@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added a GitHub tag release workflow for Windows Setup/Portable builds, SHA256 checksums, artifact upload, and draft releases.
+- Documented CI and release automation in the README and release checklist.
+
 ## 1.3.1 - 2026-05-19
 
 - Replaced cramped inline conversation actions with a focused right-side `...` menu for rename, tags, folder, pin, archive, and delete.
