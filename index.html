@@ -107,6 +107,13 @@
               <option value="32768">极深</option>
             </select>
           </label>
+          <button id="composer-tool-drawer-btn" class="composer-tool-drawer-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="选择本轮可用工具">
+            <span class="composer-tool-icon" aria-hidden="true">✦</span>
+            <span class="composer-tool-copy">
+              <span class="composer-tool-title">工具</span>
+              <span id="composer-tool-status" class="composer-toggle-status">智能 Agent</span>
+            </span>
+          </button>
           <label class="composer-search-toggle" for="composer-web-search-toggle" title="开启后切换到 Tavily 联网检索模式">
             <input type="checkbox" id="composer-web-search-toggle" />
             <span class="composer-toggle-track" aria-hidden="true"></span>

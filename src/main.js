@@ -30,6 +30,7 @@ import { renderMarkdown } from './modules/renderer.js';
 import { onMenuNewChat, onMenuOpenSettings } from './modules/client-store.js';
 import { initReadingNavigator } from './modules/reading-navigator.js';
 import { autoResize, debounce, showToast } from './modules/utils.js';
+import { buildComposerToolEntries, getComposerToolModeLabel } from './modules/composer-tools.js';
 import {
   buildChatSearchIndex,
   clearChatSearchHighlights,
@@ -365,6 +366,8 @@ function initComposerOptions(openSettings) {
   const $webStatus = document.getElementById('composer-search-status');
   const $enhanceToggle = document.getElementById('composer-enhance-toggle');
   const $enhanceStatus = document.getElementById('composer-enhance-status');
+  const $toolDrawerBtn = document.getElementById('composer-tool-drawer-btn');
+  const $toolStatus = document.getElementById('composer-tool-status');
   const $runStatus = document.getElementById('composer-run-status');
   const $templateBtn = document.getElementById('composer-template-btn');
   const $settingsShortcut = document.getElementById('composer-settings-shortcut');
@@ -401,6 +404,7 @@ function initComposerOptions(openSettings) {
     if ($enhanceToggle) $enhanceToggle.checked = composerOverrides.enhance !== false;
     if ($enhanceStatus) $enhanceStatus.textContent = composerOverrides.enhance === false ? '关闭' : '开启';
     $enhanceToggleLabel?.classList.toggle('is-disabled', composerOverrides.enhance === false);
+    updateComposerToolButton($toolDrawerBtn, $toolStatus, { ...settings, activeSkill });
     updateComposerRunStatus($runStatus, { ...settings, ...composerOverrides }, $thinking.value);
     syncing = false;
   }
@@ -477,6 +481,12 @@ function initComposerOptions(openSettings) {
     $templateBtn.addEventListener('click', () => togglePromptTemplateMenu($templateBtn));
   }
 
+  if ($toolDrawerBtn) {
+    $toolDrawerBtn.addEventListener('click', () => toggleComposerToolMenu($toolDrawerBtn, () => {
+      applySettingsToComposer(getSettings());
+    }, openSettings));
+  }
+
   window.addEventListener('deepchat:settings-changed', (event) => {
     applySettingsToComposer(event.detail?.settings || getSettings());
   });
@@ -493,6 +503,7 @@ const PROMPT_TEMPLATES = [
 
 let promptTemplateMenu = null;
 let exportMenu = null;
+let composerToolMenu = null;
 
 function togglePromptTemplateMenu(anchor) {
   if (promptTemplateMenu) {
@@ -519,6 +530,75 @@ function togglePromptTemplateMenu(anchor) {
   }
   anchor.closest('.composer-toolbar')?.appendChild(menu);
   promptTemplateMenu = menu;
+}
+
+function toggleComposerToolMenu(anchor, onChange, openSettings) {
+  if (composerToolMenu) {
+    composerToolMenu.remove();
+    composerToolMenu = null;
+    anchor?.setAttribute('aria-expanded', 'false');
+    return;
+  }
+
+  const settings = getSettings();
+  const activeSkill = composerOverrides?.activeSkill || settings.activeSkill;
+  const menu = document.createElement('div');
+  menu.className = 'composer-tool-menu';
+  menu.setAttribute('role', 'menu');
+  const entries = buildComposerToolEntries(settings, activeSkill);
+
+  for (const entry of entries) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = `composer-tool-item${entry.active ? ' active' : ''}${entry.available ? '' : ' unavailable'}`;
+    item.setAttribute('role', 'menuitemradio');
+    item.setAttribute('aria-checked', String(entry.active));
+    item.setAttribute('aria-disabled', String(!entry.available));
+    item.innerHTML = `
+      <span class="composer-tool-item-icon">${entry.icon}</span>
+      <span class="composer-tool-item-body">
+        <span class="composer-tool-item-title">${entry.name}</span>
+        <span class="composer-tool-item-desc">${entry.description}</span>
+      </span>
+      <span class="composer-tool-item-state">${entry.available ? entry.risk : entry.state}</span>
+    `;
+    item.addEventListener('click', () => {
+      if (!entry.available) {
+        showToast(entry.state);
+        openSettings?.();
+        return;
+      }
+      composerOverrides.activeSkill = entry.id;
+      composerToolMenu?.remove();
+      composerToolMenu = null;
+      anchor?.setAttribute('aria-expanded', 'false');
+      onChange?.();
+      showToast(`本轮工具：${entry.name}`, 1200);
+    });
+    menu.appendChild(item);
+  }
+
+  const footer = document.createElement('div');
+  footer.className = 'composer-tool-menu-footer';
+  footer.textContent = '所有工具调用仍需你确认后才会执行。';
+  menu.appendChild(footer);
+
+  anchor.closest('.composer-toolbar')?.appendChild(menu);
+  composerToolMenu = menu;
+  anchor?.setAttribute('aria-expanded', 'true');
+
+  const closeOnOutside = (event) => {
+    if (!composerToolMenu) {
+      document.removeEventListener('click', closeOnOutside);
+      return;
+    }
+    if (composerToolMenu.contains(event.target) || anchor.contains(event.target)) return;
+    composerToolMenu.remove();
+    composerToolMenu = null;
+    anchor?.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', closeOnOutside);
+  };
+  setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
 }
 
 function toggleExportMenu(anchor) {
@@ -592,10 +672,24 @@ function getSearchStatusText(settings) {
 function updateComposerRunStatus(target, settings, thinkingValue) {
   if (!target) return;
   const thinking = getThinkingLabel(String(Number.parseInt(thinkingValue, 10) || 0));
+  const tool = getComposerToolModeLabel(settings.activeSkill);
   const search = getSearchStatusText(settings);
   const enhance = settings.enhance === false ? '增强关闭' : '增强开启';
   const caps = getModelCapabilities(settings);
-  target.textContent = `本轮：${thinking}思考 · 搜索${search} · ${enhance} · 图片${caps.vision ? '可用' : '不可用'}`;
+  target.textContent = `本轮：${tool} · ${thinking}思考 · 搜索${search} · ${enhance} · 图片${caps.vision ? '可用' : '不可用'}`;
+}
+
+function updateComposerToolButton(button, status, settings) {
+  if (!button) return;
+  const entries = buildComposerToolEntries(settings, settings.activeSkill);
+  const current = entries.find((entry) => entry.id === settings.activeSkill) || entries[0];
+  button.classList.toggle('is-unavailable', Boolean(current && !current.available));
+  button.title = current
+    ? `${current.name}：${current.available ? current.description : current.state}`
+    : '选择本轮可用工具';
+  const icon = button.querySelector('.composer-tool-icon');
+  if (icon && current) icon.textContent = current.icon;
+  if (status && current) status.textContent = current.name;
 }
 
 // ─── Keyboard Shortcut Help ───
