@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Agent Crew UX**: Added `crewDisplayMode` setting (`auto`/`always`/`tools_only`/`off`) with waiting-state header badges and role-click scrolling.
+- **Evidence Panel**: Added tool evidence sidebar showing tool-call status, duration, and outputs per assistant message.
+- **Artifact Panel**: Extended artifact extraction to support HTML preview, Mermaid diagrams, JSON data, CSV/Markdown tables, and code files with type filtering and deduplication.
+- **Task Mode Pills**: Replaced composer skill select with 8 mode pills (`daily`/`analysis`/`project`/`agent`/`research`/`code`/`writing`/`polish`) with per-conversation persistence.
+- **Workspace Search**: Added incremental index updates via sha256/mtime file reuse; integrated `@file:`, `@folder:`, `@symbol:`, `@changed:`, and `@recent` query directives.
+- **Answer Components**: Added `:::evidence` and `:::tradeoff` custom markdown containers alongside existing `:::summary`, `:::warning`, `:::steps`, `:::decision`, `:::source`, `:::todo`, and `:::next`.
+- **Quick Actions**: Added Artifact export to assistant message action bar; rewrite menu includes table, polish, code, TODO, and report transforms.
 - Added auditable tool context-output metadata so users can inspect the compacted output sent to the next model round.
 - Flattened complex MCP tool schemas into dot-path parameters and restored them before tool execution.
 - Added conservative repair for truncated JSON tool arguments before approval.

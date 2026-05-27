@@ -31,6 +31,7 @@ import {
   isSkillRunnable,
   supportsVisionModel,
   getModelCapabilities,
+  getProviderCompatibilityReport,
 } from './modules/api.js';
 import { initTheme, toggleTheme } from './modules/theme.js';
 import { initSettings } from './modules/settings.js';
@@ -91,10 +92,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   initReadingNavigator();
   initSettings(onModelChange);
   bindEvents();
+  maybeShowOnboardingHint();
 });
 
 function onModelChange(model) {
   updateModelDisplay(model);
+}
+
+function maybeShowOnboardingHint() {
+  const settings = getSettings();
+  const report = getProviderCompatibilityReport(settings);
+  if (report.status === 'blocked') {
+    const keyIssue = report.items.find((i) => i.severity === 'error');
+    const message = keyIssue
+      ? `配置提示：${keyIssue.label}。点击右上角 ⚙️ 打开设置。`
+      : '配置提示：请检查设置中的 Provider 和 API Key。';
+    showToast(message, 5000);
+  }
 }
 
 // ─── Event Bindings ───
