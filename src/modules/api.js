@@ -1443,6 +1443,7 @@ function applyComposerOverrides(settings, overrides = {}) {
   if (overrides.enhance !== undefined) next.enhance = overrides.enhance !== false;
   if (overrides.agentMaxRounds !== undefined) next.agentMaxRounds = Number.parseInt(overrides.agentMaxRounds, 10) || DEFAULT_SETTINGS.agentMaxRounds;
   if (overrides.maxInputTokens !== undefined) next.maxInputTokens = Number.parseInt(overrides.maxInputTokens, 10) || DEFAULT_SETTINGS.maxInputTokens;
+  if (overrides.agentExecutionMode !== undefined) next.agentExecutionMode = String(overrides.agentExecutionMode || 'execute_all');
   return next;
 }
 

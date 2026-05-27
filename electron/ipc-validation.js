@@ -196,6 +196,7 @@ const ComposerOverridesSchema = z.object({
   enhance: z.boolean().optional(),
   agentMaxRounds: z.number().int().min(1).max(10).optional(),
   maxInputTokens: z.number().int().min(1024).max(262144).optional(),
+  agentExecutionMode: z.enum(['execute_all', 'single_step']).optional(),
 }).strict();
 
 const ChatStartSchema = z.object({

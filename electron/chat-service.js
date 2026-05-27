@@ -15,6 +15,7 @@ const DIRECTIVE_TEXT_PATTERN = /```[\s\S]*?```/g;
 const TOOL_REPAIR_SCAN_LIMIT = 24000;
 const TOOL_REPAIR_MAX_CALLS = 4;
 const TOOL_ARG_REPAIR_LIMIT = 12000;
+const AGENT_EXECUTION_MODES = new Set(['execute_all', 'single_step']);
 
 const DEEPSEEK_PRICING = {
   'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
@@ -101,6 +102,7 @@ class ChatService {
     });
     const apiMessages = [...contextBundle.messages];
     const maxToolRounds = resolveAgentMaxRounds(settings);
+    const agentExecutionMode = normalizeAgentExecutionMode(settings.agentExecutionMode);
     const usageRounds = [];
     const warnings = [];
     const seenToolCalls = new Set();
@@ -120,6 +122,7 @@ class ChatService {
       maxRounds: maxToolRounds,
       intent,
       planSummary,
+      agentExecutionMode,
       selectedTools: intent.selectedTools,
       candidateTools: intent.candidateTools,
       missingPrerequisites: intent.missingPrerequisites,
@@ -227,6 +230,24 @@ class ChatService {
         tool_call_id: toolCall.id,
         content: compactToolOutputForContext(toolCall.function?.name, parseToolArgs(toolCall.function?.arguments), output),
       })));
+
+      if (agentExecutionMode === 'single_step') {
+        const stopReason = buildSingleStepStopReason(toolResults);
+        const stopContent = `\n\n${stopReason}`;
+        this.emit(requestId, 'token', { token: stopContent });
+        this.emit(requestId, 'agentStage', {
+          stage: 'stop',
+          round: round + 1,
+          maxRounds: maxToolRounds,
+          stopReason,
+          selectedTools: toolResults.map(({ toolCall }) => toolCall.function?.name || 'unknown_tool'),
+        });
+        const usage = mergeTokenUsage(usageRounds, { warnings });
+        attachPrefixProfile(usage, prefix, settings);
+        this.emit(requestId, 'tokenCount', usage);
+        this.emit(requestId, 'done', { aborted: false, stopReason: 'single_step' });
+        return;
+      }
     }
   }
 
@@ -1071,7 +1092,21 @@ function applyRequestOverrides(settings, overrides = {}) {
   if (overrides.enhance !== undefined) next.enhance = overrides.enhance !== false;
   if (overrides.agentMaxRounds !== undefined) next.agentMaxRounds = Number.parseInt(overrides.agentMaxRounds, 10) || DEFAULT_AGENT_MAX_ROUNDS;
   if (overrides.maxInputTokens !== undefined) next.maxInputTokens = Number.parseInt(overrides.maxInputTokens, 10) || DEFAULT_MAX_INPUT_TOKENS;
+  if (overrides.agentExecutionMode !== undefined) next.agentExecutionMode = normalizeAgentExecutionMode(overrides.agentExecutionMode);
   return next;
+}
+
+function normalizeAgentExecutionMode(value) {
+  const mode = String(value || 'execute_all');
+  return AGENT_EXECUTION_MODES.has(mode) ? mode : 'execute_all';
+}
+
+function buildSingleStepStopReason(toolResults = []) {
+  const names = (Array.isArray(toolResults) ? toolResults : [])
+    .map(({ toolCall }) => toolCall?.function?.name || 'unknown_tool')
+    .filter(Boolean);
+  const summary = names.length ? `已完成单步执行：${names.join(', ')}。` : '已完成单步执行。';
+  return `${summary}已暂停后续工具轮次；可继续点击“单步执行”推进下一步，或点击“执行全部”让 Agent 按计划继续。`;
 }
 
 function formatExternalSkills(skills) {

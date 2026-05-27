@@ -23,6 +23,21 @@ describe('ipc validation schemas', () => {
     expect(() => validate(schemas.ToolApprovalSchema, { requestId: 'req', toolCallId: 'tool', approved: 'yes' }, 'tools:approve')).toThrow('approved');
   });
 
+  it('allows only known agent execution modes in chat overrides', () => {
+    const validated = validate(schemas.ChatStartSchema, {
+      requestId: 'req-agent-mode',
+      messages: [{ role: 'user', content: '单步执行计划' }],
+      overrides: { agentExecutionMode: 'single_step' },
+    }, 'chat:start');
+
+    expect(validated.overrides.agentExecutionMode).toBe('single_step');
+    expect(() => validate(schemas.ChatStartSchema, {
+      requestId: 'req-agent-mode-bad',
+      messages: [{ role: 'user', content: '执行计划' }],
+      overrides: { agentExecutionMode: 'auto_write' },
+    }, 'chat:start')).toThrow('agentExecutionMode');
+  });
+
   it('persists bounded task checkpoints while stripping unknown checkpoint fields', () => {
     const validated = validate(schemas.ConversationsSaveSchema, [{
       id: 'c1',

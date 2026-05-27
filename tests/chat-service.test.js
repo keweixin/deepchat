@@ -128,6 +128,30 @@ describe('electron chat service token usage and agent loop', () => {
     });
   });
 
+  it('hard-stops after one tool round in single-step agent execution mode', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.streamOnce = vi.fn(async () => ({
+      content: '',
+      thinking: '',
+      usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }),
+      toolCalls: [{ id: 'tool-single', function: { name: 'web_search', arguments: '{"query":"DeepChat"}' } }],
+    }));
+    service.handleToolCall = vi.fn(async () => 'tool output');
+
+    await service.runWithSettings(
+      { requestId: 'req-single-step', messages: [{ role: 'user', content: '先查一步' }] },
+      baseSettings({ agentMaxRounds: 3, agentExecutionMode: 'single_step', tavilyApiKey: 'tvly-test' }),
+      new AbortController(),
+    );
+
+    expect(service.streamOnce).toHaveBeenCalledTimes(1);
+    expect(service.handleToolCall).toHaveBeenCalledTimes(1);
+    expect(events.some((event) => event.type === 'token' && String(event.token).includes('已完成单步执行：web_search'))).toBe(true);
+    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'stop' && String(event.stopReason).includes('已暂停后续工具轮次'))).toBe(true);
+    expect(events.find((event) => event.type === 'done')).toMatchObject({ stopReason: 'single_step' });
+  });
+
   it('merges usage through the electron helper too', () => {
     expect(mergeTokenUsage([
       { input: 10, output: 1, total: 11, cacheHit: 5, cacheMiss: 5, source: 'provider' },

@@ -1361,8 +1361,14 @@ function applyAgentPlanAction(action, plan = {}) {
   }
   const prompt = buildAgentPlanActionPrompt(action, plan);
   if (!prompt) return;
-  if (action === 'execute_all' && !isStreaming) {
-    sendMessage(prompt, { composerOverrides: { enhance: false } });
+  if ((action === 'execute_all' || action === 'single_step') && !isStreaming) {
+    sendMessage(prompt, {
+      composerOverrides: {
+        enhance: false,
+        activeSkill: 'agent_auto',
+        agentExecutionMode: action === 'single_step' ? 'single_step' : 'execute_all',
+      },
+    });
     return;
   }
   fillComposerPrompt(prompt);
