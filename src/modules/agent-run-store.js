@@ -315,6 +315,11 @@ export function finalizeCrewRun(agentRun, options = {}) {
     }
   });
 
-  agentRun.status = aborted ? 'cancelled' : 'done';
+  const hasWaiting = agentRun.crew.some((m) => m.status === 'waiting');
+  if (hasWaiting && !aborted && !error) {
+    agentRun.status = 'waiting';
+  } else {
+    agentRun.status = aborted ? 'cancelled' : 'done';
+  }
   agentRun.finishedAt = new Date().toISOString();
 }

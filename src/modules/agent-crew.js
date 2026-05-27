@@ -35,15 +35,31 @@ export function renderAgentCrew(container, agentRun) {
 
   const statusLabels = {
     running: '智能团队协作中',
+    waiting: '等待你确认',
     done: '任务协作已完成',
     error: '协作遇到错误',
     cancelled: '协作已被终止',
   };
   const activeStatusText = statusLabels[agentRun.status] || '智能团队';
-  header.replaceChildren(
-    createCrewHeaderTitle(agentRun.status, activeStatusText),
-    createTextElement('div', 'agent-crew-badge', `${runningOrDoneCount}/${totalCount} 参与`)
-  );
+  const waitingCount = agentRun.crew.filter((c) => c.status === 'waiting').length;
+  const badgeText =
+    agentRun.status === 'waiting' && waitingCount > 0
+      ? `等待确认 · ${waitingCount} 个工具`
+      : `${runningOrDoneCount}/${totalCount} 参与`;
+  const runningCount = agentRun.crew.filter((c) => c.status === 'running').length;
+  const doneCount = agentRun.crew.filter((c) => c.status === 'done').length;
+  const skippedCount = agentRun.crew.filter((c) => c.status === 'skipped').length;
+  const errorCount = agentRun.crew.filter((c) => c.status === 'error').length;
+  const detailParts = [];
+  if (runningCount > 0) detailParts.push(`运行 ${runningCount}`);
+  if (waitingCount > 0) detailParts.push(`等待 ${waitingCount}`);
+  if (doneCount > 0) detailParts.push(`完成 ${doneCount}`);
+  if (errorCount > 0) detailParts.push(`错误 ${errorCount}`);
+  if (skippedCount > 0) detailParts.push(`跳过 ${skippedCount}`);
+  const badgeTitle = detailParts.length > 0 ? detailParts.join(' · ') : '智能团队状态';
+  const badgeEl = createTextElement('div', 'agent-crew-badge', badgeText);
+  badgeEl.title = badgeTitle;
+  header.replaceChildren(createCrewHeaderTitle(agentRun.status, activeStatusText), badgeEl);
 
   // Render Grid Container
   let grid = wrapper.querySelector('.agent-crew-grid');
@@ -71,6 +87,12 @@ export function renderAgentCrew(container, agentRun) {
       card.dataset.roleId = member.id;
       card.addEventListener('click', (e) => {
         if (e.target.closest('.crew-detail-val a')) return;
+        card.dispatchEvent(
+          new CustomEvent('deepchat:crew-role-click', {
+            bubbles: true,
+            detail: { roleId: member.id },
+          })
+        );
         card.classList.toggle('is-expanded');
       });
       cardMap.set(member.id, card);

@@ -394,12 +394,23 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
   const agentContainer = msgEl.querySelector('.agent-timeline-container');
 
   function shouldShowAgentCrewEarly() {
+    const mode = getSettings().crewDisplayMode || 'auto';
+    if (mode === 'off') return false;
+    if (mode === 'always') return true;
+    if (mode === 'tools_only') {
+      const skill = composerOverrides?.activeSkill || getSettings().activeSkill || 'auto';
+      return ['web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill);
+    }
+    // mode === 'auto': Only explicit tool modes show Crew early; agent_auto waits for actual tool/agent events
     const skill = composerOverrides?.activeSkill || getSettings().activeSkill || 'auto';
-    // Only explicit tool modes show Crew early; agent_auto waits for actual tool/agent events
     return ['web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill);
   }
 
   function shouldCreateCrewFromStage(event) {
+    const mode = getSettings().crewDisplayMode || 'auto';
+    if (mode === 'off') return false;
+    if (mode === 'always') return true;
+
     const skill = composerOverrides?.activeSkill || getSettings().activeSkill || 'auto';
     // Explicit tool modes always create Crew
     if (['web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill)) {
@@ -426,6 +437,34 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     ensureAgentRun();
     renderAgentCrew(crewContainer, assistantMsg.agentRun);
   }
+  crewContainer.addEventListener('deepchat:crew-role-click', (e) => {
+    const roleId = e.detail?.roleId;
+    if (!roleId) return;
+    const toolNameMap = {
+      reader: ['read_file', 'search_workspace', 'read_symbol'],
+      researcher: ['web_search'],
+      coder: ['run_code'],
+    };
+    const targetTools = toolNameMap[roleId];
+    if (targetTools && toolContainer) {
+      const blocks = toolContainer.querySelectorAll('.tool-call-block');
+      for (const block of blocks) {
+        const nameEl = block.querySelector('.tool-call-header strong');
+        if (nameEl && targetTools.some((t) => nameEl.textContent.includes(t))) {
+          block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          block.style.outline = '2px solid var(--accent-primary)';
+          setTimeout(() => {
+            block.style.outline = '';
+          }, 2000);
+          return;
+        }
+      }
+    }
+    // Fallback: scroll to message content for writer/planner/reviewer
+    if (contentEl) {
+      contentEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
   smartScroll();
 
   let fullContent = '';
@@ -904,7 +943,40 @@ function renderMessages() {
         finalizeCrewRun(agentRun, { aborted: msg.stopped, error: msg.error });
         msg.agentRun = agentRun;
       }
-      renderAgentCrew(el.querySelector('.agent-crew-container'), agentRun);
+      const historyCrewContainer = el.querySelector('.agent-crew-container');
+      renderAgentCrew(historyCrewContainer, agentRun);
+      if (historyCrewContainer && !historyCrewContainer.__crewClickBound) {
+        historyCrewContainer.__crewClickBound = true;
+        historyCrewContainer.addEventListener('deepchat:crew-role-click', (e) => {
+          const roleId = e.detail?.roleId;
+          if (!roleId) return;
+          const toolNameMap = {
+            reader: ['read_file', 'search_workspace', 'read_symbol'],
+            researcher: ['web_search'],
+            coder: ['run_code'],
+          };
+          const targetTools = toolNameMap[roleId];
+          const historyToolContainer = el.querySelector('.tool-calls-container');
+          if (targetTools && historyToolContainer) {
+            const blocks = historyToolContainer.querySelectorAll('.tool-call-block');
+            for (const block of blocks) {
+              const nameEl = block.querySelector('.tool-call-header strong');
+              if (nameEl && targetTools.some((t) => nameEl.textContent.includes(t))) {
+                block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                block.style.outline = '2px solid var(--accent-primary)';
+                setTimeout(() => {
+                  block.style.outline = '';
+                }, 2000);
+                return;
+              }
+            }
+          }
+          const historyContentEl = el.querySelector('.message-content');
+          if (historyContentEl) {
+            historyContentEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      }
 
       renderAssistantArtifacts(el.querySelector('.artifact-container'), msg);
       renderAssistantEvidence(el.querySelector('.message-body'), msg);

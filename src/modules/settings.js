@@ -185,6 +185,7 @@ export function initSettings(onModelChange) {
     workspaceIndexCacheStatus: document.getElementById('workspace-index-cache-status'),
     toolApprovalTimeout: document.getElementById('tool-approval-timeout-input'),
     toolApprovalPolicy: document.getElementById('tool-approval-policy-select'),
+    crewDisplayMode: document.getElementById('crew-display-mode-select'),
     runCodeEnabled: document.getElementById('run-code-enabled-toggle'),
     systemPrompt: document.getElementById('system-prompt-input'),
     modelQuickSelect: document.querySelector('.model-quick-select'),
@@ -233,6 +234,7 @@ export function initSettings(onModelChange) {
   if (els.cacheOptimization) els.cacheOptimization.checked = settings.cacheOptimization !== false;
   if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = settings.toolApprovalTimeoutMs;
   if (els.toolApprovalPolicy) els.toolApprovalPolicy.value = settings.toolApprovalPolicy || 'confirm_all';
+  if (els.crewDisplayMode) els.crewDisplayMode.value = settings.crewDisplayMode || 'auto';
   if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
   els.systemPrompt.value = settings.systemPrompt;
 
@@ -340,6 +342,9 @@ export function initSettings(onModelChange) {
     }
     if (patch.toolApprovalPolicy !== undefined && els.toolApprovalPolicy) {
       els.toolApprovalPolicy.value = next.toolApprovalPolicy || 'confirm_all';
+    }
+    if (patch.crewDisplayMode !== undefined && els.crewDisplayMode) {
+      els.crewDisplayMode.value = next.crewDisplayMode || 'auto';
     }
     if (patch.runCodeEnabled !== undefined && els.runCodeEnabled) {
       els.runCodeEnabled.checked = next.runCodeEnabled !== false;
@@ -492,6 +497,9 @@ export function initSettings(onModelChange) {
     els.toolApprovalPolicy.addEventListener('change', () =>
       saveSettings({ toolApprovalPolicy: els.toolApprovalPolicy.value })
     );
+  }
+  if (els.crewDisplayMode) {
+    els.crewDisplayMode.addEventListener('change', () => saveSettings({ crewDisplayMode: els.crewDisplayMode.value }));
   }
   if (els.runCodeEnabled) {
     els.runCodeEnabled.addEventListener('change', () => saveSettings({ runCodeEnabled: els.runCodeEnabled.checked }));

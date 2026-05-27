@@ -56,6 +56,7 @@ const DEFAULT_SETTINGS = {
   agentMaxRounds: 3,
   thinkingBudget: 0,
   activeSkill: 'agent_auto',
+  crewDisplayMode: 'auto',
   autoContextSummary: true,
   cacheOptimization: true,
   toolApprovalTimeoutMs: 60000,
@@ -1850,6 +1851,10 @@ function normalizeSettings(input = {}) {
   next.cacheOptimization = next.cacheOptimization !== false && next.cacheOptimization !== 'false';
   next.runCodeEnabled = next.runCodeEnabled !== false && next.runCodeEnabled !== 'false';
   next.enhance = next.enhance !== false && next.enhance !== 'false';
+  const validCrewModes = ['auto', 'always', 'tools_only', 'off'];
+  next.crewDisplayMode = validCrewModes.includes(next.crewDisplayMode)
+    ? next.crewDisplayMode
+    : DEFAULT_SETTINGS.crewDisplayMode;
   return next;
 }
 

@@ -57,6 +57,11 @@
   animation: pulseCrew 1.5s infinite alternate ease-in-out;
 }
 
+.crew-pulse-icon[data-status='waiting'] {
+  background: #f59e0b;
+  animation: pulseCrew 1.5s infinite alternate ease-in-out;
+}
+
 .crew-pulse-icon[data-status='done'] {
   background: #10b981;
 }
