@@ -72,6 +72,13 @@ let mermaidPromise = null;
 // ─── Configure marked ───
 
 let mermaidCounter = 0;
+const ANSWER_COMPONENT_TYPES = Object.freeze({
+  summary: { label: '摘要', className: 'answer-component-summary' },
+  warning: { label: '注意', className: 'answer-component-warning' },
+  steps: { label: '步骤', className: 'answer-component-steps' },
+  decision: { label: '决策', className: 'answer-component-decision' },
+  'tool-result': { label: '工具结果', className: 'answer-component-tool-result' },
+});
 
 const renderer = new marked.Renderer();
 
@@ -238,8 +245,10 @@ const purifyConfig = {
  */
 export function renderMarkdown(md) {
   if (!md) return '';
-  let html = marked.parse(md);
+  const { markdown, components } = extractAnswerComponents(md);
+  let html = marked.parse(markdown);
   html = DOMPurify.sanitize(html, purifyConfig);
+  html = injectAnswerComponents(html, components);
   return html;
 }
 
@@ -477,6 +486,7 @@ function resetAdaptiveDecorations(container) {
     'answer-sourced',
   );
   container.querySelectorAll('.answer-note, .answer-callout, .answer-summary, .answer-steps, .answer-checklist').forEach((node) => {
+    if (node.classList.contains('answer-component')) return;
     node.classList.remove('answer-note', 'answer-callout', 'answer-summary', 'answer-steps', 'answer-checklist');
     delete node.dataset.calloutType;
     delete node.dataset.noteType;
@@ -538,10 +548,52 @@ function classifyAnswer(container) {
 function decorateSummary(container) {
   if (!container.classList.contains('answer-long')) return;
   const first = firstMeaningfulChild(container);
+  if (first?.classList?.contains('answer-component')) return;
   if (!first || first.tagName !== 'P') return;
   const text = normalizeWhitespace(first.textContent);
   if (text.length < 12 || text.length > 160) return;
   first.classList.add('answer-summary');
+}
+
+function extractAnswerComponents(markdown = '') {
+  const components = [];
+  const source = String(markdown || '');
+  const output = source.replace(/^:::(summary|warning|steps|decision|tool-result)[ \t]*\n([\s\S]*?)^:::[ \t]*$/gmi, (_match, type, body) => {
+    const normalizedType = String(type || '').toLowerCase();
+    const config = ANSWER_COMPONENT_TYPES[normalizedType];
+    if (!config) return _match;
+    const token = `DEEPCOMPONENT_${components.length}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    components.push({
+      token,
+      type: normalizedType,
+      label: config.label,
+      className: config.className,
+      body: String(body || '').trim(),
+    });
+    return `\n\n${token}\n\n`;
+  });
+  return { markdown: output, components };
+}
+
+function injectAnswerComponents(html = '', components = []) {
+  if (!components.length) return html;
+  let output = html;
+  for (const component of components) {
+    const componentHtml = renderAnswerComponent(component);
+    const escapedToken = escapeRegExp(component.token);
+    output = output
+      .replace(new RegExp(`<p>\\s*${escapedToken}\\s*</p>`, 'g'), componentHtml)
+      .replace(new RegExp(escapedToken, 'g'), componentHtml);
+  }
+  return output;
+}
+
+function renderAnswerComponent(component) {
+  const inner = DOMPurify.sanitize(marked.parse(component.body || ''), purifyConfig);
+  return `<div class="answer-component ${component.className}" data-component-type="${escapeHtml(component.type)}">
+    <div class="answer-component-label">${escapeHtml(component.label)}</div>
+    <div class="answer-component-body">${inner}</div>
+  </div>`;
 }
 
 function classifyTableToken(token) {
@@ -609,8 +661,12 @@ function normalizeWhitespace(value) {
 
 // ─── Helpers ───
 
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function escapeHtml(str) {
-  return str
+  return String(str || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

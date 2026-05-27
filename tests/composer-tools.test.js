@@ -51,6 +51,23 @@ describe('composer tool drawer helpers', () => {
     expect(ready.text).toContain('执行前会确认');
   });
 
+  it('previews generic project advice as chat but local project checks as file work', () => {
+    const settings = {
+      activeSkill: 'agent_auto',
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [],
+    };
+
+    const generic = buildComposerIntentPreview('帮我设计一个项目学习计划', settings);
+    const localProject = buildComposerIntentPreview('检查当前项目的 package.json', settings);
+
+    expect(generic).toMatchObject({ state: 'chat', text: '预判：普通聊天' });
+    expect(localProject.state).toBe('tool');
+    expect(localProject.text).toContain('工作区文件');
+  });
+
   it('keeps composer intent preview quiet outside smart agent mode', () => {
     const preview = buildComposerIntentPreview('最新新闻', {
       activeSkill: 'none',

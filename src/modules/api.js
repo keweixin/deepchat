@@ -25,6 +25,7 @@ export const DEFAULT_SYSTEM_PROMPT = `你是一位专业、严谨且善于深度
 - 数学公式使用 LaTeX（$行内$，$$块级$$）；流程/架构图使用 Mermaid。
 - 有图表、流程图或图片时，先给一句用途说明，再输出图；不要用冗长文字掩盖图示重点。
 - 需要可操作演示时，优先使用当前界面支持的 widget JSON 组件。
+- 复杂回答可使用安全组件块增强可读性：:::summary、:::warning、:::steps、:::decision、:::tool-result；块内仍写 Markdown，不要输出原始 HTML。
 
 ## 交互式组件
 当前界面支持安全内置组件，不支持任意 HTML/JavaScript。用户明确要求“交互式组件”“直接在界面操作”“计算器/图表/物理演示”时，优先输出 widget 代码块：
@@ -1150,9 +1151,16 @@ function needsYearScopedExternalLookup(text) {
 }
 
 function needsFiles(text, lower) {
-  return /文件|目录|项目|代码库|仓库|读取|检查|分析.*代码|打开|路径|工作区|本地|报错日志|readme|package\.json|\.js|\.ts|\.vue|\.md|\.py|[a-z]:\\/i.test(text)
-    || lower.includes('workspace')
-    || /@(file|folder|symbol)\s*:/i.test(text);
+  const value = String(text || '');
+  return /@(file|folder|symbol)\s*:/i.test(value)
+    || /[a-z]:[\\/]/i.test(value)
+    || /\b(readme|package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|tsconfig\.json|vite\.config|webpack\.config)\b/i.test(value)
+    || /\.(js|jsx|ts|tsx|vue|md|py|json|yaml|yml|toml|css|html|java|go|rs)\b/i.test(value)
+    || /文件|目录|代码库|仓库|路径|工作区|本地|源码|源代码|报错日志/i.test(value)
+    || /(当前|这个|本地|我的).{0,6}(项目|工程|仓库|代码库)/i.test(value)
+    || /(读取|打开|查看|列出|搜索|扫描|定位|修改|检查|分析).{0,16}(项目|工程|仓库|代码库|workspace|repo|repository)/i.test(value)
+    || /(项目|工程|仓库|代码库|workspace|repo|repository).{0,16}(文件|目录|代码|源码|结构|依赖|配置|package|readme|报错|日志)/i.test(value)
+    || lower.includes('workspace');
 }
 
 function needsCode(text, lower) {

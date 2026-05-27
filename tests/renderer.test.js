@@ -25,6 +25,40 @@ describe('renderer security and widgets', () => {
     expect(root.querySelector('[style]')).toBeNull();
   });
 
+  it('renders safe answer component blocks from directive syntax', async () => {
+    const root = document.createElement('div');
+    root.innerHTML = renderMarkdown(`:::summary
+- **结论 1**
+- 结论 2
+:::
+
+:::warning
+不要让模型输出 <button onclick="alert(1)">HTML</button>。
+:::
+
+:::decision
+推荐方案：B
+:::
+
+:::tool-result
+工具：search_workspace
+状态：成功
+:::
+`);
+
+    await postProcess(root);
+
+    const components = root.querySelectorAll('.answer-component');
+    expect(components).toHaveLength(4);
+    expect(root.querySelector('.answer-component-summary strong').textContent).toBe('结论 1');
+    expect(root.querySelector('.answer-component-warning').textContent).toContain('不要让模型输出');
+    expect(root.querySelector('.answer-component-decision').textContent).toContain('推荐方案');
+    expect(root.querySelector('.answer-component-tool-result').textContent).toContain('search_workspace');
+    expect(root.querySelector('button')).toBeNull();
+    expect(root.innerHTML).toContain('&lt;button');
+    expect(root.querySelector('[onclick]')).toBeNull();
+  });
+
   it('renders a widget JSON block and supports negative bar values', async () => {
     const root = document.createElement('div');
     root.innerHTML = renderMarkdown(`\`\`\`widget

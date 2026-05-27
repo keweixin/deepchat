@@ -265,6 +265,25 @@ describe('electron chat service token usage and agent loop', () => {
     expect(externalFacts.selectedTools).toContain('web_search');
   });
 
+  it('does not route generic project advice through workspace tools', () => {
+    const settings = baseSettings({
+      tavilyApiKey: '',
+      workspaceRoots: ['E:/repo'],
+      mcpServers: [],
+    });
+
+    const generic = detectAgentIntent('帮我设计一个 6 周项目学习计划', settings);
+    const localProject = detectAgentIntent('检查当前项目的 package.json 和依赖配置', settings);
+    const pathTarget = detectAgentIntent('读取 E:\\demo\\README.md 并总结', settings);
+
+    expect(generic.toolMode).toBe('none');
+    expect(generic.selectedTools).not.toContain('read_file');
+    expect(localProject.toolMode).toBe('file_reader');
+    expect(localProject.selectedTools).toEqual(expect.arrayContaining(['list_files', 'search_workspace', 'read_file']));
+    expect(pathTarget.toolMode).toBe('file_reader');
+    expect(pathTarget.selectedTools).toContain('read_file');
+  });
+
   it('honors explicit tool directives in native agent intent', () => {
     const intent = detectAgentIntent('@changed 看最近修改并 @web 查最新资料', {
       activeSkill: 'agent_auto',

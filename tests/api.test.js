@@ -360,6 +360,25 @@ describe('browser settings fallback', () => {
     expect(externalFacts.selectedTools).toContain('web_search');
   });
 
+  it('keeps generic project advice out of file tools while recognizing local project cues', () => {
+    const settings = {
+      tavilyApiKey: '',
+      workspaceRoots: ['E:/repo'],
+      mcpServers: [],
+    };
+
+    const generic = detectAgentIntent('帮我设计一个 6 周项目学习计划', settings);
+    const localProject = detectAgentIntent('检查当前项目的 package.json 和依赖配置', settings);
+    const pathTarget = detectAgentIntent('读取 E:\\demo\\README.md 并总结', settings);
+
+    expect(generic.toolMode).toBe('none');
+    expect(generic.selectedTools).not.toContain('read_file');
+    expect(localProject.toolMode).toBe('file_reader');
+    expect(localProject.selectedTools).toEqual(expect.arrayContaining(['list_files', 'search_workspace', 'read_file']));
+    expect(pathTarget.toolMode).toBe('file_reader');
+    expect(pathTarget.selectedTools).toContain('read_file');
+  });
+
   it('honors explicit @web, @run, and @changed directives before keyword guessing', () => {
     const web = detectAgentIntent('@web:"release notes"', { tavilyApiKey: 'tvly-test', workspaceRoots: [] });
     const run = detectAgentIntent('@run 验证这段逻辑', { runCodeEnabled: true, workspaceRoots: [] });

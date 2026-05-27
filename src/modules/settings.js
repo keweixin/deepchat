@@ -36,6 +36,7 @@ const SHARED_CAPABILITY_RULES = `## 输出能力
 - 简单问题直接回答；教程/操作用步骤；对比/选型用表格；排障按原因、验证、修复组织；报告先摘要再展开。
 - 数学公式使用 LaTeX，代码块标注语言，流程图使用 Mermaid。
 - 需要交互式演示时使用安全 widget JSON，不输出任意 HTML/JavaScript。
+- 复杂回答可使用 :::summary、:::warning、:::steps、:::decision、:::tool-result 组件块；块内仍写 Markdown，不输出原始 HTML。
 - 需要联网、读文件或运行代码时调用客户端工具；没有工具结果时不要假装已经完成。
 - 避免每次套用同一套固定小标题；只在内容需要层次时分节。`;
 
