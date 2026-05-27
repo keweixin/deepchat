@@ -3,12 +3,12 @@
  */
 
 export const CREW_ROLES = [
-  { id: 'planner', label: 'Planner', icon: '📋', title: '计划员' },
-  { id: 'reader', label: 'Reader', icon: '📄', title: '文档员' },
-  { id: 'researcher', label: 'Researcher', icon: '🔍', title: '搜索员' },
-  { id: 'coder', label: 'Coder', icon: '💻', title: '实验员' },
-  { id: 'reviewer', label: 'Reviewer', icon: '🔐', title: '审核员' },
-  { id: 'writer', label: 'Writer', icon: '✍️', title: '写手' },
+  { id: 'planner', label: 'Planner', icon: '\u25CE', title: '计划员' },
+  { id: 'reader', label: 'Reader', icon: '\u2261', title: '文档员' },
+  { id: 'researcher', label: 'Researcher', icon: '\u2299', title: '搜索员' },
+  { id: 'coder', label: 'Coder', icon: '\u2699', title: '实验员' },
+  { id: 'reviewer', label: 'Reviewer', icon: '\u2713', title: '审核员' },
+  { id: 'writer', label: 'Writer', icon: '\u270E', title: '写手' },
 ];
 
 export function createAgentRun(mode = 'auto') {
