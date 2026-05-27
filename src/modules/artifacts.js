@@ -40,8 +40,8 @@ export function createSandboxedHtmlDocument(source, options = {}) {
   const title = escapeHtml(options.title || 'DeepChat Artifact');
   const csp = [
     "default-src 'none'",
-    'img-src data: https:',
-    'media-src data: https:',
+    'img-src data: blob:',
+    'media-src data: blob:',
     'font-src data:',
     "style-src 'unsafe-inline'",
     "connect-src 'none'",

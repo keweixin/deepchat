@@ -182,6 +182,26 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);
   });
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          [
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob: https:",
+            "font-src 'self' data:",
+            "connect-src 'self' https:",
+            "object-src 'none'",
+            "base-uri 'none'",
+            "frame-src 'self' blob:",
+          ].join('; '),
+        ],
+      },
+    });
+  });
   registerIpc();
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
   createWindow();

@@ -399,6 +399,22 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     return ['web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill);
   }
 
+  function shouldCreateCrewFromStage(event) {
+    const skill = composerOverrides?.activeSkill || getSettings().activeSkill || 'auto';
+    // Explicit tool modes always create Crew
+    if (['web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill)) {
+      return true;
+    }
+    // If tool calls already exist, Crew should be shown
+    if (assistantMsg.toolCalls?.length > 0) return true;
+    // Late-stage events only create Crew if there were actual tool calls
+    if (['tool_repair', 'summary', 'final'].includes(event.stage)) {
+      return assistantMsg.toolCalls?.length > 0;
+    }
+    // Pure plan / model stages without tools should not create Crew
+    return false;
+  }
+
   function ensureAgentRun() {
     if (!assistantMsg.agentRun) {
       assistantMsg.agentRun = createAgentRun(composerOverrides?.activeSkill || getSettings().activeSkill || 'auto');
@@ -546,8 +562,10 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         at: new Date().toISOString(),
       });
       renderAgentTimeline(agentContainer, assistantMsg);
-      handleCrewAgentStage(ensureAgentRun(), event);
-      renderAgentCrew(crewContainer, assistantMsg.agentRun);
+      if (shouldCreateCrewFromStage(event)) {
+        handleCrewAgentStage(ensureAgentRun(), event);
+        renderAgentCrew(crewContainer, assistantMsg.agentRun);
+      }
     },
     onContextBudget(event) {
       assistantMsg.contextBudget = event;

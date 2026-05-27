@@ -196,7 +196,7 @@ describe('tool security boundaries', () => {
     expect(output).toContain('"type": "deepchat.runCodeResult"');
     expect(output).toContain('耗时：');
     expect(output).toContain('沙箱目录');
-    expect(output).toContain('环境变量：仅传递');
+    expect(output).toContain('环境：最小变量白名单');
   });
 
   it('honors the runCodeEnabled setting', async () => {

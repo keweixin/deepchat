@@ -10,10 +10,30 @@ const DANGEROUS_PATTERNS = [
   { name: 'executeJavaScript', pattern: /\bexecuteJavaScript\b/ },
   { name: 'inline event handler', pattern: /<[^>]+\son[a-z]+\s*=/i },
 ];
+const SECURITY_PATTERNS = [
+  {
+    name: 'innerHTML assignment',
+    pattern: /\.innerHTML\s*=/,
+    allowlist: [
+      'src/modules/renderer.js',
+      'src/main.js',
+      'src/modules/agent-crew.js',
+      'src/modules/chat.js',
+      'src/modules/reading-navigator.js',
+      'src/modules/settings.js',
+    ],
+  },
+  {
+    name: 'shell.openExternal without allowlist',
+    pattern: /shell\.openExternal\s*\(/,
+    allowlist: ['electron.js'],
+  },
+];
 const SECRET_PATTERNS = [
   { name: 'OpenAI-like API key', pattern: /sk-[A-Za-z0-9]{20,}/ },
   { name: 'Tavily-like API key', pattern: /tvly-[A-Za-z0-9]{20,}/ },
 ];
+const SENSITIVE_FILE_PATTERNS = /\.(env|pem|key|cert)$/i;
 
 const files = [
   ...SCAN_DIRS.flatMap((dir) => collectFiles(path.join(ROOT, dir))),
@@ -23,13 +43,24 @@ const files = [
 const issues = [];
 for (const file of files) {
   const text = fs.readFileSync(file, 'utf8');
+  const rel = relative(file);
   for (const rule of DANGEROUS_PATTERNS) {
-    if (rule.pattern.test(text)) issues.push(`${relative(file)} contains ${rule.name}`);
+    if (rule.pattern.test(text)) issues.push(`${rel} contains ${rule.name}`);
+  }
+  for (const rule of SECURITY_PATTERNS) {
+    if (rule.pattern.test(text)) {
+      if (!rule.allowlist || !rule.allowlist.some((p) => rel.replace(/\\/g, '/').includes(p))) {
+        issues.push(`${rel} contains ${rule.name}`);
+      }
+    }
   }
   for (const rule of SECRET_PATTERNS) {
     if (rule.pattern.test(text) && !text.includes('xxxxxxxx')) {
-      issues.push(`${relative(file)} may contain ${rule.name}`);
+      issues.push(`${rel} may contain ${rule.name}`);
     }
+  }
+  if (SENSITIVE_FILE_PATTERNS.test(path.basename(file))) {
+    issues.push(`${rel} is a sensitive file type and should not be in source`);
   }
 }
 
