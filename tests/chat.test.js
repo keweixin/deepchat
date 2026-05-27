@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildAgentPlanActionPrompt,
+  buildAssistantHtmlExport,
   buildAnswerActionPrompt,
   getCompactMessagePreview,
   buildConversationUsageTelemetryDetails,
@@ -65,6 +66,22 @@ describe('chat regeneration', () => {
     expect(long.length).toBeLessThan(6500);
     expect(long).toContain('中间内容已省略');
     expect(buildAnswerActionPrompt('unknown', 'content')).toBe('');
+  });
+
+  it('builds portable HTML exports for polished assistant answers', () => {
+    const html = buildAssistantHtmlExport(
+      '<h2>核心结论</h2><div class="answer-component answer-component-summary">可以离线查看。</div>',
+      { title: 'DeepChat 回答 #1', generatedAt: '2026-05-27T09:30:00.000Z' },
+    );
+
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('<html lang="zh-CN">');
+    expect(html).toContain('Content-Security-Policy');
+    expect(html).toContain("default-src 'none'");
+    expect(html).toContain('<title>DeepChat 回答 #1</title>');
+    expect(html).toContain('2026-05-27T09:30:00.000Z');
+    expect(html).toContain('answer-component-summary');
+    expect(html).toContain('max-width: 860px');
   });
 
   it('builds bounded plan action prompts from agent plans', () => {

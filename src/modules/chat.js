@@ -2494,6 +2494,9 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
     actions.appendChild(createAnswerActionButton('导出', '导出这条回答为 Markdown', () => {
       exportAssistantMarkdown(content, msgIndex);
     }));
+    actions.appendChild(createAnswerActionButton('导HTML', '导出这条回答为可离线查看的 HTML', () => {
+      exportAssistantHtml(msgEl, content, msgIndex);
+    }));
   }
 
   const favoriteBtn = document.createElement('button');
@@ -2643,6 +2646,57 @@ function exportAssistantMarkdown(content, msgIndex) {
   const fileName = `deepchat-answer-${msgIndex + 1}-${stamp}.md`;
   downloadTextFile(content || '', fileName, 'text/markdown;charset=utf-8');
   showToast('已导出当前回答 Markdown');
+}
+
+function exportAssistantHtml(msgEl, content, msgIndex) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const contentEl = msgEl?.querySelector?.('.message-content');
+  const bodyHtml = contentEl?.innerHTML || escapeHtml(content || '').replace(/\n/g, '<br>');
+  const fileName = `deepchat-answer-${msgIndex + 1}-${stamp}.html`;
+  const html = buildAssistantHtmlExport(bodyHtml, {
+    title: `DeepChat 回答 #${msgIndex + 1}`,
+    generatedAt: new Date().toISOString(),
+  });
+  downloadTextFile(html, fileName, 'text/html;charset=utf-8');
+  showToast('已导出当前回答 HTML');
+}
+
+export function buildAssistantHtmlExport(contentHtml = '', options = {}) {
+  const title = String(options.title || 'DeepChat Answer').trim() || 'DeepChat Answer';
+  const generatedAt = String(options.generatedAt || new Date().toISOString());
+  const html = String(contentHtml || '').trim() || '<p>空回答</p>';
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #f8fafc; --fg: #0f172a; --muted: #64748b; --card: #ffffff; --border: #e2e8f0; --accent: #0f766e; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0f172a; --fg: #e5e7eb; --muted: #94a3b8; --card: #111827; --border: #263244; --accent: #2dd4bf; } }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15.5px/1.78 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { max-width: 860px; margin: 40px auto; padding: 0 22px 56px; }
+    header { margin-bottom: 22px; color: var(--muted); font-size: 13px; }
+    article { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 26px; box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08); }
+    h1, h2, h3 { line-height: 1.35; color: var(--fg); }
+    h2 { margin-top: 2rem; padding-bottom: .35rem; border-bottom: 1px solid var(--border); }
+    a { color: var(--accent); }
+    pre, code { font-family: "Cascadia Code", "Fira Code", Consolas, monospace; }
+    pre { overflow: auto; padding: 14px; border-radius: 10px; background: color-mix(in srgb, var(--fg), transparent 92%); }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+    blockquote, .answer-component, .answer-summary, .answer-callout { border-left: 4px solid var(--accent); margin: 16px 0; padding: 12px 14px; background: color-mix(in srgb, var(--accent), transparent 92%); border-radius: 10px; }
+    img, svg { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>${escapeHtml(title)} · ${escapeHtml(generatedAt)}</header>
+    <article>${html}</article>
+  </main>
+</body>
+</html>`;
 }
 
 function downloadTextFile(text, fileName, type) {
