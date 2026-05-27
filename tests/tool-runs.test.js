@@ -203,6 +203,8 @@ describe('tool run state', () => {
       name: 'web_search',
       args: { query: 'cache hit' },
       security: { riskLevel: 'low', redaction: true },
+      approvalPolicy: 'auto_readonly',
+      autoApproved: true,
     }, requestedAt);
     applyToolResult([tool], { toolCallId: 'e1', name: 'web_search', ok: true, output }, completedAt);
 
@@ -217,12 +219,14 @@ describe('tool run state', () => {
       ok: true,
       query: 'cache hit',
       riskLevel: 'low',
+      autoApproved: true,
       durationMs: 2000,
       rawOutputRef: 'tool-output:e1',
     });
     expect(evidence.sources[0].url).toBe('https://example.com');
     expect(evidence.outputPreview.length).toBeLessThanOrEqual(1200);
     expect(buildToolRuns([tool])[0].evidence).toMatchObject({ id: 'e1', name: 'web_search' });
+    expect(buildToolRuns([tool])[0]).toMatchObject({ autoApproved: true, approvalPolicy: 'auto_readonly' });
   });
 
   it('extracts structured run_code experiment results for evidence panels', () => {

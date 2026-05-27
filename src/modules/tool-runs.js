@@ -16,7 +16,9 @@ export function createToolRecord(event = {}, now = new Date()) {
     parseError: event.parseError || '',
     risk: event.risk || '',
     security: event.security || null,
-    status: 'pending',
+    approvalPolicy: event.approvalPolicy || '',
+    autoApproved: event.autoApproved === true,
+    status: event.autoApproved ? 'approved' : 'pending',
     requestedAt: now.toISOString(),
     expiresAt: event.expiresAt || '',
   };
@@ -52,6 +54,8 @@ export function applyToolResult(toolCalls = [], event = {}, now = new Date()) {
   if (event.rawArguments) tool.rawArguments = event.rawArguments;
   if (event.parseError) tool.parseError = event.parseError;
   if (event.security) tool.security = event.security;
+  if (event.approvalPolicy) tool.approvalPolicy = event.approvalPolicy;
+  if (event.autoApproved !== undefined) tool.autoApproved = event.autoApproved === true;
   if (event.contextOutput !== undefined) tool.contextOutput = event.contextOutput;
   if (event.rawOutputTokens !== undefined) tool.rawOutputTokens = event.rawOutputTokens;
   if (event.contextOutputTokens !== undefined) tool.contextOutputTokens = event.contextOutputTokens;
@@ -85,6 +89,8 @@ export function buildToolRuns(toolCalls = []) {
     runResult: extractRunCodeResult(tool.output || '', getToolName(tool)),
     query: getToolQuery(tool),
     security: tool.security || null,
+    approvalPolicy: tool.approvalPolicy || '',
+    autoApproved: tool.autoApproved === true,
     parseError: tool.parseError || '',
     contextOutput: tool.contextOutput || '',
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
@@ -119,6 +125,8 @@ export function buildToolEvidencePayload(tool = {}) {
     durationMs: getToolDurationMs(tool),
     expiresAt: tool.expiresAt || '',
     security: tool.security || null,
+    approvalPolicy: tool.approvalPolicy || '',
+    autoApproved: tool.autoApproved === true,
     parseError: tool.parseError || '',
     sources,
     localCitations,

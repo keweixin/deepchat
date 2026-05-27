@@ -148,6 +148,7 @@ export function initSettings(onModelChange) {
     clearWorkspaceIndexCacheBtn: document.getElementById('clear-workspace-index-cache-btn'),
     workspaceIndexCacheStatus: document.getElementById('workspace-index-cache-status'),
     toolApprovalTimeout: document.getElementById('tool-approval-timeout-input'),
+    toolApprovalPolicy: document.getElementById('tool-approval-policy-select'),
     runCodeEnabled: document.getElementById('run-code-enabled-toggle'),
     systemPrompt: document.getElementById('system-prompt-input'),
     modelQuickSelect: document.querySelector('.model-quick-select'),
@@ -195,6 +196,7 @@ export function initSettings(onModelChange) {
   if (els.autoContextSummary) els.autoContextSummary.checked = settings.autoContextSummary !== false;
   if (els.cacheOptimization) els.cacheOptimization.checked = settings.cacheOptimization !== false;
   if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = settings.toolApprovalTimeoutMs;
+  if (els.toolApprovalPolicy) els.toolApprovalPolicy.value = settings.toolApprovalPolicy || 'confirm_all';
   if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
   els.systemPrompt.value = settings.systemPrompt;
 
@@ -297,6 +299,9 @@ export function initSettings(onModelChange) {
     }
     if (patch.toolApprovalTimeoutMs !== undefined && els.toolApprovalTimeout) {
       els.toolApprovalTimeout.value = next.toolApprovalTimeoutMs;
+    }
+    if (patch.toolApprovalPolicy !== undefined && els.toolApprovalPolicy) {
+      els.toolApprovalPolicy.value = next.toolApprovalPolicy || 'confirm_all';
     }
     if (patch.runCodeEnabled !== undefined && els.runCodeEnabled) {
       els.runCodeEnabled.checked = next.runCodeEnabled !== false;
@@ -434,6 +439,9 @@ export function initSettings(onModelChange) {
   }
   if (els.toolApprovalTimeout) {
     els.toolApprovalTimeout.addEventListener('change', () => saveSettings({ toolApprovalTimeoutMs: parseInt(els.toolApprovalTimeout.value, 10) }));
+  }
+  if (els.toolApprovalPolicy) {
+    els.toolApprovalPolicy.addEventListener('change', () => saveSettings({ toolApprovalPolicy: els.toolApprovalPolicy.value }));
   }
   if (els.runCodeEnabled) {
     els.runCodeEnabled.addEventListener('change', () => saveSettings({ runCodeEnabled: els.runCodeEnabled.checked }));

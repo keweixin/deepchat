@@ -9,6 +9,7 @@ const MAX_TOOL_CONTEXT_TOKENS = 3500;
 const SUMMARY_TRIGGER_RATIO = 0.8;
 const COMPACTION_SUMMARY_MARKER = '[CONVERSATION HISTORY SUMMARY — earlier turns folded for context efficiency]\n\n';
 const DEFAULT_TOOL_APPROVAL_TIMEOUT_MS = 60000;
+const DEFAULT_TOOL_APPROVAL_POLICY = 'confirm_all';
 const TOOL_ARG_LONG_STRING_THRESHOLD = 300;
 const CODE_RUN_TIMEOUT_MS = 5000;
 const DIRECTIVE_TEXT_PATTERN = /```[\s\S]*?```/g;
@@ -444,6 +445,8 @@ class ChatService {
     if (parsedArgs.repaired) {
       this.emit(requestId, 'agentStage', { stage: 'tool_repair', round, maxRounds, toolName: fn.name, warning: parsedArgs.warning });
     }
+    const security = buildToolSecurity(fn.name, args, settings);
+    const approval = resolveToolApprovalDecision(fn.name, args, settings, security);
     this.emit(requestId, 'toolRequest', {
       toolCallId: toolCall.id,
       name: fn.name,
@@ -452,7 +455,9 @@ class ChatService {
       parseError: parsedArgs.error,
       parseRepair: parsedArgs.repaired ? parsedArgs.warning : '',
       risk: this.describeRisk(fn.name, args, settings),
-      security: buildToolSecurity(fn.name, args, settings),
+      security,
+      approvalPolicy: approval.policy,
+      autoApproved: approval.autoApproved,
       expiresAt: new Date(Date.now() + resolveToolApprovalTimeout(settings)).toISOString(),
     });
     if (parsedArgs.error) {
@@ -471,7 +476,9 @@ class ChatService {
       return message;
     }
 
-    const decision = await this.waitForApproval(requestId, toolCall.id, signal, resolveToolApprovalTimeout(settings));
+    const decision = approval.autoApproved
+      ? { approved: true, autoApproved: true, reason: approval.reason }
+      : await this.waitForApproval(requestId, toolCall.id, signal, resolveToolApprovalTimeout(settings));
     if (!decision.approved) {
       const denied = decision.timedOut
         ? `工具 ${fn.name} 等待确认超过 ${Math.round(resolveToolApprovalTimeout(settings) / 1000)} 秒，已自动拒绝。`
@@ -482,7 +489,13 @@ class ChatService {
     }
 
     try {
-      this.emit(requestId, 'agentStage', { stage: 'tool_approved', round, maxRounds, toolName: fn.name });
+      this.emit(requestId, 'agentStage', {
+        stage: decision.autoApproved ? 'tool_auto_approved' : 'tool_approved',
+        round,
+        maxRounds,
+        toolName: fn.name,
+        warning: decision.autoApproved ? decision.reason : undefined,
+      });
       const output = isMcpToolName(fn.name)
         ? await this.mcpManager.callOpenAiTool(fn.name, args, settings)
         : await executeTool(fn.name, args, settings);
@@ -494,6 +507,7 @@ class ChatService {
         output,
         ...buildToolContextOutput(fn.name, args, output),
         security: buildToolSecurity(fn.name, args, settings),
+        autoApproved: decision.autoApproved === true,
       });
       return output;
     } catch (error) {
@@ -778,7 +792,7 @@ function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds
   }
   steps.push('整理回答并说明使用过的工具、来源和限制。');
 
-  const approvalPolicy = buildPlanApprovalPolicy(selectedTools);
+  const approvalPolicy = buildPlanApprovalPolicy(selectedTools, settings);
   const searchPlan = buildResearchSearchPlan(userText, intent, settings);
   const warnings = [];
   if (missingPrerequisites.length) {
@@ -871,11 +885,13 @@ function dedupeSearchPlan(plan = []) {
   return next;
 }
 
-function buildPlanApprovalPolicy(selectedTools = []) {
+function buildPlanApprovalPolicy(selectedTools = [], settings = {}) {
   const policy = [];
   const hasReadOnly = selectedTools.some((name) => ['web_search', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name));
   if (hasReadOnly) {
-    policy.push('读取/搜索类工具会先展示审批卡，确认后执行并保留证据。');
+    policy.push(normalizeToolApprovalPolicy(settings.toolApprovalPolicy) === 'auto_readonly'
+      ? '低风险读取/搜索类工具会自动执行并保留证据；运行代码、MCP 和写入类操作仍必须确认。'
+      : '读取/搜索类工具会先展示审批卡，确认后执行并保留证据。');
   }
   if (selectedTools.includes('run_code')) {
     policy.push('代码运行必须确认；结果会以实验卡片展示退出码、耗时和 stdout/stderr。');
@@ -1107,6 +1123,29 @@ function buildSingleStepStopReason(toolResults = []) {
     .filter(Boolean);
   const summary = names.length ? `已完成单步执行：${names.join(', ')}。` : '已完成单步执行。';
   return `${summary}已暂停后续工具轮次；可继续点击“单步执行”推进下一步，或点击“执行全部”让 Agent 按计划继续。`;
+}
+
+function normalizeToolApprovalPolicy(value) {
+  return String(value || DEFAULT_TOOL_APPROVAL_POLICY) === 'auto_readonly'
+    ? 'auto_readonly'
+    : DEFAULT_TOOL_APPROVAL_POLICY;
+}
+
+function resolveToolApprovalDecision(name, args = {}, settings = {}, security = buildToolSecurity(name, args, settings)) {
+  const policy = normalizeToolApprovalPolicy(settings.toolApprovalPolicy);
+  if (policy !== 'auto_readonly') return { policy, autoApproved: false, reason: '' };
+  if (!isAutoApprovableReadOnlyTool(name, security)) return { policy, autoApproved: false, reason: '' };
+  return {
+    policy,
+    autoApproved: true,
+    reason: `已按审批策略自动通过低风险读取/搜索工具：${name}。`,
+  };
+}
+
+function isAutoApprovableReadOnlyTool(name, security = {}) {
+  if (isMcpToolName(name) || name === 'run_code') return false;
+  return ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name)
+    && ['low', 'medium'].includes(String(security.riskLevel || 'unknown'));
 }
 
 function formatExternalSkills(skills) {

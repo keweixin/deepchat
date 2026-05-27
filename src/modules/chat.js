@@ -1040,6 +1040,7 @@ export function renderToolCalls(container, toolCalls = [], options = {}) {
 function createToolMeta(tool) {
   const items = [];
   if (tool.requestedAt) items.push(`请求：${formatToolTime(tool.requestedAt)}`);
+  if (tool.autoApproved) items.push('审批：自动通过');
   if (tool.expiresAt && tool.status === 'pending') {
     const seconds = Math.max(0, Math.ceil((Date.parse(tool.expiresAt) - Date.now()) / 1000));
     items.push(`确认倒计时：${seconds}s`);

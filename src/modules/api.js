@@ -58,6 +58,7 @@ const DEFAULT_SETTINGS = {
   autoContextSummary: true,
   cacheOptimization: true,
   toolApprovalTimeoutMs: 60000,
+  toolApprovalPolicy: 'confirm_all',
   runCodeEnabled: true,
   enhance: true,
   tavilyApiKey: '',
@@ -1553,6 +1554,7 @@ async function migrateLegacyStorage() {
     dc_maxContext: 'maxContextMessages',
     dc_agentMaxRounds: 'agentMaxRounds',
     dc_toolApprovalTimeoutMs: 'toolApprovalTimeoutMs',
+    dc_toolApprovalPolicy: 'toolApprovalPolicy',
     dc_thinkingBudget: 'thinkingBudget',
     dc_activeSkill: 'activeSkill',
     dc_cacheOptimization: 'cacheOptimization',
@@ -1598,6 +1600,7 @@ function loadBrowserSettings() {
     autoContextSummary: localStorage.getItem('dc_autoContextSummary') !== 'false',
     cacheOptimization: localStorage.getItem('dc_cacheOptimization') !== 'false',
     toolApprovalTimeoutMs: parseInt(localStorage.getItem('dc_toolApprovalTimeoutMs') || String(DEFAULT_SETTINGS.toolApprovalTimeoutMs), 10),
+    toolApprovalPolicy: localStorage.getItem('dc_toolApprovalPolicy') || DEFAULT_SETTINGS.toolApprovalPolicy,
     runCodeEnabled: localStorage.getItem('dc_runCodeEnabled') !== 'false',
     enhance: localStorage.getItem('dc_enhance') !== 'false',
     tavilyApiKey: localStorage.getItem('dc_tavilyApiKey') || '',
@@ -1624,6 +1627,7 @@ function saveBrowserSettings(patch) {
     autoContextSummary: 'dc_autoContextSummary',
     cacheOptimization: 'dc_cacheOptimization',
     toolApprovalTimeoutMs: 'dc_toolApprovalTimeoutMs',
+    toolApprovalPolicy: 'dc_toolApprovalPolicy',
     runCodeEnabled: 'dc_runCodeEnabled',
     enhance: 'dc_enhance',
     tavilyMaxResults: 'dc_tavilyMaxResults',
@@ -1652,6 +1656,7 @@ function normalizeSettings(input = {}) {
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
   next.toolApprovalTimeoutMs = Math.round(clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs));
+  next.toolApprovalPolicy = String(next.toolApprovalPolicy || DEFAULT_SETTINGS.toolApprovalPolicy) === 'auto_readonly' ? 'auto_readonly' : DEFAULT_SETTINGS.toolApprovalPolicy;
   next.workspaceRoots = Array.isArray(next.workspaceRoots) ? next.workspaceRoots : [];
   next.externalSkills = Array.isArray(next.externalSkills) ? next.externalSkills : [];
   next.mcpServers = Array.isArray(next.mcpServers) ? next.mcpServers : [];

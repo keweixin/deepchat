@@ -181,6 +181,7 @@ const SettingsPatchSchema = z.object({
   autoContextSummary: z.boolean().optional(),
   cacheOptimization: z.boolean().optional(),
   toolApprovalTimeoutMs: z.number().int().min(5000).max(300000).optional(),
+  toolApprovalPolicy: z.enum(['confirm_all', 'auto_readonly']).optional(),
   runCodeEnabled: z.boolean().optional(),
   enhance: z.boolean().optional(),
   tavilyApiKey: z.string().max(8000).optional(),

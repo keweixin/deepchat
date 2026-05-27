@@ -37,6 +37,7 @@ const DEFAULT_SETTINGS = {
   autoContextSummary: true,
   cacheOptimization: true,
   toolApprovalTimeoutMs: 60000,
+  toolApprovalPolicy: 'confirm_all',
   runCodeEnabled: true,
   enhance: true,
   tavilyMaxResults: 5,
@@ -96,6 +97,7 @@ function normalizeSettings(input = {}) {
   next.autoContextSummary = next.autoContextSummary !== false && next.autoContextSummary !== 'false';
   next.cacheOptimization = next.cacheOptimization !== false && next.cacheOptimization !== 'false';
   next.toolApprovalTimeoutMs = Math.round(clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs));
+  next.toolApprovalPolicy = String(next.toolApprovalPolicy || DEFAULT_SETTINGS.toolApprovalPolicy) === 'auto_readonly' ? 'auto_readonly' : DEFAULT_SETTINGS.toolApprovalPolicy;
   next.runCodeEnabled = next.runCodeEnabled !== false && next.runCodeEnabled !== 'false';
   next.workspaceRoots = normalizeWorkspaceRoots(next.workspaceRoots);
   next.externalSkills = normalizeExternalSkills(next.externalSkills);

@@ -901,6 +901,52 @@ describe('electron chat service token usage and agent loop', () => {
     expect(result.contextOutputTokens).toBeGreaterThan(0);
     expect(result.contextCompacted).toBe(false);
   });
+
+  it('auto-approves read-only tools only when the user selects that approval policy', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.waitForApproval = vi.fn(async () => ({ approved: false }));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [{ title: 'DeepChat', url: 'https://example.com', content: 'agent notes' }] }),
+    });
+
+    const output = await service.handleToolCall(
+      'req-auto-approve',
+      { id: 'tool-auto', function: { name: 'web_search', arguments: '{"query":"DeepChat agent"}' } },
+      baseSettings({ tavilyApiKey: 'tvly-test', toolApprovalPolicy: 'auto_readonly' }),
+      new AbortController().signal,
+    );
+
+    expect(output).toContain('DeepChat');
+    expect(service.waitForApproval).not.toHaveBeenCalled();
+    expect(events.find((event) => event.type === 'toolRequest')).toMatchObject({
+      autoApproved: true,
+      approvalPolicy: 'auto_readonly',
+    });
+    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'tool_auto_approved')).toBe(true);
+    expect(events.find((event) => event.type === 'toolResult')).toMatchObject({ ok: true, autoApproved: true });
+  });
+
+  it('still requires approval for run_code under the read-only auto approval policy', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.waitForApproval = vi.fn(async () => ({ approved: false }));
+
+    const output = await service.handleToolCall(
+      'req-auto-deny-run',
+      { id: 'tool-run', function: { name: 'run_code', arguments: '{"language":"javascript","code":"console.log(1)"}' } },
+      baseSettings({ toolApprovalPolicy: 'auto_readonly', runCodeEnabled: true }),
+      new AbortController().signal,
+    );
+
+    expect(output).toContain('用户拒绝执行工具 run_code');
+    expect(service.waitForApproval).toHaveBeenCalledTimes(1);
+    expect(events.find((event) => event.type === 'toolRequest')).toMatchObject({
+      autoApproved: false,
+      approvalPolicy: 'auto_readonly',
+    });
+  });
 });
 
 function baseSettings(overrides = {}) {

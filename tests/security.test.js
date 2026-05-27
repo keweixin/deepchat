@@ -13,6 +13,8 @@ describe('ipc validation schemas', () => {
   it('rejects unknown settings fields and invalid manual tool names', () => {
     expect(() => validate(schemas.SettingsPatchSchema, { model: 'deepseek-v4-flash', unknown: true }, 'settings:set')).toThrow('入参无效');
     expect(() => validate(schemas.RunManualToolSchema, { name: 'read_file', args: {} }, 'tools:runManual')).toThrow('入参无效');
+    expect(validate(schemas.SettingsPatchSchema, { toolApprovalPolicy: 'auto_readonly' }, 'settings:set').toolApprovalPolicy).toBe('auto_readonly');
+    expect(() => validate(schemas.SettingsPatchSchema, { toolApprovalPolicy: 'auto_write' }, 'settings:set')).toThrow('toolApprovalPolicy');
   });
 
   it('rejects oversized chat messages and malformed approval payloads', () => {
