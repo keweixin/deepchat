@@ -1,4 +1,4 @@
-export const COMPOSER_MODE_IDS = Object.freeze(['daily', 'project', 'research', 'code', 'writing']);
+export const COMPOSER_MODE_IDS = Object.freeze(['daily', 'analysis', 'project', 'agent', 'research', 'code', 'writing']);
 
 export const COMPOSER_MODES = Object.freeze({
   daily: {
@@ -8,6 +8,19 @@ export const COMPOSER_MODES = Object.freeze({
     activeSkill: 'none',
     enhance: true,
     instruction: '',
+  },
+  analysis: {
+    id: 'analysis',
+    label: '深析',
+    description: '复杂问题按背景、原因、方案和优先级展开',
+    activeSkill: 'none',
+    enhance: true,
+    instruction: [
+      '你正在以深度分析模式回答。',
+      '先给判断，再按背景、问题、原因、方案、优先级展开。',
+      '输出 P0/P1/P2，并明确哪些是确定结论、哪些是推测。',
+      '最后给执行顺序；不要为了形式调用工具，除非用户问题确实需要最新事实或本地证据。',
+    ].join('\n'),
   },
   project: {
     id: 'project',
@@ -20,6 +33,20 @@ export const COMPOSER_MODES = Object.freeze({
       '先给核心判断，再按 P0/P1/P2 或执行顺序组织。',
       '涉及本地项目时，必须基于工具返回的文件、符号、行号或运行结果，不要假装读取未返回的内容。',
       '最终回答尽量说明证据来源和下一步。',
+    ].join('\n'),
+  },
+  agent: {
+    id: 'agent',
+    label: 'Agent',
+    description: '先规划工具流，再按证据推进并保留确认边界',
+    activeSkill: 'agent_auto',
+    enhance: true,
+    instruction: [
+      '你正在以 Agent 执行模式回答。',
+      '先输出计划，明确要用哪些工具、每一步需要什么证据、哪些动作需要用户确认。',
+      '按 Plan -> Execute -> Evidence -> Final 组织过程；每一步完成后展示关键证据。',
+      '读取、搜索类工具可以按客户端审批流推进；运行代码、写入、MCP 外部操作和高风险动作必须等待用户确认。',
+      '最终回答说明执行过的工具、来源、失败或跳过的步骤，以及下一步建议。',
     ].join('\n'),
   },
   research: {
