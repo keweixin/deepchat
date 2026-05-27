@@ -112,6 +112,7 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
   const hasWebDirective = /(?:^|[\s([，,;；])@(?:web|search)\b/i.test(String(inputText || ''));
   const hasRunDirective = /(?:^|[\s([，,;；])@(?:run|code)\b/i.test(String(inputText || ''));
   const hasMcpDirective = /(?:^|[\s([，,;；])@mcp\b/i.test(String(inputText || ''));
+  const hasChangedDirective = /(?:^|[\s([，,;；])@(?:changed|recent)\b/i.test(String(inputText || ''));
   const intent = buildComposerIntentPreview(inputText, effectiveSettings);
   const needsWorkspace = roots.length
     || mentions.length > 0
@@ -134,7 +135,7 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     });
   }
 
-  const localRoute = buildExplicitContextToolRoute(mentions);
+  const localRoute = buildExplicitContextToolRoute(mentions, { includeChanged: hasChangedDirective });
   if (localRoute) {
     items.push({
       kind: 'context-route',
@@ -324,12 +325,17 @@ function buildIntentPreviewTitle(intent = {}, missing = []) {
   ].filter(Boolean).join('\n');
 }
 
-function buildExplicitContextToolRoute(mentions = []) {
-  if (!Array.isArray(mentions) || mentions.length === 0) return null;
+function buildExplicitContextToolRoute(mentions = [], options = {}) {
+  if ((!Array.isArray(mentions) || mentions.length === 0) && !options.includeChanged) return null;
   const tools = [];
   const add = (tool) => {
     if (tool && !tools.includes(tool)) tools.push(tool);
   };
+  if (options.includeChanged) {
+    add('index_workspace');
+    add('list_files');
+    add('search_workspace');
+  }
   for (const mention of mentions) {
     if (mention?.type === 'file') add('read_file');
     else if (mention?.type === 'symbol') add('read_symbol');

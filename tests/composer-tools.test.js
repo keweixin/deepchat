@@ -182,6 +182,33 @@ describe('composer tool drawer helpers', () => {
     ]));
   });
 
+  it('previews changed-context tool routes before send', () => {
+    window.deepchat = {};
+    const ready = buildComposerContextPreview('@changed 最近改了什么', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+    const missing = buildComposerContextPreview('@changed 最近改了什么', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+
+    expect(ready.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '本地工具 index_workspace + list_files + search_workspace', kind: 'context-route', tone: 'ready' }),
+      expect.objectContaining({ label: '工具 文件分析', tone: 'ready' }),
+    ]));
+    expect(missing.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '未选工作区', tone: 'muted' }),
+      expect.objectContaining({ label: '本地工具 index_workspace + list_files + search_workspace', kind: 'context-route', tone: 'warning' }),
+    ]));
+  });
+
   it('shows MCP server status lights in the send-time context preview', () => {
     window.deepchat = {};
     const preview = buildComposerContextPreview('请用 @mcp 查一下 issue 状态', {
