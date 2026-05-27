@@ -401,16 +401,20 @@ async function searchWorkspace(args, settings) {
   hits.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
   const selected = hits.slice(0, maxResults);
   if (selected.length === 0) {
+    const structured = buildWorkspaceSearchStructuredResults({ query, symbol, index, selected });
     return [
       `工作区搜索：${query}`,
       `工作区：${index.root}`,
       `目录：${index.relativeDirectory}`,
       index.pattern ? `文件筛选：${index.pattern}` : '',
       `索引：${formatWorkspaceIndexCacheLabel(index)} · files=${index.fileCount} · chunks=${index.chunkCount} · snapshot=${index.snapshotHash || 'none'} · hash=${index.hash}`,
+      'Structured Results:',
+      JSON.stringify(structured, null, 2),
       '没有找到匹配的文本结果。',
     ].filter(Boolean).join('\n');
   }
 
+  const structured = buildWorkspaceSearchStructuredResults({ query, symbol, index, selected });
   const lines = [
     `工作区搜索：${query}`,
     symbol ? `符号：${symbol}` : '',
@@ -419,6 +423,8 @@ async function searchWorkspace(args, settings) {
     index.pattern ? `文件筛选：${index.pattern}` : '',
     `索引：${formatWorkspaceIndexCacheLabel(index)} · files=${index.fileCount} · chunks=${index.chunkCount} · snapshot=${index.snapshotHash || 'none'} · hash=${index.hash}`,
     `结果数：${selected.length}`,
+    'Structured Results:',
+    JSON.stringify(structured, null, 2),
     '',
   ].filter(Boolean);
   selected.forEach((hit, index) => {
@@ -432,6 +438,61 @@ async function searchWorkspace(args, settings) {
     lines.push('');
   });
   return lines.join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected }) {
+  return {
+    type: 'deepchat.workspaceSearchResults',
+    version: 1,
+    query,
+    symbol: symbol || '',
+    root: index.root,
+    directory: index.relativeDirectory,
+    pattern: index.pattern || '',
+    index: {
+      cache: formatWorkspaceIndexCacheLabel(index),
+      fileCount: index.fileCount,
+      chunkCount: index.chunkCount,
+      snapshotHash: index.snapshotHash || '',
+      hash: index.hash,
+    },
+    results: selected.map((hit, resultIndex) => ({
+      index: resultIndex + 1,
+      file: normalizeWorkspaceResultPath(hit.file),
+      startLine: hit.lineStart,
+      endLine: hit.lineEnd,
+      score: hit.score,
+      kind: inferWorkspaceHitKind(hit, symbol),
+      symbol: symbol || inferWorkspaceHitSymbol(hit),
+      truncated: Boolean(hit.truncated),
+      snippet: hit.snippet.map((item) => ({
+        line: item.line,
+        text: item.text,
+      })),
+    })),
+  };
+}
+
+function normalizeWorkspaceResultPath(filePath) {
+  return String(filePath || '').replace(/\\/g, '/');
+}
+
+function inferWorkspaceHitKind(hit, symbol = '') {
+  const text = (hit?.snippet || []).map((item) => item.text).join('\n');
+  if (symbol && text.split(/\r?\n/).some((line) => looksLikeSymbolDefinition(line, symbol))) return 'symbol';
+  if (/^\s*(export\s+)?(async\s+)?function\s+/m.test(text)) return 'function';
+  if (/^\s*(export\s+)?class\s+/m.test(text)) return 'class';
+  if (/^\s*(export\s+)?(?:const|let|var)\s+/m.test(text)) return 'variable';
+  if (/^\s*#{1,6}\s+/m.test(text)) return 'markdown-section';
+  return 'text';
+}
+
+function inferWorkspaceHitSymbol(hit) {
+  const text = (hit?.snippet || []).map((item) => item.text).join('\n');
+  const match = text.match(/^\s*(?:export\s+)?(?:async\s+)?function\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/um)
+    || text.match(/^\s*(?:export\s+)?class\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/um)
+    || text.match(/^\s*(?:export\s+)?(?:const|let|var)\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/um);
+  return match?.[1] || '';
 }
 
 async function getWorkspaceIndex(args, settings, options = {}) {

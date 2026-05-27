@@ -120,6 +120,21 @@ describe('electron tools helpers', () => {
       expect(output).toContain('src');
       expect(output).toContain('agent.md:2-3');
       expect(output).toContain('2: DeepSeek cache telemetry');
+      expect(output).toContain('Structured Results:');
+      const structured = extractStructuredResults(output);
+      expect(structured).toMatchObject({
+        type: 'deepchat.workspaceSearchResults',
+        query: 'cache telemetry',
+        directory: 'src',
+        results: [{
+          file: 'src/agent.md',
+          startLine: 2,
+          endLine: 3,
+          kind: 'text',
+        }],
+      });
+      expect(structured.results[0].score).toBeGreaterThan(0);
+      expect(structured.results[0].snippet[0]).toMatchObject({ line: 2 });
       expect(output).not.toContain('.env');
       expect(output).not.toContain('DEEPSEEK_CACHE_SECRET');
     } finally {
@@ -321,3 +336,33 @@ describe('electron tools helpers', () => {
     }
   });
 });
+
+function extractStructuredResults(output) {
+  const start = output.indexOf('Structured Results:');
+  const jsonStart = output.indexOf('{', start);
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = jsonStart; index < output.length; index++) {
+    const char = output[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === '\\') {
+      escaped = inString;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === '{') depth += 1;
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return JSON.parse(output.slice(jsonStart, index + 1));
+    }
+  }
+  throw new Error('Structured Results JSON not found');
+}

@@ -6,6 +6,7 @@ import {
   buildToolRuns,
   createToolRecord,
   extractLocalCitations,
+  extractWorkspaceSearchResults,
   getLocalFileGrounding,
   getSearchGrounding,
   hasLocalFilesWithoutCitedSource,
@@ -97,6 +98,46 @@ describe('tool run state', () => {
       warning: false,
     });
     expect(hasLocalFilesWithoutCitedSource(message, '根据本地文件可知。')).toBe(true);
+  });
+
+  it('extracts structured workspace search results for evidence panels', () => {
+    const output = [
+      '工作区搜索：cache telemetry',
+      'Structured Results:',
+      JSON.stringify({
+        type: 'deepchat.workspaceSearchResults',
+        version: 1,
+        query: 'cache telemetry',
+        results: [{
+          index: 1,
+          file: 'src/agent.md',
+          startLine: 2,
+          endLine: 3,
+          score: 6,
+          kind: 'text',
+          symbol: '',
+          snippet: [{ line: 2, text: 'DeepSeek cache telemetry should explain hit and miss tokens.' }],
+        }],
+      }, null, 2),
+      '',
+      '1. src/agent.md:2-3',
+      '   score: 6',
+    ].join('\n');
+    const tool = createToolRecord({ toolCallId: 'ws1', name: 'search_workspace', args: { query: 'cache telemetry' } });
+    applyToolResult([tool], { toolCallId: 'ws1', name: 'search_workspace', ok: true, output });
+
+    const runs = buildToolRuns([tool]);
+    const evidence = buildToolEvidencePayload(tool);
+
+    expect(extractWorkspaceSearchResults(output, 'search_workspace')).toEqual([expect.objectContaining({
+      file: 'src/agent.md',
+      startLine: 2,
+      endLine: 3,
+      score: 6,
+      kind: 'text',
+    })]);
+    expect(runs[0].workspaceResults[0].snippet[0].text).toContain('DeepSeek cache telemetry');
+    expect(evidence.workspaceResults[0]).toMatchObject({ file: 'src/agent.md', startLine: 2 });
   });
 
   it('builds structured evidence without copying the full raw output', () => {

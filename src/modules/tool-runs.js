@@ -80,6 +80,7 @@ export function buildToolRuns(toolCalls = []) {
     outputPreview: tool.output ? String(tool.output).slice(0, 1200) : '',
     sources: tool.sources || extractToolSources(tool.output || ''),
     localCitations: extractLocalCitations(tool.output || '', getToolName(tool)),
+    workspaceResults: extractWorkspaceSearchResults(tool.output || '', getToolName(tool)),
     query: getToolQuery(tool),
     security: tool.security || null,
     parseError: tool.parseError || '',
@@ -96,6 +97,7 @@ export function buildToolEvidencePayload(tool = {}) {
   const outputText = tool.output ? String(tool.output) : '';
   const sources = tool.sources || extractToolSources(outputText);
   const localCitations = extractLocalCitations(outputText, getToolName(tool));
+  const workspaceResults = extractWorkspaceSearchResults(outputText, getToolName(tool));
   const id = tool.id || '';
   return {
     type: 'deepchat.toolEvidence',
@@ -116,6 +118,7 @@ export function buildToolEvidencePayload(tool = {}) {
     parseError: tool.parseError || '',
     sources,
     localCitations,
+    workspaceResults,
     outputPreview: outputText.slice(0, 1200),
     contextOutput: tool.contextOutput || '',
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
@@ -246,6 +249,73 @@ export function extractLocalCitations(outputText = '', toolName = '') {
     else if (file) citations.push(buildLocalCitation(file, 0, 0));
   }
   return dedupeLocalCitations(citations);
+}
+
+export function extractWorkspaceSearchResults(outputText = '', toolName = '') {
+  if (toolName !== 'search_workspace') return [];
+  const payload = extractStructuredJsonAfterMarker(outputText, 'Structured Results:');
+  if (!payload || payload.type !== 'deepchat.workspaceSearchResults' || !Array.isArray(payload.results)) return [];
+  return payload.results
+    .map((result) => ({
+      index: normalizeNumber(result.index),
+      file: String(result.file || '').trim(),
+      startLine: normalizeNumber(result.startLine),
+      endLine: normalizeNumber(result.endLine),
+      score: normalizeNumber(result.score),
+      kind: String(result.kind || 'text').trim() || 'text',
+      symbol: String(result.symbol || '').trim(),
+      truncated: Boolean(result.truncated),
+      snippet: Array.isArray(result.snippet)
+        ? result.snippet.map((item) => ({
+          line: normalizeNumber(item.line),
+          text: String(item.text || ''),
+        })).filter((item) => item.line > 0 || item.text)
+        : [],
+    }))
+    .filter((result) => result.file);
+}
+
+function extractStructuredJsonAfterMarker(outputText = '', marker = '') {
+  const text = String(outputText || '');
+  const start = text.indexOf(marker);
+  if (start < 0) return null;
+  const jsonStart = text.indexOf('{', start + marker.length);
+  if (jsonStart < 0) return null;
+  const jsonText = extractBalancedJsonObject(text, jsonStart);
+  if (!jsonText) return null;
+  try {
+    return JSON.parse(jsonText);
+  } catch {
+    return null;
+  }
+}
+
+function extractBalancedJsonObject(text, startIndex) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = startIndex; index < text.length; index++) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === '\\') {
+      escaped = inString;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(startIndex, index + 1);
+    }
+  }
+  return '';
 }
 
 function buildLocalCitation(file, startLine, endLine) {
