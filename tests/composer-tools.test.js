@@ -73,6 +73,28 @@ describe('composer tool drawer helpers', () => {
     expect(ready.text).toContain('执行前会确认');
   });
 
+  it('reflects auto-readonly approval policy in smart intent preview', () => {
+    const readonly = buildComposerIntentPreview('检查当前项目的 package.json', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      toolApprovalPolicy: 'auto_readonly',
+      mcpServers: [],
+    });
+    const mixed = buildComposerIntentPreview('@changed 检查项目并 @run 验证', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      toolApprovalPolicy: 'auto_readonly',
+      mcpServers: [],
+    });
+
+    expect(readonly.text).toContain('只读工具可自动通过');
+    expect(mixed.text).toContain('只读自动 · 高风险确认');
+  });
+
   it('promotes explicit context directives to runnable tool modes before send', () => {
     window.deepchat = {};
     const settings = {

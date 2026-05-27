@@ -88,7 +88,7 @@ export function buildComposerIntentPreview(inputText = '', settings = {}) {
   }
   if (selectedLabels) {
     return {
-      text: `预判：${selectedLabels} · 执行前会确认`,
+      text: `预判：${selectedLabels} · ${getIntentApprovalPreview(intent.selectedTools, settings)}`,
       title: buildIntentPreviewTitle(intent, missing),
       state: 'tool',
       intent,
@@ -323,6 +323,28 @@ function buildIntentPreviewTitle(intent = {}, missing = []) {
     intent.candidateTools?.length ? `候选工具：${formatToolLabels(intent.candidateTools)}` : '',
     missing.length ? `缺少配置：${missing.join('、')}` : '',
   ].filter(Boolean).join('\n');
+}
+
+function getIntentApprovalPreview(selectedTools = [], settings = {}) {
+  const tools = Array.isArray(selectedTools) ? selectedTools : [];
+  const autoReadonly = settings.toolApprovalPolicy === 'auto_readonly';
+  if (!autoReadonly) return '执行前会确认';
+  const hasHighRisk = tools.some((tool) => !isReadOnlyToolName(tool));
+  const hasReadonly = tools.some((tool) => isReadOnlyToolName(tool));
+  if (hasReadonly && hasHighRisk) return '只读自动 · 高风险确认';
+  if (hasReadonly) return '只读工具可自动通过';
+  return '执行前会确认';
+}
+
+function isReadOnlyToolName(toolName = '') {
+  return [
+    'web_search',
+    'index_workspace',
+    'list_files',
+    'search_workspace',
+    'read_symbol',
+    'read_file',
+  ].includes(String(toolName || ''));
 }
 
 function buildExplicitContextToolRoute(mentions = [], options = {}) {
