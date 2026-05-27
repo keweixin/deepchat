@@ -517,6 +517,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       msgEl.classList.add('just-completed');
       setTimeout(() => msgEl.classList.remove('just-completed'), 1200);
       await postProcess(contentEl);
+      renderAssistantToc(msgEl.querySelector('.answer-toc-container'), contentEl);
 
       const typing = msgEl.querySelector('.typing-indicator');
       if (typing) typing.remove();
@@ -754,7 +755,10 @@ function renderMessages() {
       if (msg.error) {
         if (msg.content) {
           contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-          postProcess(contentEl).then(refreshReadingNavigator);
+          postProcess(contentEl).then(() => {
+            renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
+            refreshReadingNavigator();
+          });
           const errorWrap = document.createElement('div');
           renderErrorContent(errorWrap, msg.error);
           contentEl.appendChild(errorWrap.firstElementChild);
@@ -765,7 +769,10 @@ function renderMessages() {
         renderCompactAssistantMessage(contentEl, msg, idx);
       } else {
         contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-        postProcess(contentEl).then(refreshReadingNavigator);
+        postProcess(contentEl).then(() => {
+          renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
+          refreshReadingNavigator();
+        });
       }
       renderAssistantAnswerHeader(el.querySelector('.answer-header-container'), msg);
       addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
@@ -828,6 +835,7 @@ function appendMessageDOM(msg, streaming = false) {
       ${thinkingHtml}
       <div class="agent-timeline-container" hidden></div>
       <div class="tool-calls-container" hidden></div>
+      ${msg.role === 'assistant' ? '<nav class="answer-toc-container" hidden aria-label="回答目录"></nav>' : ''}
       <div class="message-content">${contentHtml}</div>
       <div class="artifact-container" hidden></div>
     </div>
@@ -1904,6 +1912,66 @@ export function renderAssistantAnswerHeader(container, message = {}) {
   header.appendChild(list);
   container.appendChild(header);
   return header;
+}
+
+export function renderAssistantToc(container, contentEl, options = {}) {
+  if (!container || !contentEl) return [];
+  container.innerHTML = '';
+  const minHeadings = Number.isFinite(options.minHeadings) ? options.minHeadings : 3;
+  const headings = Array.from(contentEl.querySelectorAll('h2, h3'))
+    .map((heading, index) => {
+      const text = String(heading.textContent || '').trim().replace(/\s+/g, ' ');
+      if (!text) return null;
+      const id = ensureHeadingId(heading, text, index);
+      return {
+        id,
+        text: truncate(text, 48),
+        level: heading.tagName.toLowerCase(),
+      };
+    })
+    .filter(Boolean);
+
+  if (headings.length < minHeadings) {
+    container.hidden = true;
+    return [];
+  }
+
+  container.hidden = false;
+  const title = document.createElement('div');
+  title.className = 'answer-toc-title';
+  title.textContent = '目录';
+  const list = document.createElement('ol');
+  list.className = 'answer-toc-list';
+  for (const item of headings.slice(0, 8)) {
+    const row = document.createElement('li');
+    row.className = `answer-toc-item level-${item.level}`;
+    const link = document.createElement('a');
+    link.href = `#${item.id}`;
+    link.textContent = item.text;
+    row.appendChild(link);
+    list.appendChild(row);
+  }
+  if (headings.length > 8) {
+    const more = document.createElement('li');
+    more.className = 'answer-toc-more';
+    more.textContent = `还有 ${headings.length - 8} 个小节`;
+    list.appendChild(more);
+  }
+  container.append(title, list);
+  return headings;
+}
+
+function ensureHeadingId(heading, text, index) {
+  const current = String(heading.id || '').trim();
+  if (current) return current;
+  const slug = text
+    .toLowerCase()
+    .replace(/[^\w\u4e00-\u9fa5]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  const id = `answer-section-${slug || 'section'}-${index + 1}`;
+  heading.id = id;
+  return id;
 }
 
 function buildAssistantAnswerHeaderItems(message = {}) {

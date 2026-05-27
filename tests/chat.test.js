@@ -14,6 +14,7 @@ import {
   renderAssistantAnswerHeader,
   renderAssistantArtifacts,
   renderAssistantEvidence,
+  renderAssistantToc,
   renderContextMentionStrip,
   renderConversationUsageTelemetryPanel,
   renderLatestEvidenceDrawer,
@@ -375,6 +376,40 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('思考 30 tok');
     expect(container.textContent).toContain('裁剪 2 条历史');
     expect(container.querySelector('.answer-header').title).toContain('Prefix: abc123');
+  });
+
+  it('renders a compact table of contents for long assistant answers', () => {
+    const toc = document.createElement('nav');
+    const content = document.createElement('div');
+    content.innerHTML = `
+      <h2>核心结论</h2>
+      <p>先给判断。</p>
+      <h2>问题分析</h2>
+      <h3>缓存命中</h3>
+      <h3>工具体验</h3>
+    `;
+
+    const items = renderAssistantToc(toc, content);
+
+    expect(items).toHaveLength(4);
+    expect(toc.hidden).toBe(false);
+    expect(toc.textContent).toContain('目录');
+    expect(toc.textContent).toContain('核心结论');
+    expect(toc.querySelectorAll('.answer-toc-item')).toHaveLength(4);
+    expect(content.querySelector('h2').id).toMatch(/^answer-section-/);
+    expect(toc.querySelector('a').getAttribute('href')).toBe(`#${content.querySelector('h2').id}`);
+  });
+
+  it('hides the assistant table of contents for short answers', () => {
+    const toc = document.createElement('nav');
+    const content = document.createElement('div');
+    content.innerHTML = '<h2>结论</h2><h2>下一步</h2>';
+
+    const items = renderAssistantToc(toc, content);
+
+    expect(items).toEqual([]);
+    expect(toc.hidden).toBe(true);
+    expect(toc.textContent).toBe('');
   });
 
   it('renders assistant HTML artifacts in a sandboxed preview', () => {
