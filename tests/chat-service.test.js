@@ -648,6 +648,7 @@ describe('electron chat service token usage and agent loop', () => {
     const output = [
       '文件：E:\\demo\\README.md',
       '大小：20000 bytes',
+      '行范围：20-40',
       '',
       'A'.repeat(9000),
     ].join('\n');
@@ -655,6 +656,7 @@ describe('electron chat service token usage and agent loop', () => {
     const compacted = compactToolOutputForContext('read_file', { path: 'README.md' }, output);
 
     expect(compacted).toContain('文件内容已压缩');
+    expect(compacted).toContain('行范围：20-40');
     expect(compacted).toContain('开头片段');
     expect(compacted.length).toBeLessThan(output.length);
   });

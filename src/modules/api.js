@@ -300,7 +300,7 @@ export function appendContextHintsToUserContent(content = '', mentions = [], set
   const lines = [
     '<selected_context>',
     '用户在当前消息中用 @file/@folder 显式选择了本地上下文。',
-    '不要声称已经读取这些路径；需要文件内容时必须调用 list_files/read_file，并等待用户确认。',
+    '不要声称已经读取这些路径；需要文件内容时必须调用 list_files/search_workspace/read_file，并等待用户确认。搜索结果含 file:start-end 时，可用 read_file 精确读取该行范围。',
     workspaceCount > 0 ? `已配置工作区数量：${workspaceCount}` : '缺少工作区配置：请提示用户先在设置中添加工作区。',
     ...selected.map((item) => {
       if (item.type === 'folder') return `- folder: ${item.path}；建议先调用 list_files({ "directory": "${item.path}" })`;

@@ -78,12 +78,14 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'read_file',
-      description: 'Read a text file inside a user-approved workspace directory.',
+      description: 'Read a text file inside a user-approved workspace directory. Supports focused line ranges via start_line/end_line or path citations like src/file.js:10-20.',
       parameters: {
         type: 'object',
         properties: {
           path: { type: 'string', description: 'Absolute or workspace-relative file path.' },
           max_bytes: { type: 'integer', minimum: 1024, maximum: MAX_FILE_BYTES, description: 'Maximum bytes to read.' },
+          start_line: { type: 'integer', minimum: 1, description: 'Optional 1-based line number to start reading from.' },
+          end_line: { type: 'integer', minimum: 1, description: 'Optional 1-based line number to stop reading at.' },
         },
         required: ['path'],
       },
@@ -148,7 +150,11 @@ function describeToolRisk(name, args) {
       : `将在已授权工作区内搜索文本：${query}，并返回文件行号引用。`;
   }
   if (name === 'read_file') {
-    return `将读取已授权工作区内的文本文件：${String(args.path || '').slice(0, 160)}`;
+    const citation = parsePathLineCitation(args.path);
+    const startLine = args.start_line || citation.startLine;
+    const endLine = args.end_line || citation.endLine || startLine;
+    const lineRange = startLine ? `（行 ${startLine}${endLine && endLine !== startLine ? `-${endLine}` : ''}）` : '';
+    return `将读取已授权工作区内的文本文件：${String(citation.path || args.path || '').slice(0, 160)}${lineRange}`;
   }
   if (name === 'run_code') {
     return [
@@ -503,11 +509,19 @@ function createMatcher(pattern) {
 }
 
 async function readFile(args, settings) {
-  const filePath = await resolveAllowedPath(args.path, settings.workspaceRoots || []);
+  const citation = parsePathLineCitation(args.path);
+  const requestedPath = citation.path || args.path;
+  const filePath = await resolveAllowedPath(requestedPath, settings.workspaceRoots || []);
   if (isSensitivePath(filePath)) throw new Error('该文件路径看起来包含密钥、凭证或敏感配置，已拒绝读取。');
   const stat = await fs.stat(filePath);
   if (!stat.isFile()) throw new Error('只能读取文件，不能读取目录。');
   const maxBytes = clampInt(args.max_bytes, 1024, MAX_FILE_BYTES, DEFAULT_FILE_BYTES);
+  const explicitStart = clampInt(args.start_line, 1, Number.MAX_SAFE_INTEGER, 0);
+  const explicitEnd = clampInt(args.end_line, 1, Number.MAX_SAFE_INTEGER, 0);
+  const lineRange = normalizeLineRange(
+    explicitStart || citation.startLine,
+    explicitEnd || citation.endLine,
+  );
   const bytesToRead = Math.min(stat.size, maxBytes);
   const handle = await fs.open(filePath, 'r');
   try {
@@ -516,6 +530,7 @@ async function readFile(args, settings) {
     if (isProbablyBinary(buffer)) throw new Error('该文件看起来是二进制文件，已拒绝读取。');
     const text = redactSensitiveText(buffer.toString('utf8'));
     const truncated = stat.size > maxBytes;
+    if (lineRange) return formatLineRangeFileOutput(filePath, stat.size, maxBytes, text, truncated, lineRange);
     return [
       `文件：${filePath}`,
       `大小：${stat.size} bytes${truncated ? `（仅读取前 ${maxBytes} bytes）` : ''}`,
@@ -525,6 +540,51 @@ async function readFile(args, settings) {
   } finally {
     await handle.close();
   }
+}
+
+function parsePathLineCitation(value) {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(.*):(\d+)(?:-(\d+))?$/);
+  if (!match) return { path: raw, startLine: 0, endLine: 0 };
+  return {
+    path: match[1],
+    startLine: Number.parseInt(match[2], 10) || 0,
+    endLine: Number.parseInt(match[3] || match[2], 10) || 0,
+  };
+}
+
+function normalizeLineRange(startLine, endLine) {
+  const start = Number.parseInt(startLine, 10);
+  const end = Number.parseInt(endLine || startLine, 10);
+  if (!Number.isFinite(start) || start <= 0) return null;
+  const safeEnd = Number.isFinite(end) && end > 0 ? end : start;
+  return {
+    start: Math.min(start, safeEnd),
+    end: Math.max(start, safeEnd),
+  };
+}
+
+function formatLineRangeFileOutput(filePath, fileSize, maxBytes, text, truncated, range) {
+  const lines = text.split(/\r?\n/);
+  const cappedEnd = Math.min(lines.length, Math.min(range.end, range.start + 399));
+  const selected = [];
+  for (let lineNumber = range.start; lineNumber <= cappedEnd; lineNumber += 1) {
+    selected.push(`${lineNumber}: ${lines[lineNumber - 1] ?? ''}`);
+  }
+  if (selected.length === 0) {
+    selected.push(`请求的行范围 ${range.start}-${range.end} 不在已读取内容内。`);
+  }
+  const rangeText = range.start === range.end ? String(range.start) : `${range.start}-${range.end}`;
+  const cappedText = selected.length > 0 && cappedEnd < range.end
+    ? `（范围已限制到 ${range.start}-${cappedEnd}，单次最多读取 400 行）`
+    : '';
+  return [
+    `文件：${filePath}`,
+    `大小：${fileSize} bytes${truncated ? `（仅读取前 ${maxBytes} bytes）` : ''}`,
+    `行范围：${rangeText}${cappedText}`,
+    '',
+    ...selected,
+  ].join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
 async function resolveWorkspaceRoot(inputRoot, workspaceRoots) {

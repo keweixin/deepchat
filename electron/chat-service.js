@@ -27,7 +27,7 @@ const MODE_PROMPTS = {
   none: '',
   agent_auto: '\n\n当前启用了智能 Agent 模式。先判断用户请求是否需要外部工具：需要最新事实时用联网搜索，需要本地资料时用文件工具，需要验证代码或计算时用代码工具，需要外部系统时用 MCP。工具调用前必须等待用户确认；缺少配置时说明需要配置什么，不要假装已经执行。',
   web_search: '\n\n当前启用了联网检索工具。需要最新信息、事实核验、价格、版本、新闻或外部资料时，优先调用 web_search，并在最终回答中给出来源链接。',
-  file_reader: '\n\n当前启用了文件分析工具。需要查看本地项目或资料时，先调用 list_files/read_file；只能基于工具返回内容分析，不要声称读取了未返回的文件。',
+  file_reader: '\n\n当前启用了文件分析工具。需要查看本地项目或资料时，先调用 list_files/search_workspace 定位，再用 read_file 读取必要文件；可用 read_file({ path: "file:10-20" }) 或 start_line/end_line 精确追读搜索引用，减少无关上下文。只能基于工具返回内容分析，不要声称读取了未返回的文件。',
   code_runner: '\n\n当前启用了代码运行工具。需要验证小段 JavaScript/Python 代码时，调用 run_code；运行前用户会确认。不要声称执行了未执行的代码。',
   mcp_tool: '\n\n当前启用了 MCP 工具模式。可调用已配置 MCP Server 暴露的工具；每次调用前都需要用户确认。只能基于 MCP 工具返回结果声明已执行外部操作。',
   multi_tool: '\n\n当前启用了全工具模式。需要联网、读取工作区文件、运行小段代码或调用 MCP Server 时，使用对应工具；工具结果不足时要说明限制。',
@@ -1442,6 +1442,8 @@ function buildToolSecurity(name, args = {}, settings = {}) {
     return {
       riskLevel: 'medium',
       path: String(args.path || ''),
+      startLine: args.start_line || null,
+      endLine: args.end_line || null,
       sensitiveDenylist: true,
       redaction: true,
     };
@@ -1807,8 +1809,8 @@ function compactWorkspaceSearchOutput(text) {
 
 function compactFileOutput(text) {
   const lines = text.split('\n');
-  const meta = lines.filter((line) => /^\s*(文件：|大小：)/.test(line));
-  const body = lines.filter((line) => !/^\s*(文件：|大小：)/.test(line)).join('\n').trim();
+  const meta = lines.filter((line) => /^\s*(文件：|大小：|行范围：)/.test(line));
+  const body = lines.filter((line) => !/^\s*(文件：|大小：|行范围：)/.test(line)).join('\n').trim();
   return [
     '[文件内容已压缩，完整输出在工具运行卡片中。]',
     ...meta,

@@ -119,4 +119,39 @@ describe('electron tools helpers', () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('reads focused line ranges from workspace citation paths', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-lines-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src', 'agent.md'), [
+        '# Agent Notes',
+        'DeepSeek cache telemetry should explain hit and miss tokens.',
+        'The answer must cite local files.',
+        'Unrelated footer',
+      ].join('\n'), 'utf8');
+
+      const fromCitation = await executeTool('read_file', {
+        path: 'src/agent.md:2-3',
+      }, { workspaceRoots: [tmpDir] });
+
+      expect(fromCitation).toContain('行范围：2-3');
+      expect(fromCitation).toContain('2: DeepSeek cache telemetry');
+      expect(fromCitation).toContain('3: The answer must cite local files.');
+      expect(fromCitation).not.toContain('1: # Agent Notes');
+      expect(fromCitation).not.toContain('4: Unrelated footer');
+
+      const fromArgs = await executeTool('read_file', {
+        path: 'src/agent.md',
+        start_line: 3,
+        end_line: 3,
+      }, { workspaceRoots: [tmpDir] });
+
+      expect(fromArgs).toContain('行范围：3');
+      expect(fromArgs).toContain('3: The answer must cite local files.');
+      expect(fromArgs).not.toContain('2: DeepSeek cache telemetry');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
