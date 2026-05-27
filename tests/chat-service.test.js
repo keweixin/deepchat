@@ -166,6 +166,74 @@ describe('electron chat service token usage and agent loop', () => {
     expect(result.warnings[0]).toContain('stream_options');
   });
 
+  it('repairs tool calls emitted as JSON in assistant content', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      body: streamFromText([
+        sse({ choices: [{ delta: { content: '```json\n{"tool":"web_search","arguments":{"query":"DeepSeek cache hit"}}\n```' } }] }),
+        'data: [DONE]\n\n',
+      ].join('')),
+    });
+
+    const result = await service.streamOnce(
+      'req-repair-content',
+      [{ role: 'user', content: '搜索 DeepSeek cache hit' }],
+      baseSettings({ tavilyApiKey: 'tvly-test' }),
+      [{ type: 'function', function: { name: 'web_search', parameters: {} } }],
+      new AbortController().signal,
+    );
+
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0]).toMatchObject({
+      type: 'function',
+      function: { name: 'web_search', arguments: '{"query":"DeepSeek cache hit"}' },
+    });
+    expect(result.warnings.join('\n')).toContain('修复 1 个工具调用');
+    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'tool_repair')).toBe(true);
+  });
+
+  it('repairs tool calls emitted in reasoning content only when the tool is allowed', async () => {
+    const service = new ChatService(() => fakeWindow());
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        body: streamFromText([
+          sse({ choices: [{ delta: { reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>' } }] }),
+          'data: [DONE]\n\n',
+        ].join('')),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: streamFromText([
+          sse({ choices: [{ delta: { reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>' } }] }),
+          'data: [DONE]\n\n',
+        ].join('')),
+      });
+
+    const blocked = await service.streamOnce(
+      'req-repair-thinking',
+      [{ role: 'user', content: '读 README' }],
+      baseSettings({ workspaceRoots: ['E:\\demo'] }),
+      [{ type: 'function', function: { name: 'web_search', parameters: {} } }],
+      new AbortController().signal,
+    );
+    const repaired = await service.streamOnce(
+      'req-repair-thinking-allowed',
+      [{ role: 'user', content: '读 README' }],
+      baseSettings({ workspaceRoots: ['E:\\demo'] }),
+      [{ type: 'function', function: { name: 'read_file', parameters: {} } }],
+      new AbortController().signal,
+    );
+
+    expect(blocked.toolCalls).toEqual([]);
+    expect(blocked.warnings.join('\n')).not.toContain('修复');
+    expect(repaired.toolCalls[0]).toMatchObject({
+      function: { name: 'read_file', arguments: '{"path":"README.md"}' },
+    });
+  });
+
   it('detects file and code intent for smart agent mode', () => {
     const intent = detectAgentIntent('检查 E:\\demo\\package.json 并运行测试', {
       workspaceRoots: ['E:\\demo'],

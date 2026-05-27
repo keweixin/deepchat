@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added conservative tool-call repair for JSON tool requests emitted in assistant content or reasoning text.
 - Added parallel dispatch for read-only tool calls while preserving approval prompts and ordered tool-result context.
 - Added a lightweight `search_workspace` tool that searches approved workspace text files and returns line citations.
 - Added a GitHub tag release workflow for Windows Setup/Portable builds, SHA256 checksums, artifact upload, and draft releases.

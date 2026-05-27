@@ -12,6 +12,8 @@ const DEFAULT_TOOL_APPROVAL_TIMEOUT_MS = 60000;
 const TOOL_ARG_LONG_STRING_THRESHOLD = 300;
 const CODE_RUN_TIMEOUT_MS = 5000;
 const DIRECTIVE_TEXT_PATTERN = /```[\s\S]*?```/g;
+const TOOL_REPAIR_SCAN_LIMIT = 24000;
+const TOOL_REPAIR_MAX_CALLS = 4;
 
 const DEEPSEEK_PRICING = {
   'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
@@ -333,7 +335,21 @@ class ChatService {
         const trimmed = line.trim();
         if (!trimmed || !trimmed.startsWith('data:')) continue;
         const data = trimmed.slice(5).trim();
-        if (data === '[DONE]') return { content, thinking, usage, toolCalls: compactToolCalls(toolCalls), warnings };
+        if (data === '[DONE]') {
+          const nativeToolCalls = compactToolCalls(toolCalls);
+          const repaired = nativeToolCalls.length === 0 ? repairToolCallsFromText(content, thinking, tools) : { toolCalls: [], warning: '' };
+          if (repaired.toolCalls.length > 0) {
+            warnings.push(repaired.warning);
+            this.emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
+          }
+          return {
+            content,
+            thinking,
+            usage,
+            toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
+            warnings,
+          };
+        }
 
         try {
           const json = JSON.parse(data);
@@ -355,7 +371,19 @@ class ChatService {
       }
     }
 
-    return { content, thinking, usage, toolCalls: compactToolCalls(toolCalls), warnings };
+    const nativeToolCalls = compactToolCalls(toolCalls);
+    const repaired = nativeToolCalls.length === 0 ? repairToolCallsFromText(content, thinking, tools) : { toolCalls: [], warning: '' };
+    if (repaired.toolCalls.length > 0) {
+      warnings.push(repaired.warning);
+      this.emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
+    }
+    return {
+      content,
+      thinking,
+      usage,
+      toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
+      warnings,
+    };
   }
 
   async handleToolCall(requestId, toolCall, settings, signal, round = 0, maxRounds = 0) {
@@ -1102,6 +1130,153 @@ function compactToolCallsForContext(toolCalls = []) {
       arguments: compactToolArgumentsForContext(call.function.arguments || '{}'),
     },
   }));
+}
+
+function repairToolCallsFromText(content = '', thinking = '', tools = []) {
+  const allowedNames = new Set((Array.isArray(tools) ? tools : [])
+    .map((tool) => String(tool?.function?.name || '').trim())
+    .filter(Boolean));
+  if (allowedNames.size === 0) return { toolCalls: [], warning: '' };
+  const text = [thinking, content].filter(Boolean).join('\n\n').slice(0, TOOL_REPAIR_SCAN_LIMIT);
+  if (!text) return { toolCalls: [], warning: '' };
+
+  const candidates = extractToolRepairCandidates(text, allowedNames);
+  const toolCalls = [];
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const parsed = parseJsonCandidate(candidate);
+    if (parsed === undefined) continue;
+    for (const call of collectToolCallsFromValue(parsed, allowedNames)) {
+      const signature = toolCallSignature(call);
+      if (seen.has(signature)) continue;
+      seen.add(signature);
+      toolCalls.push({
+        id: `repair-tool-${toolCalls.length + 1}`,
+        type: 'function',
+        function: call.function,
+      });
+      if (toolCalls.length >= TOOL_REPAIR_MAX_CALLS) break;
+    }
+    if (toolCalls.length >= TOOL_REPAIR_MAX_CALLS) break;
+  }
+  return {
+    toolCalls,
+    warning: toolCalls.length > 0
+      ? `已从模型正文/思考中修复 ${toolCalls.length} 个工具调用；仍需用户确认后才会执行。`
+      : '',
+  };
+}
+
+function extractToolRepairCandidates(text, allowedNames) {
+  const candidates = [];
+  const add = (value) => {
+    const candidate = String(value || '').trim();
+    if (!candidate || candidate.length > TOOL_REPAIR_SCAN_LIMIT) return;
+    if (!containsAllowedToolName(candidate, allowedNames)) return;
+    candidates.push(candidate);
+  };
+
+  for (const match of text.matchAll(/<tool_calls?>\s*([\s\S]*?)<\/tool_calls?>/gi)) add(match[1]);
+  for (const match of text.matchAll(/```(?:json|tool|tool_call|tool_calls)?\s*([\s\S]*?)```/gi)) add(match[1]);
+  for (const candidate of extractBalancedJsonSnippets(text, allowedNames)) add(candidate);
+  return [...new Set(candidates)];
+}
+
+function extractBalancedJsonSnippets(text, allowedNames) {
+  const snippets = [];
+  const source = String(text || '').slice(0, TOOL_REPAIR_SCAN_LIMIT);
+  for (let i = 0; i < source.length; i++) {
+    const opener = source[i];
+    if (opener !== '{' && opener !== '[') continue;
+    const closer = opener === '{' ? '}' : ']';
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let j = i; j < source.length; j++) {
+      const char = source[j];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') inString = false;
+        continue;
+      }
+      if (char === '"') {
+        inString = true;
+      } else if (char === opener) {
+        depth += 1;
+      } else if (char === closer) {
+        depth -= 1;
+        if (depth === 0) {
+          const candidate = source.slice(i, j + 1);
+          if (containsAllowedToolName(candidate, allowedNames) && /"(tool_calls?|tool_name|tool|name|function)"/i.test(candidate)) {
+            snippets.push(candidate);
+          }
+          i = j;
+          break;
+        }
+      }
+    }
+  }
+  return snippets;
+}
+
+function containsAllowedToolName(text, allowedNames) {
+  const value = String(text || '');
+  for (const name of allowedNames) {
+    if (value.includes(name)) return true;
+  }
+  return false;
+}
+
+function parseJsonCandidate(candidate) {
+  try {
+    return JSON.parse(String(candidate || '').trim());
+  } catch {
+    return undefined;
+  }
+}
+
+function collectToolCallsFromValue(value, allowedNames) {
+  const calls = [];
+  const visit = (item) => {
+    if (!item) return;
+    if (Array.isArray(item)) {
+      item.forEach(visit);
+      return;
+    }
+    if (typeof item !== 'object') return;
+    if (Array.isArray(item.tool_calls)) visit(item.tool_calls);
+    if (Array.isArray(item.tools)) visit(item.tools);
+
+    const fn = item.function && typeof item.function === 'object' ? item.function : null;
+    const name = String(fn?.name || item.name || item.tool || item.tool_name || item.function_name || '').trim();
+    if (!allowedNames.has(name)) return;
+    const rawArgs = fn?.arguments ?? item.arguments ?? item.args ?? item.parameters ?? item.input ?? {};
+    const argsJson = normalizeScavengedArguments(rawArgs);
+    if (!argsJson) return;
+    calls.push({
+      type: 'function',
+      function: { name, arguments: argsJson },
+    });
+  };
+  visit(value);
+  return calls;
+}
+
+function normalizeScavengedArguments(value) {
+  if (value === undefined || value === null) return '{}';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '{}';
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? canonicalStringify(parsed) : '';
+    } catch {
+      return '';
+    }
+  }
+  if (typeof value === 'object' && !Array.isArray(value)) return canonicalStringify(value);
+  return '';
 }
 
 function compactToolArgumentsForContext(argsJson) {
