@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Flattened complex MCP tool schemas into dot-path parameters and restored them before tool execution.
 - Added conservative repair for truncated JSON tool arguments before approval.
 - Routed DeepSeek context-summary auxiliary calls to `deepseek-v4-flash` and recorded the auxiliary model in summary metadata.
 - Added conservative tool-call repair for JSON tool requests emitted in assistant content or reasoning text.

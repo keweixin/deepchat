@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { parseSkillMeta } = require('../electron/external-skills');
-const { McpManager, hashMcpTools, isMcpToolName, makeOpenAiToolName } = require('../electron/mcp-manager');
+const { McpManager, hashMcpTools, isMcpToolName, makeOpenAiToolName, restoreFlattenedArgs } = require('../electron/mcp-manager');
 
 describe('external skills and MCP helpers', () => {
   it('parses frontmatter from SKILL.md files', () => {
@@ -111,5 +111,69 @@ description: Demo skill description
 
     expect(first).toMatch(/^[a-f0-9]{16}$/);
     expect(second).not.toBe(first);
+  });
+
+  it('flattens complex MCP tool schemas for model reliability and restores dot-path arguments', async () => {
+    const manager = new McpManager();
+    const server = { id: 'a', name: 'A', command: 'node', args: [] };
+    const inputSchema = {
+      type: 'object',
+      properties: {
+        filters: {
+          type: 'object',
+          properties: {
+            status: { type: 'string', description: 'Task status' },
+            owner: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+              },
+              required: ['id'],
+            },
+          },
+          required: ['status', 'owner'],
+        },
+      },
+      required: ['filters'],
+    };
+    manager.listTools = async () => [{ name: 'search', description: 'Search tasks', inputSchema }];
+    const definitions = await manager.getToolDefinitions({ mcpServers: [server] });
+
+    const schema = definitions[0].function.parameters;
+    expect(schema.description).toContain('dot-path');
+    expect(schema.properties).toHaveProperty('filters.status');
+    expect(schema.properties).toHaveProperty('filters.owner.id');
+    expect(schema.properties.filters).toBeUndefined();
+    expect(schema.required).toEqual(expect.arrayContaining(['filters.status', 'filters.owner.id']));
+    expect(restoreFlattenedArgs({ 'filters.status': 'open', 'filters.owner.id': 'u1', limit: 3 })).toEqual({
+      filters: { status: 'open', owner: { id: 'u1' } },
+      limit: 3,
+    });
+  });
+
+  it('restores flattened MCP arguments before calling the server tool', async () => {
+    const manager = new McpManager();
+    const server = { id: 'a', name: 'A', command: 'node', args: [] };
+    const toolName = makeOpenAiToolName(server, 'search');
+    let calledPayload;
+    manager.listTools = async () => [{ name: 'search', description: 'Search tasks', inputSchema: { type: 'object' } }];
+    manager.getSession = async () => ({
+      client: {
+        callTool: async (payload) => {
+          calledPayload = payload;
+          return { content: [{ type: 'text', text: 'ok' }] };
+        },
+      },
+    });
+
+    await manager.callOpenAiTool(toolName, { 'filters.status': 'open', query: 'cache' }, { mcpServers: [server] });
+
+    expect(calledPayload).toEqual({
+      name: 'search',
+      arguments: {
+        filters: { status: 'open' },
+        query: 'cache',
+      },
+    });
   });
 });

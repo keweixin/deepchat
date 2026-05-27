@@ -6,6 +6,8 @@ const CONNECT_TIMEOUT_MS = 15000;
 const CALL_TIMEOUT_MS = 60000;
 const MAX_MCP_OUTPUT = 16000;
 const TOOL_DEFINITION_CACHE_TTL_MS = 5 * 60 * 1000;
+const TOOL_SCHEMA_FLATTEN_LEAF_LIMIT = 10;
+const TOOL_SCHEMA_FLATTEN_DEPTH_LIMIT = 2;
 
 class McpManager {
   constructor() {
@@ -99,8 +101,9 @@ class McpManager {
     if (!tool) throw new Error(`MCP 工具不存在：${openAiToolName}`);
 
     const session = await this.getSession(server);
+    const callArgs = restoreFlattenedArgs(args || {});
     const result = await withTimeout(
-      session.client.callTool({ name: tool.name, arguments: args || {} }),
+      session.client.callTool({ name: tool.name, arguments: callArgs }),
       CALL_TIMEOUT_MS,
       `MCP 工具 ${tool.name} 执行超时`
     );
@@ -167,12 +170,14 @@ function parseOpenAiToolName(name) {
 }
 
 function toOpenAiTool(server, tool) {
+  const schema = normalizeInputSchema(tool.inputSchema);
+  const prepared = shouldFlattenInputSchema(schema) ? flattenInputSchema(schema) : schema;
   return {
     type: 'function',
     function: {
       name: makeOpenAiToolName(server, tool.name),
       description: `[MCP: ${server.name}] ${String(tool.description || tool.name || '').slice(0, 900)}`,
-      parameters: normalizeInputSchema(tool.inputSchema),
+      parameters: prepared,
     },
   };
 }
@@ -198,6 +203,101 @@ function normalizeInputSchema(schema) {
     required: Array.isArray(schema.required) ? schema.required : undefined,
     additionalProperties: schema.additionalProperties ?? true,
   };
+}
+
+function shouldFlattenInputSchema(schema) {
+  return countSchemaLeaves(schema) > TOOL_SCHEMA_FLATTEN_LEAF_LIMIT || maxSchemaDepth(schema) > TOOL_SCHEMA_FLATTEN_DEPTH_LIMIT;
+}
+
+function countSchemaLeaves(schema) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return 0;
+  const properties = schema.properties && typeof schema.properties === 'object' ? schema.properties : {};
+  const entries = Object.values(properties);
+  if (entries.length === 0) return 0;
+  return entries.reduce((total, property) => {
+    if (property?.type === 'object' && property.properties && typeof property.properties === 'object') {
+      return total + countSchemaLeaves(property);
+    }
+    return total + 1;
+  }, 0);
+}
+
+function maxSchemaDepth(schema, depth = 0) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return depth;
+  const properties = schema.properties && typeof schema.properties === 'object' ? schema.properties : {};
+  const entries = Object.values(properties);
+  if (entries.length === 0) return depth;
+  return Math.max(...entries.map((property) => (
+    property?.type === 'object' && property.properties && typeof property.properties === 'object'
+      ? maxSchemaDepth(property, depth + 1)
+      : depth + 1
+  )));
+}
+
+function flattenInputSchema(schema) {
+  const properties = {};
+  const required = [];
+  collectFlattenedProperties(schema, [], new Set(schema.required || []), true, properties, required);
+  const description = [
+    '复杂 MCP 参数已压平：使用 dot-path 字段名，例如 "filters.status"；DeepChat 会在执行前还原成嵌套 JSON。',
+    schema.description || '',
+  ].filter(Boolean).join('\n');
+  return {
+    type: 'object',
+    description,
+    properties,
+    required: required.length > 0 ? required : undefined,
+    additionalProperties: false,
+  };
+}
+
+function collectFlattenedProperties(schema, pathParts, requiredSet, ancestorsRequired, out, requiredOut) {
+  const properties = schema?.properties && typeof schema.properties === 'object' ? schema.properties : {};
+  for (const [key, property] of Object.entries(properties)) {
+    const nextPath = [...pathParts, key];
+    const isRequired = requiredSet.has(key);
+    if (property?.type === 'object' && property.properties && typeof property.properties === 'object') {
+      collectFlattenedProperties(property, nextPath, new Set(property.required || []), ancestorsRequired && isRequired, out, requiredOut);
+      continue;
+    }
+    const flatKey = nextPath.join('.');
+    out[flatKey] = stripNestedSchema(property, nextPath);
+    if (ancestorsRequired && isRequired) requiredOut.push(flatKey);
+  }
+}
+
+function stripNestedSchema(schema, pathParts) {
+  const next = schema && typeof schema === 'object' && !Array.isArray(schema) ? { ...schema } : { type: 'string' };
+  delete next.properties;
+  delete next.required;
+  if (pathParts.length > 1) {
+    next.description = [`Original path: ${pathParts.join('.')}`, next.description || ''].filter(Boolean).join('\n');
+  }
+  return next;
+}
+
+function restoreFlattenedArgs(args) {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) return {};
+  const out = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (!String(key).includes('.')) {
+      out[key] = value;
+      continue;
+    }
+    const parts = String(key).split('.').map((part) => part.trim()).filter(Boolean);
+    if (parts.length <= 1) {
+      out[key] = value;
+      continue;
+    }
+    let target = out;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (!target[part] || typeof target[part] !== 'object' || Array.isArray(target[part])) target[part] = {};
+      target = target[part];
+    }
+    target[parts[parts.length - 1]] = value;
+  }
+  return out;
 }
 
 function summarizeTool(tool) {
@@ -283,6 +383,7 @@ function normalizeError(error) {
 
 module.exports = {
   McpManager,
+  restoreFlattenedArgs,
   isMcpToolName,
   makeOpenAiToolName,
   hashMcpTools,
