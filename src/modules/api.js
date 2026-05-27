@@ -1297,7 +1297,7 @@ export async function runTool(name, args = {}) {
   return window.deepchat.tools.run(name, args);
 }
 
-async function streamNativeChat(messages, opts) {
+function streamNativeChat(messages, opts) {
   const requestId = opts.requestId || uid();
   let settled = false;
 
@@ -1317,22 +1317,39 @@ async function streamNativeChat(messages, opts) {
     if (event.type === 'done') {
       settled = true;
       unsubscribe();
+      clearTimeout(fallbackTimer);
       removeAbortListener();
       opts.onDone?.(event);
     }
     if (event.type === 'error') {
       settled = true;
       unsubscribe();
+      clearTimeout(fallbackTimer);
       removeAbortListener();
       opts.onError?.(new Error(event.message || '未知错误'));
     }
   });
 
   const abort = () => {
-    if (!settled) window.deepchat.chat.cancel(requestId);
+    if (!settled) {
+      settled = true;
+      unsubscribe();
+      clearTimeout(fallbackTimer);
+      window.deepchat.chat.cancel(requestId);
+    }
   };
   opts.signal?.addEventListener('abort', abort, { once: true });
   const removeAbortListener = () => opts.signal?.removeEventListener('abort', abort);
+
+  // Fallback: if main process never sends done/error, clean up after 10 min
+  const fallbackTimer = setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      unsubscribe();
+      removeAbortListener();
+    }
+  }, 600_000);
+
   window.deepchat.chat.start({
     requestId,
     messages,
