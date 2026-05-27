@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { parseSkillMeta } = require('../electron/external-skills');
-const { McpManager, isMcpToolName, makeOpenAiToolName } = require('../electron/mcp-manager');
+const { McpManager, hashMcpTools, isMcpToolName, makeOpenAiToolName } = require('../electron/mcp-manager');
 
 describe('external skills and MCP helpers', () => {
   it('parses frontmatter from SKILL.md files', () => {
@@ -69,5 +69,47 @@ description: Demo skill description
 
     expect(cached).toEqual(first);
     expect(refreshed[0].function.name).not.toBe(first[0].function.name);
+  });
+
+  it('returns cache-aware MCP status metadata and reuses refreshed definitions', async () => {
+    const manager = new McpManager();
+    const calls = [];
+    const settings = {
+      mcpServers: [
+        { id: 'b', name: 'B', command: 'node', args: [] },
+        { id: 'a', name: 'A', command: 'node', args: [] },
+      ],
+    };
+    manager.listTools = async (server) => {
+      calls.push(server.id);
+      return server.id === 'a'
+        ? [
+            { name: 'zeta', description: 'last', inputSchema: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] } },
+            { name: 'alpha', description: 'first', inputSchema: { type: 'object', properties: {} } },
+          ]
+        : [{ name: 'beta', description: 'middle', inputSchema: { type: 'object' } }];
+    };
+
+    const statuses = await manager.listStatus(settings);
+    const definitions = await manager.getToolDefinitions(settings);
+
+    expect(statuses.map((status) => status.id)).toEqual(['a', 'b']);
+    expect(statuses[0].ok).toBe(true);
+    expect(statuses[0].tools.map((tool) => tool.name)).toEqual(['alpha', 'zeta']);
+    expect(statuses[0].toolCount).toBe(2);
+    expect(statuses[0].cacheTtlMs).toBeGreaterThan(0);
+    expect(statuses[0].cacheExpiresAt).toMatch(/T/);
+    expect(statuses[0].schemaHash).toMatch(/^[a-f0-9]{16}$/);
+    expect(definitions).toHaveLength(3);
+    expect(calls).toEqual(['a', 'b']);
+  });
+
+  it('changes MCP schema hash when tool schemas change', () => {
+    const server = { id: 'a', name: 'A' };
+    const first = hashMcpTools(server, [{ name: 'search', description: 'Search', inputSchema: { type: 'object', properties: { q: { type: 'string' } } } }]);
+    const second = hashMcpTools(server, [{ name: 'search', description: 'Search', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }]);
+
+    expect(first).toMatch(/^[a-f0-9]{16}$/);
+    expect(second).not.toBe(first);
   });
 });

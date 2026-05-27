@@ -37,22 +37,54 @@ class McpManager {
 
   async listStatus(settings) {
     this.refreshToolDefinitions();
-    const servers = (Array.isArray(settings.mcpServers) ? settings.mcpServers : []).sort(compareServers);
+    const allServers = (Array.isArray(settings.mcpServers) ? settings.mcpServers : []).sort(compareServers);
+    const enabledServers = getEnabledServers(settings).sort(compareServers);
+    const cacheKey = enabledServers.map(serverFingerprint).join('\n');
+    const cachedDefinitions = [];
+    const cacheCreatedAt = Date.now();
     const result = [];
-    for (const server of servers) {
+    for (const server of allServers) {
       const checkedAt = new Date().toISOString();
       const startedAt = Date.now();
-      if (!server.enabled) {
-        result.push({ id: server.id, name: server.name, enabled: false, ok: false, tools: [], error: '未启用', checkedAt, command: server.command, args: server.args || [] });
+      if (server.enabled === false) {
+        result.push(makeStatusPayload(server, {
+          enabled: false,
+          ok: false,
+          tools: [],
+          error: '未启用',
+          checkedAt,
+          cacheCreatedAt,
+        }));
         continue;
       }
       try {
-        const tools = await this.listTools(server);
-        result.push({ id: server.id, name: server.name, enabled: true, ok: true, tools: tools.map(summarizeTool), checkedAt, durationMs: Date.now() - startedAt, command: server.command, args: server.args || [] });
+        const tools = (await this.listTools(server)).sort(compareTools);
+        for (const tool of tools) {
+          cachedDefinitions.push(toOpenAiTool(server, tool));
+        }
+        result.push(makeStatusPayload(server, {
+          enabled: true,
+          ok: true,
+          tools: tools.map(summarizeTool),
+          schemaHash: hashMcpTools(server, tools),
+          checkedAt,
+          durationMs: Date.now() - startedAt,
+          cacheCreatedAt,
+        }));
       } catch (error) {
-        result.push({ id: server.id, name: server.name, enabled: true, ok: false, tools: [], error: normalizeError(error), checkedAt, durationMs: Date.now() - startedAt, command: server.command, args: server.args || [] });
+        result.push(makeStatusPayload(server, {
+          enabled: true,
+          ok: false,
+          tools: [],
+          error: normalizeError(error),
+          checkedAt,
+          durationMs: Date.now() - startedAt,
+          cacheCreatedAt,
+        }));
       }
     }
+    cachedDefinitions.sort((a, b) => String(a.function?.name || '').localeCompare(String(b.function?.name || '')));
+    this.toolDefinitionsCache.set(cacheKey, { definitions: cachedDefinitions, createdAt: cacheCreatedAt });
     return result;
   }
 
@@ -175,6 +207,36 @@ function summarizeTool(tool) {
   };
 }
 
+function makeStatusPayload(server, payload) {
+  const tools = Array.isArray(payload.tools) ? payload.tools : [];
+  return {
+    id: server.id,
+    name: server.name,
+    enabled: payload.enabled,
+    ok: payload.ok,
+    tools,
+    toolCount: tools.length,
+    schemaHash: payload.schemaHash || '',
+    cacheTtlMs: TOOL_DEFINITION_CACHE_TTL_MS,
+    cacheExpiresAt: new Date((payload.cacheCreatedAt || Date.now()) + TOOL_DEFINITION_CACHE_TTL_MS).toISOString(),
+    error: payload.error,
+    checkedAt: payload.checkedAt,
+    durationMs: payload.durationMs,
+    command: server.command,
+    args: server.args || [],
+  };
+}
+
+function hashMcpTools(server, tools) {
+  const stable = (Array.isArray(tools) ? [...tools] : []).sort(compareTools).map((tool) => ({
+    name: String(tool.name || ''),
+    description: String(tool.description || '').slice(0, 900),
+    openAiName: makeOpenAiToolName(server, tool.name),
+    inputSchema: normalizeInputSchema(tool.inputSchema),
+  }));
+  return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex').slice(0, 16);
+}
+
 function formatMcpResult(server, tool, result) {
   const lines = [`MCP Server：${server.name}`, `Tool：${tool.name}`, ''];
   if (result?.isError) lines.push('MCP 工具返回错误。', '');
@@ -223,4 +285,5 @@ module.exports = {
   McpManager,
   isMcpToolName,
   makeOpenAiToolName,
+  hashMcpTools,
 };

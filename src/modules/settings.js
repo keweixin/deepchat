@@ -26,7 +26,7 @@ import {
   PROVIDER_PRESETS,
 } from './api.js';
 import { exportBackup, importBackup, listMcpStatus, pickExternalSkill, pickWorkspace, removeWorkspace } from './client-store.js';
-import { showToast, uid } from './utils.js';
+import { copyToClipboard, showToast, uid } from './utils.js';
 
 // ─── Quality-Boosting Prompt Presets ───
 
@@ -208,6 +208,28 @@ export function initSettings(onModelChange) {
     });
   }
 
+  let latestMcpStatuses = [];
+
+  function renderMcpServers(nextSettings = getSettings(), statuses = latestMcpStatuses) {
+    renderMcpServerList(els.mcpServerList, nextSettings.mcpServers || [], updateMcpServers, statuses);
+  }
+
+  function markMcpStatusStale(nextSettings = getSettings()) {
+    latestMcpStatuses = [];
+    renderMcpServers(nextSettings, latestMcpStatuses);
+    if (els.mcpStatusText) {
+      els.mcpStatusText.textContent = 'MCP 配置已变更，请刷新状态以更新工具 schema 和缓存前缀。';
+      els.mcpStatusText.className = 'inline-status';
+    }
+  }
+
+  async function refreshMcpStatuses() {
+    if (!hasNativeBridge()) throw new Error('MCP 只能在桌面版测试。');
+    latestMcpStatuses = await listMcpStatus();
+    renderMcpServers(getSettings(), latestMcpStatuses);
+    return latestMcpStatuses;
+  }
+
   async function refreshWorkspaces(nextSettings = getSettings()) {
     renderWorkspaceList(els.workspaceList, nextSettings.workspaceRoots || [], async (root) => {
       const updated = await removeWorkspace(root);
@@ -223,7 +245,7 @@ export function initSettings(onModelChange) {
 
   async function updateMcpServers(nextServers) {
     const next = await saveSettings({ mcpServers: nextServers });
-    renderMcpServerList(els.mcpServerList, next.mcpServers || [], updateMcpServers);
+    markMcpStatusStale(next);
     renderSkillGrid(els.skillGrid, next.activeSkill, next);
   }
 
@@ -237,7 +259,7 @@ export function initSettings(onModelChange) {
   renderStorageStatus(els.storageStatus, settings);
   refreshWorkspaces(settings);
   renderExternalSkillList(els.externalSkillList, settings.externalSkills || [], updateExternalSkills);
-  renderMcpServerList(els.mcpServerList, settings.mcpServers || [], updateMcpServers);
+  renderMcpServers(settings);
   buildSettingsTabs(els.panel);
 
   renderProviderPresets(els.providerPresets);
@@ -282,6 +304,9 @@ export function initSettings(onModelChange) {
       patch.mcpServers !== undefined
     ) {
       renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
+    }
+    if (patch.mcpServers !== undefined) {
+      markMcpStatusStale(next);
     }
   });
 
@@ -453,7 +478,7 @@ export function initSettings(onModelChange) {
         els.mcpCommand.value = '';
         els.mcpArgs.value = '';
         els.mcpEnv.value = '';
-        renderMcpServerList(els.mcpServerList, next.mcpServers || [], updateMcpServers);
+        markMcpStatusStale(next);
         renderSkillGrid(els.skillGrid, next.activeSkill, next);
         showToast('MCP 已添加');
       } catch (error) {
@@ -462,11 +487,12 @@ export function initSettings(onModelChange) {
     });
   }
   if (els.refreshMcpStatusBtn) {
-    els.refreshMcpStatusBtn.addEventListener('click', () => runStatusAction(els.mcpStatusText, '测试中...', '测试完成', async () => {
-      if (!hasNativeBridge()) throw new Error('MCP 只能在桌面版测试。');
-      const statuses = await listMcpStatus();
-      renderMcpServerList(els.mcpServerList, getSettings().mcpServers || [], updateMcpServers, statuses);
-    }));
+    els.refreshMcpStatusBtn.addEventListener('click', () => runStatusAction(
+      els.mcpStatusText,
+      '刷新 MCP 工具 schema...',
+      (statuses) => summarizeMcpStatusRefresh(statuses),
+      refreshMcpStatuses
+    ));
   }
   if (els.exportBackupBtn) {
     els.exportBackupBtn.addEventListener('click', async () => {
@@ -484,7 +510,7 @@ export function initSettings(onModelChange) {
         renderStorageStatus(els.storageStatus, next);
         await refreshWorkspaces(next);
         renderExternalSkillList(els.externalSkillList, next.externalSkills || [], updateExternalSkills);
-        renderMcpServerList(els.mcpServerList, next.mcpServers || [], updateMcpServers);
+        markMcpStatusStale(next);
         window.dispatchEvent(new CustomEvent('deepchat:reload-conversations'));
         showToast('备份已导入，界面已刷新');
       }
@@ -667,7 +693,7 @@ function renderExternalSkillList(container, skills = [], onChange) {
   }
 }
 
-function renderMcpServerList(container, servers = [], onChange, statuses = []) {
+export function renderMcpServerList(container, servers = [], onChange, statuses = []) {
   if (!container) return;
   container.innerHTML = '';
   if (!servers.length) {
@@ -701,35 +727,107 @@ function renderMcpServerList(container, servers = [], onChange, statuses = []) {
     main.append(name, actions);
     const meta = document.createElement('div');
     meta.className = 'workspace-item-meta';
-    const toolText = status?.ok ? `工具 ${status.tools.length} 个` : (status?.error || '未测试');
+    const toolCount = status?.toolCount ?? status?.tools?.length ?? 0;
+    const schemaText = status?.schemaHash ? ` · schema ${shortHash(status.schemaHash)}` : '';
+    const toolText = status?.ok ? `工具 ${toolCount} 个${schemaText}` : (status?.error || '未测试');
     meta.textContent = `${server.enabled === false ? '停用' : '启用'} · ${server.command} ${(server.args || []).join(' ')} · ${toolText}`;
     item.append(main, meta);
     if (status) {
       const detail = document.createElement('details');
       detail.className = 'mcp-status-detail';
       const summary = document.createElement('summary');
-      summary.textContent = status.ok ? '查看工具列表' : '查看错误详情';
+      summary.textContent = status.ok ? `查看工具列表${status.schemaHash ? ` · ${shortHash(status.schemaHash)}` : ''}` : '查看错误详情';
       const body = document.createElement('div');
       body.className = 'mcp-status-body';
       if (status.ok && status.tools.length) {
+        const toolbar = document.createElement('div');
+        toolbar.className = 'mcp-status-toolbar';
+        const schema = document.createElement('span');
+        schema.className = 'mcp-schema-badge';
+        schema.textContent = status.schemaHash ? `schema ${shortHash(status.schemaHash)}` : 'schema 未知';
+        schema.title = status.schemaHash ? `完整 schema hash：${status.schemaHash}` : 'MCP Server 未返回可计算 schema。';
+        const ttl = document.createElement('span');
+        ttl.className = 'mcp-schema-badge';
+        ttl.textContent = `缓存 TTL ${formatDuration(status.cacheTtlMs)}`;
+        ttl.title = status.cacheExpiresAt ? `缓存有效到 ${status.cacheExpiresAt}` : 'MCP 工具定义缓存有效期';
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'icon-btn-sm mcp-copy-tools-btn';
+        copyBtn.textContent = '复制清单';
+        copyBtn.title = '复制当前 MCP 工具清单和 schema hash';
+        copyBtn.addEventListener('click', async () => {
+          const copied = await copyToClipboard(buildMcpToolsClipboard(server, status));
+          showToast(copied ? 'MCP 工具清单已复制' : '复制失败');
+        });
+        toolbar.append(schema, ttl, copyBtn);
+        body.appendChild(toolbar);
         for (const tool of status.tools.slice(0, 12)) {
           const row = document.createElement('div');
           row.className = 'mcp-tool-row';
           row.textContent = `${tool.name}${tool.description ? ` — ${tool.description}` : ''}`;
+          row.title = row.textContent;
           body.appendChild(row);
+        }
+        if (status.tools.length > 12) {
+          const more = document.createElement('div');
+          more.className = 'mcp-status-meta';
+          more.textContent = `还有 ${status.tools.length - 12} 个工具未显示，可复制完整清单查看。`;
+          body.appendChild(more);
         }
       } else {
         body.textContent = status.error || '没有返回工具。';
       }
       const metaLine = document.createElement('div');
       metaLine.className = 'mcp-status-meta';
-      metaLine.textContent = `检测时间 ${status.checkedAt || '-'} · 耗时 ${status.durationMs ?? '-'}ms`;
+      metaLine.textContent = [
+        `检测时间 ${status.checkedAt || '-'}`,
+        `耗时 ${status.durationMs ?? '-'}ms`,
+        status.cacheExpiresAt ? `缓存到 ${status.cacheExpiresAt}` : '',
+      ].filter(Boolean).join(' · ');
       body.appendChild(metaLine);
       detail.append(summary, body);
       item.appendChild(detail);
     }
     container.appendChild(item);
   }
+}
+
+function summarizeMcpStatusRefresh(statuses = []) {
+  const rows = Array.isArray(statuses) ? statuses : [];
+  if (!rows.length) return '没有配置 MCP Server';
+  const ok = rows.filter((status) => status.ok).length;
+  const toolCount = rows.reduce((sum, status) => sum + (status.toolCount ?? status.tools?.length ?? 0), 0);
+  const schemaCount = new Set(rows.filter((status) => status.schemaHash).map((status) => status.schemaHash)).size;
+  return `MCP 已刷新：${ok}/${rows.length} 可用 · ${toolCount} 个工具 · ${schemaCount} 个 schema`;
+}
+
+function shortHash(value) {
+  return String(value || '').slice(0, 8);
+}
+
+function formatDuration(ms) {
+  const value = Number(ms);
+  if (!Number.isFinite(value) || value <= 0) return '未知';
+  if (value < 60000) return `${Math.round(value / 1000)}s`;
+  return `${Math.round(value / 60000)}m`;
+}
+
+function buildMcpToolsClipboard(server, status) {
+  return JSON.stringify({
+    server: {
+      id: server.id,
+      name: server.name,
+      command: server.command,
+      args: server.args || [],
+      enabled: server.enabled !== false,
+    },
+    ok: Boolean(status.ok),
+    schemaHash: status.schemaHash || '',
+    toolCount: status.toolCount ?? status.tools?.length ?? 0,
+    cacheTtlMs: status.cacheTtlMs || 0,
+    cacheExpiresAt: status.cacheExpiresAt || '',
+    tools: status.tools || [],
+  }, null, 2);
 }
 
 function renderEmptyList(container, titleText, hintText) {
@@ -823,8 +921,8 @@ async function runStatusAction(statusEl, pendingText, successText, action) {
   statusEl.textContent = pendingText;
   statusEl.className = 'inline-status';
   try {
-    await action();
-    statusEl.textContent = successText;
+    const result = await action();
+    statusEl.textContent = typeof successText === 'function' ? successText(result) : successText;
     statusEl.classList.add('ok');
   } catch (error) {
     statusEl.textContent = error.message || '失败';
