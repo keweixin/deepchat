@@ -18,9 +18,14 @@ describe('prompt templates', () => {
       '排障',
       '代码审查',
     ]));
-    expect(entries.find((entry) => entry.id === 'project-audit').text).toContain('P0/P1/P2');
-    expect(entries.find((entry) => entry.id === 'agent-execute').text).toContain('每一步保留证据');
+    expect(entries.find((entry) => entry.id === 'project-audit').text).toContain('@changed');
+    expect(entries.find((entry) => entry.id === 'project-audit').text).toContain('file:line');
+    expect(entries.find((entry) => entry.id === 'project-audit').text).toContain(':::todo');
+    expect(entries.find((entry) => entry.id === 'agent-execute').text).toContain('@changed');
+    expect(entries.find((entry) => entry.id === 'agent-execute').text).toContain(':::tool-result');
+    expect(entries.find((entry) => entry.id === 'research-topic').text).toContain('@web');
     expect(entries.find((entry) => entry.id === 'research-topic').text).toContain('官方文档');
+    expect(entries.find((entry) => entry.id === 'file-review').text).toContain(':::decision');
     expect(entries.find((entry) => entry.id === 'polished-doc').text).toContain(':::summary');
     expect(entries.find((entry) => entry.id === 'polished-doc').text).toContain('不要输出原始 HTML');
   });
