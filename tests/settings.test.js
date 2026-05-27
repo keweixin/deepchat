@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { renderMcpServerList, renderModelCapabilities } from '../src/modules/settings.js';
+import { getPromptPresetText, renderMcpServerList, renderModelCapabilities } from '../src/modules/settings.js';
 
 describe('settings MCP rendering', () => {
   afterEach(() => {
@@ -66,5 +66,21 @@ describe('settings MCP rendering', () => {
     expect(container.textContent).toContain('Agent 工具受限');
     expect(container.textContent).toContain('无法显示真实缓存命中');
     expect(container.querySelector('.provider-readiness-card.is-warning')).toBeTruthy();
+  });
+
+  it('keeps quality presets aligned with the component output contract', () => {
+    for (const preset of ['coder', 'analyst', 'translator', 'writer', 'teacher']) {
+      const prompt = getPromptPresetText(preset);
+
+      expect(prompt).toContain(':::summary');
+      expect(prompt).toContain(':::warning');
+      expect(prompt).toContain(':::steps');
+      expect(prompt).toContain(':::decision');
+      expect(prompt).toContain(':::source');
+      expect(prompt).toContain(':::todo');
+      expect(prompt).toContain(':::next');
+      expect(prompt).toContain(':::tool-result');
+      expect(prompt).toContain('不输出原始 HTML');
+    }
   });
 });
