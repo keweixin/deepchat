@@ -271,6 +271,25 @@ describe('browser settings fallback', () => {
     expect(changed.reason).toContain('explicit_changed_context');
   });
 
+  it('does not select MCP only because a product name is mentioned', () => {
+    const settings = {
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      mcpServers: [{ name: 'github', command: 'node', enabled: true }],
+    };
+
+    const plain = detectAgentIntent('解释 GitHub Actions 的常见用法', settings);
+    const createIssue = detectAgentIntent('在 GitHub 创建 issue 记录登录失败', settings);
+    const explicit = detectAgentIntent('@mcp 查询 GitHub issue', settings);
+
+    expect(plain.selectedTools).not.toContain('mcp');
+    expect(plain.candidateTools).not.toContain('mcp');
+    expect(createIssue.toolMode).toBe('mcp_tool');
+    expect(createIssue.selectedTools).toContain('mcp');
+    expect(explicit.toolMode).toBe('mcp_tool');
+    expect(explicit.reason).toContain('explicit_mcp');
+  });
+
   it('extracts @file/@folder/@symbol context mentions outside code blocks', () => {
     const mentions = extractContextMentions([
       '请看 @file:src/modules/api.js 和 @folder:"src/modules" 以及 @symbol:detectAgentIntent',

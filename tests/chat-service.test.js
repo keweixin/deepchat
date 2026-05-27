@@ -263,6 +263,25 @@ describe('electron chat service token usage and agent loop', () => {
     expect(intent.reason).toContain('explicit_changed_context');
   });
 
+  it('requires MCP task intent instead of routing bare product mentions', () => {
+    const settings = baseSettings({
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      mcpServers: [{ name: 'github', command: 'node', enabled: true }],
+    });
+
+    const plain = detectAgentIntent('解释 GitHub Actions 的常见用法', settings);
+    const createIssue = detectAgentIntent('在 GitHub 创建 issue 记录登录失败', settings);
+    const explicit = detectAgentIntent('@mcp 查询 GitHub issue', settings);
+
+    expect(plain.selectedTools).not.toContain('mcp');
+    expect(plain.candidateTools).not.toContain('mcp');
+    expect(createIssue.toolMode).toBe('mcp_tool');
+    expect(createIssue.selectedTools).toContain('mcp');
+    expect(explicit.toolMode).toBe('mcp_tool');
+    expect(explicit.reason).toContain('explicit_mcp');
+  });
+
   it('keeps the cache prefix stable across different smart-agent intents when tools are available', async () => {
     const service = new ChatService(() => fakeWindow());
     const settings = baseSettings({

@@ -1140,7 +1140,14 @@ function needsCode(text, lower) {
 }
 
 function needsMcp(text, lower) {
-  return /mcp|notion|github|jira|linear|slack|数据库|外部系统|server 工具/i.test(lower);
+  const value = String(text || '');
+  const normalized = String(lower || value.toLowerCase());
+  if (/(调用|使用|连接|测试|通过|启用|配置)\s*(mcp|外部系统|server 工具)|\b(mcp)\b\s*(server|tool|工具|服务器|调用|连接)/i.test(value)) return true;
+  const target = /(notion|github|gitlab|jira|linear|slack|数据库|database)/i.test(normalized);
+  if (!target) return false;
+  const action = /(创建|新建|更新|修改|删除|发送|发布|提交|推送|同步|写入|拉取|获取|查询|列出|打开|关闭|指派|评论|回复|上传|下载|create|update|delete|send|post|publish|submit|sync|fetch|query|list|open|close|assign|comment|upload|download|push|pull)/i.test(value);
+  if (!action) return false;
+  return /(issue|pull request|pr\b|merge request|ticket|任务|工单|页面|数据库|database|record|评论|comment|频道|channel|消息|message|仓库|repo|repository|release|项目|project)/i.test(normalized);
 }
 
 function detectExplicitToolDirectives(content = '') {
