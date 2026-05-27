@@ -1,4 +1,4 @@
-export const COMPOSER_MODE_IDS = Object.freeze(['daily', 'analysis', 'project', 'agent', 'research', 'code', 'writing']);
+export const COMPOSER_MODE_IDS = Object.freeze(['daily', 'analysis', 'project', 'agent', 'research', 'code', 'writing', 'polish']);
 
 export const COMPOSER_MODES = Object.freeze({
   daily: {
@@ -86,6 +86,20 @@ export const COMPOSER_MODES = Object.freeze({
       '使用清晰标题、摘要、表格、callout 和行动清单来组织内容。',
       '保持专业但不啰嗦，不输出原始 HTML。',
       '不确定的信息必须标注需要验证。',
+    ].join('\n'),
+  },
+  polish: {
+    id: 'polish',
+    label: '美化',
+    description: '把回答升级为摘要卡片、决策、步骤和行动清单',
+    activeSkill: 'none',
+    enhance: true,
+    instruction: [
+      '你正在以输出美化模式回答。',
+      '优先使用 DeepChat 安全组件语法组织重点，不要输出原始 HTML。',
+      '可使用 :::summary、:::decision、:::steps、:::warning 这类块表达摘要、推荐方案、步骤和风险。',
+      '正文保持 Markdown 层级清晰；复杂信息优先用表格，最后给行动清单。',
+      '只美化表达和结构，不编造上一文或用户问题中没有的事实。',
     ].join('\n'),
   },
 });

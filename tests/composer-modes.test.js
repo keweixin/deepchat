@@ -20,6 +20,7 @@ describe('composer modes', () => {
     expect(getComposerModeOverrides('research', settings)).toMatchObject({ activeSkill: 'web_search', enhance: true });
     expect(getComposerModeOverrides('code', settings)).toMatchObject({ activeSkill: 'file_reader', enhance: true });
     expect(getComposerModeOverrides('writing', settings)).toMatchObject({ activeSkill: 'none', enhance: true });
+    expect(getComposerModeOverrides('polish', settings)).toMatchObject({ activeSkill: 'none', enhance: true });
   });
 
   it('falls back to smart agent when mode prerequisites are missing', () => {
@@ -41,6 +42,7 @@ describe('composer modes', () => {
     const project = applyComposerModeToPrompt('优化这个项目', 'project');
     const analysis = applyComposerModeToPrompt('评估方案', 'analysis');
     const agent = applyComposerModeToPrompt('检查项目并给证据', 'agent');
+    const polish = applyComposerModeToPrompt('整理这段回答', 'polish');
     const daily = applyComposerModeToPrompt('普通问题', 'daily');
     const duplicate = applyComposerModeToPrompt('已有\n<response_mode>\n模式：项目\n</response_mode>', 'project');
 
@@ -51,6 +53,9 @@ describe('composer modes', () => {
     expect(analysis).toContain('哪些是确定结论');
     expect(agent).toContain('模式：Agent');
     expect(agent).toContain('Plan -> Execute -> Evidence -> Final');
+    expect(polish).toContain('模式：美化');
+    expect(polish).toContain(':::summary');
+    expect(polish).toContain('不要输出原始 HTML');
     expect(daily).toBe('普通问题');
     expect(duplicate.match(/<response_mode>/g)).toHaveLength(1);
   });
