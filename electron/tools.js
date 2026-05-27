@@ -316,7 +316,7 @@ async function webSearch(args, settings) {
     queries.length > 1
       ? Math.max(1, Math.ceil(clampInt(args.max_results ?? settings.tavilyMaxResults, 1, 10, 5) / queries.length))
       : args.max_results;
-  const { buildTavilySearchRequest } = await import('./search-utils.js');
+  const { buildTavilySearchRequest } = await import('./search-utils.mjs');
   const requests = queries.map((query) => buildTavilySearchRequest(query, settings, maxPerQuery));
   const allResults = [];
 
