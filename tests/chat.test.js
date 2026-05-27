@@ -24,6 +24,7 @@ describe('chat regeneration', () => {
     const shorter = buildAnswerActionPrompt('shorter', '结论：先做组件化回答。\n\n原因：提升阅读体验。');
     const deeper = buildAnswerActionPrompt('deeper', '结论：先做组件化回答。');
     const table = buildAnswerActionPrompt('table', 'P0：证据面板\nP1：回答组件');
+    const polish = buildAnswerActionPrompt('polish', '结论：组件化回答更清晰。');
     const todo = buildAnswerActionPrompt('todo', 'P0：补证据面板\nP1：优化回答组件');
     const report = buildAnswerActionPrompt('report', '结论：先做组件化回答。\n风险：不要输出原始 HTML。');
     const long = buildAnswerActionPrompt('shorter', 'A'.repeat(9000));
@@ -33,6 +34,16 @@ describe('chat regeneration', () => {
     expect(shorter).toContain('结论：先做组件化回答');
     expect(deeper).toContain('更详细版本');
     expect(table).toContain('Markdown 表格');
+    expect(polish).toContain('组件化精排版');
+    expect(polish).toContain(':::summary');
+    expect(polish).toContain(':::warning');
+    expect(polish).toContain(':::decision');
+    expect(polish).toContain(':::steps');
+    expect(polish).toContain(':::source');
+    expect(polish).toContain(':::todo');
+    expect(polish).toContain(':::next');
+    expect(polish).toContain('不要输出原始 HTML');
+    expect(polish).toContain('结论：组件化回答更清晰');
     expect(todo).toContain('TODO 清单');
     expect(todo).toContain(':::todo');
     expect(todo).toContain('验收标准');
