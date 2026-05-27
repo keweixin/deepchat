@@ -1124,7 +1124,8 @@ function hasAtDirective(text, names) {
 function stripVolatileContextBlocks(content = '') {
   return String(content || '')
     .replace(/<related_memory>[\s\S]*?<\/related_memory>/gi, ' ')
-    .replace(/<selected_context>[\s\S]*?<\/selected_context>/gi, ' ');
+    .replace(/<selected_context>[\s\S]*?<\/selected_context>/gi, ' ')
+    .replace(/<task_checkpoint>[\s\S]*?<\/task_checkpoint>/gi, ' ');
 }
 
 function mergeToolCalls(target, incoming) {

@@ -21,6 +21,26 @@ describe('ipc validation schemas', () => {
     }, 'chat:start')).toThrow('content');
     expect(() => validate(schemas.ToolApprovalSchema, { requestId: 'req', toolCallId: 'tool', approved: 'yes' }, 'tools:approve')).toThrow('approved');
   });
+
+  it('persists bounded task checkpoints while stripping unknown checkpoint fields', () => {
+    const validated = validate(schemas.ConversationsSaveSchema, [{
+      id: 'c1',
+      taskCheckpoint: {
+        objective: '缓存命中优化',
+        latestUserGoal: '继续做 cache-first 会话',
+        lastTools: ['read_file:completed'],
+        unsafeExtra: 'drop me',
+      },
+      messages: [],
+    }], 'conversations:save');
+
+    expect(validated[0].taskCheckpoint).toMatchObject({
+      objective: '缓存命中优化',
+      latestUserGoal: '继续做 cache-first 会话',
+      lastTools: ['read_file:completed'],
+    });
+    expect(validated[0].taskCheckpoint.unsafeExtra).toBeUndefined();
+  });
 });
 
 describe('tool security boundaries', () => {

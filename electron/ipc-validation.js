@@ -75,6 +75,18 @@ const AgentStageSchema = z.object({
   toolName: z.string().max(160).optional(),
 }).strip();
 
+const TaskCheckpointSchema = z.object({
+  objective: z.string().max(600).optional(),
+  latestUserGoal: z.string().max(700).optional(),
+  lastAssistantSummary: z.string().max(900).optional(),
+  contextSummary: z.string().max(900).optional(),
+  openItems: z.array(z.string().max(600)).max(8).optional(),
+  lastTools: z.array(z.string().max(200)).max(12).optional(),
+  sourceMessageCount: z.number().int().nonnegative().optional(),
+  updatedAt: z.string().max(80).optional(),
+  prefixFingerprint: z.string().max(80).optional(),
+}).strip();
+
 const MessageSchema = z.lazy(() => z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().max(MAX_MESSAGE_CONTENT).default(''),
@@ -116,6 +128,8 @@ const ConversationSchema = z.object({
   contextSummary: z.string().max(12000).optional(),
   contextSummaryUpdatedAt: z.union([z.string().max(80), z.null()]).optional(),
   contextSummaryMeta: z.record(z.string(), z.unknown()).nullable().optional(),
+  taskCheckpoint: TaskCheckpointSchema.nullable().optional(),
+  taskCheckpointUpdatedAt: z.union([z.string().max(80), z.null()]).optional(),
   usageTotals: TokenUsageSchema.nullable().optional(),
   cacheProfile: z.record(z.string(), z.unknown()).nullable().optional(),
   messages: z.array(MessageSchema).max(1000).default([]),

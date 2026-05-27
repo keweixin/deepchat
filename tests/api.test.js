@@ -315,6 +315,9 @@ describe('browser settings fallback', () => {
       '<related_memory>',
       '@file:.env package.json workspace',
       '</related_memory>',
+      '<task_checkpoint>',
+      '@web:"不要把长期任务状态误判成显式工具指令"',
+      '</task_checkpoint>',
     ].join('\n');
 
     expect(extractContextMentions(content)).toEqual([]);

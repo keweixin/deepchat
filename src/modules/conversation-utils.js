@@ -14,6 +14,8 @@ export function normalizeConversation(conversation = {}) {
     contextSummary: typeof conversation.contextSummary === 'string' ? conversation.contextSummary : '',
     contextSummaryUpdatedAt: conversation.contextSummaryUpdatedAt || null,
     contextSummaryMeta: conversation.contextSummaryMeta && typeof conversation.contextSummaryMeta === 'object' ? conversation.contextSummaryMeta : null,
+    taskCheckpoint: normalizeTaskCheckpoint(conversation.taskCheckpoint),
+    taskCheckpointUpdatedAt: conversation.taskCheckpointUpdatedAt || conversation.taskCheckpoint?.updatedAt || null,
     usageTotals: conversation.usageTotals && typeof conversation.usageTotals === 'object' ? conversation.usageTotals : null,
     cacheProfile: conversation.cacheProfile && typeof conversation.cacheProfile === 'object' ? conversation.cacheProfile : null,
     messages: Array.isArray(conversation.messages) ? conversation.messages : [],
@@ -88,6 +90,78 @@ export function buildRelevantMemoryContext(conversations, activeConversationId, 
   ];
   const text = lines.join('\n').slice(0, maxChars);
   return { text, hits: selected, terms };
+}
+
+export function buildTaskCheckpoint(conversation = {}, options = {}) {
+  const messages = (Array.isArray(conversation.messages) ? conversation.messages : [])
+    .filter((message) => message && (message.role === 'user' || message.role === 'assistant'));
+  if (messages.length === 0) return null;
+
+  const users = messages.filter((message) => message.role === 'user');
+  const assistants = messages.filter((message) => message.role === 'assistant');
+  const firstUser = users[0];
+  const latestUser = users.at(-1);
+  const latestAssistant = assistants.at(-1);
+  const cacheProfile = conversation.cacheProfile && typeof conversation.cacheProfile === 'object'
+    ? conversation.cacheProfile
+    : {};
+
+  return normalizeTaskCheckpoint({
+    objective: compactMemorySnippet(firstUser?.content || '', 320),
+    latestUserGoal: compactMemorySnippet(latestUser?.content || '', 360),
+    lastAssistantSummary: compactMemorySnippet(latestAssistant?.content || '', 420),
+    contextSummary: compactMemorySnippet(conversation.contextSummary || '', 420),
+    openItems: extractRecentAgentOpenItems(messages),
+    lastTools: extractRecentToolNames(messages),
+    sourceMessageCount: messages.length,
+    updatedAt: options.now || new Date().toISOString(),
+    prefixFingerprint: cacheProfile.prefixFingerprint || conversation.cacheProfile?.prefixFingerprint || '',
+  });
+}
+
+export function buildTaskCheckpointContext(checkpoint, options = {}) {
+  const normalized = normalizeTaskCheckpoint(checkpoint);
+  if (!normalized) return '';
+  const maxChars = clampInt(options.maxChars, 500, 2400, 1200);
+  const lines = [
+    '<task_checkpoint>',
+    '以下是 DeepChat 保存的长期任务状态，放在本轮用户消息尾部以保持 DeepSeek prefix cache 稳定；如果与用户最新消息冲突，以最新消息为准。',
+  ];
+  if (normalized.objective) lines.push(`目标: ${normalized.objective}`);
+  if (normalized.latestUserGoal && normalized.latestUserGoal !== normalized.objective) {
+    lines.push(`最近用户目标: ${normalized.latestUserGoal}`);
+  }
+  if (normalized.contextSummary) lines.push(`长期摘要: ${normalized.contextSummary}`);
+  if (normalized.lastAssistantSummary) lines.push(`上一轮结论: ${normalized.lastAssistantSummary}`);
+  if (normalized.lastTools.length) lines.push(`最近工具: ${normalized.lastTools.join(', ')}`);
+  if (normalized.openItems.length) lines.push(`待注意: ${normalized.openItems.join('；')}`);
+  if (normalized.prefixFingerprint) lines.push(`上一轮 prefix: ${normalized.prefixFingerprint}`);
+  lines.push('</task_checkpoint>');
+  const text = lines.join('\n');
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, Math.max(0, maxChars - 24)).trim()}\n</task_checkpoint>`;
+}
+
+export function normalizeTaskCheckpoint(value) {
+  if (!value || typeof value !== 'object') return null;
+  const checkpoint = {
+    objective: compactCheckpointText(value.objective, 360),
+    latestUserGoal: compactCheckpointText(value.latestUserGoal, 420),
+    lastAssistantSummary: compactCheckpointText(value.lastAssistantSummary, 520),
+    contextSummary: compactCheckpointText(value.contextSummary, 520),
+    openItems: normalizeStringList(value.openItems, 6, 320),
+    lastTools: normalizeStringList(value.lastTools, 8, 160),
+    sourceMessageCount: clampInt(value.sourceMessageCount, 0, 10000, 0),
+    updatedAt: compactCheckpointText(value.updatedAt, 80),
+    prefixFingerprint: compactCheckpointText(value.prefixFingerprint, 80),
+  };
+  const hasContent = checkpoint.objective ||
+    checkpoint.latestUserGoal ||
+    checkpoint.lastAssistantSummary ||
+    checkpoint.contextSummary ||
+    checkpoint.openItems.length ||
+    checkpoint.lastTools.length;
+  return hasContent ? checkpoint : null;
 }
 
 export function conversationHasFavorite(conversation) {
@@ -227,7 +301,8 @@ function normalizeMemoryText(content = '') {
 function stripGeneratedMemoryBlocks(content = '') {
   return String(content || '')
     .replace(/<related_memory>[\s\S]*?<\/related_memory>/gi, ' ')
-    .replace(/<selected_context>[\s\S]*?<\/selected_context>/gi, ' ');
+    .replace(/<selected_context>[\s\S]*?<\/selected_context>/gi, ' ')
+    .replace(/<task_checkpoint>[\s\S]*?<\/task_checkpoint>/gi, ' ');
 }
 
 function findLatestUserIndex(messages = []) {
@@ -241,6 +316,61 @@ function clampInt(value, min, max, fallback) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(max, Math.max(min, number));
+}
+
+function compactCheckpointText(value, maxLength) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeStringList(value, maxItems, maxLength) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of value) {
+    const text = compactCheckpointText(item, maxLength);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function extractRecentAgentOpenItems(messages) {
+  const items = [];
+  for (let i = messages.length - 1; i >= 0 && items.length < 6; i -= 1) {
+    const message = messages[i];
+    if (message?.error) items.push(`上一轮错误: ${compactMemorySnippet(message.error, 220)}`);
+    const stages = Array.isArray(message?.agentStages) ? message.agentStages : [];
+    for (let j = stages.length - 1; j >= 0 && items.length < 6; j -= 1) {
+      const stage = stages[j];
+      const text = stage?.stopReason || stage?.warning;
+      if (text) items.push(compactMemorySnippet(text, 240));
+    }
+  }
+  return normalizeStringList(items, 6, 260);
+}
+
+function extractRecentToolNames(messages) {
+  const names = [];
+  for (let i = messages.length - 1; i >= 0 && names.length < 8; i -= 1) {
+    const runs = [
+      ...(Array.isArray(messages[i]?.toolRuns) ? messages[i].toolRuns : []),
+      ...(Array.isArray(messages[i]?.toolCalls) ? messages[i].toolCalls : []),
+    ];
+    for (let j = runs.length - 1; j >= 0 && names.length < 8; j -= 1) {
+      const run = runs[j] || {};
+      const name = String(run.name || run.function?.name || '').trim();
+      if (!name) continue;
+      const status = String(run.status || (run.ok === true ? 'completed' : (run.ok === false ? 'failed' : ''))).trim();
+      names.push(status ? `${name}:${status}` : name);
+    }
+  }
+  return normalizeStringList(names, 8, 140);
 }
 
 function getDateGroup(timestamp) {

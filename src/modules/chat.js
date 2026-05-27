@@ -20,6 +20,8 @@ import {
   filterConversations,
   getConversationGroup,
   buildRelevantMemoryContext,
+  buildTaskCheckpoint,
+  buildTaskCheckpointContext,
   normalizeConversation,
   normalizeConversations,
   normalizeFolderName,
@@ -277,6 +279,7 @@ export async function editMessageAt(msgIndex, newContent) {
   // Update message content and truncate everything after it
   conv.messages[msgIndex].content = newContent.trim();
   conv.messages = conv.messages.slice(0, msgIndex + 1);
+  refreshConversationTaskCheckpoint(conv);
   persist();
 
   // Re-render all messages
@@ -310,6 +313,7 @@ export async function regenerateResponseAt(msgIndex) {
   });
 
   conv.messages = trimMessagesForRegeneration(conv.messages, msgIndex);
+  refreshConversationTaskCheckpoint(conv);
   persist();
   renderMessages();
   await doStream(conv, 0, oldMsg.versions);
@@ -410,6 +414,14 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     });
     renderAgentTimeline(agentContainer, assistantMsg);
   }
+  if (memoryContext?.taskCheckpointUsed) {
+    assistantMsg.agentStages.push({
+      stage: 'memory',
+      round: 0,
+      warning: '已使用长期任务状态，作为本轮尾部上下文以保持缓存前缀稳定',
+    });
+    renderAgentTimeline(agentContainer, assistantMsg);
+  }
 
   await streamChat(apiMessages, {
     signal: abortController.signal,
@@ -501,6 +513,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.sourceWarning = hasUncitedSearchSource(assistantMsg, fullContent);
       if (assistantMsg.agentStages?.length) renderAgentTimeline(agentContainer, assistantMsg);
       conv.messages.push(assistantMsg);
+      refreshConversationTaskCheckpoint(conv);
       conv.usageTotals = getConversationUsageSummary(conv);
       msgEl.dataset.messageIndex = String(conv.messages.length - 1);
       persist();
@@ -539,6 +552,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.error = err.message;
       syncToolRuns(assistantMsg);
       conv.messages.push(assistantMsg);
+      refreshConversationTaskCheckpoint(conv);
       conv.usageTotals = getConversationUsageSummary(conv);
       msgEl.dataset.messageIndex = String(conv.messages.length - 1);
       persist();
@@ -1166,12 +1180,26 @@ function maybeAppendRelevantMemory(apiMessages, conversation) {
     maxHits: 3,
     maxChars: 1200,
   });
-  if (!memoryContext.text) return null;
+  const taskCheckpointText = buildTaskCheckpointContext(conversation?.taskCheckpoint, {
+    maxChars: 1200,
+  });
+  const contextBlocks = [memoryContext.text, taskCheckpointText].filter(Boolean);
+  if (contextBlocks.length === 0) return null;
   apiMessages[lastIndex] = {
     ...apiMessages[lastIndex],
-    content: `${latestContent.trim()}\n\n${memoryContext.text}`.trim(),
+    content: `${latestContent.trim()}\n\n${contextBlocks.join('\n\n')}`.trim(),
   };
-  return memoryContext;
+  return {
+    ...memoryContext,
+    taskCheckpointUsed: Boolean(taskCheckpointText),
+  };
+}
+
+function refreshConversationTaskCheckpoint(conversation) {
+  if (!conversation) return;
+  const checkpoint = buildTaskCheckpoint(conversation);
+  conversation.taskCheckpoint = checkpoint;
+  conversation.taskCheckpointUpdatedAt = checkpoint?.updatedAt || null;
 }
 
 function findLastUserMessageIndex(messages = []) {
@@ -1579,6 +1607,7 @@ function switchVersion(msgIndex, direction) {
   msg.speed = target.speed;
   msg._versionIdx = newIdx;
 
+  refreshConversationTaskCheckpoint(conv);
   persist();
   renderMessages();
 }
@@ -1588,6 +1617,7 @@ async function continueFromResponseAt(msgIndex) {
   const conv = getActiveConversation();
   if (!conv || conv.messages[msgIndex]?.role !== 'assistant') return;
   conv.messages = conv.messages.slice(0, msgIndex + 1);
+  refreshConversationTaskCheckpoint(conv);
   conv.messages.push({
     role: 'user',
     content: '请从上一条回答中断处继续，不要重复已经写过的内容。',
