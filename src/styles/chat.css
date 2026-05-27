@@ -1,5 +1,176 @@
 /* ============================================
-   Chat Layout — Sidebar & Main
+/* ============================================
+   Evidence Panel
+   ============================================ */
+
+.evidence-panel {
+  margin: var(--space-2) 0;
+}
+
+.evidence-wrapper {
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 90%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 10%);
+  overflow: hidden;
+}
+
+.evidence-summary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.evidence-summary:hover {
+  background: color-mix(in srgb, var(--accent-primary), transparent 95%);
+}
+
+.evidence-summary-icon {
+  display: inline-block;
+  transition: transform 0.2s;
+  font-size: 10px;
+}
+
+.evidence-wrapper.is-expanded .evidence-summary-icon {
+  transform: rotate(90deg);
+}
+
+.evidence-list {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.evidence-wrapper.is-expanded .evidence-list {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.evidence-item {
+  padding: 8px 10px;
+  border-top: 1px solid var(--glass-border);
+  font-size: 11px;
+}
+
+.evidence-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.evidence-item-status {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.evidence-item-status.tone-success {
+  background: color-mix(in srgb, #10b981, transparent 90%);
+  color: #10b981;
+}
+
+.evidence-item-status.tone-danger {
+  background: color-mix(in srgb, #ef4444, transparent 90%);
+  color: #ef4444;
+}
+
+.evidence-item-status.tone-pending {
+  background: color-mix(in srgb, #f59e0b, transparent 90%);
+  color: #f59e0b;
+}
+
+.evidence-item-status.tone-blocked {
+  background: color-mix(in srgb, var(--text-muted), transparent 90%);
+  color: var(--text-muted);
+}
+
+.evidence-item-status.tone-running {
+  background: color-mix(in srgb, var(--accent-primary), transparent 90%);
+  color: var(--accent-primary);
+}
+
+.evidence-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.evidence-item-args {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  word-break: break-all;
+}
+
+.evidence-item-meta {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.evidence-item-toggle {
+  align-self: flex-start;
+  font-size: 10px;
+  color: var(--accent-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.evidence-item-toggle:hover {
+  text-decoration: underline;
+}
+
+.evidence-item-output {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: color-mix(in srgb, #000, transparent 40%);
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.evidence-item-sources {
+  margin-top: 4px;
+}
+
+.evidence-item-sources-title {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.evidence-item-source {
+  display: block;
+  font-size: 10px;
+  color: var(--accent-primary);
+  text-decoration: none;
+  padding: 2px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-item-source:hover {
+  text-decoration: underline;
+}
+/* Chat Layout — Sidebar & Main
    ============================================ */
 
 /* Sidebar */

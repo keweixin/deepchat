@@ -80,6 +80,7 @@ import {
   finalizeCrewRun,
 } from './agent-run-store.js';
 import { renderAgentCrew } from './agent-crew.js';
+import { renderEvidencePanel } from './evidence-panel.js';
 
 let conversations = [];
 let activeConvId = null;
@@ -391,6 +392,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
   const thinkingContent = msgEl.querySelector('.thinking-content');
   const crewContainer = msgEl.querySelector('.agent-crew-container');
   const toolContainer = msgEl.querySelector('.tool-calls-container');
+  const evidenceContainer = msgEl.querySelector('.evidence-panel');
   const agentContainer = msgEl.querySelector('.agent-timeline-container');
 
   function shouldShowAgentCrewEarly() {
@@ -584,6 +586,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
           renderAgentCrew(crewContainer, assistantMsg.agentRun);
           approveToolRequest(event.requestId, toolCallId, approved);
           renderToolCalls(toolContainer, assistantMsg.toolCalls);
+          renderEvidencePanel(evidenceContainer, assistantMsg.toolCalls);
         },
       });
     },
@@ -592,6 +595,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       applyToolResult(assistantMsg.toolCalls, event);
       syncToolRuns(assistantMsg);
       renderToolCalls(toolContainer, assistantMsg.toolCalls);
+      renderEvidencePanel(evidenceContainer, assistantMsg.toolCalls);
       applyCrewToolResult(ensureAgentRun(), event, assistantMsg.toolCalls);
       renderAgentCrew(crewContainer, assistantMsg.agentRun);
     },
@@ -622,6 +626,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         finalizeCrewRun(assistantMsg.agentRun, { aborted: Boolean(doneEvent.aborted) });
         renderAgentCrew(crewContainer, assistantMsg.agentRun);
       }
+      renderEvidencePanel(evidenceContainer, assistantMsg.toolCalls);
 
       // Calculate final speed
       const elapsed = streamStartTime > 0 ? (Date.now() - streamStartTime) / 1000 : 0;
@@ -696,6 +701,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         finalizeCrewRun(assistantMsg.agentRun, { error: err.message, source: 'model_stream' });
         renderAgentCrew(crewContainer, assistantMsg.agentRun);
       }
+      renderEvidencePanel(evidenceContainer, assistantMsg.toolCalls);
 
       assistantMsg.content = fullContent;
       assistantMsg.thinking = fullThinking;
@@ -923,6 +929,7 @@ function renderMessages() {
         }
       }
       renderToolCalls(el.querySelector('.tool-calls-container'), msg.toolCalls || []);
+      renderEvidencePanel(el.querySelector('.evidence-panel'), msg.toolCalls || []);
       renderAgentTimeline(el.querySelector('.agent-timeline-container'), msg);
 
       let agentRun = msg.agentRun;
@@ -1028,6 +1035,7 @@ function appendMessageDOM(msg, streaming = false) {
       <div class="tool-calls-container" hidden></div>
       ${msg.role === 'assistant' ? '<nav class="answer-toc-container" hidden aria-label="回答目录"></nav>' : ''}
       <div class="message-content">${contentHtml}</div>
+      ${msg.role === 'assistant' ? '<div class="evidence-panel" hidden></div>' : ''}
       <div class="artifact-container" hidden></div>
     </div>
   `;
