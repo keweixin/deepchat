@@ -4,6 +4,7 @@ import {
   buildAssistantHtmlExport,
   buildAnswerActionPrompt,
   getCompactMessagePreview,
+  getToolRiskMeta,
   buildConversationUsageTelemetryDetails,
   buildRunCodeArtifactMarkdown,
   buildRunCodeExplainPrompt,
@@ -307,6 +308,40 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('本地引用 (1)');
     expect(container.textContent).toContain('src/agent.md:2-3');
     expect(container.textContent).toContain('输出摘要');
+  });
+
+  it('classifies and renders explicit tool risk badges', () => {
+    expect(getToolRiskMeta({ name: 'web_search', autoApproved: true })).toMatchObject({
+      tone: 'low',
+      label: '只读自动通过',
+    });
+    expect(getToolRiskMeta({ name: 'run_code' })).toMatchObject({
+      tone: 'high',
+      label: '高风险确认',
+    });
+    expect(getToolRiskMeta({ name: 'mcp__github__create_issue' })).toMatchObject({
+      tone: 'high',
+      label: '外部工具确认',
+    });
+    expect(getToolRiskMeta({ name: 'custom_tool', security: { riskLevel: 'medium' } })).toMatchObject({
+      tone: 'medium',
+      label: '中风险确认',
+    });
+
+    const container = document.createElement('div');
+    renderToolCalls(container, [{
+      id: 'tool-code',
+      name: 'run_code',
+      status: 'pending',
+      args: { language: 'javascript', code: 'console.log("ok")' },
+      risk: '即将在轻沙箱中运行代码。',
+    }]);
+
+    const badge = container.querySelector('.tool-risk-badge');
+    expect(badge).not.toBeNull();
+    expect(badge.textContent).toBe('高风险确认');
+    expect(badge.className).toContain('tone-high');
+    expect(badge.title).toContain('执行前需要确认');
   });
 
   it('renders tool recovery suggestions in tool result cards', () => {

@@ -929,7 +929,8 @@ export function renderToolCalls(container, toolCalls = [], options = {}) {
     const status = document.createElement('span');
     status.className = 'tool-call-status';
     status.textContent = `${statusMeta.icon} ${statusMeta.label}`;
-    header.append('工具调用：', title, status);
+    const riskBadge = createToolRiskBadge(tool);
+    header.append('工具调用：', title, status, riskBadge);
 
     const risk = document.createElement('p');
     risk.className = 'tool-call-risk';
@@ -1053,6 +1054,71 @@ export function renderToolCalls(container, toolCalls = [], options = {}) {
 
     container.appendChild(block);
   }
+}
+
+const LOW_RISK_TOOLS = new Set([
+  'web_search',
+  'read_file',
+  'list_files',
+  'search_workspace',
+  'read_symbol',
+  'index_workspace',
+]);
+
+const HIGH_RISK_TOOLS = new Set([
+  'run_code',
+]);
+
+export function getToolRiskMeta(tool = {}) {
+  const rawRisk = String(tool.security?.riskLevel || '').trim().toLowerCase();
+  const toolName = String(getToolName(tool) || '').trim().toLowerCase();
+  const normalizedRisk = rawRisk
+    .replace('低', 'low')
+    .replace('中', 'medium')
+    .replace('高', 'high');
+
+  if (tool.autoApproved && (normalizedRisk === 'low' || LOW_RISK_TOOLS.has(toolName))) {
+    return {
+      tone: 'low',
+      label: '只读自动通过',
+      title: '该工具按只读策略自动通过，仍会记录完整证据。',
+    };
+  }
+  if (normalizedRisk === 'low' || LOW_RISK_TOOLS.has(toolName)) {
+    return {
+      tone: 'low',
+      label: '低风险',
+      title: '只读或检索类工具，执行结果会进入工具证据。',
+    };
+  }
+  if (normalizedRisk === 'high' || HIGH_RISK_TOOLS.has(toolName) || toolName.startsWith('mcp__')) {
+    return {
+      tone: 'high',
+      label: toolName.startsWith('mcp__') ? '外部工具确认' : '高风险确认',
+      title: '涉及代码执行、外部 MCP 或更高权限操作，执行前需要确认。',
+    };
+  }
+  if (normalizedRisk === 'medium') {
+    return {
+      tone: 'medium',
+      label: '中风险确认',
+      title: '该工具会读取或处理更多上下文，执行前需要确认。',
+    };
+  }
+  return {
+    tone: 'medium',
+    label: '需确认',
+    title: '未知或未分类工具，执行前需要确认。',
+  };
+}
+
+function createToolRiskBadge(tool) {
+  const riskMeta = getToolRiskMeta(tool);
+  const badge = document.createElement('span');
+  badge.className = `tool-risk-badge tone-${riskMeta.tone}`;
+  badge.textContent = riskMeta.label;
+  badge.title = riskMeta.title;
+  return badge;
 }
 
 function createToolMeta(tool) {

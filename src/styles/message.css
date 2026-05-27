@@ -1064,6 +1064,32 @@
   white-space: nowrap;
   font-weight: 500;
 }
+.tool-risk-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-color), transparent 20%);
+  background: color-mix(in srgb, var(--surface-bg), transparent 18%);
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.tool-risk-badge.tone-low {
+  border-color: color-mix(in srgb, #22c55e, transparent 55%);
+  background: color-mix(in srgb, #22c55e, transparent 90%);
+  color: #16a34a;
+}
+.tool-risk-badge.tone-medium {
+  border-color: color-mix(in srgb, #f59e0b, transparent 50%);
+  background: color-mix(in srgb, #f59e0b, transparent 90%);
+  color: #b45309;
+}
+.tool-risk-badge.tone-high {
+  border-color: color-mix(in srgb, #ef4444, transparent 48%);
+  background: color-mix(in srgb, #ef4444, transparent 90%);
+  color: #dc2626;
+}
 .tool-call-risk {
   margin: 0;
   padding: var(--space-2) var(--space-3) 0;
