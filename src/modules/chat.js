@@ -1288,6 +1288,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
 
 function formatTokenUsageTitle(tokens) {
   const usage = normalizeTokenUsage(tokens);
+  const profile = tokens?.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : {};
   const lines = [
     `输入: ${usage.input}`,
     `输出: ${usage.output}`,
@@ -1305,11 +1306,16 @@ function formatTokenUsageTitle(tokens) {
     lines.push(`缓存节省: $${Number(usage.cost.estimatedSavingsUsd || 0).toFixed(6)}`);
   }
   if (tokens.prefixFingerprint) lines.push(`Prefix: ${tokens.prefixFingerprint}`);
+  if (profile.systemHash) lines.push(`System hash: ${profile.systemHash}`);
+  if (profile.toolsHash) lines.push(`Tools hash: ${profile.toolsHash}`);
+  if (profile.workspaceSignature) lines.push(`Workspace hash: ${profile.workspaceSignature}`);
+  if (Array.isArray(profile.toolNames) && profile.toolNames.length) lines.push(`工具 schema: ${profile.toolNames.join(', ')}`);
   if (tokens.byPurpose && Object.keys(tokens.byPurpose).length) {
     lines.push(`用途: ${Object.entries(tokens.byPurpose).map(([key, value]) => `${key}=${value}`).join(', ')}`);
   }
   if (usage.rounds > 1) lines.push(`Agent 轮次: ${usage.rounds}`);
-  if (usage.warnings?.length) lines.push(`提示: ${usage.warnings.join('；')}`);
+  const warnings = [...(usage.warnings || []), ...(tokens.cacheStabilityWarnings || []), ...(profile.cacheStabilityWarnings || [])];
+  if (warnings.length) lines.push(`提示: ${[...new Set(warnings)].join('；')}`);
   return lines.join('\n');
 }
 

@@ -43,6 +43,7 @@ const DEFAULT_MODEL = 'deepseek-v4-flash';
 
 const DEFAULT_SETTINGS = {
   apiKey: '',
+  providerId: 'deepseek',
   apiBase: 'https://api.deepseek.com',
   model: DEFAULT_MODEL,
   temperature: 0.7,
@@ -65,6 +66,140 @@ const DEFAULT_SETTINGS = {
   mcpServers: [],
   storageStatus: { mode: 'browser', encryptionAvailable: false, dataDir: '' },
 };
+
+export const PROVIDER_PRESETS = Object.freeze([
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    apiBase: 'https://api.deepseek.com',
+    defaultModel: 'deepseek-v4-flash',
+    authType: 'bearer',
+    supportsTools: true,
+    supportsVision: false,
+    supportsReasoning: true,
+    supportsPromptCacheUsage: true,
+    supportsStreamUsage: true,
+    models: [
+      { id: 'deepseek-v4-flash', label: 'v4-flash', tools: true, reasoning: true, promptCacheUsage: true, streamUsage: true },
+      { id: 'deepseek-v4-pro', label: 'v4-pro', tools: true, reasoning: true, promptCacheUsage: true, streamUsage: true },
+      { id: 'deepseek-chat', label: 'V3 Chat', tools: true, promptCacheUsage: true, streamUsage: true },
+      { id: 'deepseek-reasoner', label: 'R1 Reasoner', tools: false, reasoning: true, promptCacheUsage: true, streamUsage: true },
+    ],
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    apiBase: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o',
+    authType: 'bearer',
+    supportsTools: true,
+    supportsVision: true,
+    supportsReasoning: true,
+    supportsPromptCacheUsage: true,
+    supportsStreamUsage: true,
+    models: [
+      { id: 'gpt-4o', label: 'gpt-4o', tools: true, vision: true, promptCacheUsage: true, streamUsage: true },
+      { id: 'gpt-4o-mini', label: 'gpt-4o-mini', tools: true, vision: true, promptCacheUsage: true, streamUsage: true },
+      { id: 'gpt-4.1', label: 'gpt-4.1', tools: true, vision: true, promptCacheUsage: true, streamUsage: true },
+    ],
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    apiBase: 'https://openrouter.ai/api/v1',
+    defaultModel: 'deepseek/deepseek-chat',
+    authType: 'bearer',
+    supportsTools: true,
+    supportsVision: true,
+    supportsReasoning: true,
+    supportsPromptCacheUsage: false,
+    supportsStreamUsage: true,
+    models: [
+      { id: 'deepseek/deepseek-chat', label: 'DeepSeek Chat', tools: true, streamUsage: true },
+      { id: 'openai/gpt-4o-mini', label: 'GPT-4o mini', tools: true, vision: true, streamUsage: true },
+      { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5', tools: true, vision: true, streamUsage: true },
+    ],
+  },
+  {
+    id: 'siliconflow',
+    name: '硅基流动',
+    apiBase: 'https://api.siliconflow.cn/v1',
+    defaultModel: 'deepseek-ai/DeepSeek-V3',
+    authType: 'bearer',
+    supportsTools: true,
+    supportsVision: false,
+    supportsReasoning: true,
+    supportsPromptCacheUsage: false,
+    supportsStreamUsage: true,
+    models: [
+      { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3', tools: true, streamUsage: true },
+      { id: 'deepseek-ai/DeepSeek-R1', label: 'DeepSeek R1', reasoning: true, streamUsage: true },
+      { id: 'Qwen/Qwen2.5-72B-Instruct', label: 'Qwen 72B', tools: true, streamUsage: true },
+    ],
+  },
+  {
+    id: 'dashscope',
+    name: 'DashScope',
+    apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    defaultModel: 'qwen-plus',
+    authType: 'bearer',
+    supportsTools: true,
+    supportsVision: true,
+    supportsReasoning: true,
+    supportsPromptCacheUsage: false,
+    supportsStreamUsage: true,
+    models: [
+      { id: 'qwen-plus', label: 'qwen-plus', tools: true, streamUsage: true },
+      { id: 'qwen-max', label: 'qwen-max', tools: true, streamUsage: true },
+      { id: 'qwen-vl-plus', label: 'qwen-vl', tools: true, vision: true, streamUsage: true },
+    ],
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    apiBase: 'http://localhost:11434/v1',
+    defaultModel: 'llama3',
+    authType: 'none',
+    supportsTools: false,
+    supportsVision: false,
+    supportsReasoning: false,
+    supportsPromptCacheUsage: false,
+    supportsStreamUsage: false,
+    models: [
+      { id: 'llama3', label: 'llama3' },
+      { id: 'qwen2.5-coder', label: 'qwen-coder' },
+      { id: 'llava', label: 'llava', vision: true },
+    ],
+  },
+  {
+    id: 'lmstudio',
+    name: 'LM Studio',
+    apiBase: 'http://localhost:1234/v1',
+    defaultModel: 'local-model',
+    authType: 'none',
+    supportsTools: false,
+    supportsVision: false,
+    supportsReasoning: false,
+    supportsPromptCacheUsage: false,
+    supportsStreamUsage: false,
+    models: [
+      { id: 'local-model', label: 'local' },
+    ],
+  },
+  {
+    id: 'custom',
+    name: '自定义',
+    apiBase: '',
+    defaultModel: '',
+    authType: 'bearer',
+    supportsTools: true,
+    supportsVision: false,
+    supportsReasoning: false,
+    supportsPromptCacheUsage: false,
+    supportsStreamUsage: false,
+    models: [],
+  },
+]);
 
 let settingsCache = { ...DEFAULT_SETTINGS };
 let settingsLoaded = false;
@@ -148,11 +283,19 @@ const DEEPSEEK_PRICING = {
 
 export function getModelCapabilities(settings = getSettings()) {
   const model = String(settings.model || '');
+  const provider = getProviderPreset(settings);
+  const modelPreset = getModelPreset(model, provider);
   return {
-    vision: VISION_MODEL_PATTERNS.some((pattern) => pattern.test(model)),
-    tools: TOOL_MODEL_PATTERNS.some((pattern) => pattern.test(model)),
-    thinking: /reasoner|r1|o1|o3|deepseek-v4|thinking/i.test(model),
+    providerId: provider.id,
+    providerName: provider.name,
+    authType: provider.authType,
+    vision: modelPreset?.vision ?? VISION_MODEL_PATTERNS.some((pattern) => pattern.test(model)),
+    tools: modelPreset?.tools ?? (provider.supportsTools && TOOL_MODEL_PATTERNS.some((pattern) => pattern.test(model))),
+    thinking: modelPreset?.reasoning ?? (provider.supportsReasoning && /reasoner|r1|o1|o3|deepseek-v4|thinking/i.test(model)),
     streaming: true,
+    promptCacheUsage: modelPreset?.promptCacheUsage ?? provider.supportsPromptCacheUsage,
+    streamUsage: modelPreset?.streamUsage ?? provider.supportsStreamUsage,
+    local: isLocalApi(settings.apiBase || provider.apiBase),
     maxContextMessages: settings.maxContextMessages,
   };
 }
@@ -188,6 +331,26 @@ export function isSkillRunnable(id, settings = getSettings()) {
   if (id === 'mcp_tool') return (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
   if (id === 'multi_tool') return true;
   return true;
+}
+
+export function getProviderPreset(settingsOrApiBase = getSettings()) {
+  const input = typeof settingsOrApiBase === 'string' ? { apiBase: settingsOrApiBase } : (settingsOrApiBase || {});
+  const providerId = String(input.providerId || '').trim();
+  if (providerId) {
+    const byId = PROVIDER_PRESETS.find((provider) => provider.id === providerId);
+    if (byId) return byId;
+  }
+  const base = normalizeProviderBase(input.apiBase || '');
+  const byUrl = PROVIDER_PRESETS
+    .filter((provider) => provider.apiBase)
+    .find((provider) => base.startsWith(normalizeProviderBase(provider.apiBase)));
+  return byUrl || PROVIDER_PRESETS.find((provider) => provider.id === 'custom');
+}
+
+export function getModelPreset(model, provider = getProviderPreset()) {
+  const id = String(model || '').trim();
+  if (!id) return null;
+  return (provider?.models || []).find((item) => item.id === id) || null;
 }
 
 function formatExternalSkills(skills = []) {
@@ -1138,6 +1301,7 @@ async function migrateLegacyStorage() {
 function loadBrowserSettings() {
   return normalizeSettings({
     apiKey: localStorage.getItem('dc_apiKey') || '',
+    providerId: localStorage.getItem('dc_providerId') || DEFAULT_SETTINGS.providerId,
     apiBase: localStorage.getItem('dc_apiBase') || DEFAULT_SETTINGS.apiBase,
     model: localStorage.getItem('dc_model') || DEFAULT_MODEL,
     temperature: parseFloat(localStorage.getItem('dc_temperature') || String(DEFAULT_SETTINGS.temperature)),
@@ -1163,6 +1327,7 @@ function loadBrowserSettings() {
 
 function saveBrowserSettings(patch) {
   const keys = {
+    providerId: 'dc_providerId',
     apiBase: 'dc_apiBase',
     model: 'dc_model',
     temperature: 'dc_temperature',
@@ -1191,6 +1356,11 @@ function saveBrowserSettings(patch) {
 
 function normalizeSettings(input = {}) {
   const next = { ...DEFAULT_SETTINGS, ...input };
+  const hasProviderId = input.providerId !== undefined && input.providerId !== null && input.providerId !== '';
+  const provider = getProviderPreset(hasProviderId ? next : next.apiBase);
+  next.providerId = hasProviderId && PROVIDER_PRESETS.some((item) => item.id === next.providerId) ? next.providerId : provider.id;
+  if (!next.apiBase && provider.apiBase) next.apiBase = provider.apiBase;
+  if (!next.model && provider.defaultModel) next.model = provider.defaultModel;
   next.temperature = clampNumber(next.temperature, 0, 2, DEFAULT_SETTINGS.temperature);
   next.maxTokens = Math.round(clampNumber(next.maxTokens, 256, 65536, DEFAULT_SETTINGS.maxTokens));
   next.maxInputTokens = Math.round(clampNumber(next.maxInputTokens, 1024, 262144, DEFAULT_SETTINGS.maxInputTokens));
@@ -1237,6 +1407,10 @@ function normalizeBaseUrl(apiBase) {
   // Only append /v1 if the URL doesn't already contain it
   if (!/\/v1(\/|$)/i.test(baseUrl)) baseUrl += '/v1';
   return baseUrl;
+}
+
+function normalizeProviderBase(apiBase) {
+  return String(apiBase || '').trim().replace(/\/+$/, '').toLowerCase();
 }
 
 function buildHeaders(apiKey, accept) {

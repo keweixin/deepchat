@@ -149,6 +149,7 @@ const ExternalSkillSchema = z.object({
 
 const SettingsPatchSchema = z.object({
   apiKey: z.string().max(8000).optional(),
+  providerId: z.enum(['deepseek', 'openai', 'openrouter', 'siliconflow', 'dashscope', 'ollama', 'lmstudio', 'custom']).optional(),
   apiBase: z.string().trim().min(1).max(600).optional(),
   model: z.string().trim().min(1).max(240).optional(),
   temperature: z.number().min(0).max(2).optional(),

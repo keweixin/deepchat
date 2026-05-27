@@ -22,6 +22,8 @@ import {
   testSearchConnection,
   isEnhanceEnabledSetting,
   getModelCapabilities,
+  getProviderPreset,
+  PROVIDER_PRESETS,
 } from './api.js';
 import { exportBackup, importBackup, listMcpStatus, pickExternalSkill, pickWorkspace, removeWorkspace } from './client-store.js';
 import { showToast, uid } from './utils.js';
@@ -127,6 +129,7 @@ export function initSettings(onModelChange) {
     closeBtn: document.getElementById('settings-close-btn'),
     overlay: document.getElementById('settings-overlay'),
     panel: document.getElementById('settings-panel'),
+    providerPresets: document.querySelector('.provider-presets'),
     apiKey: document.getElementById('api-key-input'),
     apiBase: document.getElementById('api-base-input'),
     modelInput: document.getElementById('model-input'),
@@ -143,6 +146,7 @@ export function initSettings(onModelChange) {
     toolApprovalTimeout: document.getElementById('tool-approval-timeout-input'),
     runCodeEnabled: document.getElementById('run-code-enabled-toggle'),
     systemPrompt: document.getElementById('system-prompt-input'),
+    modelQuickSelect: document.querySelector('.model-quick-select'),
     modelCapabilityStatus: document.getElementById('model-capability-status'),
     toggleKeyVis: document.getElementById('toggle-key-visibility'),
     tavilyKey: document.getElementById('tavily-key-input'),
@@ -236,7 +240,9 @@ export function initSettings(onModelChange) {
   renderMcpServerList(els.mcpServerList, settings.mcpServers || [], updateMcpServers);
   buildSettingsTabs(els.panel);
 
-  highlightActiveProvider(settings.apiBase);
+  renderProviderPresets(els.providerPresets);
+  renderModelQuickSelect(els.modelQuickSelect);
+  highlightActiveProvider(settings);
   highlightActiveModelTag(settings.model);
   renderModelCapabilities(els.modelCapabilityStatus, settings);
 
@@ -254,6 +260,7 @@ export function initSettings(onModelChange) {
       patch.maxInputTokens !== undefined ||
       patch.maxTokens !== undefined
     ) {
+      highlightActiveProvider(next);
       renderModelCapabilities(els.modelCapabilityStatus, next);
     }
     if (patch.enhance !== undefined && els.enhanceToggle) {
@@ -295,18 +302,23 @@ export function initSettings(onModelChange) {
   // ─── Provider Presets ───
   document.querySelectorAll('.provider-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      const providerId = btn.dataset.provider || 'custom';
       const url = btn.dataset.url;
       const model = btn.dataset.model;
-      if (url) { els.apiBase.value = url; saveSettings({ apiBase: url }); }
+      const patch = { providerId };
+      if (url) {
+        els.apiBase.value = url;
+        patch.apiBase = url;
+      }
       if (model) {
         els.modelInput.value = model;
-        saveSettings({ model });
+        patch.model = model;
         onModelChange?.(model);
         highlightActiveModelTag(model);
-        renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), model });
       }
-      highlightActiveProvider(url || els.apiBase.value);
-      renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), apiBase: url || els.apiBase.value, model: model || els.modelInput.value });
+      saveSettings(patch);
+      highlightActiveProvider({ ...getSettings(), ...patch });
+      renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), ...patch });
     });
   });
 
@@ -314,20 +326,30 @@ export function initSettings(onModelChange) {
   document.querySelectorAll('.model-tag').forEach(tag => {
     tag.addEventListener('click', () => {
       const model = tag.dataset.model;
+      const providerId = tag.dataset.provider || getSettings().providerId;
+      const url = tag.dataset.url || '';
+      const patch = { providerId, model };
       els.modelInput.value = model;
-      saveSettings({ model });
+      if (url && els.apiBase.value !== url) {
+        els.apiBase.value = url;
+        patch.apiBase = url;
+      }
+      saveSettings(patch);
       onModelChange?.(model);
+      highlightActiveProvider({ ...getSettings(), ...patch });
       highlightActiveModelTag(model);
-      renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), model });
+      renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), ...patch });
     });
   });
 
   // ─── Auto-save on change ───
   els.apiKey.addEventListener('change', () => saveSettings({ apiKey: els.apiKey.value }));
   els.apiBase.addEventListener('input', () => {
-    saveSettings({ apiBase: els.apiBase.value });
-    highlightActiveProvider(els.apiBase.value);
-    renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), apiBase: els.apiBase.value });
+    const provider = getProviderPreset(els.apiBase.value);
+    const patch = { apiBase: els.apiBase.value, providerId: provider.id };
+    saveSettings(patch);
+    highlightActiveProvider({ ...getSettings(), ...patch });
+    renderModelCapabilities(els.modelCapabilityStatus, { ...getSettings(), ...patch });
   });
   els.modelInput.addEventListener('input', () => {
     saveSettings({ model: els.modelInput.value });
@@ -543,17 +565,68 @@ function renderModelCapabilities(container, settings = getSettings()) {
   if (!container) return;
   const caps = getModelCapabilities(settings);
   const rows = [
+    [`Provider: ${caps.providerName || '自定义'}`, true, ''],
     ['流式', caps.streaming],
+    ['流式统计', caps.streamUsage],
     ['工具', caps.tools],
     ['视觉', caps.vision],
     ['思考', caps.thinking],
+    ['缓存统计', caps.promptCacheUsage],
   ];
-  container.innerHTML = rows.map(([label, enabled]) => (
-    `<span class="capability-pill ${enabled ? 'is-on' : 'is-off'}">${label}${enabled ? '可用' : '不可用'}</span>`
+  container.innerHTML = rows.map(([label, enabled, suffix]) => (
+    `<span class="capability-pill ${enabled ? 'is-on' : 'is-off'}">${label}${suffix ?? (enabled ? '可用' : '不可用')}</span>`
   )).join('');
   const contextText = caps.maxContextMessages ? `${caps.maxContextMessages} 条上下文` : '上下文按默认';
   const inputBudget = settings.maxInputTokens ? `输入预算 ${settings.maxInputTokens} tokens` : '输入预算按默认';
-  container.title = `${contextText}；${inputBudget}；能力来自模型名称规则，最终以服务商实际支持为准。`;
+  container.title = `${caps.providerName || '自定义服务商'}；${contextText}；${inputBudget}；能力来自 Provider Registry 和模型名称规则，最终以服务商实际支持为准。`;
+}
+
+function renderProviderPresets(container) {
+  if (!container) return;
+  container.innerHTML = '';
+  for (const provider of PROVIDER_PRESETS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'provider-btn';
+    btn.dataset.provider = provider.id;
+    btn.dataset.url = provider.apiBase || '';
+    btn.dataset.model = provider.defaultModel || '';
+    btn.title = [
+      provider.name,
+      provider.authType === 'none' ? '无需 API Key' : 'Bearer API Key',
+      provider.supportsPromptCacheUsage ? '支持 cache usage' : '',
+    ].filter(Boolean).join(' · ');
+    const name = document.createElement('span');
+    name.className = 'provider-name';
+    name.textContent = provider.name;
+    btn.appendChild(name);
+    container.appendChild(btn);
+  }
+}
+
+function renderModelQuickSelect(container) {
+  if (!container) return;
+  container.innerHTML = '';
+  for (const provider of PROVIDER_PRESETS.filter((item) => item.models?.length)) {
+    const group = document.createElement('div');
+    group.className = 'model-group';
+    const title = document.createElement('span');
+    title.className = 'model-group-title';
+    title.textContent = provider.name;
+    group.appendChild(title);
+    for (const model of provider.models) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'model-tag';
+      btn.dataset.provider = provider.id;
+      btn.dataset.url = provider.apiBase;
+      btn.dataset.model = model.id;
+      btn.textContent = model.label || model.id;
+      btn.title = `${provider.name} · ${model.id}`;
+      group.appendChild(btn);
+    }
+    container.appendChild(group);
+  }
 }
 
 function renderExternalSkillList(container, skills = [], onChange) {
@@ -761,10 +834,11 @@ async function runStatusAction(statusEl, pendingText, successText, action) {
 
 // ─── Helpers ───
 
-function highlightActiveProvider(currentUrl) {
+function highlightActiveProvider(current) {
+  const settings = typeof current === 'object' && current !== null ? current : { apiBase: current };
+  const provider = getProviderPreset(settings);
   document.querySelectorAll('.provider-btn').forEach(btn => {
-    const url = btn.dataset.url;
-    btn.classList.toggle('active', !!(url && currentUrl && currentUrl.startsWith(url)));
+    btn.classList.toggle('active', btn.dataset.provider === provider.id);
   });
 }
 
@@ -795,7 +869,7 @@ function applySettingsToInputs(els, settings, onModelChange) {
   if (els.thinkingBudgetVal) els.thinkingBudgetVal.textContent = settings.thinkingBudget === 0 ? '自动' : `${settings.thinkingBudget} tokens`;
   if (els.systemPrompt) els.systemPrompt.value = settings.systemPrompt || '';
   if (els.enhanceToggle) els.enhanceToggle.checked = settings.enhance !== false;
-  highlightActiveProvider(settings.apiBase);
+  highlightActiveProvider(settings);
   highlightActiveModelTag(settings.model);
   renderModelCapabilities(els.modelCapabilityStatus, settings);
   onModelChange?.(settings.model);

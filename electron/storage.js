@@ -23,6 +23,7 @@ const DEFAULT_SYSTEM_PROMPT = `你是一位专业、严谨且善于深度思考�
 当前界面支持安全内置组件，不支持任意 HTML/JavaScript。不要输出 <script>、onclick、iframe 或自定义 HTML 组件。`;
 
 const DEFAULT_SETTINGS = {
+  providerId: 'deepseek',
   apiBase: 'https://api.deepseek.com',
   model: 'deepseek-v4-flash',
   temperature: 0.7,
@@ -78,6 +79,7 @@ async function writeJson(fileName, value) {
 
 function normalizeSettings(input = {}) {
   const next = { ...DEFAULT_SETTINGS, ...input };
+  next.providerId = input.providerId ? normalizeProviderId(next.providerId) : inferProviderId(next.apiBase);
   next.temperature = clampNumber(next.temperature, 0, 2, DEFAULT_SETTINGS.temperature);
   next.maxTokens = Math.round(clampNumber(next.maxTokens, 256, 65536, DEFAULT_SETTINGS.maxTokens));
   next.maxInputTokens = Math.round(clampNumber(next.maxInputTokens, 1024, 262144, DEFAULT_SETTINGS.maxInputTokens));
@@ -94,6 +96,23 @@ function normalizeSettings(input = {}) {
   next.mcpServers = normalizeMcpServers(next.mcpServers);
   next.enhance = next.enhance !== false && next.enhance !== 'false';
   return next;
+}
+
+function normalizeProviderId(value) {
+  const id = String(value || DEFAULT_SETTINGS.providerId).trim();
+  return /^(deepseek|openai|openrouter|siliconflow|dashscope|ollama|lmstudio|custom)$/.test(id) ? id : DEFAULT_SETTINGS.providerId;
+}
+
+function inferProviderId(apiBase) {
+  const base = String(apiBase || '').trim().replace(/\/+$/, '').toLowerCase();
+  if (base.startsWith('https://api.deepseek.com')) return 'deepseek';
+  if (base.startsWith('https://api.openai.com/v1')) return 'openai';
+  if (base.startsWith('https://openrouter.ai/api/v1')) return 'openrouter';
+  if (base.startsWith('https://api.siliconflow.cn/v1')) return 'siliconflow';
+  if (base.startsWith('https://dashscope.aliyuncs.com/compatible-mode/v1')) return 'dashscope';
+  if (base.startsWith('http://localhost:11434/v1')) return 'ollama';
+  if (base.startsWith('http://localhost:1234/v1')) return 'lmstudio';
+  return 'custom';
 }
 
 function normalizeWorkspaceRoots(roots) {

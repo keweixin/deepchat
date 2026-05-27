@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_SYSTEM_PROMPT,
+  PROVIDER_PRESETS,
   buildContextBudgetBundle,
   buildContextWithBudget,
   buildTavilySearchRequest,
@@ -8,6 +9,7 @@ import {
   getEffectiveSystemPrompt,
   getConversationUsageSummary,
   getModelCapabilities,
+  getProviderPreset,
   getSettings,
   initApiSettings,
   isSkillRunnable,
@@ -92,6 +94,37 @@ describe('browser settings fallback', () => {
     settings = await saveSettings({ model: 'gpt-4o' });
     expect(supportsVisionModel(settings)).toBe(true);
     expect(getModelCapabilities(settings)).toMatchObject({ vision: true, streaming: true });
+  });
+
+  it('resolves provider registry presets and model capability matrix', async () => {
+    expect(PROVIDER_PRESETS.map((provider) => provider.id)).toEqual(expect.arrayContaining(['deepseek', 'openai', 'openrouter', 'ollama', 'lmstudio']));
+
+    let settings = await saveSettings({
+      providerId: 'deepseek',
+      apiBase: 'https://api.deepseek.com',
+      model: 'deepseek-v4-flash',
+    });
+    expect(getProviderPreset(settings).id).toBe('deepseek');
+    expect(getModelCapabilities(settings)).toMatchObject({
+      providerId: 'deepseek',
+      tools: true,
+      thinking: true,
+      promptCacheUsage: true,
+      streamUsage: true,
+    });
+
+    settings = await saveSettings({
+      providerId: 'ollama',
+      apiBase: 'http://localhost:11434/v1',
+      model: 'llama3',
+    });
+    expect(getProviderPreset(settings).authType).toBe('none');
+    expect(getModelCapabilities(settings)).toMatchObject({
+      providerId: 'ollama',
+      tools: false,
+      promptCacheUsage: false,
+      local: true,
+    });
   });
 
   it('normalizes DeepSeek cache hit and miss usage fields', () => {
