@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Routed DeepSeek context-summary auxiliary calls to `deepseek-v4-flash` and recorded the auxiliary model in summary metadata.
 - Added conservative tool-call repair for JSON tool requests emitted in assistant content or reasoning text.
 - Added parallel dispatch for read-only tool calls while preserving approval prompts and ordered tool-result context.
 - Added a lightweight `search_workspace` tool that searches approved workspace text files and returns line citations.

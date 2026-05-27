@@ -232,9 +232,15 @@ class ChatService {
       };
     }
 
-    this.emit(request.requestId, 'agentStage', { stage: 'summary', round: 0, maxRounds: resolveAgentMaxRounds(settings) });
+    const summaryModel = resolveAuxiliaryModel(settings);
+    this.emit(request.requestId, 'agentStage', {
+      stage: 'summary',
+      round: 0,
+      maxRounds: resolveAgentMaxRounds(settings),
+      warning: summaryModel !== settings.model ? `摘要辅助调用使用 ${summaryModel} 以降低成本。` : undefined,
+    });
     try {
-      const summary = await this.summarizeContext(settings, existingSummary, summarySourceMessages, signal);
+      const summary = await this.summarizeContext({ ...settings, model: summaryModel }, existingSummary, summarySourceMessages, signal);
       const input = estimateMessagesTokens([
         { role: 'system', content: 'Summarize conversation context.' },
         { role: 'user', content: `${existingSummary}\n${formatMessagesForSummary(summarySourceMessages)}` },
@@ -242,11 +248,17 @@ class ChatService {
       return {
         summary,
         generated: true,
-        meta: { hash: summaryHash, sourceMessageCount: summarySourceMessages.length, cacheHit: false },
+        meta: {
+          hash: summaryHash,
+          sourceMessageCount: summarySourceMessages.length,
+          cacheHit: false,
+          auxiliaryModel: summaryModel,
+          requestedModel: settings.model,
+        },
         usage: normalizeTokenUsage(null, {
           input,
           output: estimateTokens(summary),
-          model: settings.model,
+          model: summaryModel,
           byPurpose: { summary: input + estimateTokens(summary) },
         }),
       };
@@ -1305,6 +1317,25 @@ function buildReasoningRoundTrip(result, settings = {}) {
   const model = String(settings.model || '').toLowerCase();
   if (!model.includes('deepseek') && !String(result.thinking || '').trim()) return {};
   return { reasoning_content: result.thinking || '' };
+}
+
+function resolveAuxiliaryModel(settings = {}) {
+  const model = String(settings.model || '').trim();
+  const provider = String(settings.providerId || inferProviderIdFromBase(settings.apiBase)).toLowerCase();
+  if (provider === 'deepseek' || /^deepseek-/i.test(model)) return 'deepseek-v4-flash';
+  return model;
+}
+
+function inferProviderIdFromBase(apiBase = '') {
+  const base = String(apiBase || '').trim().replace(/\/+$/, '').toLowerCase();
+  if (base.startsWith('https://api.deepseek.com')) return 'deepseek';
+  if (base.startsWith('https://api.openai.com/v1')) return 'openai';
+  if (base.startsWith('https://openrouter.ai/api/v1')) return 'openrouter';
+  if (base.startsWith('https://api.siliconflow.cn/v1')) return 'siliconflow';
+  if (base.startsWith('https://dashscope.aliyuncs.com/compatible-mode/v1')) return 'dashscope';
+  if (base.startsWith('http://localhost:11434/v1')) return 'ollama';
+  if (base.startsWith('http://localhost:1234/v1')) return 'lmstudio';
+  return 'custom';
 }
 
 function toolCallSignature(toolCall = {}) {

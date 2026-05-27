@@ -14,6 +14,7 @@ DeepChat 的定位不是大而全 Web 平台，也不是完整 IDE，而是一�
 - Workspace Knowledge Lite：在授权工作区内搜索文本文件，返回 `file:line-line` 引用，适合先定位资料再精读文件。
 - DeepSeek cache-first：稳定 system prompt 和工具 schema 前缀，记录 prefix hash、cache hit/miss、命中率、估算成本和节省金额。
 - 长上下文处理：按 token 预算裁剪历史，当前用户消息优先保留，必要时生成短摘要并复用摘要 hash。
+- 辅助调用降本：DeepSeek 自动摘要等辅助调用优先使用 `deepseek-v4-flash`，避免主模型为 pro 时把摘要也按 pro 计费。
 - 安全桌面端：Electron sandbox、CSP、IPC schema 校验、敏感文件拒读、输出脱敏、代码运行轻量隔离。
 - 内容渲染：Markdown、代码高亮、KaTeX、Mermaid、表格、widget JSON 和导出能力。
 

@@ -389,6 +389,41 @@ describe('electron chat service token usage and agent loop', () => {
     expect(second.meta.cacheHit).toBe(true);
   });
 
+  it('uses the flash model for DeepSeek summary auxiliary calls and records summary cost separately', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: '旧上下文摘要' } }] }),
+    });
+    const contextBundle = {
+      messages: [{ role: 'user', content: 'latest' }],
+      meta: {
+        droppedMessages: [{ role: 'user', content: 'old context that should be summarized' }],
+        budgetRatio: 0.2,
+      },
+    };
+
+    const result = await service.maybeBuildContextSummary(
+      { requestId: 'req-summary-flash', contextSummary: '', contextSummaryMeta: null },
+      baseSettings({ providerId: 'deepseek', model: 'deepseek-v4-pro' }),
+      contextBundle,
+      0,
+      new AbortController().signal,
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.model).toBe('deepseek-v4-flash');
+    expect(result.summary).toBe('旧上下文摘要');
+    expect(result.meta).toMatchObject({
+      auxiliaryModel: 'deepseek-v4-flash',
+      requestedModel: 'deepseek-v4-pro',
+    });
+    expect(result.usage.byPurpose.summary).toBeGreaterThan(0);
+    expect(result.usage.cost.model).toBe('deepseek-v4-flash');
+    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'summary' && event.warning.includes('deepseek-v4-flash'))).toBe(true);
+  });
+
   it('surfaces malformed tool arguments instead of silently running with empty args', async () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
