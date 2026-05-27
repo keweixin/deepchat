@@ -177,6 +177,22 @@ describe('electron chat service token usage and agent loop', () => {
     expect(intent.selectedTools).toContain('run_code');
   });
 
+  it('honors explicit tool directives in native agent intent', () => {
+    const intent = detectAgentIntent('@changed 看最近修改并 @web 查最新资料', {
+      activeSkill: 'agent_auto',
+      tavilyApiKey: 'tvly-test',
+      workspaceRoots: ['E:/repo'],
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+
+    expect(intent.toolMode).toBe('multi_tool');
+    expect(intent.explicitDirectives).toEqual(expect.arrayContaining(['web', 'changed']));
+    expect(intent.selectedTools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'read_file']));
+    expect(intent.reason).toContain('explicit_web');
+    expect(intent.reason).toContain('explicit_changed_context');
+  });
+
   it('keeps the cache prefix stable across different smart-agent intents when tools are available', async () => {
     const service = new ChatService(() => fakeWindow());
     const settings = baseSettings({

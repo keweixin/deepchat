@@ -268,6 +268,7 @@ const VISION_MODEL_PATTERNS = [
 
 const CONTEXT_MENTION_LIMIT = 8;
 const CONTEXT_MENTION_PATH_LIMIT = 300;
+const DIRECTIVE_TEXT_PATTERN = /```[\s\S]*?```/g;
 
 export function extractContextMentions(content = '') {
   const text = stripVolatileContextBlocks(content).replace(/```[\s\S]*?```/g, ' ');
@@ -545,10 +546,11 @@ export function buildTavilySearchRequest(rawQuery, settings = {}, explicitMaxRes
 
 function normalizeSearchQuery(query) {
   const trimmed = String(query || '').trim();
-  const compact = trimmed
+  const compact = stripExplicitToolDirectives(trimmed)
     .replace(/[，。！？?]/g, ' ')
     .replace(/帮我|请|麻烦|一下|搜索|搜一下|查找|查询|查一下|给我|告诉我/g, ' ')
     .replace(/一个就行|一条就行|一篇就行|就行|即可/g, ' ')
+    .replace(/["'`]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -556,6 +558,10 @@ function normalizeSearchQuery(query) {
     return `latest AI news ${new Date().toISOString().slice(0, 10)}`;
   }
   return compact || trimmed || 'latest news';
+}
+
+function stripExplicitToolDirectives(text) {
+  return String(text || '').replace(/(^|[\s([，,;；])@(web|search|run|code|changed|recent|mcp)\s*:?\s*/gi, '$1');
 }
 
 function deriveSearchMaxResults(query, requested) {
@@ -599,20 +605,55 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     ? getLastUserContent(messagesOrText)
     : String(messagesOrText || ''));
   const lower = text.toLowerCase();
+  const directives = detectExplicitToolDirectives(text);
   const selected = new Set();
   const candidates = new Set();
   const missing = new Set();
   const reasons = [];
   let score = 0;
 
-  if (needsSearch(text, lower)) {
+  if (directives.web) {
+    candidates.add('web_search');
+    reasons.push('explicit_web');
+    score += 0.75;
+    if (settings.tavilyApiKey) selected.add('web_search');
+    else missing.add('Tavily API Key');
+  }
+  if (directives.code) {
+    candidates.add('run_code');
+    reasons.push('explicit_run');
+    score += 0.75;
+    if (settings.runCodeEnabled === false) missing.add('代码运行工具');
+    else selected.add('run_code');
+  }
+  if (directives.changed) {
+    candidates.add('list_files');
+    candidates.add('read_file');
+    reasons.push('explicit_changed_context');
+    score += 0.65;
+    if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('list_files');
+      selected.add('read_file');
+    } else {
+      missing.add('工作区目录');
+    }
+  }
+  if (directives.mcp) {
+    candidates.add('mcp');
+    reasons.push('explicit_mcp');
+    score += 0.65;
+    if ((settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command)) selected.add('mcp');
+    else missing.add('MCP Server');
+  }
+
+  if (!candidates.has('web_search') && needsSearch(text, lower)) {
     candidates.add('web_search');
     reasons.push('fresh_or_external_facts');
     score += 0.35;
     if (settings.tavilyApiKey) selected.add('web_search');
     else missing.add('Tavily API Key');
   }
-  if (needsFiles(text, lower)) {
+  if (!candidates.has('list_files') && needsFiles(text, lower)) {
     candidates.add('list_files');
     candidates.add('read_file');
     reasons.push('local_files');
@@ -624,14 +665,14 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
       missing.add('工作区目录');
     }
   }
-  if (needsCode(text, lower)) {
+  if (!candidates.has('run_code') && needsCode(text, lower)) {
     candidates.add('run_code');
     reasons.push('code_or_calculation');
     score += 0.3;
     if (settings.runCodeEnabled === false) missing.add('代码运行工具');
     else selected.add('run_code');
   }
-  if (needsMcp(text, lower)) {
+  if (!candidates.has('mcp') && needsMcp(text, lower)) {
     candidates.add('mcp');
     reasons.push('external_mcp');
     score += 0.25;
@@ -656,8 +697,24 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     candidateTools: [...candidates],
     missingPrerequisites: [...missing],
     confidence: Math.min(1, score),
+    explicitDirectives: Object.entries(directives).filter(([, enabled]) => enabled).map(([name]) => name),
     reason: reasons.join(',') || 'plain_chat',
   };
+}
+
+function detectExplicitToolDirectives(content = '') {
+  const text = stripVolatileContextBlocks(content).replace(DIRECTIVE_TEXT_PATTERN, ' ');
+  return {
+    web: hasAtDirective(text, ['web', 'search']),
+    code: hasAtDirective(text, ['run', 'code']),
+    changed: hasAtDirective(text, ['changed', 'recent']),
+    mcp: hasAtDirective(text, ['mcp']),
+  };
+}
+
+function hasAtDirective(text, names) {
+  const group = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  return new RegExp(`(?:^|[\\s([，,;；])@(?:${group})(?:\\b|\\s*:|$)`, 'i').test(String(text || ''));
 }
 
 export function normalizeTokenUsage(usage, fallback = {}) {

@@ -74,6 +74,13 @@ describe('browser settings fallback', () => {
     expect(request.payload.max_results).toBe(1);
   });
 
+  it('strips explicit tool directives from Tavily search queries', () => {
+    const request = buildTavilySearchRequest('@web:"DeepSeek cache pricing" 一个就行', { tavilyMaxResults: 5 });
+
+    expect(request.payload.query).toBe('DeepSeek cache pricing');
+    expect(request.payload.max_results).toBe(1);
+  });
+
   it('adds enabled external skills to the effective prompt', async () => {
     const settings = await saveSettings({
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
@@ -245,6 +252,23 @@ describe('browser settings fallback', () => {
     expect(intent.selectedTools).not.toContain('web_search');
     expect(intent.candidateTools).toContain('web_search');
     expect(intent.missingPrerequisites).toContain('Tavily API Key');
+  });
+
+  it('honors explicit @web, @run, and @changed directives before keyword guessing', () => {
+    const web = detectAgentIntent('@web:"release notes"', { tavilyApiKey: 'tvly-test', workspaceRoots: [] });
+    const run = detectAgentIntent('@run 验证这段逻辑', { runCodeEnabled: true, workspaceRoots: [] });
+    const changed = detectAgentIntent('@changed 最近改了什么', { workspaceRoots: ['E:/repo'] });
+
+    expect(web.toolMode).toBe('web_search');
+    expect(web.selectedTools).toContain('web_search');
+    expect(web.explicitDirectives).toContain('web');
+    expect(web.reason).toContain('explicit_web');
+    expect(run.toolMode).toBe('code_runner');
+    expect(run.selectedTools).toContain('run_code');
+    expect(run.explicitDirectives).toContain('code');
+    expect(changed.toolMode).toBe('file_reader');
+    expect(changed.selectedTools).toEqual(expect.arrayContaining(['list_files', 'read_file']));
+    expect(changed.reason).toContain('explicit_changed_context');
   });
 
   it('extracts @file/@folder context mentions outside code blocks', () => {

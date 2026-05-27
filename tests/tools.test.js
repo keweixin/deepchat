@@ -40,6 +40,13 @@ describe('electron tools helpers', () => {
     expect(request.payload.max_results).toBe(1);
   });
 
+  it('removes explicit @web directives before building Tavily queries', () => {
+    const request = buildTavilySearchRequest('@web:"DeepSeek cache pricing" 一个就行', { tavilyMaxResults: 5 });
+
+    expect(request.payload.query).toBe('DeepSeek cache pricing');
+    expect(request.payload.max_results).toBe(1);
+  });
+
   it('lists files inside a selected workspace subdirectory only', async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-list-files-'));
     try {
@@ -55,6 +62,30 @@ describe('electron tools helpers', () => {
       expect(output).toContain('- nested');
       expect(output).not.toContain('README.md');
       await expect(executeTool('list_files', { directory: '..' }, { workspaceRoots: [tmpDir] })).rejects.toThrow('不在已授权工作区');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('can list recently changed files by modified time', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-list-recent-'));
+    try {
+      const oldFile = path.join(tmpDir, 'old.md');
+      const newFile = path.join(tmpDir, 'new.md');
+      await fs.writeFile(oldFile, 'old', 'utf8');
+      await fs.writeFile(newFile, 'new', 'utf8');
+      const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      await fs.utimes(oldFile, oldDate, oldDate);
+
+      const output = await executeTool('list_files', {
+        sort_by: 'modified',
+        recent_days: 7,
+      }, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('筛选：最近 7 天修改');
+      expect(output).toContain('排序：修改时间倒序');
+      expect(output).toContain('- new.md (mtime');
+      expect(output).not.toContain('old.md');
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }

@@ -48,6 +48,8 @@ const TOOL_SCHEMAS = {
           root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
           directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to list.' },
           pattern: { type: 'string', description: 'Optional filename substring or simple wildcard pattern.' },
+          recent_days: { type: 'integer', minimum: 1, maximum: 3650, description: 'Only include files modified within this many days.' },
+          sort_by: { type: 'string', enum: ['name', 'modified'], description: 'Sort files by name or modified time.' },
         },
       },
     },
@@ -198,10 +200,11 @@ function buildTavilySearchRequest(rawQuery, settings = {}, explicitMaxResults) {
 
 function normalizeSearchQuery(query) {
   const trimmed = String(query || '').trim();
-  const compact = trimmed
+  const compact = stripExplicitToolDirectives(trimmed)
     .replace(/[，。！？?]/g, ' ')
     .replace(/帮我|请|麻烦|一下|搜索|搜一下|查找|查询|查一下|给我|告诉我/g, ' ')
     .replace(/一个就行|一条就行|一篇就行|就行|即可/g, ' ')
+    .replace(/["'`]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -209,6 +212,10 @@ function normalizeSearchQuery(query) {
     return `latest AI news ${new Date().toISOString().slice(0, 10)}`;
   }
   return compact || trimmed || 'latest news';
+}
+
+function stripExplicitToolDirectives(text) {
+  return String(text || '').replace(/(^|[\s([，,;；])@(web|search|run|code|changed|recent|mcp)\s*:?\s*/gi, '$1');
 }
 
 function deriveSearchMaxResults(query, requested) {
@@ -269,18 +276,29 @@ async function listFiles(args, settings) {
   const realRoot = await fs.realpath(root).catch(() => root);
   const pattern = String(args.pattern || '').trim();
   const matcher = createMatcher(pattern);
+  const recentDays = clampInt(args.recent_days, 0, 3650, 0);
+  const sortBy = String(args.sort_by || '').trim().toLowerCase();
+  const sortByModified = sortBy === 'modified' || recentDays > 0;
+  const cutoff = recentDays > 0 ? Date.now() - recentDays * 24 * 60 * 60 * 1000 : 0;
   const files = [];
   await walk(scanRoot, scanRoot, files, matcher);
+  const matchedFiles = files
+    .filter((file) => cutoff <= 0 || file.mtimeMs >= cutoff)
+    .sort((a, b) => sortByModified
+      ? (b.mtimeMs - a.mtimeMs) || a.path.localeCompare(b.path)
+      : a.path.localeCompare(b.path));
   const relativeDirectory = path.relative(realRoot, scanRoot) || '.';
-  if (files.length === 0) return `工作区 ${root} 的目录 ${relativeDirectory} 中没有找到匹配文件。`;
+  if (matchedFiles.length === 0) return `工作区 ${root} 的目录 ${relativeDirectory} 中没有找到匹配文件。`;
   return [
     `工作区：${root}`,
     `目录：${relativeDirectory}`,
-    `匹配文件数：${files.length}`,
+    recentDays > 0 ? `筛选：最近 ${recentDays} 天修改` : '',
+    `排序：${sortByModified ? '修改时间倒序' : '文件名'}`,
+    `匹配文件数：${matchedFiles.length}`,
     '',
-    ...files.slice(0, 200).map((file) => `- ${file}`),
-    files.length > 200 ? `\n仅显示前 200 个结果。` : '',
-  ].join('\n').slice(0, MAX_TOOL_OUTPUT);
+    ...matchedFiles.slice(0, 200).map((file) => formatListedFile(file, sortByModified)),
+    matchedFiles.length > 200 ? `\n仅显示前 200 个结果。` : '',
+  ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
 async function walk(root, current, files, matcher) {
@@ -300,9 +318,25 @@ async function walk(root, current, files, matcher) {
     if (entry.isDirectory()) {
       await walk(root, fullPath, files, matcher);
     } else if (entry.isFile() && matcher(relative)) {
-      files.push(relative);
+      const stat = await fs.stat(fullPath).catch(() => null);
+      files.push({
+        path: relative,
+        size: stat?.size || 0,
+        mtimeMs: stat?.mtimeMs || 0,
+      });
     }
   }
+}
+
+function formatListedFile(file, includeMeta = false) {
+  if (!includeMeta) return `- ${file.path}`;
+  return `- ${file.path} (mtime ${formatMtime(file.mtimeMs)}, ${file.size} bytes)`;
+}
+
+function formatMtime(ms) {
+  const date = new Date(Number(ms) || 0);
+  if (Number.isNaN(date.getTime())) return 'unknown';
+  return date.toISOString().replace('T', ' ').slice(0, 16);
 }
 
 function shouldSkip(name) {

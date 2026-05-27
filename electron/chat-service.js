@@ -11,6 +11,7 @@ const COMPACTION_SUMMARY_MARKER = '[CONVERSATION HISTORY SUMMARY — earlier tur
 const DEFAULT_TOOL_APPROVAL_TIMEOUT_MS = 60000;
 const TOOL_ARG_LONG_STRING_THRESHOLD = 300;
 const CODE_RUN_TIMEOUT_MS = 5000;
+const DIRECTIVE_TEXT_PATTERN = /```[\s\S]*?```/g;
 
 const DEEPSEEK_PRICING = {
   'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
@@ -650,6 +651,15 @@ function buildCacheStabilityWarnings(previousProfile, currentProfile) {
 function buildTurnTailMetadata(intent = {}, settings = {}) {
   const lines = [];
   const missing = Array.isArray(intent.missingPrerequisites) ? intent.missingPrerequisites : [];
+  const explicitDirectives = Array.isArray(intent.explicitDirectives) ? intent.explicitDirectives : [];
+  if (settings.activeSkill === 'agent_auto' && explicitDirectives.length > 0) {
+    lines.push('DeepChat 本轮显式工具指令：');
+    lines.push(`用户使用了：${explicitDirectives.map(formatDirectiveName).join('、')}`);
+    lines.push('显式指令优先于关键词猜测；如果对应工具可用，应优先按该方向规划。');
+    if (explicitDirectives.includes('changed')) {
+      lines.push('用户要求最近变更上下文时，优先调用 list_files({ "sort_by": "modified", "recent_days": 7 }) 查看候选文件，再按需 read_file。');
+    }
+  }
   if (settings.activeSkill === 'agent_auto' && missing.length > 0) {
     lines.push('DeepChat 本轮工具可用性提示：');
     lines.push(`需要的能力：${(intent.candidateTools || []).join(', ') || intent.reason || 'unknown'}`);
@@ -657,6 +667,14 @@ function buildTurnTailMetadata(intent = {}, settings = {}) {
     lines.push('请直接告诉用户需要完成这些配置后才能使用对应工具，不要声称已经调用工具。');
   }
   return lines.join('\n');
+}
+
+function formatDirectiveName(name) {
+  if (name === 'web') return '@web';
+  if (name === 'code') return '@run';
+  if (name === 'changed') return '@changed';
+  if (name === 'mcp') return '@mcp';
+  return `@${name}`;
 }
 
 function appendTurnTailMetadata(messages = [], metadata = '') {
@@ -847,20 +865,58 @@ function detectAgentIntent(messagesOrText, settings = {}) {
     ? getLastUserText(messagesOrText)
     : String(messagesOrText || ''));
   const lower = text.toLowerCase();
+  const directives = detectExplicitToolDirectives(text);
   const selected = new Set();
   const candidates = new Set();
   const missing = new Set();
   const reasons = [];
   let score = 0;
 
-  if (needsSearch(text, lower)) {
+  if (directives.web) {
+    candidates.add('web_search');
+    reasons.push('explicit_web');
+    score += 0.75;
+    if (settings.tavilyApiKey) selected.add('web_search');
+    else missing.add('Tavily API Key');
+  }
+  if (directives.code) {
+    candidates.add('run_code');
+    reasons.push('explicit_run');
+    score += 0.75;
+    if (settings.runCodeEnabled === false || settings.runCodeEnabled === 'false') missing.add('代码运行工具');
+    else selected.add('run_code');
+  }
+  if (directives.changed) {
+    candidates.add('list_files');
+    candidates.add('read_file');
+    reasons.push('explicit_changed_context');
+    score += 0.65;
+    if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('list_files');
+      selected.add('read_file');
+    } else {
+      missing.add('工作区目录');
+    }
+  }
+  if (directives.mcp) {
+    candidates.add('mcp');
+    reasons.push('explicit_mcp');
+    score += 0.65;
+    if ((settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command)) {
+      selected.add('mcp');
+    } else {
+      missing.add('MCP Server');
+    }
+  }
+
+  if (!candidates.has('web_search') && needsSearch(text, lower)) {
     candidates.add('web_search');
     reasons.push('fresh_or_external_facts');
     score += 0.35;
     if (settings.tavilyApiKey) selected.add('web_search');
     else missing.add('Tavily API Key');
   }
-  if (needsFiles(text, lower)) {
+  if (!candidates.has('list_files') && needsFiles(text, lower)) {
     candidates.add('list_files');
     candidates.add('read_file');
     reasons.push('local_files');
@@ -872,14 +928,14 @@ function detectAgentIntent(messagesOrText, settings = {}) {
       missing.add('工作区目录');
     }
   }
-  if (needsCode(text, lower)) {
+  if (!candidates.has('run_code') && needsCode(text, lower)) {
     candidates.add('run_code');
     reasons.push('code_or_calculation');
     score += 0.3;
     if (settings.runCodeEnabled === false || settings.runCodeEnabled === 'false') missing.add('代码运行工具');
     else selected.add('run_code');
   }
-  if (needsMcp(text, lower)) {
+  if (!candidates.has('mcp') && needsMcp(text, lower)) {
     candidates.add('mcp');
     reasons.push('external_mcp');
     score += 0.25;
@@ -907,6 +963,7 @@ function detectAgentIntent(messagesOrText, settings = {}) {
     candidateTools: [...candidates],
     missingPrerequisites: [...missing],
     confidence: Math.min(1, score),
+    explicitDirectives: Object.entries(directives).filter(([, enabled]) => enabled).map(([name]) => name),
     reason: reasons.join(',') || 'plain_chat',
   };
 }
@@ -936,6 +993,21 @@ function needsCode(text, lower) {
 
 function needsMcp(text, lower) {
   return /mcp|notion|github|jira|linear|slack|数据库|外部系统|server 工具/i.test(lower);
+}
+
+function detectExplicitToolDirectives(content = '') {
+  const text = stripVolatileContextBlocks(content).replace(DIRECTIVE_TEXT_PATTERN, ' ');
+  return {
+    web: hasAtDirective(text, ['web', 'search']),
+    code: hasAtDirective(text, ['run', 'code']),
+    changed: hasAtDirective(text, ['changed', 'recent']),
+    mcp: hasAtDirective(text, ['mcp']),
+  };
+}
+
+function hasAtDirective(text, names) {
+  const group = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  return new RegExp(`(?:^|[\\s([，,;；])@(?:${group})(?:\\b|\\s*:|$)`, 'i').test(String(text || ''));
 }
 
 function stripVolatileContextBlocks(content = '') {
