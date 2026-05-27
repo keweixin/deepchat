@@ -939,7 +939,8 @@
   background: color-mix(in srgb, var(--surface-card), transparent 32%);
 }
 
-.composer-settings-shortcut {
+.composer-settings-shortcut,
+.composer-context-btn {
   min-height: 32px;
   padding: 0 var(--space-3);
   border: 1px solid var(--glass-border);
@@ -951,11 +952,92 @@
 }
 
 .composer-settings-shortcut:hover,
-.composer-settings-shortcut:focus-visible {
+.composer-settings-shortcut:focus-visible,
+.composer-context-btn:hover,
+.composer-context-btn:focus-visible,
+.composer-context-btn[aria-expanded="true"] {
   border-color: color-mix(in srgb, var(--accent-primary), transparent 65%);
   background: var(--surface-card-strong);
   color: var(--text-primary);
   outline: none;
+}
+
+.context-shortcut-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 1000;
+  width: min(560px, calc(100vw - 32px));
+  padding: var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-elevated), transparent 4%);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(18px);
+}
+
+.context-shortcut-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(96px, 0.34fr) minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.context-shortcut-item:hover,
+.context-shortcut-item:focus-visible {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border);
+}
+
+.context-shortcut-item.unavailable {
+  opacity: 0.68;
+}
+
+.context-shortcut-title {
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.context-shortcut-desc {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-shortcut-code {
+  justify-self: end;
+  max-width: 190px;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-shortcut-state {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.context-shortcut-footer {
+  padding: var(--space-2) var(--space-2) 0;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .prompt-template-menu {
@@ -1218,7 +1300,8 @@
   .chat-header { padding-left: 60px; }
   .welcome-suggestions { grid-template-columns: 1fr; }
   .composer-control,
-  .composer-search-toggle {
+  .composer-search-toggle,
+  .composer-tool-drawer-btn {
     flex: 1 1 150px;
     justify-content: space-between;
   }
@@ -1227,12 +1310,23 @@
     flex: 1 1 100%;
     justify-content: center;
   }
-  .composer-settings-shortcut {
+  .composer-settings-shortcut,
+  .composer-context-btn {
     flex: 0 0 auto;
   }
 
-  .composer-tool-menu {
+  .composer-tool-menu,
+  .context-shortcut-menu {
     width: calc(100vw - 32px);
+  }
+
+  .context-shortcut-item {
+    grid-template-columns: 1fr;
+  }
+
+  .context-shortcut-code {
+    justify-self: start;
+    max-width: 100%;
   }
 }
 
