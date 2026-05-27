@@ -193,29 +193,21 @@ class ChatService {
         ...buildReasoningRoundTrip(result, settings),
       });
 
-      for (const toolCall of result.toolCalls) {
-        const signature = toolCallSignature(toolCall);
-        if (seenToolCalls.has(signature)) {
-          const blocked = `重复工具调用已抑制：${toolCall.function?.name || 'unknown_tool'}。请基于已有工具结果继续推理，或换用不同参数。`;
-          warnings.push(blocked);
-          this.emit(requestId, 'agentStage', { stage: 'tool_failed', round: round + 1, maxRounds: maxToolRounds, toolName: toolCall.function?.name, warning: blocked });
-          this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: toolCall.function?.name, ok: false, output: blocked });
-          workingMessages.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            content: blocked,
-          });
-          continue;
-        }
-        seenToolCalls.add(signature);
-        this.emit(requestId, 'agentStage', { stage: 'tool', round: round + 1, maxRounds: maxToolRounds });
-        const output = await this.handleToolCall(requestId, toolCall, settings, abortController.signal, round + 1, maxToolRounds);
-        workingMessages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: compactToolOutputForContext(toolCall.function?.name, parseToolArgs(toolCall.function?.arguments), output),
-        });
-      }
+      const toolResults = await this.handleToolCallsForRound(
+        requestId,
+        result.toolCalls,
+        settings,
+        abortController.signal,
+        round + 1,
+        maxToolRounds,
+        seenToolCalls,
+        warnings,
+      );
+      workingMessages.push(...toolResults.map(({ toolCall, output }) => ({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: compactToolOutputForContext(toolCall.function?.name, parseToolArgs(toolCall.function?.arguments), output),
+      })));
     }
   }
 
@@ -419,6 +411,59 @@ class ChatService {
       this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: fn.name, ok: false, output: message, security: buildToolSecurity(fn.name, args, settings) });
       return `工具 ${fn.name} 执行失败：${message}`;
     }
+  }
+
+  async handleToolCallsForRound(requestId, toolCalls, settings, signal, round = 0, maxRounds = 0, seenToolCalls = new Set(), warnings = []) {
+    const results = new Array(toolCalls.length);
+    let parallelGroup = [];
+
+    const flushParallelGroup = async () => {
+      if (parallelGroup.length === 0) return;
+      const group = parallelGroup;
+      parallelGroup = [];
+      this.emit(requestId, 'agentStage', {
+        stage: 'tool_parallel',
+        round,
+        maxRounds,
+        selectedTools: group.map((item) => item.toolCall.function?.name || 'unknown_tool'),
+      });
+      const settled = await Promise.allSettled(group.map((item) => (
+        this.handleToolCall(requestId, item.toolCall, settings, signal, round, maxRounds)
+      )));
+      settled.forEach((result, offset) => {
+        const { index, toolCall } = group[offset];
+        results[index] = {
+          toolCall,
+          output: result.status === 'fulfilled' ? result.value : `工具 ${toolCall.function?.name || 'unknown_tool'} 执行失败：${normalizeError(result.reason)}`,
+        };
+      });
+    };
+
+    for (let index = 0; index < toolCalls.length; index++) {
+      const toolCall = toolCalls[index];
+      const signature = toolCallSignature(toolCall);
+      if (seenToolCalls.has(signature)) {
+        await flushParallelGroup();
+        const blocked = `重复工具调用已抑制：${toolCall.function?.name || 'unknown_tool'}。请基于已有工具结果继续推理，或换用不同参数。`;
+        warnings.push(blocked);
+        this.emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: toolCall.function?.name, warning: blocked });
+        this.emit(requestId, 'toolResult', { toolCallId: toolCall.id, name: toolCall.function?.name, ok: false, output: blocked });
+        results[index] = { toolCall, output: blocked };
+        continue;
+      }
+      seenToolCalls.add(signature);
+      this.emit(requestId, 'agentStage', { stage: 'tool', round, maxRounds, toolName: toolCall.function?.name });
+      if (isParallelSafeToolCall(toolCall)) {
+        parallelGroup.push({ index, toolCall });
+        continue;
+      }
+      await flushParallelGroup();
+      const output = await this.handleToolCall(requestId, toolCall, settings, signal, round, maxRounds);
+      results[index] = { toolCall, output };
+    }
+
+    await flushParallelGroup();
+    return results.filter(Boolean);
   }
 
   waitForApproval(requestId, toolCallId, signal, timeoutMs = DEFAULT_TOOL_APPROVAL_TIMEOUT_MS) {
@@ -1147,6 +1192,11 @@ function buildToolSecurity(name, args = {}, settings = {}) {
   if (name === 'web_search') return { riskLevel: 'low', network: 'https', query: String(args.query || '') };
   if (isMcpToolName(name)) return { riskLevel: 'external', mcp: true };
   return { riskLevel: 'unknown' };
+}
+
+function isParallelSafeToolCall(toolCall = {}) {
+  const name = String(toolCall.function?.name || '');
+  return ['web_search', 'list_files', 'search_workspace', 'read_file'].includes(name);
 }
 
 function resolveToolApprovalTimeout(settings = {}) {

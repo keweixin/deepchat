@@ -387,6 +387,104 @@ describe('electron chat service token usage and agent loop', () => {
     expect(events.some((event) => String(event.output || event.warning || '').includes('重复工具调用已抑制'))).toBe(true);
   });
 
+  it('runs parallel-safe read-only tool calls together and appends results in declared order', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    const starts = [];
+    const resolvers = new Map();
+    let secondRoundMessages = [];
+    service.streamOnce = vi.fn(async (_requestId, messages) => {
+      if (service.streamOnce.mock.calls.length === 1) {
+        return {
+          content: '',
+          thinking: '',
+          usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1 }),
+          toolCalls: [
+            { id: 'tool-list', function: { name: 'list_files', arguments: '{"directory":"src"}' } },
+            { id: 'tool-search', function: { name: 'search_workspace', arguments: '{"query":"cache"}' } },
+          ],
+        };
+      }
+      secondRoundMessages = messages;
+      return {
+        content: 'done',
+        thinking: '',
+        usage: normalizeTokenUsage({ prompt_tokens: 12, completion_tokens: 2 }),
+        toolCalls: [],
+      };
+    });
+    service.handleToolCall = vi.fn(async (_requestId, toolCall) => {
+      starts.push(toolCall.id);
+      await new Promise((resolve) => resolvers.set(toolCall.id, resolve));
+      return `${toolCall.id} output`;
+    });
+
+    const runPromise = service.runWithSettings(
+      { requestId: 'req-parallel-tools', messages: [{ role: 'user', content: '检查 src 并搜索 cache' }] },
+      baseSettings({ activeSkill: 'agent_auto', workspaceRoots: ['E:\\demo'] }),
+      new AbortController(),
+    );
+
+    await waitForCondition(() => starts.length === 2);
+    expect(starts).toEqual(['tool-list', 'tool-search']);
+    resolvers.get('tool-search')();
+    resolvers.get('tool-list')();
+    await runPromise;
+
+    const toolMessages = secondRoundMessages.filter((message) => message.role === 'tool');
+    expect(toolMessages.map((message) => message.tool_call_id)).toEqual(['tool-list', 'tool-search']);
+    expect(toolMessages.map((message) => message.content)).toEqual(['tool-list output', 'tool-search output']);
+    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'tool_parallel')).toBe(true);
+  });
+
+  it('keeps run_code as a serial barrier between read-only tool groups', async () => {
+    const service = new ChatService(() => fakeWindow());
+    const starts = [];
+    const resolvers = new Map();
+    service.streamOnce = vi.fn(async () => {
+      if (service.streamOnce.mock.calls.length === 1) {
+        return {
+          content: '',
+          thinking: '',
+          usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1 }),
+          toolCalls: [
+            { id: 'tool-list', function: { name: 'list_files', arguments: '{}' } },
+            { id: 'tool-code', function: { name: 'run_code', arguments: '{"language":"javascript","code":"1+1"}' } },
+            { id: 'tool-search', function: { name: 'search_workspace', arguments: '{"query":"cache"}' } },
+          ],
+        };
+      }
+      return {
+        content: 'done',
+        thinking: '',
+        usage: normalizeTokenUsage({ prompt_tokens: 12, completion_tokens: 2 }),
+        toolCalls: [],
+      };
+    });
+    service.handleToolCall = vi.fn(async (_requestId, toolCall) => {
+      starts.push(toolCall.id);
+      await new Promise((resolve) => resolvers.set(toolCall.id, resolve));
+      return `${toolCall.id} output`;
+    });
+
+    const runPromise = service.runWithSettings(
+      { requestId: 'req-serial-barrier', messages: [{ role: 'user', content: '列文件、运行代码、再搜索' }] },
+      baseSettings({ activeSkill: 'agent_auto', workspaceRoots: ['E:\\demo'] }),
+      new AbortController(),
+    );
+
+    await waitForCondition(() => starts.length === 1);
+    expect(starts).toEqual(['tool-list']);
+    resolvers.get('tool-list')();
+    await waitForCondition(() => starts.length === 2);
+    expect(starts).toEqual(['tool-list', 'tool-code']);
+    resolvers.get('tool-code')();
+    await waitForCondition(() => starts.length === 3);
+    expect(starts).toEqual(['tool-list', 'tool-code', 'tool-search']);
+    resolvers.get('tool-search')();
+    await runPromise;
+  });
+
   it('compacts tool output by tool type', () => {
     const output = [
       '文件：E:\\demo\\README.md',
@@ -444,4 +542,12 @@ function streamFromText(text) {
       controller.close();
     },
   });
+}
+
+async function waitForCondition(predicate) {
+  for (let i = 0; i < 50; i++) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error('Timed out waiting for condition');
 }
