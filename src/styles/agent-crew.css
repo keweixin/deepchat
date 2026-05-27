@@ -120,6 +120,7 @@
 .agent-crew-role-icon {
   font-size: 16px;
   line-height: 1;
+  font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Android Emoji', 'EmojiSymbols', sans-serif;
 }
 
 .agent-crew-role-info {

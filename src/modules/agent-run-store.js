@@ -3,11 +3,11 @@
  */
 
 export const CREW_ROLES = [
-  { id: 'planner', label: 'Planner', icon: '🧭', title: '计划员' },
+  { id: 'planner', label: 'Planner', icon: '📋', title: '计划员' },
   { id: 'reader', label: 'Reader', icon: '📄', title: '文档员' },
-  { id: 'researcher', label: 'Researcher', icon: '🔎', title: '搜索员' },
-  { id: 'coder', label: 'Coder', icon: '🧪', title: '实验员' },
-  { id: 'reviewer', label: 'Reviewer', icon: '🛡️', title: '审核员' },
+  { id: 'researcher', label: 'Researcher', icon: '🔍', title: '搜索员' },
+  { id: 'coder', label: 'Coder', icon: '💻', title: '实验员' },
+  { id: 'reviewer', label: 'Reviewer', icon: '🔐', title: '审核员' },
   { id: 'writer', label: 'Writer', icon: '✍️', title: '写手' },
 ];
 
