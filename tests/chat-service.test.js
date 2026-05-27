@@ -659,6 +659,20 @@ describe('electron chat service token usage and agent loop', () => {
     expect(compacted).toContain('行范围：20-40');
     expect(compacted).toContain('开头片段');
     expect(compacted.length).toBeLessThan(output.length);
+
+    const workspaceOutput = compactToolOutputForContext('search_workspace', { symbol: 'buildContextBudgetBundle' }, [
+      '工作区搜索：buildContextBudgetBundle',
+      '符号：buildContextBudgetBundle',
+      '工作区：E:\\repo',
+      '目录：src',
+      '结果数：1',
+      '',
+      '1. src/modules/api.js:811-812',
+      '   摘录:',
+      '   811: export function buildContextBudgetBundle(messages, options = {}) {',
+    ].join('\n'));
+    expect(workspaceOutput).toContain('符号：buildContextBudgetBundle');
+    expect(workspaceOutput).toContain('src/modules/api.js:811-812');
   });
 
   it('emits compacted context output metadata with successful tool results', async () => {

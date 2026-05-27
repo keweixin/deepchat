@@ -271,11 +271,11 @@ describe('browser settings fallback', () => {
     expect(changed.reason).toContain('explicit_changed_context');
   });
 
-  it('extracts @file/@folder context mentions outside code blocks', () => {
+  it('extracts @file/@folder/@symbol context mentions outside code blocks', () => {
     const mentions = extractContextMentions([
-      '请看 @file:src/modules/api.js 和 @folder:"src/modules"',
+      '请看 @file:src/modules/api.js 和 @folder:"src/modules" 以及 @symbol:detectAgentIntent',
       '```txt',
-      '@file:should-not-read.env',
+      '@file:should-not-read.env @symbol:ignoredSymbol',
       '```',
       '重复 @file:src/modules/api.js',
     ].join('\n'));
@@ -283,6 +283,7 @@ describe('browser settings fallback', () => {
     expect(mentions).toEqual([
       { type: 'file', path: 'src/modules/api.js', label: '文件 src/modules/api.js' },
       { type: 'folder', path: 'src/modules', label: '目录 src/modules' },
+      { type: 'symbol', path: 'detectAgentIntent', label: '符号 detectAgentIntent' },
     ]);
   });
 
@@ -302,18 +303,20 @@ describe('browser settings fallback', () => {
   it('does not claim selected context was already read', () => {
     const content = appendContextHintsToUserContent('分析 @file:README.md', [
       { type: 'file', path: 'README.md' },
+      { type: 'symbol', path: 'buildContextBudgetBundle' },
     ], { workspaceRoots: [] });
 
     expect(content).toContain('不要声称已经读取');
     expect(content).toContain('缺少工作区配置');
     expect(content).toContain('read_file');
+    expect(content).toContain('search_workspace({ "symbol": "buildContextBudgetBundle"');
   });
 
   it('ignores generated memory blocks when detecting context mentions and intent', () => {
     const content = [
       '普通聊天',
       '<related_memory>',
-      '@file:.env package.json workspace',
+      '@file:.env @symbol:secretHandler package.json workspace',
       '</related_memory>',
       '<task_checkpoint>',
       '@web:"不要把长期任务状态误判成显式工具指令"',
@@ -322,6 +325,16 @@ describe('browser settings fallback', () => {
 
     expect(extractContextMentions(content)).toEqual([]);
     expect(detectAgentIntent(content, { workspaceRoots: ['E:/repo'], tavilyApiKey: '' }).toolMode).toBe('none');
+  });
+
+  it('routes explicit @symbol mentions to file tools when a workspace is available', () => {
+    const intent = detectAgentIntent('解释 @symbol:buildContextBudgetBundle 的实现', {
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: '',
+    });
+
+    expect(intent.toolMode).toBe('file_reader');
+    expect(intent.selectedTools).toEqual(expect.arrayContaining(['search_workspace', 'read_file']));
   });
 
   it('adds DeepSeek cost metadata when model pricing is known', () => {

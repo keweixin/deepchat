@@ -120,6 +120,32 @@ describe('electron tools helpers', () => {
     }
   });
 
+  it('prioritizes exact symbol definitions in workspace search', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-search-symbol-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src', 'agent.js'), [
+        'const unrelated = "buildContextBudgetBundle appears in docs";',
+        'export function buildContextBudgetBundle(messages, options = {}) {',
+        '  return { messages, meta: options };',
+        '}',
+      ].join('\n'), 'utf8');
+
+      const output = await executeTool('search_workspace', {
+        symbol: 'buildContextBudgetBundle',
+        directory: 'src',
+        max_results: 3,
+      }, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('工作区搜索：buildContextBudgetBundle');
+      expect(output).toContain('符号：buildContextBudgetBundle');
+      expect(output).toContain('agent.js:2-3');
+      expect(output).toContain('2: export function buildContextBudgetBundle');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('reads focused line ranges from workspace citation paths', async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-lines-'));
     try {

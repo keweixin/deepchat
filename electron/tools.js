@@ -60,17 +60,17 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'search_workspace',
-      description: 'Search text files inside a user-approved workspace and return concise line citations.',
+      description: 'Search text files or an exact code symbol inside a user-approved workspace and return concise line citations.',
       parameters: {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Keyword or phrase to search for.' },
+          symbol: { type: 'string', description: 'Optional exact function/class/variable/component symbol to search for.' },
           root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
           directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to search.' },
           pattern: { type: 'string', description: 'Optional filename substring or wildcard, such as *.js or README.' },
           max_results: { type: 'integer', minimum: 1, maximum: 20, description: 'Maximum number of file hits.' },
         },
-        required: ['query'],
       },
     },
   },
@@ -144,7 +144,7 @@ function describeToolRisk(name, args) {
   }
   if (name === 'search_workspace') {
     const directory = String(args.directory || '').trim();
-    const query = String(args.query || '').slice(0, 120);
+    const query = String(args.symbol || args.query || '').slice(0, 120);
     return directory
       ? `将在已授权工作区目录 ${directory.slice(0, 160)} 内搜索文本：${query}，并返回文件行号引用。`
       : `将在已授权工作区内搜索文本：${query}，并返回文件行号引用。`;
@@ -336,7 +336,8 @@ async function listFiles(args, settings) {
 }
 
 async function searchWorkspace(args, settings) {
-  const query = String(args.query || '').trim();
+  const symbol = normalizeSearchSymbol(args.symbol);
+  const query = String(args.query || symbol).trim();
   if (!query) throw new Error('搜索关键词不能为空。');
   const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
   const directory = String(args.directory || '').trim();
@@ -356,7 +357,7 @@ async function searchWorkspace(args, settings) {
     if (!file.fullPath || isSensitivePath(file.fullPath)) continue;
     const text = await readSearchableFile(file.fullPath, Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES));
     if (!text) continue;
-    const hit = findBestTextHit(text, terms, queryLower);
+    const hit = findBestTextHit(text, terms, queryLower, symbol);
     if (!hit) continue;
     hits.push({
       ...hit,
@@ -381,6 +382,7 @@ async function searchWorkspace(args, settings) {
 
   const lines = [
     `工作区搜索：${query}`,
+    symbol ? `符号：${symbol}` : '',
     `工作区：${root}`,
     `目录：${relativeDirectory}`,
     pattern ? `文件筛选：${pattern}` : '',
@@ -424,13 +426,24 @@ function tokenizeSearchQuery(query) {
     .slice(0, 8))];
 }
 
-function findBestTextHit(text, terms, queryLower) {
+function normalizeSearchSymbol(value) {
+  const symbol = String(value || '').trim();
+  if (!symbol || symbol.length > 160) return '';
+  return /^[\p{L}_$][\p{L}\p{N}_$.-]*$/u.test(symbol) ? symbol : '';
+}
+
+function findBestTextHit(text, terms, queryLower, symbol = '') {
   const lines = String(text || '').split(/\r?\n/);
   let best = null;
+  const symbolPattern = symbol ? createSymbolPattern(symbol) : null;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index] || '';
     const lower = line.toLowerCase();
     let score = 0;
+    if (symbolPattern && symbolPattern.test(line)) {
+      score += 10;
+      if (looksLikeSymbolDefinition(line, symbol)) score += 8;
+    }
     if (queryLower && lower.includes(queryLower)) score += 5;
     for (const term of terms) {
       if (lower.includes(term)) score += 1;
@@ -447,6 +460,25 @@ function findBestTextHit(text, terms, queryLower) {
     }
   }
   return best;
+}
+
+function createSymbolPattern(symbol) {
+  const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const boundary = '[^\\p{L}\\p{N}_$.-]';
+  return new RegExp(`(^|${boundary})${escaped}(?=$|${boundary})`, 'u');
+}
+
+function looksLikeSymbolDefinition(line, symbol) {
+  const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    `\\bfunction\\s+${escaped}\\b`,
+    `\\bclass\\s+${escaped}\\b`,
+    `\\b(?:const|let|var)\\s+${escaped}\\b`,
+    `\\bexport\\s+(?:async\\s+)?function\\s+${escaped}\\b`,
+    `\\b(?:async\\s+)?${escaped}\\s*\\(`,
+    `<${escaped}(?:\\s|>|/)`,
+  ];
+  return patterns.some((pattern) => new RegExp(pattern, 'u').test(line));
 }
 
 function truncateLine(value) {

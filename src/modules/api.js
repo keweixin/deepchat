@@ -272,7 +272,7 @@ const DIRECTIVE_TEXT_PATTERN = /```[\s\S]*?```/g;
 
 export function extractContextMentions(content = '') {
   const text = stripVolatileContextBlocks(content).replace(/```[\s\S]*?```/g, ' ');
-  const pattern = /(?:^|[\s([，,;；])@(file|folder)\s*:\s*(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s,，;；)\]]+))/gi;
+  const pattern = /(?:^|[\s([，,;；])@(file|folder|symbol)\s*:\s*(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s,，;；)\]]+))/gi;
   const mentions = [];
   const seen = new Set();
   let match;
@@ -287,7 +287,7 @@ export function extractContextMentions(content = '') {
     mentions.push({
       type,
       path: pathValue,
-      label: type === 'folder' ? `目录 ${pathValue}` : `文件 ${pathValue}`,
+      label: type === 'folder' ? `目录 ${pathValue}` : (type === 'symbol' ? `符号 ${pathValue}` : `文件 ${pathValue}`),
     });
   }
   return mentions;
@@ -299,12 +299,14 @@ export function appendContextHintsToUserContent(content = '', mentions = [], set
   const workspaceCount = Array.isArray(settings.workspaceRoots) ? settings.workspaceRoots.length : 0;
   const lines = [
     '<selected_context>',
-    '用户在当前消息中用 @file/@folder 显式选择了本地上下文。',
+    '用户在当前消息中用 @file/@folder/@symbol 显式选择了本地上下文。',
     '不要声称已经读取这些路径；需要文件内容时必须调用 list_files/search_workspace/read_file，并等待用户确认。搜索结果含 file:start-end 时，可用 read_file 精确读取该行范围。',
     workspaceCount > 0 ? `已配置工作区数量：${workspaceCount}` : '缺少工作区配置：请提示用户先在设置中添加工作区。',
     ...selected.map((item) => {
-      if (item.type === 'folder') return `- folder: ${item.path}；建议先调用 list_files({ "directory": "${item.path}" })`;
-      return `- file: ${item.path}；建议调用 read_file({ "path": "${item.path}" })`;
+      const value = JSON.stringify(item.path);
+      if (item.type === 'folder') return `- folder: ${item.path}；建议先调用 list_files({ "directory": ${value} })`;
+      if (item.type === 'symbol') return `- symbol: ${item.path}；建议先调用 search_workspace({ "symbol": ${value}, "max_results": 8 })，再用 read_file 读取返回的 file:start-end 行范围。`;
+      return `- file: ${item.path}；建议调用 read_file({ "path": ${value} })`;
     }),
     '</selected_context>',
   ];
@@ -1028,7 +1030,7 @@ function needsSearch(text, lower) {
 function needsFiles(text, lower) {
   return /文件|目录|项目|代码库|仓库|读取|检查|分析.*代码|打开|路径|工作区|本地|报错日志|readme|package\.json|\.js|\.ts|\.vue|\.md|\.py|[a-z]:\\/i.test(text)
     || lower.includes('workspace')
-    || /@(file|folder)\s*:/i.test(text);
+    || /@(file|folder|symbol)\s*:/i.test(text);
 }
 
 function needsCode(text, lower) {
