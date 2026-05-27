@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildAgentPlanActionPrompt,
   buildAnswerActionPrompt,
   getCompactMessagePreview,
   buildConversationUsageTelemetryDetails,
@@ -32,6 +33,26 @@ describe('chat regeneration', () => {
     expect(long.length).toBeLessThan(6500);
     expect(long).toContain('中间内容已省略');
     expect(buildAnswerActionPrompt('unknown', 'content')).toBe('');
+  });
+
+  it('builds bounded plan action prompts from agent plans', () => {
+    const prompt = buildAgentPlanActionPrompt('single_step', {
+      mode: 'workspace',
+      maxRounds: 3,
+      reason: '需要读取本地证据',
+      steps: ['搜索项目结构', '读取 UI 文件'],
+      searchPlan: [{ purpose: '定位', query: 'agent plan UI', reason: '确认入口' }],
+      selectedTools: ['search_workspace', 'read_file'],
+      approvalPolicy: ['运行代码必须确认'],
+    });
+
+    expect(prompt).toContain('只执行');
+    expect(prompt).toContain('<agent_plan>');
+    expect(prompt).toContain('模式：workspace');
+    expect(prompt).toContain('1. 搜索项目结构');
+    expect(prompt).toContain('定位：agent plan UI');
+    expect(prompt).toContain('运行代码必须确认');
+    expect(buildAgentPlanActionPrompt('unknown', { mode: 'workspace' })).toBe('');
   });
 
   it('truncates from the selected assistant message instead of the last message', () => {
@@ -346,10 +367,40 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('DeepSeek cache official documentation');
     expect(container.textContent).toContain('预计工具');
     expect(container.textContent).toContain('审批策略');
+    expect(container.textContent).toContain('执行全部');
+    expect(container.textContent).toContain('单步执行');
+    expect(container.textContent).toContain('修改计划');
+    expect(container.textContent).toContain('取消生成');
     expect(container.textContent).toContain('prefix abc123');
     expect(container.textContent).toContain('裁剪 3 条');
     expect(container.textContent).toContain('检索历史');
     expect(container.textContent).toContain('等待确认');
+  });
+
+  it('fills the composer when revising an agent plan from the timeline', () => {
+    const input = document.createElement('textarea');
+    input.id = 'message-input';
+    document.body.appendChild(input);
+    const container = document.createElement('div');
+
+    renderAgentTimeline(container, {
+      agentStages: [{
+        stage: 'plan',
+        round: 0,
+        planSummary: {
+          mode: 'multi_tool',
+          maxRounds: 3,
+          steps: ['读取文件', '整理证据'],
+          selectedTools: ['read_file'],
+        },
+      }],
+    });
+    container.querySelector('.agent-plan-action-btn.action-revise').click();
+
+    expect(input.value).toContain('请先修改');
+    expect(input.value).toContain('<agent_plan>');
+    expect(input.value).toContain('读取文件');
+    input.remove();
   });
 
   it('formats compact conversation usage telemetry for the chat header', () => {

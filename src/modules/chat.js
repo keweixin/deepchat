@@ -1325,7 +1325,56 @@ function createAgentPlanCard(plan = null) {
   appendAgentPlanChips(card, '缺少配置', plan.missingPrerequisites, 'is-warning');
   appendAgentPlanChips(card, '审批策略', plan.approvalPolicy);
   appendAgentPlanChips(card, '提示', plan.warnings, 'is-warning');
+  card.appendChild(createAgentPlanActions(plan));
   return card;
+}
+
+function createAgentPlanActions(plan = {}) {
+  const actions = document.createElement('div');
+  actions.className = 'agent-plan-actions';
+  [
+    ['execute_all', '执行全部', '按这个计划继续执行'],
+    ['single_step', '单步执行', '只执行计划中的下一步'],
+    ['revise', '修改计划', '要求模型先调整计划'],
+    ['cancel', '取消生成', '停止当前生成'],
+  ].forEach(([action, label, title]) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `agent-plan-action-btn action-${action}`;
+    button.textContent = label;
+    button.title = title;
+    button.addEventListener('click', () => applyAgentPlanAction(action, plan));
+    actions.appendChild(button);
+  });
+  return actions;
+}
+
+function applyAgentPlanAction(action, plan = {}) {
+  if (action === 'cancel') {
+    if (isStreaming) {
+      stopStreaming();
+      showToast('已取消当前生成');
+    } else {
+      showToast('当前没有正在生成的任务');
+    }
+    return;
+  }
+  const prompt = buildAgentPlanActionPrompt(action, plan);
+  if (!prompt) return;
+  if (action === 'execute_all' && !isStreaming) {
+    sendMessage(prompt, { composerOverrides: { enhance: false } });
+    return;
+  }
+  fillComposerPrompt(prompt);
+  showToast(action === 'execute_all' ? '当前计划已在执行，已准备继续指令' : '已填入计划控制指令');
+}
+
+function fillComposerPrompt(prompt) {
+  const input = document.getElementById('message-input');
+  if (!input) return;
+  input.value = prompt;
+  input.focus?.();
+  input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function appendAgentSearchPlan(card, searchPlan = []) {
@@ -2151,6 +2200,40 @@ export function buildAnswerActionPrompt(action, content = '') {
   const instruction = instructions[action];
   if (!instruction) return '';
   return `${instruction}\n\n<previous_answer>\n${source}\n</previous_answer>`;
+}
+
+export function buildAgentPlanActionPrompt(action, plan = {}) {
+  const summary = serializeAgentPlanForPrompt(plan);
+  if (!summary) return '';
+  const instructions = {
+    execute_all: '请按下面的 DeepChat Agent 计划继续执行。低风险读取/搜索工具按计划推进；运行代码、MCP 外部操作和任何写入动作仍必须等待我的确认。每一步完成后保留证据，最终回答说明用了哪些工具和来源。',
+    single_step: '请只执行下面 DeepChat Agent 计划中的下一步。执行后先停下来汇报证据、结果和下一步建议，不要连续推进后续步骤。',
+    revise: '请先修改下面的 DeepChat Agent 计划。要求：减少无关工具调用，明确每一步需要的证据，标出哪些步骤需要我确认。先输出新计划，不要立刻执行工具。',
+  };
+  const instruction = instructions[action];
+  if (!instruction) return '';
+  return `${instruction}\n\n<agent_plan>\n${summary}\n</agent_plan>`;
+}
+
+function serializeAgentPlanForPrompt(plan = {}) {
+  if (!plan || typeof plan !== 'object') return '';
+  const lines = [
+    `模式：${plan.mode || 'unknown'}`,
+    `最多轮数：${plan.maxRounds || ''}`,
+    `原因：${plan.reason || ''}`,
+  ];
+  const pushList = (label, values, mapper = (value) => value) => {
+    const list = (Array.isArray(values) ? values : []).map(mapper).map((value) => String(value || '').trim()).filter(Boolean);
+    if (!list.length) return;
+    lines.push('', `${label}：`);
+    list.slice(0, 10).forEach((value, index) => lines.push(`${index + 1}. ${value}`));
+  };
+  pushList('步骤', plan.steps);
+  pushList('搜索计划', plan.searchPlan, (item) => `${item.purpose || '搜索'}：${item.query}${item.reason ? `（${item.reason}）` : ''}`);
+  pushList('预计工具', plan.selectedTools);
+  pushList('缺少配置', plan.missingPrerequisites);
+  pushList('审批策略', plan.approvalPolicy);
+  return lines.join('\n').trim();
 }
 
 function compactAnswerActionContext(content = '') {
