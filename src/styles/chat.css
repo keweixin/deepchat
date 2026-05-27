@@ -486,6 +486,30 @@
   flex-shrink: 0;
 }
 
+.header-usage-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  max-width: min(26vw, 260px);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 58%);
+  background: color-mix(in srgb, var(--accent-primary), transparent 92%);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: help;
+  flex-shrink: 1;
+}
+
+.header-usage-badge.hidden {
+  display: none;
+}
+
 #model-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1011,6 +1035,11 @@
 
   .model-badge {
     padding: var(--space-2);
+  }
+
+  .header-usage-badge {
+    max-width: 104px;
+    padding: 2px 6px;
   }
 
   #model-name {

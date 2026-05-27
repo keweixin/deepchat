@@ -1597,6 +1597,7 @@ function normalizeTokenUsage(usage, fallback = {}) {
       warnings: fallback.warnings || [],
       byPurpose: fallback.byPurpose,
       model: fallback.model,
+      rounds: fallback.rounds,
     });
   }
 
@@ -1641,6 +1642,7 @@ function normalizeTokenUsage(usage, fallback = {}) {
     byPurpose: usage.byPurpose || fallback.byPurpose,
     cost: usage.cost || fallback.cost,
     model: usage.model || fallback.model,
+    rounds: usage.rounds || fallback.rounds,
   });
 }
 

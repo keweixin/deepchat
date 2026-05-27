@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getCompactMessagePreview,
+  formatConversationUsageTelemetry,
   hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
   renderAgentTimeline,
@@ -100,6 +101,45 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('裁剪 3 条');
     expect(container.textContent).toContain('检索历史');
     expect(container.textContent).toContain('等待确认');
+  });
+
+  it('formats compact conversation usage telemetry for the chat header', () => {
+    const telemetry = formatConversationUsageTelemetry({
+      cacheProfile: {
+        prefixFingerprint: 'abc123',
+        prefixTokens: 480,
+        cacheStabilityReasons: ['tool_schema_changed'],
+      },
+      messages: [
+        {
+          role: 'assistant',
+          tokens: {
+            input: 1200,
+            output: 300,
+            total: 1500,
+            reasoning: 40,
+            cacheHit: 900,
+            cacheMiss: 300,
+            rounds: 2,
+            cost: {
+              estimatedCostUsd: 0.0002,
+              estimatedSavingsUsd: 0.0001,
+            },
+          },
+        },
+      ],
+    });
+
+    expect(telemetry.text).toContain('1.5k tok');
+    expect(telemetry.text).toContain('缓存 75%');
+    expect(telemetry.text).toContain('2 轮');
+    expect(telemetry.title).toContain('本会话 Token / Cache 汇总');
+    expect(telemetry.title).toContain('Prefix: abc123');
+    expect(telemetry.title).toContain('工具 schema 变化');
+  });
+
+  it('hides conversation usage telemetry when there is no token usage', () => {
+    expect(formatConversationUsageTelemetry({ messages: [] })).toBeNull();
   });
 
   it('compacts only old long assistant messages without execution evidence', () => {

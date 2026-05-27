@@ -63,7 +63,7 @@ let selectedConversationIds = new Set();
 let conversationMenuEl = null;
 let conversationMenuCleanup = null;
 
-let $messages, $welcome, $convList, $chatTitle, $modelName;
+let $messages, $welcome, $convList, $chatTitle, $modelName, $chatUsageBadge;
 
 const MARKDOWN_RENDER_CACHE_LIMIT = 240;
 const HISTORICAL_FULL_RENDER_LIMIT = 60;
@@ -76,6 +76,7 @@ export async function initChat() {
   $convList = document.getElementById('conversation-list');
   $chatTitle = document.getElementById('chat-title');
   $modelName = document.getElementById('model-name');
+  $chatUsageBadge = document.getElementById('chat-usage-badge');
 
   conversations = normalizeConversations(await loadConversations());
 
@@ -1591,6 +1592,77 @@ function formatTokenUsageTitle(tokens) {
   return lines.join('\n');
 }
 
+export function formatConversationUsageTelemetry(conversation) {
+  const usage = getConversationUsageSummary(conversation);
+  if (!usage || usage.total <= 0) return null;
+  const profile = getConversationCacheProfile(conversation);
+  const hitRate = usage.cacheHit > 0 || usage.cacheMiss > 0
+    ? Math.round(usage.cacheHitRate * 100)
+    : null;
+  const textParts = [`${formatCompactTokenCount(usage.total)} tok`];
+  if (hitRate !== null) textParts.push(`缓存 ${hitRate}%`);
+  if (usage.cost?.estimatedSavingsUsd > 0) textParts.push(`省 ${formatUsd(usage.cost.estimatedSavingsUsd)}`);
+  if (usage.rounds > 1) textParts.push(`${usage.rounds} 轮`);
+
+  const titleLines = [
+    '本会话 Token / Cache 汇总',
+    `输入: ${usage.input}`,
+    `输出: ${usage.output}`,
+    `总计: ${usage.total}`,
+    `统计来源: ${usage.source === 'provider' ? '服务商真实 usage' : (usage.source === 'mixed' ? '真实和估算混合' : '本地估算')}`,
+  ];
+  if (usage.reasoning > 0) titleLines.push(`思考: ${usage.reasoning}`);
+  if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
+    titleLines.push(`缓存命中: ${usage.cacheHit}`);
+    titleLines.push(`缓存未命中: ${usage.cacheMiss}`);
+    titleLines.push(`命中率: ${hitRate}%`);
+  }
+  if (usage.cost) {
+    titleLines.push(`估算成本: ${formatUsd(usage.cost.estimatedCostUsd || 0)}`);
+    titleLines.push(`缓存节省: ${formatUsd(usage.cost.estimatedSavingsUsd || 0)}`);
+  }
+  if (usage.rounds > 1) titleLines.push(`Agent 轮次: ${usage.rounds}`);
+  if (profile?.prefixFingerprint) titleLines.push(`Prefix: ${profile.prefixFingerprint}`);
+  if (profile?.prefixTokens) titleLines.push(`Prefix tokens: ${profile.prefixTokens}`);
+  if (profile?.cacheStabilityReasons?.length) {
+    titleLines.push(`Cache miss 可能原因: ${profile.cacheStabilityReasons.map(formatCacheStabilityReason).join('、')}`);
+  }
+  const detailText = formatCacheStabilityDetails(profile?.cacheStabilityDetails);
+  if (detailText) titleLines.push(`变化明细: ${detailText}`);
+
+  return {
+    text: textParts.join(' · '),
+    title: titleLines.join('\n'),
+    hitRate,
+    total: usage.total,
+  };
+}
+
+function getConversationCacheProfile(conversation) {
+  if (conversation?.cacheProfile && typeof conversation.cacheProfile === 'object') return conversation.cacheProfile;
+  const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message?.cacheProfile && typeof message.cacheProfile === 'object') return message.cacheProfile;
+    if (message?.tokens?.cacheProfile && typeof message.tokens.cacheProfile === 'object') return message.tokens.cacheProfile;
+  }
+  return null;
+}
+
+function formatCompactTokenCount(value) {
+  const number = Number(value) || 0;
+  if (number < 1000) return String(Math.round(number));
+  if (number < 1000000) {
+    const compact = number < 10000 ? (number / 1000).toFixed(1) : Math.round(number / 1000).toString();
+    return `${compact.replace(/\.0$/, '')}k`;
+  }
+  return `${(number / 1000000).toFixed(1).replace(/\.0$/, '')}m`;
+}
+
+function formatUsd(value) {
+  return `$${Number(value || 0).toFixed(6)}`;
+}
+
 function buildCacheProfile(tokens, contextBudget) {
   const usage = normalizeTokenUsage(tokens);
   const profile = tokens?.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : {};
@@ -2219,18 +2291,28 @@ function updateHeader() {
   const conv = getActiveConversation();
   const settings = getSettings();
   $chatTitle.textContent = conv ? conv.title : '新的对话';
-  const usage = conv ? getConversationUsageSummary(conv) : null;
-  const usageText = usage && usage.total > 0
-    ? ` · 本会话 ${usage.total} tokens${usage.cacheHit > 0 ? ` · 命中 ${Math.round(usage.cacheHitRate * 100)}%` : ''}`
-    : '';
-  $modelName.textContent = `${settings.model}${usageText}`;
-  $modelName.title = usage && usage.total > 0
-    ? `输入 ${usage.input} · 输出 ${usage.output} · 思考 ${usage.reasoning} · 缓存命中 ${usage.cacheHit}`
-    : settings.model;
+  $modelName.textContent = settings.model;
+  $modelName.title = settings.model;
+  updateHeaderUsageBadge(conv);
 }
 
 export function updateModelDisplay(model) {
   $modelName.textContent = model;
+}
+
+function updateHeaderUsageBadge(conversation) {
+  if (!$chatUsageBadge) return;
+  const telemetry = formatConversationUsageTelemetry(conversation);
+  if (!telemetry) {
+    $chatUsageBadge.classList.add('hidden');
+    $chatUsageBadge.textContent = '';
+    $chatUsageBadge.title = '';
+    return;
+  }
+  $chatUsageBadge.classList.remove('hidden');
+  $chatUsageBadge.textContent = telemetry.text;
+  $chatUsageBadge.title = telemetry.title;
+  $chatUsageBadge.dataset.hitRate = telemetry.hitRate === null ? '' : String(telemetry.hitRate);
 }
 
 function toggleStreamingUI(streaming) {
