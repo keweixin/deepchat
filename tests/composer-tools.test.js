@@ -140,6 +140,7 @@ describe('composer tool drawer helpers', () => {
       expect.objectContaining({ label: '工作区 1 个', tone: 'ready' }),
       expect.objectContaining({ label: '文件 src/main.js', kind: 'file' }),
       expect.objectContaining({ label: '符号 sendMessage', kind: 'symbol' }),
+      expect.objectContaining({ label: '本地工具 read_file + read_symbol', kind: 'context-route', tone: 'ready' }),
       expect.objectContaining({ label: '工具 全工具' }),
       expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
       expect.objectContaining({ label: '只读工具可自动通过' }),
@@ -176,6 +177,7 @@ describe('composer tool drawer helpers', () => {
     expect(localAndRun.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: '工具 全工具', tone: 'ready' }),
       expect.objectContaining({ label: '文件 src/main.js' }),
+      expect.objectContaining({ label: '本地工具 read_file', tone: 'ready' }),
       expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
     ]));
   });
@@ -280,6 +282,7 @@ describe('composer tool drawer helpers', () => {
     expect(preview.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: '未选工作区', tone: 'muted' }),
       expect.objectContaining({ label: '文件 README.md', tone: 'warning' }),
+      expect.objectContaining({ label: '本地工具 read_file', kind: 'context-route', tone: 'warning' }),
     ]));
   });
 

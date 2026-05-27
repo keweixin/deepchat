@@ -134,6 +134,18 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     });
   }
 
+  const localRoute = buildExplicitContextToolRoute(mentions);
+  if (localRoute) {
+    items.push({
+      kind: 'context-route',
+      label: localRoute.label,
+      tone: roots.length ? 'ready' : 'warning',
+      title: roots.length
+        ? `${localRoute.title}。工具执行仍遵循当前审批策略。`
+        : `${localRoute.title}；但当前缺少工作区，发送后会提示先完成配置。`,
+    });
+  }
+
   const toolLabel = getComposerToolModeLabel(activeSkill);
   items.push({
     kind: 'tool',
@@ -310,6 +322,27 @@ function buildIntentPreviewTitle(intent = {}, missing = []) {
     intent.candidateTools?.length ? `候选工具：${formatToolLabels(intent.candidateTools)}` : '',
     missing.length ? `缺少配置：${missing.join('、')}` : '',
   ].filter(Boolean).join('\n');
+}
+
+function buildExplicitContextToolRoute(mentions = []) {
+  if (!Array.isArray(mentions) || mentions.length === 0) return null;
+  const tools = [];
+  const add = (tool) => {
+    if (tool && !tools.includes(tool)) tools.push(tool);
+  };
+  for (const mention of mentions) {
+    if (mention?.type === 'file') add('read_file');
+    else if (mention?.type === 'symbol') add('read_symbol');
+    else if (mention?.type === 'folder') {
+      add('list_files');
+      add('search_workspace');
+    }
+  }
+  if (!tools.length) return null;
+  return {
+    label: `本地工具 ${tools.join(' + ')}`,
+    title: `显式上下文会优先映射到 ${tools.join('、')}`,
+  };
 }
 
 export function getComposerToolRisk(id, settings = {}) {
