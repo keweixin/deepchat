@@ -39,6 +39,7 @@ import {
   buildToolEvidencePayload,
   buildToolRuns,
   createToolRecord,
+  extractLocalCitations,
   extractToolSources,
   formatToolArgs,
   getLocalFileGrounding,
@@ -858,7 +859,7 @@ function renderAttachmentStrip(attachments = []) {
   return strip;
 }
 
-function renderContextMentionStrip(content = '') {
+export function renderContextMentionStrip(content = '') {
   const mentions = extractContextMentions(content);
   if (mentions.length === 0) return null;
   const strip = document.createElement('div');
@@ -870,14 +871,16 @@ function renderContextMentionStrip(content = '') {
   for (const mention of mentions) {
     const chip = document.createElement('span');
     chip.className = `message-context-chip type-${mention.type}`;
-    chip.textContent = mention.type === 'folder' ? `目录 ${mention.path}` : `文件 ${mention.path}`;
+    chip.textContent = mention.type === 'folder'
+      ? `目录 ${mention.path}`
+      : (mention.type === 'symbol' ? `符号 ${mention.path}` : `文件 ${mention.path}`);
     chip.title = mention.path;
     strip.appendChild(chip);
   }
   return strip;
 }
 
-function renderToolCalls(container, toolCalls = [], options = {}) {
+export function renderToolCalls(container, toolCalls = [], options = {}) {
   if (!container) return;
   container.innerHTML = '';
   if (!toolCalls || toolCalls.length === 0) {
@@ -949,7 +952,7 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
     }
 
     if (tool.output) {
-      const preview = createToolOutputPreview(tool.output);
+      const preview = createToolOutputPreview(tool.output, getToolName(tool));
       if (preview) block.appendChild(preview);
 
       const output = document.createElement('details');
@@ -1047,40 +1050,62 @@ function createToolSecurityMeta(tool) {
   return meta;
 }
 
-function createToolOutputPreview(outputText) {
+function createToolOutputPreview(outputText, toolName = '') {
   const sources = extractToolSources(outputText);
-  if (sources.length === 0) return null;
+  const localCitations = extractLocalCitations(outputText, toolName);
+  if (sources.length === 0 && localCitations.length === 0) return null;
 
   const preview = document.createElement('div');
   preview.className = 'tool-source-preview';
-  const label = document.createElement('div');
-  label.className = 'tool-source-label';
-  label.textContent = `真实来源 (${sources.length})`;
-  preview.appendChild(label);
 
-  for (const source of sources.slice(0, 3)) {
-    const item = document.createElement('div');
-    item.className = 'tool-source-item';
-    const title = document.createElement('span');
-    title.className = 'tool-source-title';
-    title.textContent = source.title;
-    item.appendChild(title);
-    if (source.url) {
-      const url = document.createElement('a');
-      url.className = 'tool-source-url';
-      url.href = source.url;
-      url.target = '_blank';
-      url.rel = 'noreferrer';
-      url.textContent = source.url;
-      item.appendChild(url);
+  if (sources.length > 0) {
+    const label = document.createElement('div');
+    label.className = 'tool-source-label';
+    label.textContent = `真实来源 (${sources.length})`;
+    preview.appendChild(label);
+
+    for (const source of sources.slice(0, 3)) {
+      const item = document.createElement('div');
+      item.className = 'tool-source-item';
+      const title = document.createElement('span');
+      title.className = 'tool-source-title';
+      title.textContent = source.title;
+      item.appendChild(title);
+      if (source.url) {
+        const url = document.createElement('a');
+        url.className = 'tool-source-url';
+        url.href = source.url;
+        url.target = '_blank';
+        url.rel = 'noreferrer';
+        url.textContent = source.url;
+        item.appendChild(url);
+      }
+      if (source.publishedDate) {
+        const date = document.createElement('span');
+        date.className = 'tool-source-date';
+        date.textContent = source.publishedDate;
+        item.appendChild(date);
+      }
+      preview.appendChild(item);
     }
-    if (source.publishedDate) {
-      const date = document.createElement('span');
-      date.className = 'tool-source-date';
-      date.textContent = source.publishedDate;
-      item.appendChild(date);
+  }
+
+  if (localCitations.length > 0) {
+    const label = document.createElement('div');
+    label.className = 'tool-source-label';
+    label.textContent = `本地引用 (${localCitations.length})`;
+    preview.appendChild(label);
+
+    const list = document.createElement('div');
+    list.className = 'tool-local-citation-list';
+    for (const citation of localCitations.slice(0, 6)) {
+      const chip = document.createElement('span');
+      chip.className = 'tool-local-citation';
+      chip.textContent = citation.label;
+      chip.title = citation.file;
+      list.appendChild(chip);
     }
-    preview.appendChild(item);
+    preview.appendChild(list);
   }
 
   return preview;

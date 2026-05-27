@@ -6,6 +6,8 @@ import {
   hasSearchWithoutCitedSource,
   renderAgentTimeline,
   renderAssistantEvidence,
+  renderContextMentionStrip,
+  renderToolCalls,
   shouldCompactHistoricalMessage,
   trimMessagesForRegeneration,
 } from '../src/modules/chat.js';
@@ -74,6 +76,36 @@ describe('chat regeneration', () => {
 
     expect(container.textContent).toContain('本地文件证据未被明确引用');
     expect(container.textContent).toContain('src/agent.md:2-3');
+  });
+
+  it('renders local workspace citations in tool result cards', () => {
+    const container = document.createElement('div');
+    renderToolCalls(container, [{
+      id: 'tool-search',
+      name: 'search_workspace',
+      status: 'completed',
+      ok: true,
+      args: { query: 'cache telemetry' },
+      output: [
+        '工作区搜索：cache telemetry',
+        '结果数：1',
+        '',
+        '1. src/agent.md:2-3',
+        '   摘录:',
+        '   2: DeepSeek cache telemetry should explain hit and miss tokens.',
+      ].join('\n'),
+    }]);
+
+    expect(container.hidden).toBe(false);
+    expect(container.textContent).toContain('本地引用 (1)');
+    expect(container.textContent).toContain('src/agent.md:2-3');
+  });
+
+  it('labels selected symbol context as a symbol chip', () => {
+    const strip = renderContextMentionStrip('解释 @symbol:buildContextBudgetBundle 和 @file:src/modules/api.js');
+
+    expect(strip.textContent).toContain('符号 buildContextBudgetBundle');
+    expect(strip.textContent).toContain('文件 src/modules/api.js');
   });
 
   it('renders agent stages and context budget metadata', () => {

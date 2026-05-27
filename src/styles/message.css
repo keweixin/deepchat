@@ -860,6 +860,25 @@
   font-family: var(--font-mono);
   font-size: 10px;
 }
+.tool-local-citation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.tool-local-citation {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  background: color-mix(in srgb, var(--accent-primary), transparent 94%);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
 .tool-call-output summary {
   cursor: pointer;
   color: var(--text-secondary);
