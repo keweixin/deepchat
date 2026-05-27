@@ -3,6 +3,11 @@ const path = require('path');
 const os = require('os');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
+const {
+  parseWorkspaceQuery,
+  matchesFileDirective,
+  matchesChangedDirective,
+} = require('./workspace-query');
 
 const MAX_FILE_BYTES = 100 * 1024;
 const DEFAULT_FILE_BYTES = 30 * 1024;
@@ -583,16 +588,26 @@ async function indexWorkspace(args, settings) {
 }
 
 async function searchWorkspace(args, settings) {
-  const symbol = normalizeSearchSymbol(args.symbol);
-  const query = String(args.query || symbol).trim();
-  if (!query) throw new Error('搜索关键词不能为空。');
+  const rawQuery = String(args.query || args.symbol || '').trim();
+  if (!rawQuery) throw new Error('搜索关键词不能为空。');
+
+  const parsed = parseWorkspaceQuery(rawQuery);
+  const symbol = normalizeSearchSymbol(args.symbol || parsed.symbol);
+  const query = parsed.textQuery || symbol;
   const index = await getWorkspaceIndex(args, settings);
   const maxResults = clampInt(args.max_results, 1, 20, 8);
+
+  // Apply directive filters
+  const filteredFiles = index.files.filter((file) => {
+    if (!matchesFileDirective(file.path, parsed)) return false;
+    if (!matchesChangedDirective(file.mtimeMs, parsed)) return false;
+    return true;
+  });
 
   const terms = tokenizeSearchQuery(query);
   const queryLower = query.toLowerCase();
   const hits = [];
-  for (const file of index.files) {
+  for (const file of filteredFiles) {
     if (hits.length >= maxResults * 4) break;
     const fileRelevance = scoreWorkspaceFileRelevance(file, query, terms, symbol);
     const fileHits = findTextHits(file.text, terms, queryLower, symbol, 2);
@@ -621,10 +636,13 @@ async function searchWorkspace(args, settings) {
   const rankedHits = hits.map((hit) => scoreWorkspaceHit(hit));
   rankedHits.sort((a, b) => b.score - a.score || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
   const selected = rankedHits.slice(0, maxResults);
+
+  const directiveSummary = buildDirectiveSummary(parsed);
   if (selected.length === 0) {
     const structured = buildWorkspaceSearchStructuredResults({ query, symbol, index, selected });
     return [
-      `工作区搜索：${query}`,
+      `工作区搜索：${rawQuery}`,
+      directiveSummary,
       `工作区：${index.root}`,
       `目录：${index.relativeDirectory}`,
       index.pattern ? `文件筛选：${index.pattern}` : '',
@@ -639,7 +657,8 @@ async function searchWorkspace(args, settings) {
 
   const structured = buildWorkspaceSearchStructuredResults({ query, symbol, index, selected });
   const lines = [
-    `工作区搜索：${query}`,
+    `工作区搜索：${rawQuery}`,
+    directiveSummary,
     symbol ? `符号：${symbol}` : '',
     `工作区：${index.root}`,
     `目录：${index.relativeDirectory}`,
@@ -661,6 +680,16 @@ async function searchWorkspace(args, settings) {
     lines.push('');
   });
   return lines.join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+function buildDirectiveSummary(parsed) {
+  const parts = [];
+  if (parsed.file.length) parts.push(`文件过滤：${parsed.file.join(', ')}`);
+  if (parsed.folder.length) parts.push(`目录过滤：${parsed.folder.join(', ')}`);
+  if (parsed.symbol) parts.push(`符号：${parsed.symbol}`);
+  if (parsed.changedDays !== null) parts.push(`最近 ${parsed.changedDays} 天修改`);
+  if (parsed.recentOnly) parts.push('最近修改');
+  return parts.length ? `筛选：${parts.join(' · ')}` : '';
 }
 
 function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected }) {
@@ -930,6 +959,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
     };
   }
 
+  let incrementalCache = null;
   if (!options.forceRefresh) {
     const diskIndex = await readWorkspaceIndexDiskCache(cacheKey, snapshot.hash, settings, now);
     if (diskIndex) {
@@ -944,6 +974,8 @@ async function getWorkspaceIndex(args, settings, options = {}) {
       rememberWorkspaceIndex(cacheKey, restored);
       return restored;
     }
+    // Try incremental: load old cache even if snapshot changed
+    incrementalCache = await readWorkspaceIndexDiskCacheRaw(cacheKey, settings);
   }
 
   const files = [];
@@ -951,6 +983,11 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   let skippedBinary = 0;
   let scannedBytes = 0;
   let chunkCount = 0;
+  let reusedCount = 0;
+
+  const oldFileMap = incrementalCache?.files
+    ? new Map(incrementalCache.files.map((f) => [f.path, f]))
+    : new Map();
 
   for (const file of rawFiles) {
     if (!file.fullPath) continue;
@@ -958,26 +995,52 @@ async function getWorkspaceIndex(args, settings, options = {}) {
       skippedSensitive += 1;
       continue;
     }
-    const text = await readSearchableFile(
+    const relPath = path.relative(realRoot, file.fullPath) || file.path;
+    const oldFile = oldFileMap.get(relPath);
+    // Attempt incremental reuse if path, size, and mtime match exactly
+    if (
+      oldFile &&
+      oldFile.size === (file.size || 0) &&
+      oldFile.mtimeMs === (file.mtimeMs || 0) &&
+      oldFile.text &&
+      oldFile.sha256
+    ) {
+      files.push({
+        path: relPath,
+        fullPath: file.fullPath,
+        size: file.size || 0,
+        mtimeMs: file.mtimeMs || 0,
+        sha256: oldFile.sha256,
+        lineCount: oldFile.lineCount,
+        chunks: oldFile.chunks,
+        text: oldFile.text,
+      });
+      chunkCount += oldFile.chunks;
+      scannedBytes += Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES);
+      reusedCount += 1;
+      continue;
+    }
+    const readResult = await readSearchableFile(
       file.fullPath,
       Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES)
     );
-    if (!text) {
+    if (!readResult.text) {
       skippedBinary += 1;
       continue;
     }
-    const lineCount = text.split(/\r?\n/).length;
+    const lineCount = readResult.text.split(/\r?\n/).length;
     const chunks = Math.max(1, Math.ceil(lineCount / 80));
     chunkCount += chunks;
-    scannedBytes += Math.min(file.size || Buffer.byteLength(text, 'utf8'), MAX_SEARCH_FILE_BYTES);
+    scannedBytes += Math.min(file.size || Buffer.byteLength(readResult.text, 'utf8'), MAX_SEARCH_FILE_BYTES);
     files.push({
-      path: path.relative(realRoot, file.fullPath) || file.path,
+      path: relPath,
       fullPath: file.fullPath,
       size: file.size || 0,
       mtimeMs: file.mtimeMs || 0,
+      sha256: readResult.sha256,
       lineCount,
       chunks,
-      text: redactSensitiveText(text),
+      text: redactSensitiveText(readResult.text),
     });
   }
 
@@ -996,13 +1059,14 @@ async function getWorkspaceIndex(args, settings, options = {}) {
     skippedBinary,
     scannedBytes,
     chunkCount,
+    reusedCount,
     files,
     hash: buildWorkspaceIndexHash(files),
     builtAt: new Date(now).toISOString(),
     builtAtMs: now,
     ttlMs: WORKSPACE_INDEX_TTL_MS,
     fromCache: false,
-    cacheLayer: 'new',
+    cacheLayer: reusedCount > 0 ? 'incremental' : 'new',
     ageMs: 0,
     diskCache: {
       enabled: Boolean(getWorkspaceIndexDiskDir(settings)),
@@ -1095,6 +1159,22 @@ async function readWorkspaceIndexDiskCache(cacheKey, snapshotHash, settings = {}
       path: filePath,
     },
   };
+}
+
+async function readWorkspaceIndexDiskCacheRaw(cacheKey, settings = {}) {
+  const filePath = getWorkspaceIndexDiskPath(cacheKey, settings);
+  if (!filePath) return null;
+  let payload;
+  try {
+    payload = JSON.parse(await fs.readFile(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!payload || payload.version !== WORKSPACE_INDEX_DISK_VERSION) return null;
+  if (payload.cacheKeyHash !== buildWorkspaceIndexCacheFileId(cacheKey)) return null;
+  const index = payload.index;
+  if (!index || !Array.isArray(index.files) || !Number.isFinite(index.builtAtMs)) return null;
+  return index;
 }
 
 async function writeWorkspaceIndexDiskCache(cacheKey, index, settings = {}) {
@@ -1253,14 +1333,15 @@ function formatWorkspaceIndexDiskStatus(diskCache = {}) {
 
 async function readSearchableFile(filePath, maxBytes) {
   const handle = await fs.open(filePath, 'r').catch(() => null);
-  if (!handle) return '';
+  if (!handle) return { text: '', sha256: '' };
   try {
     const bytesToRead = Math.max(1, Math.min(maxBytes, MAX_SEARCH_FILE_BYTES));
     const buffer = Buffer.alloc(bytesToRead);
     const result = await handle.read(buffer, 0, bytesToRead, 0);
     const slice = buffer.subarray(0, result.bytesRead);
-    if (isProbablyBinary(slice)) return '';
-    return slice.toString('utf8');
+    if (isProbablyBinary(slice)) return { text: '', sha256: '' };
+    const sha256 = crypto.createHash('sha256').update(slice).digest('hex').slice(0, 16);
+    return { text: slice.toString('utf8'), sha256 };
   } finally {
     await handle.close().catch(() => {});
   }
