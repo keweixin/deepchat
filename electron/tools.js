@@ -70,7 +70,7 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'search_workspace',
-      description: 'Search text files or an exact code symbol inside a user-approved workspace and return concise line citations.',
+      description: 'Search text files, file names, paths, or an exact code symbol inside a user-approved workspace. Returns IDE-like structured results with file, line range, score, kind, symbol, and snippets.',
       parameters: {
         type: 'object',
         properties: {
@@ -518,20 +518,33 @@ async function searchWorkspace(args, settings) {
   const hits = [];
   for (const file of index.files) {
     if (hits.length >= maxResults * 4) break;
+    const fileRelevance = scoreWorkspaceFileRelevance(file, query, terms, symbol);
     const fileHits = findTextHits(file.text, terms, queryLower, symbol, 2);
+    if (fileHits.length === 0 && hasFileIdentityMatch(fileRelevance)) {
+      hits.push({
+        ...buildFileNameWorkspaceHit(file),
+        file: file.path,
+        size: file.size || 0,
+        truncated: (file.size || 0) > MAX_SEARCH_FILE_BYTES,
+        fileRelevance,
+      });
+      continue;
+    }
     for (const hit of fileHits) {
       hits.push({
         ...hit,
         file: file.path,
         size: file.size || 0,
         truncated: (file.size || 0) > MAX_SEARCH_FILE_BYTES,
+        fileRelevance,
       });
       if (hits.length >= maxResults * 4) break;
     }
   }
 
-  hits.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
-  const selected = hits.slice(0, maxResults);
+  const rankedHits = hits.map((hit) => scoreWorkspaceHit(hit));
+  rankedHits.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
+  const selected = rankedHits.slice(0, maxResults);
   if (selected.length === 0) {
     const structured = buildWorkspaceSearchStructuredResults({ query, symbol, index, selected });
     return [
@@ -594,6 +607,8 @@ function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected 
       startLine: hit.lineStart,
       endLine: hit.lineEnd,
       score: hit.score,
+      scoreBreakdown: hit.scoreBreakdown || {},
+      matchReasons: hit.matchReasons || [],
       kind: inferWorkspaceHitKind(hit, symbol),
       symbol: symbol || inferWorkspaceHitSymbol(hit),
       truncated: Boolean(hit.truncated),
@@ -1197,7 +1212,7 @@ function findTextHits(text, terms, queryLower, symbol = '', maxHits = 2) {
     for (let i = lineStart - 1; i < lineEnd; i++) {
       snippet.push({ line: i + 1, text: truncateLine(lines[i] || '') });
     }
-    candidates.push({ score, lineStart, lineEnd, snippet });
+    candidates.push({ contentScore: score, score, lineStart, lineEnd, snippet });
   }
   candidates.sort((a, b) => (b.score - a.score) || a.lineStart - b.lineStart);
   const selected = [];
@@ -1208,6 +1223,92 @@ function findTextHits(text, terms, queryLower, symbol = '', maxHits = 2) {
     if (selected.length >= maxHits) break;
   }
   return selected;
+}
+
+function buildFileNameWorkspaceHit(file) {
+  const lines = String(file.text || '').split(/\r?\n/);
+  const lineEnd = Math.min(lines.length || 1, 3);
+  const snippet = [];
+  for (let index = 0; index < lineEnd; index += 1) {
+    snippet.push({ line: index + 1, text: truncateLine(lines[index] || '') });
+  }
+  return {
+    contentScore: 0,
+    score: 0,
+    lineStart: 1,
+    lineEnd,
+    snippet,
+  };
+}
+
+function scoreWorkspaceFileRelevance(file, query, terms = [], symbol = '') {
+  const filePath = String(file?.path || '').replace(/\\/g, '/');
+  const fileName = path.basename(filePath).toLowerCase();
+  const pathLower = filePath.toLowerCase();
+  const queryLower = String(query || '').toLowerCase();
+  const symbolLower = String(symbol || '').toLowerCase();
+  const reasons = [];
+  let score = 0;
+
+  if (queryLower && fileName.includes(queryLower)) {
+    score += 80;
+    reasons.push('file_name');
+  }
+  for (const term of terms) {
+    if (!term) continue;
+    if (fileName.includes(term)) {
+      score += 25;
+      if (!reasons.includes('file_name')) reasons.push('file_name');
+    } else if (pathLower.includes(term)) {
+      score += 8;
+      if (!reasons.includes('path')) reasons.push('path');
+    }
+  }
+  if (symbolLower && fileName.includes(symbolLower)) {
+    score += 35;
+    if (!reasons.includes('file_name')) reasons.push('file_name');
+  }
+
+  const ageDays = (Date.now() - Number(file?.mtimeMs || 0)) / (24 * 60 * 60 * 1000);
+  let recency = 0;
+  if (Number.isFinite(ageDays) && ageDays >= 0) {
+    if (ageDays <= 7) recency = 6;
+    else if (ageDays <= 30) recency = 3;
+    else if (ageDays <= 180) recency = 1;
+  }
+  if (recency > 0) {
+    score += recency;
+    reasons.push('recent_modified');
+  }
+
+  return { score, recency, reasons };
+}
+
+function scoreWorkspaceHit(hit) {
+  const contentScore = Number(hit.contentScore ?? hit.score ?? 0);
+  const fileScore = Number(hit.fileRelevance?.score || 0);
+  const symbolScore = inferWorkspaceHitKind(hit) === 'symbol' ? 50 : 0;
+  const score = fileScore + symbolScore + contentScore;
+  const matchReasons = [
+    ...(hit.fileRelevance?.reasons || []),
+    ...(symbolScore > 0 ? ['symbol_definition'] : []),
+    ...(contentScore > 0 ? ['content'] : []),
+  ];
+  return {
+    ...hit,
+    score,
+    scoreBreakdown: {
+      file: fileScore,
+      symbol: symbolScore,
+      content: contentScore,
+      recency: Number(hit.fileRelevance?.recency || 0),
+    },
+    matchReasons: [...new Set(matchReasons)],
+  };
+}
+
+function hasFileIdentityMatch(fileRelevance = {}) {
+  return (fileRelevance.reasons || []).some((reason) => reason === 'file_name' || reason === 'path');
 }
 
 function createSymbolPattern(symbol) {

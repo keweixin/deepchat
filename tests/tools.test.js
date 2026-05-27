@@ -188,9 +188,45 @@ describe('electron tools helpers', () => {
         }],
       });
       expect(structured.results[0].score).toBeGreaterThan(0);
+      expect(structured.results[0].scoreBreakdown.content).toBeGreaterThan(0);
+      expect(structured.results[0].matchReasons).toContain('content');
       expect(structured.results[0].snippet[0]).toMatchObject({ line: 2 });
       expect(output).not.toContain('.env');
       expect(output).not.toContain('DEEPSEEK_CACHE_SECRET');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('prioritizes file-name matches and returns structured file-only hits', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-search-ranked-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src', 'cache-helper.md'), [
+        '# Helper Notes',
+        'This file documents local indexing behavior.',
+      ].join('\n'), 'utf8');
+      await fs.writeFile(path.join(tmpDir, 'src', 'notes.md'), [
+        '# Notes',
+        'The cache helper query appears only in this content line.',
+      ].join('\n'), 'utf8');
+
+      const output = await executeTool('search_workspace', {
+        query: 'cache helper',
+        directory: 'src',
+        max_results: 2,
+      }, { workspaceRoots: [tmpDir] });
+
+      const structured = extractStructuredResults(output);
+      expect(structured.results[0]).toMatchObject({
+        file: 'src/cache-helper.md',
+        startLine: 1,
+        kind: 'markdown-section',
+      });
+      expect(structured.results[0].matchReasons).toContain('file_name');
+      expect(structured.results[0].scoreBreakdown.file).toBeGreaterThan(structured.results[0].scoreBreakdown.content);
+      expect(structured.results[1].file).toBe('src/notes.md');
+      expect(structured.results[1].matchReasons).toContain('content');
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
