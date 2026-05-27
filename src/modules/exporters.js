@@ -1,5 +1,5 @@
 import { renderMarkdown } from './renderer.js';
-import { buildToolEvidencePayload } from './tool-runs.js';
+import { buildToolEvidencePayload, buildToolRuns } from './tool-runs.js';
 import { escapeHtml, formatTime, showToast } from './utils.js';
 
 export function exportConversation(conversation, format = 'markdown') {
@@ -96,9 +96,12 @@ export function buildConversationHtml(conversation) {
 
 export function buildToolEvidence(conversation) {
   const toolRuns = [];
+  const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
   for (const [messageIndex, message] of (conversation.messages || []).entries()) {
-    for (const run of message.toolRuns || []) {
-      const evidence = buildToolEvidencePayload(run);
+    for (const run of getMessageToolEvidenceRuns(message)) {
+      const evidence = run.evidence?.type === 'deepchat.toolEvidence'
+        ? run.evidence
+        : buildToolEvidencePayload(run);
       toolRuns.push({
         messageIndex,
         messageRole: message.role || '',
@@ -108,6 +111,7 @@ export function buildToolEvidence(conversation) {
       });
     }
   }
+  const cacheEvidence = buildCacheEvidence(messages);
   return {
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -117,8 +121,40 @@ export function buildToolEvidence(conversation) {
       tags: conversation.tags || [],
       folderId: conversation.folderId || '',
     },
+    usageTotals: normalizeExportUsage(conversation.usageTotals || aggregateMessageUsage(messages)),
+    cacheEvidence,
     toolRuns,
   };
+}
+
+function getMessageToolEvidenceRuns(message = {}) {
+  if (Array.isArray(message.toolRuns) && message.toolRuns.length) return message.toolRuns;
+  if (Array.isArray(message.toolCalls) && message.toolCalls.length) return buildToolRuns(message.toolCalls);
+  return [];
+}
+
+function buildCacheEvidence(messages = []) {
+  return messages
+    .map((message, messageIndex) => {
+      if (message?.role !== 'assistant') return null;
+      const tokens = normalizeExportUsage(message.tokens || null);
+      const hasUsage = tokens.total > 0 || tokens.input > 0 || tokens.output > 0;
+      const hasCacheProfile = Boolean(message.cacheProfile || message.contextBudget?.prefixFingerprint);
+      if (!hasUsage && !hasCacheProfile) return null;
+      return {
+        messageIndex,
+        messageTime: message.timestamp || null,
+        tokens,
+        cacheProfile: {
+          ...(message.cacheProfile || {}),
+          prefixFingerprint: message.cacheProfile?.prefixFingerprint || message.contextBudget?.prefixFingerprint || tokens.prefixFingerprint || '',
+          prefixTokens: message.cacheProfile?.prefixTokens || message.contextBudget?.prefixTokens || tokens.prefixTokens || 0,
+          prefixBytes: message.cacheProfile?.prefixBytes || message.contextBudget?.prefixBytes || tokens.prefixBytes || 0,
+        },
+        contextBudget: message.contextBudget || null,
+      };
+    })
+    .filter(Boolean);
 }
 
 function buildEvidenceCitationStatus(evidence = {}, content = '') {
@@ -202,6 +238,59 @@ function dedupeEvidenceRefs(refs = []) {
     out.push(ref);
   }
   return out;
+}
+
+function aggregateMessageUsage(messages = []) {
+  return messages.reduce((acc, message) => {
+    const usage = normalizeExportUsage(message?.tokens || null);
+    acc.input += usage.input;
+    acc.output += usage.output;
+    acc.total += usage.total;
+    acc.reasoning += usage.reasoning;
+    acc.cacheHit += usage.cacheHit;
+    acc.cacheMiss += usage.cacheMiss;
+    if (usage.source) acc.sources.add(usage.source);
+    return acc;
+  }, {
+    input: 0,
+    output: 0,
+    total: 0,
+    reasoning: 0,
+    cacheHit: 0,
+    cacheMiss: 0,
+    sources: new Set(),
+  });
+}
+
+function normalizeExportUsage(usage = null) {
+  const sourceSet = usage?.sources instanceof Set ? usage.sources : null;
+  const source = sourceSet
+    ? (sourceSet.size === 0 ? 'estimated' : (sourceSet.size === 1 ? [...sourceSet][0] : 'mixed'))
+    : (usage?.source || 'estimated');
+  const input = toSafeNumber(usage?.input);
+  const output = toSafeNumber(usage?.output);
+  const total = toSafeNumber(usage?.total) || input + output;
+  const cacheHit = toSafeNumber(usage?.cacheHit);
+  const cacheMiss = toSafeNumber(usage?.cacheMiss);
+  return {
+    input,
+    output,
+    total,
+    reasoning: toSafeNumber(usage?.reasoning),
+    cacheHit,
+    cacheMiss,
+    cacheHitRate: input > 0 ? cacheHit / input : (cacheHit + cacheMiss > 0 ? cacheHit / (cacheHit + cacheMiss) : 0),
+    source,
+    rounds: toSafeNumber(usage?.rounds),
+    prefixFingerprint: usage?.prefixFingerprint || '',
+    prefixTokens: toSafeNumber(usage?.prefixTokens),
+    prefixBytes: toSafeNumber(usage?.prefixBytes),
+  };
+}
+
+function toSafeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.round(number) : 0;
 }
 
 export function buildAssetManifestHtml(conversation) {

@@ -99,6 +99,64 @@ describe('conversation exporters', () => {
     });
   });
 
+  it('exports legacy toolCalls and cache evidence for audit', () => {
+    const evidence = buildToolEvidence({
+      id: 'c3',
+      title: '旧会话证据',
+      usageTotals: { input: 100, output: 20, total: 120, cacheHit: 50, cacheMiss: 50, source: 'provider' },
+      messages: [{
+        role: 'assistant',
+        timestamp: 300,
+        content: '已参考 https://example.com/legacy，prefix abc123。',
+        tokens: {
+          input: 100,
+          output: 20,
+          total: 120,
+          cacheHit: 50,
+          cacheMiss: 50,
+          source: 'provider',
+          prefixFingerprint: 'abc123',
+        },
+        contextBudget: {
+          prefixFingerprint: 'abc123',
+          prefixTokens: 42,
+          prefixBytes: 2048,
+          trimmed: true,
+          droppedCount: 3,
+        },
+        toolCalls: [{
+          id: 'legacy-web',
+          name: 'web_search',
+          status: 'completed',
+          ok: true,
+          args: { query: 'legacy' },
+          output: '1. Legacy Source\nURL: https://example.com/legacy',
+        }],
+      }],
+    });
+
+    expect(evidence.usageTotals).toMatchObject({
+      input: 100,
+      output: 20,
+      total: 120,
+      cacheHit: 50,
+      cacheMiss: 50,
+      source: 'provider',
+    });
+    expect(evidence.toolRuns).toHaveLength(1);
+    expect(evidence.toolRuns[0]).toMatchObject({
+      id: 'legacy-web',
+      name: 'web_search',
+      citationStatus: { state: 'is-cited', cited: 1, total: 1 },
+    });
+    expect(evidence.cacheEvidence[0]).toMatchObject({
+      messageIndex: 0,
+      tokens: { total: 120, cacheHit: 50, source: 'provider' },
+      cacheProfile: { prefixFingerprint: 'abc123', prefixTokens: 42, prefixBytes: 2048 },
+      contextBudget: { trimmed: true, droppedCount: 3 },
+    });
+  });
+
   it('includes image attachments and Mermaid code in the asset manifest', () => {
     const html = buildAssetManifestHtml({
       title: '资源',
