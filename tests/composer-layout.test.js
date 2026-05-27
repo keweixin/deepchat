@@ -18,4 +18,18 @@ describe('composer layout', () => {
     expect(advanced).toContain('composer-template-btn');
     expect(advanced).toContain('composer-settings-shortcut');
   });
+
+  it('exposes high-frequency context chips in the first composer row', () => {
+    const html = fs.readFileSync(path.resolve('index.html'), 'utf8');
+    const start = html.indexOf('<div class="composer-chip-row"');
+    const end = html.indexOf('<div id="composer-context-preview"', start);
+    const chipRow = html.slice(start, end);
+
+    expect(chipRow).toContain('data-context-chip="file"');
+    expect(chipRow).toContain('data-context-chip="folder"');
+    expect(chipRow).toContain('data-context-chip="symbol"');
+    expect(chipRow).toContain('data-context-chip="changed"');
+    expect(chipRow).toContain('data-context-chip="web"');
+    expect(chipRow).toContain('data-context-chip="run"');
+  });
 });
