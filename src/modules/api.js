@@ -378,6 +378,119 @@ export function getModelCapabilities(settings = getSettings()) {
   };
 }
 
+export function getProviderCompatibilityReport(settings = getSettings()) {
+  const current = settings || {};
+  const provider = getProviderPreset(current);
+  const caps = getModelCapabilities(current);
+  const items = [];
+  const suggestions = [];
+  const activeSkill = resolveRunnableSkill(current);
+  const usesAgentTools = activeSkill && activeSkill !== 'none';
+  const apiBase = String(current.apiBase || provider.apiBase || '').trim();
+  const model = String(current.model || '').trim();
+
+  if (!apiBase) {
+    items.push({
+      severity: 'error',
+      label: '缺少 API Base URL',
+      detail: '自定义服务商需要填写 OpenAI-compatible API Base URL。',
+    });
+    suggestions.push('填写 API Base URL 或切换到内置服务商。');
+  }
+
+  if (provider.authType !== 'none' && !current.apiKey && !caps.local) {
+    items.push({
+      severity: 'error',
+      label: '需要 API Key',
+      detail: `${provider.name} 使用 Bearer API Key；未配置时请求会被拦截。`,
+    });
+    suggestions.push('在设置中填写 API Key，或切换到 Ollama/LM Studio 本地服务。');
+  }
+
+  if (!model) {
+    items.push({
+      severity: 'error',
+      label: '缺少模型名称',
+      detail: '请求前必须指定模型名称。',
+    });
+    suggestions.push('选择一个模型预设，或手动输入服务商支持的模型 id。');
+  }
+
+  if (usesAgentTools && !caps.tools) {
+    items.push({
+      severity: 'warning',
+      label: 'Agent 工具受限',
+      detail: '当前模型未标记为支持 tool_calls；桌面端会禁用工具 schema，联网/文件/代码/MCP 只能切换到支持工具的模型后使用。',
+    });
+    suggestions.push('使用 DeepSeek v4、deepseek-chat、gpt-4o、qwen-plus 等支持 tool_calls 的模型，或切换到标准模式。');
+  }
+
+  if (current.cacheOptimization !== false && !caps.promptCacheUsage) {
+    items.push({
+      severity: 'info',
+      label: '无法显示真实缓存命中',
+      detail: '该服务商未声明返回 prompt cache usage；DeepChat 会继续保持稳定前缀，但命中率只能标记为估算或缺失。',
+    });
+  }
+
+  if (!caps.streamUsage) {
+    items.push({
+      severity: 'info',
+      label: '流式 usage 可能缺失',
+      detail: '该服务商未声明支持 stream_options.include_usage；客户端会自动降级并使用本地估算 token。',
+    });
+  }
+
+  if (Number(current.thinkingBudget || 0) > 0 && !caps.thinking) {
+    items.push({
+      severity: 'warning',
+      label: 'Thinking 参数可能被拒绝',
+      detail: '当前模型未标记为支持 reasoning/thinking；如果服务商 400，客户端会重试关闭 thinking。',
+    });
+    suggestions.push('把思考深度调为自动/关闭，或切换到 reasoner/R1/o 系列模型。');
+  }
+
+  if (caps.local) {
+    items.push({
+      severity: 'info',
+      label: '本地服务',
+      detail: '请确认本地 OpenAI-compatible 服务正在运行；本地模型通常不返回真实 cache usage。',
+    });
+  }
+
+  if (provider.id === 'custom') {
+    items.push({
+      severity: 'info',
+      label: '自定义能力按规则推断',
+      detail: '自定义 provider 的工具、视觉、thinking 和 usage 能力会按模型名和降级重试判断，最终以服务商实际支持为准。',
+    });
+  }
+
+  const status = items.some((item) => item.severity === 'error')
+    ? 'blocked'
+    : (items.some((item) => item.severity === 'warning') ? 'warning' : 'ready');
+
+  return {
+    status,
+    providerId: provider.id,
+    providerName: provider.name,
+    model,
+    apiBase,
+    authType: provider.authType,
+    capabilities: caps,
+    items,
+    suggestions: [...new Set(suggestions)],
+    summary: formatProviderCompatibilitySummary(status, provider.name, model),
+  };
+}
+
+function formatProviderCompatibilitySummary(status, providerName, model) {
+  const target = `${providerName || '自定义'}${model ? ` / ${model}` : ''}`;
+  if (status === 'blocked') return `${target} 需要补配置后才能请求`;
+  if (status === 'warning') return `${target} 可用但有能力限制`;
+  return `${target} 已就绪`;
+}
+
 export function supportsVisionModel(settings = getSettings()) {
   return getModelCapabilities(settings).vision;
 }

@@ -22,6 +22,7 @@ import {
   testSearchConnection,
   isEnhanceEnabledSetting,
   getModelCapabilities,
+  getProviderCompatibilityReport,
   getProviderPreset,
   PROVIDER_PRESETS,
 } from './api.js';
@@ -587,7 +588,7 @@ function renderStorageStatus(container, settings) {
   }
 }
 
-function renderModelCapabilities(container, settings = getSettings()) {
+export function renderModelCapabilities(container, settings = getSettings()) {
   if (!container) return;
   const caps = getModelCapabilities(settings);
   const rows = [
@@ -599,12 +600,62 @@ function renderModelCapabilities(container, settings = getSettings()) {
     ['思考', caps.thinking],
     ['缓存统计', caps.promptCacheUsage],
   ];
-  container.innerHTML = rows.map(([label, enabled, suffix]) => (
-    `<span class="capability-pill ${enabled ? 'is-on' : 'is-off'}">${label}${suffix ?? (enabled ? '可用' : '不可用')}</span>`
-  )).join('');
+  container.innerHTML = '';
+  for (const [label, enabled, suffix] of rows) {
+    const pill = document.createElement('span');
+    pill.className = `capability-pill ${enabled ? 'is-on' : 'is-off'}`;
+    pill.textContent = `${label}${suffix ?? (enabled ? '可用' : '不可用')}`;
+    container.appendChild(pill);
+  }
+  container.appendChild(renderProviderReadinessCard(getProviderCompatibilityReport(settings)));
   const contextText = caps.maxContextMessages ? `${caps.maxContextMessages} 条上下文` : '上下文按默认';
   const inputBudget = settings.maxInputTokens ? `输入预算 ${settings.maxInputTokens} tokens` : '输入预算按默认';
   container.title = `${caps.providerName || '自定义服务商'}；${contextText}；${inputBudget}；能力来自 Provider Registry 和模型名称规则，最终以服务商实际支持为准。`;
+}
+
+function renderProviderReadinessCard(report) {
+  const card = document.createElement('div');
+  card.className = `provider-readiness-card is-${report.status}`;
+
+  const head = document.createElement('div');
+  head.className = 'provider-readiness-head';
+  const title = document.createElement('strong');
+  title.textContent = report.summary;
+  const status = document.createElement('span');
+  status.textContent = report.status === 'blocked' ? '需配置' : (report.status === 'warning' ? '有限制' : '可用');
+  head.append(title, status);
+  card.appendChild(head);
+
+  const visibleItems = report.items.slice(0, 4);
+  if (visibleItems.length > 0) {
+    const list = document.createElement('div');
+    list.className = 'provider-readiness-list';
+    for (const item of visibleItems) {
+      const row = document.createElement('div');
+      row.className = `provider-readiness-item is-${item.severity}`;
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      const detail = document.createElement('small');
+      detail.textContent = item.detail;
+      row.append(label, detail);
+      list.appendChild(row);
+    }
+    card.appendChild(list);
+  } else {
+    const ok = document.createElement('p');
+    ok.className = 'provider-readiness-ok';
+    ok.textContent = '工具、流式 usage、缓存统计和思考能力将按上方能力矩阵启用。';
+    card.appendChild(ok);
+  }
+
+  if (report.suggestions.length > 0) {
+    const suggestion = document.createElement('p');
+    suggestion.className = 'provider-readiness-suggestion';
+    suggestion.textContent = `建议：${report.suggestions[0]}`;
+    card.appendChild(suggestion);
+  }
+
+  return card;
 }
 
 function renderProviderPresets(container) {

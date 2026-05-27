@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { renderMcpServerList } from '../src/modules/settings.js';
+import { renderMcpServerList, renderModelCapabilities } from '../src/modules/settings.js';
 
 describe('settings MCP rendering', () => {
   afterEach(() => {
@@ -47,5 +47,24 @@ describe('settings MCP rendering', () => {
     const payload = JSON.parse(writeText.mock.calls[0][0]);
     expect(payload.schemaHash).toBe('1234567890abcdef');
     expect(payload.tools[0].name).toBe('read_file');
+  });
+
+  it('renders provider readiness warnings next to capability pills', () => {
+    const container = document.createElement('div');
+
+    renderModelCapabilities(container, {
+      providerId: 'ollama',
+      apiBase: 'http://localhost:11434/v1',
+      model: 'llama3',
+      activeSkill: 'agent_auto',
+      cacheOptimization: true,
+      maxInputTokens: 24000,
+      maxContextMessages: 20,
+    });
+
+    expect(container.textContent).toContain('Provider: Ollama');
+    expect(container.textContent).toContain('Agent 工具受限');
+    expect(container.textContent).toContain('无法显示真实缓存命中');
+    expect(container.querySelector('.provider-readiness-card.is-warning')).toBeTruthy();
   });
 });

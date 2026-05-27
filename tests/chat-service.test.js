@@ -307,6 +307,35 @@ describe('electron chat service token usage and agent loop', () => {
     expect(seen[0].tools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'search_workspace', 'read_file', 'run_code']));
   });
 
+  it('disables tool schemas up front for providers that do not support tool calls', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    let sentTools = null;
+    let sentSystem = '';
+    service.streamOnce = vi.fn(async (_requestId, messages, _settings, tools) => {
+      sentTools = tools;
+      sentSystem = messages[0].content;
+      return { content: 'ok', thinking: '', usage: normalizeTokenUsage(null, { input: 1, output: 1 }), toolCalls: [] };
+    });
+
+    await service.runWithSettings(
+      { requestId: 'req-provider-no-tools', messages: [{ role: 'user', content: '运行 1+1 验证结果' }] },
+      baseSettings({
+        providerId: 'ollama',
+        apiBase: 'http://localhost:11434/v1',
+        model: 'llama3',
+        activeSkill: 'agent_auto',
+        runCodeEnabled: true,
+      }),
+      new AbortController(),
+    );
+
+    expect(sentTools).toEqual([]);
+    expect(sentSystem).not.toContain('代码运行工具');
+    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'warning' && event.stopReason === 'provider_tools_unsupported')).toBe(true);
+    expect(events.find((event) => event.type === 'tokenCount').warnings.join('\n')).toContain('tool_calls');
+  });
+
   it('keeps smart-agent scratch out of the cache-stable prefix and retained history', async () => {
     const service = new ChatService(() => fakeWindow());
     let sentMessages = [];

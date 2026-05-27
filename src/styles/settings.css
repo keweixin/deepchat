@@ -448,6 +448,95 @@
   background: color-mix(in srgb, var(--surface-card), transparent 30%);
 }
 
+.provider-readiness-card {
+  flex: 1 0 100%;
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 72%);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-primary), transparent 94%);
+}
+
+.provider-readiness-card.is-warning {
+  border-color: color-mix(in srgb, var(--accent-secondary), transparent 58%);
+  background: color-mix(in srgb, var(--accent-secondary), transparent 93%);
+}
+
+.provider-readiness-card.is-blocked {
+  border-color: color-mix(in srgb, #ef4444, transparent 62%);
+  background: color-mix(in srgb, #ef4444, transparent 94%);
+}
+
+.provider-readiness-head,
+.provider-readiness-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.provider-readiness-head strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+}
+
+.provider-readiness-head span {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.provider-readiness-list {
+  display: grid;
+  gap: 5px;
+}
+
+.provider-readiness-item {
+  padding-top: 5px;
+  border-top: 1px solid color-mix(in srgb, var(--text-primary), transparent 90%);
+}
+
+.provider-readiness-item span {
+  min-width: 94px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.provider-readiness-item small {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.provider-readiness-item.is-error span {
+  color: #ef4444;
+}
+
+.provider-readiness-item.is-warning span {
+  color: var(--accent-secondary);
+}
+
+.provider-readiness-ok,
+.provider-readiness-suggestion {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.provider-readiness-suggestion {
+  color: var(--text-secondary);
+}
+
 /* Preset active flash */
 .preset-btn.active {
   background: var(--accent-soft);

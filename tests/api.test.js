@@ -12,6 +12,7 @@ import {
   getEffectiveSystemPrompt,
   getConversationUsageSummary,
   getModelCapabilities,
+  getProviderCompatibilityReport,
   getProviderPreset,
   getSettings,
   initApiSettings,
@@ -171,6 +172,57 @@ describe('browser settings fallback', () => {
       promptCacheUsage: false,
       local: true,
     });
+  });
+
+  it('explains provider readiness and model compatibility limits', async () => {
+    let settings = await saveSettings({
+      providerId: 'deepseek',
+      apiBase: 'https://api.deepseek.com',
+      model: 'deepseek-v4-flash',
+      apiKey: 'sk-session-only',
+      activeSkill: 'agent_auto',
+      cacheOptimization: true,
+    });
+    expect(getProviderCompatibilityReport(settings)).toMatchObject({
+      status: 'ready',
+      providerId: 'deepseek',
+      capabilities: {
+        tools: true,
+        promptCacheUsage: true,
+      },
+    });
+
+    settings = await saveSettings({
+      providerId: 'ollama',
+      apiBase: 'http://localhost:11434/v1',
+      model: 'llama3',
+      apiKey: '',
+      activeSkill: 'agent_auto',
+      cacheOptimization: true,
+    });
+    const localReport = getProviderCompatibilityReport(settings);
+    expect(localReport.status).toBe('warning');
+    expect(localReport.items.map((item) => item.label)).toEqual(expect.arrayContaining([
+      'Agent 工具受限',
+      '无法显示真实缓存命中',
+      '流式 usage 可能缺失',
+      '本地服务',
+    ]));
+
+    settings = await saveSettings({
+      providerId: 'custom',
+      apiBase: '',
+      model: '',
+      apiKey: '',
+      activeSkill: 'none',
+    });
+    const blocked = getProviderCompatibilityReport(settings);
+    expect(blocked.status).toBe('blocked');
+    expect(blocked.items.map((item) => item.label)).toEqual(expect.arrayContaining([
+      '缺少 API Base URL',
+      '需要 API Key',
+      '缺少模型名称',
+    ]));
   });
 
   it('normalizes DeepSeek cache hit and miss usage fields', () => {

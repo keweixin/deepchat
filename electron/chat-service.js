@@ -87,8 +87,10 @@ class ChatService {
     const requestId = request.requestId;
     const messages = sanitizeMessages(request.messages || []);
     const intent = detectAgentIntent(messages, settings);
-    const tools = await this.getAvailableTools(settings, intent);
-    const prefix = buildCacheStablePrefix(settings, tools, request.cacheProfile);
+    const toolSupport = getProviderToolSupport(settings);
+    const toolSettings = toolSupport.supported ? settings : { ...settings, activeSkill: 'none' };
+    const tools = toolSupport.supported ? await this.getAvailableTools(settings, intent) : [];
+    const prefix = buildCacheStablePrefix(toolSettings, tools, request.cacheProfile);
     const systemPrompt = prefix.systemPrompt;
     const prefixTokens = prefix.prefixTokens;
     let contextBundle = buildContextBudgetBundle(messages, {
@@ -123,6 +125,17 @@ class ChatService {
       const warning = `智能 Agent 判断本轮可能需要 ${(intent.candidateTools || intent.selectedTools).join(', ') || intent.reason}，但缺少配置：${intent.missingPrerequisites.join('、')}。`;
       warnings.push(warning);
       this.emit(requestId, 'agentStage', { stage: 'warning', round: 0, maxRounds: maxToolRounds, warning });
+    }
+    if (!toolSupport.supported && shouldWarnAboutToolSupport(settings, intent)) {
+      warnings.push(toolSupport.warning);
+      this.emit(requestId, 'agentStage', {
+        stage: 'warning',
+        round: 0,
+        maxRounds: maxToolRounds,
+        warning: toolSupport.warning,
+        selectedTools: [],
+        stopReason: 'provider_tools_unsupported',
+      });
     }
     for (const warning of prefixWarnings) {
       this.emit(requestId, 'agentStage', { stage: 'warning', round: 0, maxRounds: maxToolRounds, warning });
@@ -668,6 +681,38 @@ function getStableAgentToolMode(settings = {}) {
   if (hasFiles) return 'file_reader';
   if (hasCode) return 'code_runner';
   return 'none';
+}
+
+function getProviderToolSupport(settings = {}) {
+  const model = String(settings.model || '').trim();
+  const lowerModel = model.toLowerCase();
+  const provider = String(settings.providerId || inferProviderIdFromBase(settings.apiBase)).toLowerCase();
+  const unsupportedProvider = provider === 'ollama' || provider === 'lmstudio';
+  const unsupportedModel = provider === 'deepseek' && lowerModel === 'deepseek-reasoner';
+
+  if (unsupportedProvider) {
+    return {
+      supported: false,
+      reason: provider,
+      warning: `当前服务商/模型（${provider || 'custom'} / ${model || 'unknown'}）未标记为支持 tool_calls，已禁用本轮工具 schema；请切换到支持工具调用的模型，或使用标准模式。`,
+    };
+  }
+
+  if (unsupportedModel) {
+    return {
+      supported: false,
+      reason: 'model_without_tools',
+      warning: `当前模型 ${model} 未标记为支持 tool_calls，已禁用本轮工具 schema；需要工具型 Agent 时请切换到 deepseek-chat 或 DeepSeek v4 模型。`,
+    };
+  }
+
+  return { supported: true, reason: 'supported', warning: '' };
+}
+
+function shouldWarnAboutToolSupport(settings = {}, intent = {}) {
+  const activeSkill = String(settings.activeSkill || 'none');
+  if (activeSkill && activeSkill !== 'none') return true;
+  return Boolean((intent.selectedTools || []).length || (intent.candidateTools || []).length);
 }
 
 function filterStableBuiltInTools(tools, settings = {}) {
