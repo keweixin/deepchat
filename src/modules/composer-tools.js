@@ -335,6 +335,8 @@ function buildExplicitContextToolRoute(mentions = [], options = {}) {
     add('index_workspace');
     add('list_files');
     add('search_workspace');
+    add('read_symbol');
+    add('read_file');
   }
   for (const mention of mentions) {
     if (mention?.type === 'file') add('read_file');

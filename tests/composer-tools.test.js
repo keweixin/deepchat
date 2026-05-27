@@ -200,12 +200,12 @@ describe('composer tool drawer helpers', () => {
     });
 
     expect(ready.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: '本地工具 index_workspace + list_files + search_workspace', kind: 'context-route', tone: 'ready' }),
+      expect.objectContaining({ label: '本地工具 index_workspace + list_files + search_workspace + read_symbol + read_file', kind: 'context-route', tone: 'ready' }),
       expect.objectContaining({ label: '工具 文件分析', tone: 'ready' }),
     ]));
     expect(missing.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: '未选工作区', tone: 'muted' }),
-      expect.objectContaining({ label: '本地工具 index_workspace + list_files + search_workspace', kind: 'context-route', tone: 'warning' }),
+      expect.objectContaining({ label: '本地工具 index_workspace + list_files + search_workspace + read_symbol + read_file', kind: 'context-route', tone: 'warning' }),
     ]));
   });
 
