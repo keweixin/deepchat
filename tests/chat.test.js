@@ -3,6 +3,7 @@ import {
   buildAgentPlanActionPrompt,
   buildAgentPlanActionComposerOverrides,
   buildAnswerActionMenuGroups,
+  buildAnswerActionEvidenceSummary,
   buildAssistantHtmlExport,
   buildAnswerActionPrompt,
   getAgentPlanActionAvailability,
@@ -82,6 +83,49 @@ describe('chat regeneration', () => {
     expect(long.length).toBeLessThan(6500);
     expect(long).toContain('中间内容已省略');
     expect(buildAnswerActionPrompt('unknown', 'content')).toBe('');
+  });
+
+  it('carries compact evidence into answer follow-up prompts', () => {
+    const message = {
+      toolRuns: [{
+        name: 'search_workspace',
+        status: 'completed',
+        query: 'agent timeline',
+        durationMs: 42,
+        localCitations: [{ label: 'src/modules/chat.js:100-120', file: 'src/modules/chat.js' }],
+        contextCompacted: true,
+        rawOutputTokens: 1200,
+        contextOutputTokens: 320,
+      }],
+      tokens: {
+        input: 1000,
+        output: 200,
+        cacheHit: 600,
+        cacheMiss: 400,
+        cacheHitRate: 0.6,
+        source: 'provider',
+        cacheProfile: { prefixFingerprint: 'abc123' },
+      },
+      contextBudget: {
+        maxInputTokens: 24000,
+        estimatedTokens: 18000,
+        droppedMessages: 3,
+        summaryInserted: true,
+      },
+    };
+
+    const evidence = buildAnswerActionEvidenceSummary(message);
+    const prompt = buildAnswerActionPrompt('report', '结论：Agent 需要证据面板。', message);
+
+    expect(evidence).toContain('工具证据');
+    expect(evidence).toContain('search_workspace');
+    expect(evidence).toContain('src/modules/chat.js:100-120');
+    expect(evidence).toContain('compacted 1200->320 tokens');
+    expect(evidence).toContain('cacheRate=60%');
+    expect(evidence).toContain('summary=used');
+    expect(prompt).toContain('<answer_evidence>');
+    expect(prompt).toContain('prefix=abc123');
+    expect(prompt).toContain('<previous_answer>');
   });
 
   it('builds portable HTML exports for polished assistant answers', () => {

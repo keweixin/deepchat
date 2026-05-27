@@ -2749,6 +2749,8 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
 
   const actions = document.createElement('div');
   actions.className = 'message-actions';
+  const conv = conversations.find(c => c.id === activeConvId);
+  const msg = conv?.messages[msgIndex];
   
   // Copy
   const copyBtn = document.createElement('button');
@@ -2801,14 +2803,14 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
   if (String(content || '').trim()) {
     const groups = buildAnswerActionMenuGroups();
     actions.appendChild(createAnswerActionButton('更短', '生成一个更短版本', () => {
-      sendAnswerAction('shorter', content);
+      sendAnswerAction('shorter', content, msg);
     }));
     actions.appendChild(createAnswerActionButton('详细', '生成一个更详细版本', () => {
-      sendAnswerAction('deeper', content);
+      sendAnswerAction('deeper', content, msg);
     }));
     actions.appendChild(createAnswerActionMenu('改写', '把回答转成表格、精排、代码、TODO 或报告', groups.rewrite.map((item) => ({
       ...item,
-      onClick: () => sendAnswerAction(item.action, content),
+      onClick: () => sendAnswerAction(item.action, content, msg),
     }))));
     actions.appendChild(createAnswerActionMenu('导出', '导出当前回答', groups.export.map((item) => ({
       ...item,
@@ -2820,8 +2822,6 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
   }
 
   const favoriteBtn = document.createElement('button');
-  const conv = conversations.find(c => c.id === activeConvId);
-  const msg = conv?.messages[msgIndex];
   favoriteBtn.className = `msg-action-btn${msg?.favorite ? ' is-favorite' : ''}`;
   favoriteBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="${msg?.favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 8.5 22 9.3 16.8 14 18.2 21 12 17.4 5.8 21 7.2 14 2 9.3 9 8.5 12 2"/></svg> 收藏`;
   favoriteBtn.addEventListener('click', () => toggleMessageFavorite(msgIndex));
@@ -2936,13 +2936,13 @@ export function buildAnswerActionMenuGroups() {
   };
 }
 
-function sendAnswerAction(action, content) {
-  const prompt = buildAnswerActionPrompt(action, content);
+function sendAnswerAction(action, content, message) {
+  const prompt = buildAnswerActionPrompt(action, content, message);
   if (!prompt) return;
   sendMessage(prompt, { composerOverrides: { enhance: false } });
 }
 
-export function buildAnswerActionPrompt(action, content = '') {
+export function buildAnswerActionPrompt(action, content = '', message = null) {
   const source = compactAnswerActionContext(content);
   if (!source) return '';
   const instructions = {
@@ -2956,7 +2956,67 @@ export function buildAnswerActionPrompt(action, content = '') {
   };
   const instruction = instructions[action];
   if (!instruction) return '';
-  return `${instruction}\n\n<previous_answer>\n${source}\n</previous_answer>`;
+  const evidence = buildAnswerActionEvidenceSummary(message);
+  const evidenceBlock = evidence ? `\n\n<answer_evidence>\n${evidence}\n</answer_evidence>` : '';
+  return `${instruction}${evidenceBlock}\n\n<previous_answer>\n${source}\n</previous_answer>`;
+}
+
+export function buildAnswerActionEvidenceSummary(message = null) {
+  if (!message || typeof message !== 'object') return '';
+  const lines = [];
+  const runs = Array.isArray(message.toolRuns) ? message.toolRuns.filter(Boolean) : [];
+  if (runs.length) {
+    lines.push('工具证据：');
+    runs.slice(0, 6).forEach((run, index) => {
+      const pieces = [
+        `${index + 1}. ${run.name || 'unknown_tool'}`,
+        run.status ? `status=${run.status}` : '',
+        run.query ? `query=${run.query}` : '',
+        run.args?.path ? `path=${run.args.path}` : '',
+        run.args?.symbol ? `symbol=${run.args.symbol}` : '',
+        run.durationMs !== null && run.durationMs !== undefined ? `duration=${run.durationMs}ms` : '',
+      ].filter(Boolean);
+      lines.push(pieces.join(' · '));
+      const sources = (run.sources || []).slice(0, 3).map((source) => source.url || source.title).filter(Boolean);
+      if (sources.length) lines.push(`   sources: ${sources.join(' | ')}`);
+      const citations = (run.localCitations || []).slice(0, 4).map((citation) => citation.label || citation.file).filter(Boolean);
+      if (citations.length) lines.push(`   files: ${citations.join(' | ')}`);
+      if (run.contextCompacted) lines.push(`   context: compacted ${run.rawOutputTokens || 0}->${run.contextOutputTokens || 0} tokens`);
+      if (run.parseError) lines.push(`   parseError: ${run.parseError}`);
+    });
+  }
+  const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
+  const profile = {
+    ...(message.tokens?.cacheProfile && typeof message.tokens.cacheProfile === 'object' ? message.tokens.cacheProfile : {}),
+    ...(message.cacheProfile && typeof message.cacheProfile === 'object' ? message.cacheProfile : {}),
+  };
+  if (usage || profile?.prefixFingerprint) {
+    const cacheHit = usage?.cacheHit ?? profile?.cacheHit;
+    const cacheMiss = usage?.cacheMiss ?? profile?.cacheMiss;
+    const cacheRate = usage?.cacheHitRate ?? profile?.cacheHitRate;
+    lines.push('Token/Cache：');
+    lines.push([
+      usage ? `input=${usage.input}` : '',
+      usage ? `output=${usage.output}` : '',
+      usage?.reasoning ? `reasoning=${usage.reasoning}` : '',
+      cacheHit !== undefined ? `cacheHit=${cacheHit}` : '',
+      cacheMiss !== undefined ? `cacheMiss=${cacheMiss}` : '',
+      cacheRate !== undefined ? `cacheRate=${Math.round(Number(cacheRate || 0) * 100)}%` : '',
+      profile?.prefixFingerprint ? `prefix=${profile.prefixFingerprint}` : '',
+    ].filter(Boolean).join(' · '));
+  }
+  if (message.contextBudget) {
+    const budget = message.contextBudget;
+    lines.push('上下文预算：');
+    lines.push([
+      budget.maxInputTokens ? `maxInput=${budget.maxInputTokens}` : '',
+      budget.estimatedTokens ? `estimated=${budget.estimatedTokens}` : '',
+      budget.droppedMessages ? `dropped=${budget.droppedMessages}` : '',
+      budget.summaryInserted ? 'summary=used' : '',
+      budget.truncated ? 'history=truncated' : '',
+    ].filter(Boolean).join(' · '));
+  }
+  return lines.join('\n').trim().slice(0, 2400);
 }
 
 export function buildAgentPlanActionPrompt(action, plan = {}) {
