@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyToolDecision,
   applyToolResult,
+  buildToolEvidencePayload,
   buildToolRuns,
   createToolRecord,
   getSearchGrounding,
@@ -58,5 +59,42 @@ describe('tool run state', () => {
 
     expect(getSearchGrounding(message, '来源：https://example.com/news')).toMatchObject({ hasSearch: true, cited: true, warning: false });
     expect(hasSearchWithoutCitedSource(message, '根据搜索结果回答。')).toBe(true);
+  });
+
+  it('builds structured evidence without copying the full raw output', () => {
+    const requestedAt = new Date('2026-05-19T00:00:00.000Z');
+    const completedAt = new Date('2026-05-19T00:00:02.000Z');
+    const output = [
+      'Tavily 返回来源：',
+      '1. Example',
+      '   URL: https://example.com',
+      '   摘要: result',
+      'x'.repeat(1400),
+    ].join('\n');
+    const tool = createToolRecord({
+      toolCallId: 'e1',
+      name: 'web_search',
+      args: { query: 'cache hit' },
+      security: { riskLevel: 'low', redaction: true },
+    }, requestedAt);
+    applyToolResult([tool], { toolCallId: 'e1', name: 'web_search', ok: true, output }, completedAt);
+
+    const evidence = buildToolEvidencePayload(tool);
+
+    expect(evidence).toMatchObject({
+      type: 'deepchat.toolEvidence',
+      version: 1,
+      id: 'e1',
+      name: 'web_search',
+      status: 'completed',
+      ok: true,
+      query: 'cache hit',
+      riskLevel: 'low',
+      durationMs: 2000,
+      rawOutputRef: 'tool-output:e1',
+    });
+    expect(evidence.sources[0].url).toBe('https://example.com');
+    expect(evidence.outputPreview.length).toBeLessThanOrEqual(1200);
+    expect(buildToolRuns([tool])[0].evidence).toMatchObject({ id: 'e1', name: 'web_search' });
   });
 });

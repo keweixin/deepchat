@@ -80,7 +80,36 @@ export function buildToolRuns(toolCalls = []) {
     parseError: tool.parseError || '',
     contextOutput: tool.contextOutput || '',
     expiresAt: tool.expiresAt || '',
+    evidence: buildToolEvidencePayload(tool),
   }));
+}
+
+export function buildToolEvidencePayload(tool = {}) {
+  const outputText = tool.output ? String(tool.output) : '';
+  const sources = tool.sources || extractToolSources(outputText);
+  const id = tool.id || '';
+  return {
+    type: 'deepchat.toolEvidence',
+    version: 1,
+    id,
+    name: getToolName(tool),
+    status: tool.status || 'pending',
+    ok: typeof tool.ok === 'boolean' ? tool.ok : null,
+    risk: tool.risk || '',
+    riskLevel: tool.security?.riskLevel || '',
+    args: getToolArgs(tool),
+    query: getToolQuery(tool),
+    requestedAt: tool.requestedAt || '',
+    completedAt: tool.completedAt || '',
+    durationMs: getToolDurationMs(tool),
+    expiresAt: tool.expiresAt || '',
+    security: tool.security || null,
+    parseError: tool.parseError || '',
+    sources,
+    outputPreview: outputText.slice(0, 1200),
+    contextOutput: tool.contextOutput || '',
+    rawOutputRef: outputText ? `tool-output:${id || getToolName(tool)}` : '',
+  };
 }
 
 export function getToolStatusMeta(status) {

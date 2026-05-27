@@ -33,6 +33,7 @@ import { confirmAction, promptText } from './dialogs.js';
 import {
   applyToolDecision,
   applyToolResult,
+  buildToolEvidencePayload,
   buildToolRuns,
   createToolRecord,
   extractToolSources,
@@ -58,6 +59,11 @@ let conversationMenuEl = null;
 let conversationMenuCleanup = null;
 
 let $messages, $welcome, $convList, $chatTitle, $modelName;
+
+const MARKDOWN_RENDER_CACHE_LIMIT = 240;
+const HISTORICAL_FULL_RENDER_LIMIT = 60;
+const HISTORICAL_COMPACT_MIN_CHARS = 800;
+const markdownRenderCache = new Map();
 
 export async function initChat() {
   $messages = document.getElementById('chat-messages');
@@ -463,7 +469,9 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       const elapsed = streamStartTime > 0 ? (Date.now() - streamStartTime) / 1000 : 0;
       const finalSpeed = elapsed > 0 ? Math.round(tokenCount / elapsed) : 0;
 
-      contentEl.innerHTML = renderMarkdown(fullContent);
+      const finalHtml = renderMarkdown(fullContent);
+      contentEl.innerHTML = finalHtml;
+      primeMarkdownRenderCache(fullContent, finalHtml);
       contentEl.classList.remove('streaming-cursor');
       msgEl.classList.remove('streaming');
       // Trigger completion shimmer
@@ -534,7 +542,9 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         doStream(conv);
       };
       if (fullContent.trim()) {
-        contentEl.innerHTML = renderMarkdown(fullContent);
+        const partialHtml = renderMarkdown(fullContent);
+        contentEl.innerHTML = partialHtml;
+        primeMarkdownRenderCache(fullContent, partialHtml);
         postProcess(contentEl).then(refreshReadingNavigator);
         const errorHost = document.createElement('div');
         contentEl.appendChild(errorHost);
@@ -586,6 +596,96 @@ function showWelcome() {
   refreshReadingNavigator();
 }
 
+function getCachedRenderedMarkdown(content = '') {
+  const key = getMarkdownCacheKey(content);
+  if (markdownRenderCache.has(key)) {
+    const html = markdownRenderCache.get(key);
+    markdownRenderCache.delete(key);
+    markdownRenderCache.set(key, html);
+    return html;
+  }
+  const html = renderMarkdown(content);
+  primeMarkdownRenderCache(content, html);
+  return html;
+}
+
+function primeMarkdownRenderCache(content = '', html = '') {
+  const key = getMarkdownCacheKey(content);
+  if (markdownRenderCache.has(key)) markdownRenderCache.delete(key);
+  markdownRenderCache.set(key, html);
+  while (markdownRenderCache.size > MARKDOWN_RENDER_CACHE_LIMIT) {
+    const oldestKey = markdownRenderCache.keys().next().value;
+    markdownRenderCache.delete(oldestKey);
+  }
+}
+
+function getMarkdownCacheKey(content = '') {
+  return `${content.length}:${hashString(content)}`;
+}
+
+function hashString(value = '') {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function shouldCompactHistoricalMessage(totalMessages, index, message = {}, limit = HISTORICAL_FULL_RENDER_LIMIT) {
+  if (message.role !== 'assistant') return false;
+  if (message.error || message.stopped || message.thinking) return false;
+  if (Array.isArray(message.toolCalls) && message.toolCalls.length > 0) return false;
+  if (Array.isArray(message.toolRuns) && message.toolRuns.length > 0) return false;
+  if (Array.isArray(message.agentStages) && message.agentStages.length > 0) return false;
+  const content = String(message.content || '');
+  if (content.length < HISTORICAL_COMPACT_MIN_CHARS) return false;
+  return (Number(totalMessages) - Number(index)) > limit;
+}
+
+export function getCompactMessagePreview(content = '', maxLength = 260) {
+  const text = String(content)
+    .replace(/```[\s\S]*?```/g, ' [代码片段] ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/[#*_>()-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength).trim()}...` : text;
+}
+
+function renderCompactAssistantMessage(contentEl, msg, idx) {
+  contentEl.innerHTML = '';
+  contentEl.classList.add('is-compact');
+
+  const card = document.createElement('div');
+  card.className = 'message-compact-card';
+
+  const meta = document.createElement('div');
+  meta.className = 'message-compact-meta';
+  meta.textContent = `较早回复已折叠 · ${String(msg.content || '').length} 字符`;
+
+  const preview = document.createElement('p');
+  preview.className = 'message-compact-preview';
+  preview.textContent = getCompactMessagePreview(msg.content);
+
+  const expand = document.createElement('button');
+  expand.type = 'button';
+  expand.className = 'message-compact-expand';
+  expand.textContent = '展开完整内容';
+  expand.addEventListener('click', async () => {
+    contentEl.classList.remove('is-compact');
+    contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
+    await postProcess(contentEl);
+    const conv = getActiveConversation();
+    const currentMsg = conv?.messages?.[idx] || msg;
+    if (currentMsg.stopped) renderStoppedNotice(contentEl.closest('.message-body'), idx);
+    refreshReadingNavigator();
+  });
+
+  card.append(meta, preview, expand);
+  contentEl.appendChild(card);
+}
+
 function renderMessages() {
   const conv = getActiveConversation();
   resetReadingNavigator();
@@ -609,7 +709,7 @@ function renderMessages() {
       const contentEl = el.querySelector('.message-content');
       if (msg.error) {
         if (msg.content) {
-          contentEl.innerHTML = renderMarkdown(msg.content);
+          contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
           postProcess(contentEl).then(refreshReadingNavigator);
           const errorWrap = document.createElement('div');
           renderErrorContent(errorWrap, msg.error);
@@ -617,8 +717,10 @@ function renderMessages() {
         } else {
           renderErrorContent(contentEl, msg.error);
         }
+      } else if (shouldCompactHistoricalMessage(conv.messages.length, idx, msg)) {
+        renderCompactAssistantMessage(contentEl, msg, idx);
       } else {
-        contentEl.innerHTML = renderMarkdown(msg.content);
+        contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
         postProcess(contentEl).then(refreshReadingNavigator);
       }
       addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
@@ -807,6 +909,20 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
       pre.textContent = tool.output;
       output.append(summary, pre);
       block.appendChild(output);
+    }
+
+    const copyRow = document.createElement('div');
+    copyRow.className = 'tool-copy-row';
+    const copyEvidence = document.createElement('button');
+    copyEvidence.type = 'button';
+    copyEvidence.className = 'tool-copy-btn';
+    copyEvidence.textContent = '复制证据 JSON';
+    copyEvidence.addEventListener('click', async () => {
+      await copyToClipboard(JSON.stringify(buildToolEvidencePayload(tool), null, 2));
+      showToast('工具证据已复制');
+    });
+    copyRow.appendChild(copyEvidence);
+    if (tool.output) {
       const copyOutput = document.createElement('button');
       copyOutput.type = 'button';
       copyOutput.className = 'tool-copy-btn';
@@ -815,8 +931,9 @@ function renderToolCalls(container, toolCalls = [], options = {}) {
         await copyToClipboard(tool.output);
         showToast('工具输出已复制');
       });
-      block.appendChild(copyOutput);
+      copyRow.appendChild(copyOutput);
     }
+    block.appendChild(copyRow);
 
     container.appendChild(block);
   }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { hasSearchWithoutCitedSource, renderAgentTimeline, trimMessagesForRegeneration } from '../src/modules/chat.js';
+import {
+  getCompactMessagePreview,
+  hasSearchWithoutCitedSource,
+  renderAgentTimeline,
+  shouldCompactHistoricalMessage,
+  trimMessagesForRegeneration,
+} from '../src/modules/chat.js';
 
 describe('chat regeneration', () => {
   it('truncates from the selected assistant message instead of the last message', () => {
@@ -60,5 +66,31 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('prefix abc123');
     expect(container.textContent).toContain('裁剪 3 条');
     expect(container.textContent).toContain('等待确认');
+  });
+
+  it('compacts only old long assistant messages without execution evidence', () => {
+    const longMessage = { role: 'assistant', content: 'x'.repeat(900) };
+
+    expect(shouldCompactHistoricalMessage(100, 20, longMessage, 60)).toBe(true);
+    expect(shouldCompactHistoricalMessage(100, 50, longMessage, 60)).toBe(false);
+    expect(shouldCompactHistoricalMessage(100, 20, { role: 'user', content: longMessage.content }, 60)).toBe(false);
+    expect(shouldCompactHistoricalMessage(100, 20, { ...longMessage, toolRuns: [{ name: 'web_search' }] }, 60)).toBe(false);
+    expect(shouldCompactHistoricalMessage(100, 20, { ...longMessage, agentStages: [{ stage: 'plan' }] }, 60)).toBe(false);
+  });
+
+  it('normalizes compact previews without exposing full code blocks', () => {
+    const preview = getCompactMessagePreview([
+      '# 标题',
+      '',
+      '正文内容',
+      '```js',
+      'const secret = "long code";',
+      '```',
+      '结尾',
+    ].join('\n'), 80);
+
+    expect(preview).toContain('标题');
+    expect(preview).toContain('[代码片段]');
+    expect(preview).not.toContain('const secret');
   });
 });
