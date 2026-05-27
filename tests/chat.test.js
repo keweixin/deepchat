@@ -307,7 +307,19 @@ describe('chat regeneration', () => {
         summaryUsed: true,
       },
       agentStages: [
-        { stage: 'plan', intent: { toolMode: 'web_search' }, round: 0 },
+        {
+          stage: 'plan',
+          intent: { toolMode: 'web_search' },
+          round: 0,
+          planSummary: {
+            mode: 'web_search',
+            confidence: 0.8,
+            maxRounds: 3,
+            steps: ['理解用户目标', '检索外部资料', '整理回答并说明来源'],
+            selectedTools: ['web_search'],
+            approvalPolicy: ['读取/搜索类工具会先展示审批卡，确认后执行并保留证据。'],
+          },
+        },
         { stage: 'memory', warning: '检索到 2 条相关历史', round: 0 },
         { stage: 'tool_pending', toolName: 'web_search', round: 1 },
         { stage: 'final', round: 2 },
@@ -316,6 +328,10 @@ describe('chat regeneration', () => {
 
     expect(container.hidden).toBe(false);
     expect(container.textContent).toContain('规划工具：web_search');
+    expect(container.textContent).toContain('任务计划');
+    expect(container.textContent).toContain('检索外部资料');
+    expect(container.textContent).toContain('预计工具');
+    expect(container.textContent).toContain('审批策略');
     expect(container.textContent).toContain('prefix abc123');
     expect(container.textContent).toContain('裁剪 3 条');
     expect(container.textContent).toContain('检索历史');

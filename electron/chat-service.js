@@ -111,12 +111,14 @@ class ChatService {
     let workingMessages = [
       { role: 'system', content: systemPrompt },
     ];
+    const planSummary = buildAgentPlanSummary(intent, tools, settings, maxToolRounds);
 
     this.emit(requestId, 'agentStage', {
       stage: 'plan',
       round: 0,
       maxRounds: maxToolRounds,
       intent,
+      planSummary,
       selectedTools: intent.selectedTools,
       candidateTools: intent.candidateTools,
       missingPrerequisites: intent.missingPrerequisites,
@@ -723,6 +725,79 @@ function filterStableBuiltInTools(tools, settings = {}) {
     if (name === 'run_code') return settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false';
     return true;
   });
+}
+
+function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds = DEFAULT_AGENT_MAX_ROUNDS) {
+  const selectedTools = Array.isArray(intent.selectedTools) ? intent.selectedTools : [];
+  const candidateTools = Array.isArray(intent.candidateTools) ? intent.candidateTools : [];
+  const missingPrerequisites = Array.isArray(intent.missingPrerequisites) ? intent.missingPrerequisites : [];
+  const availableToolNames = (tools || [])
+    .map((tool) => tool?.function?.name)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+  const toolMode = intent.toolMode || 'none';
+  const steps = [];
+
+  steps.push('理解用户目标并确认本轮需要的上下文。');
+  if (selectedTools.includes('web_search')) {
+    steps.push('检索外部资料，优先保留可引用来源。');
+  }
+  if (selectedTools.some((name) => ['list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name))) {
+    steps.push('搜索或读取工作区文件，收集 file:line 证据。');
+  }
+  if (selectedTools.includes('run_code')) {
+    steps.push('在用户确认后运行小段代码或实验，并记录退出码与输出。');
+  }
+  if (selectedTools.includes('mcp')) {
+    steps.push('按需调用已启用 MCP 工具，并记录 server/tool 证据。');
+  }
+  if (steps.length === 1) {
+    steps.push('无需工具时直接回答，并标注不确定信息。');
+  }
+  steps.push('整理回答并说明使用过的工具、来源和限制。');
+
+  const approvalPolicy = buildPlanApprovalPolicy(selectedTools);
+  const warnings = [];
+  if (missingPrerequisites.length) {
+    warnings.push(`缺少配置：${missingPrerequisites.join('、')}`);
+  }
+  if (settings.activeSkill === 'agent_auto' && toolMode === 'none' && candidateTools.length > 0) {
+    warnings.push('检测到可能需要工具，但当前可用工具不足，本轮会先提示配置。');
+  }
+
+  return {
+    type: 'deepchat.agentPlan',
+    version: 1,
+    mode: toolMode,
+    confidence: Number(intent.confidence || 0),
+    maxRounds,
+    reason: intent.reason || 'plain_chat',
+    steps,
+    selectedTools,
+    candidateTools,
+    availableToolNames,
+    missingPrerequisites,
+    approvalPolicy,
+    warnings,
+  };
+}
+
+function buildPlanApprovalPolicy(selectedTools = []) {
+  const policy = [];
+  const hasReadOnly = selectedTools.some((name) => ['web_search', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name));
+  if (hasReadOnly) {
+    policy.push('读取/搜索类工具会先展示审批卡，确认后执行并保留证据。');
+  }
+  if (selectedTools.includes('run_code')) {
+    policy.push('代码运行必须确认；结果会以实验卡片展示退出码、耗时和 stdout/stderr。');
+  }
+  if (selectedTools.includes('mcp')) {
+    policy.push('MCP 工具调用必须确认；写入或外部系统操作需要按工具风险提示判断。');
+  }
+  if (policy.length === 0) {
+    policy.push('本轮预计不调用工具。');
+  }
+  return policy;
 }
 
 function buildCacheStablePrefix(settings, tools, previousProfile = null) {
@@ -2017,6 +2092,7 @@ module.exports = {
   normalizeBaseUrl,
   buildContextWithBudget,
   buildContextBudgetBundle,
+  buildAgentPlanSummary,
   compactToolOutputForContext,
   detectAgentIntent,
   mergeTokenUsage,

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const require = createRequire(import.meta.url);
 const {
   ChatService,
+  buildAgentPlanSummary,
   compactToolOutputForContext,
   buildCacheStabilityDiagnostics,
   detectAgentIntent,
@@ -299,6 +300,60 @@ describe('electron chat service token usage and agent loop', () => {
     expect(intent.selectedTools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'search_workspace', 'read_file']));
     expect(intent.reason).toContain('explicit_web');
     expect(intent.reason).toContain('explicit_changed_context');
+  });
+
+  it('builds a readable agent plan summary from detected intent and tools', () => {
+    const settings = baseSettings({
+      activeSkill: 'agent_auto',
+      tavilyApiKey: 'tvly-test',
+      workspaceRoots: ['E:/repo'],
+      runCodeEnabled: true,
+    });
+    const intent = detectAgentIntent('@web @changed 检查项目并运行验证', settings);
+    const plan = buildAgentPlanSummary(intent, [
+      { type: 'function', function: { name: 'web_search' } },
+      { type: 'function', function: { name: 'read_file' } },
+      { type: 'function', function: { name: 'run_code' } },
+    ], settings, 4);
+
+    expect(plan).toMatchObject({
+      type: 'deepchat.agentPlan',
+      version: 1,
+      mode: 'multi_tool',
+      maxRounds: 4,
+    });
+    expect(plan.steps.join('\n')).toContain('检索外部资料');
+    expect(plan.steps.join('\n')).toContain('工作区文件');
+    expect(plan.steps.join('\n')).toContain('运行小段代码');
+    expect(plan.selectedTools).toEqual(expect.arrayContaining(['web_search', 'read_file', 'run_code']));
+    expect(plan.availableToolNames).toEqual(['read_file', 'run_code', 'web_search']);
+    expect(plan.approvalPolicy.join('\n')).toContain('代码运行必须确认');
+  });
+
+  it('emits agent plan summaries before model streaming', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.streamOnce = vi.fn(async () => ({
+      content: 'done',
+      thinking: '',
+      usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 2 }),
+      toolCalls: [],
+    }));
+
+    await service.runWithSettings(
+      { requestId: 'req-plan-summary', messages: [{ role: 'user', content: '@changed 检查当前项目' }] },
+      baseSettings({ activeSkill: 'agent_auto', workspaceRoots: ['E:\\demo'] }),
+      new AbortController(),
+    );
+
+    const planEvent = events.find((event) => event.type === 'agentStage' && event.stage === 'plan');
+    expect(planEvent.planSummary).toMatchObject({
+      type: 'deepchat.agentPlan',
+      mode: 'file_reader',
+      selectedTools: expect.arrayContaining(['list_files', 'search_workspace', 'read_file']),
+    });
+    expect(planEvent.planSummary.steps.join('\n')).toContain('工作区文件');
+    expect(planEvent.planSummary.approvalPolicy.join('\n')).toContain('读取/搜索类工具');
   });
 
   it('requires MCP task intent instead of routing bare product mentions', () => {

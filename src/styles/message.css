@@ -658,6 +658,76 @@
   color: #d97706;
 }
 
+.agent-plan-card {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 18%);
+}
+
+.agent-plan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.agent-plan-header strong {
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+}
+
+.agent-plan-header span {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-align: right;
+}
+
+.agent-plan-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.agent-plan-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.agent-plan-chip-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.agent-plan-chip {
+  max-width: 100%;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent-primary), transparent 94%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.agent-plan-chip-group.is-warning .agent-plan-chip {
+  border-color: color-mix(in srgb, #f59e0b, transparent 68%);
+  background: color-mix(in srgb, #f59e0b, transparent 92%);
+}
+
 .agent-stage-list {
   display: grid;
   gap: 4px;

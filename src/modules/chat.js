@@ -1265,6 +1265,10 @@ export function renderAgentTimeline(container, message = {}) {
     panel.appendChild(budget);
   }
 
+  const planStage = stages.find((stage) => stage?.stage === 'plan' && stage.planSummary);
+  const planCard = createAgentPlanCard(planStage?.planSummary);
+  if (planCard) panel.appendChild(planCard);
+
   const list = document.createElement('ol');
   list.className = 'agent-stage-list';
   for (const stage of collapseAgentStages(stages)) {
@@ -1286,6 +1290,60 @@ export function renderAgentTimeline(container, message = {}) {
   }
   panel.appendChild(list);
   container.appendChild(panel);
+}
+
+function createAgentPlanCard(plan = null) {
+  if (!plan || !Array.isArray(plan.steps) || plan.steps.length === 0) return null;
+  const card = document.createElement('section');
+  card.className = 'agent-plan-card';
+
+  const header = document.createElement('div');
+  header.className = 'agent-plan-header';
+  const title = document.createElement('strong');
+  title.textContent = '任务计划';
+  const meta = document.createElement('span');
+  meta.textContent = [
+    plan.mode && plan.mode !== 'none' ? plan.mode : '普通回答',
+    plan.maxRounds ? `最多 ${plan.maxRounds} 轮` : '',
+    Number.isFinite(Number(plan.confidence)) ? `置信 ${Math.round(Number(plan.confidence) * 100)}%` : '',
+  ].filter(Boolean).join(' · ');
+  header.append(title, meta);
+  card.appendChild(header);
+
+  const steps = document.createElement('ol');
+  steps.className = 'agent-plan-steps';
+  for (const step of plan.steps.slice(0, 8)) {
+    const item = document.createElement('li');
+    item.textContent = String(step || '').trim();
+    steps.appendChild(item);
+  }
+  card.appendChild(steps);
+
+  appendAgentPlanChips(card, '预计工具', plan.selectedTools);
+  appendAgentPlanChips(card, '候选工具', plan.candidateTools);
+  appendAgentPlanChips(card, '缺少配置', plan.missingPrerequisites, 'is-warning');
+  appendAgentPlanChips(card, '审批策略', plan.approvalPolicy);
+  appendAgentPlanChips(card, '提示', plan.warnings, 'is-warning');
+  return card;
+}
+
+function appendAgentPlanChips(card, labelText, values = [], extraClass = '') {
+  const filtered = (Array.isArray(values) ? values : []).map((value) => String(value || '').trim()).filter(Boolean);
+  if (!filtered.length) return;
+  const group = document.createElement('div');
+  group.className = `agent-plan-chip-group${extraClass ? ` ${extraClass}` : ''}`;
+  const label = document.createElement('span');
+  label.className = 'agent-plan-chip-label';
+  label.textContent = labelText;
+  group.appendChild(label);
+  for (const value of filtered.slice(0, 10)) {
+    const chip = document.createElement('span');
+    chip.className = 'agent-plan-chip';
+    chip.textContent = value;
+    chip.title = value;
+    group.appendChild(chip);
+  }
+  card.appendChild(group);
 }
 
 function collapseAgentStages(stages) {
