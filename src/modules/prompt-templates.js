@@ -48,6 +48,8 @@ export const PROMPT_TEMPLATES = Object.freeze([
       '- 有必要的表格。',
       '- 有风险和注意事项。',
       '- 有行动清单。',
+      '- 优先使用 DeepChat 安全组件块：:::summary、:::decision、:::warning、:::source、:::todo、:::next。',
+      '- 不要输出原始 HTML。',
       '- 语气专业但不啰嗦。',
     ].join('\n'),
   },

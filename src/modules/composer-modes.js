@@ -1,5 +1,10 @@
 export const COMPOSER_MODE_IDS = Object.freeze(['daily', 'analysis', 'project', 'agent', 'research', 'code', 'writing', 'polish']);
 
+const COMPONENT_OUTPUT_GUIDE = [
+  '需要精排或长回答时，优先使用 DeepChat 安全组件语法，不要输出原始 HTML。',
+  '可用块：:::summary 核心结论、:::warning 风险提醒、:::decision 推荐方案、:::steps 执行步骤、:::source 来源证据、:::todo 行动清单、:::next 下一步、:::tool-result 工具结果摘要。',
+].join('\n');
+
 export const COMPOSER_MODES = Object.freeze({
   daily: {
     id: 'daily',
@@ -32,6 +37,7 @@ export const COMPOSER_MODES = Object.freeze({
       '你正在以项目分析模式回答。',
       '先给核心判断，再按 P0/P1/P2 或执行顺序组织。',
       '涉及本地项目时，必须基于工具返回的文件、符号、行号或运行结果，不要假装读取未返回的内容。',
+      COMPONENT_OUTPUT_GUIDE,
       '最终回答尽量说明证据来源和下一步。',
     ].join('\n'),
   },
@@ -46,6 +52,7 @@ export const COMPOSER_MODES = Object.freeze({
       '先输出计划，明确要用哪些工具、每一步需要什么证据、哪些动作需要用户确认。',
       '按 Plan -> Execute -> Evidence -> Final 组织过程；每一步完成后展示关键证据。',
       '读取、搜索类工具可以按客户端审批流推进；运行代码、写入、MCP 外部操作和高风险动作必须等待用户确认。',
+      COMPONENT_OUTPUT_GUIDE,
       '最终回答说明执行过的工具、来源、失败或跳过的步骤，以及下一步建议。',
     ].join('\n'),
   },
@@ -59,6 +66,7 @@ export const COMPOSER_MODES = Object.freeze({
       '你正在以研究模式回答。',
       '先给搜索/验证计划；需要外部事实时使用联网搜索。',
       '区分事实、观点和推测；最终回答必须列出来源或说明无法验证。',
+      COMPONENT_OUTPUT_GUIDE,
       '如果缺少联网配置，明确提示需要 Tavily Key，不要编造来源。',
     ].join('\n'),
   },
@@ -84,6 +92,7 @@ export const COMPOSER_MODES = Object.freeze({
     instruction: [
       '你正在以写作美化模式回答。',
       '使用清晰标题、摘要、表格、callout 和行动清单来组织内容。',
+      COMPONENT_OUTPUT_GUIDE,
       '保持专业但不啰嗦，不输出原始 HTML。',
       '不确定的信息必须标注需要验证。',
     ].join('\n'),
@@ -96,8 +105,7 @@ export const COMPOSER_MODES = Object.freeze({
     enhance: true,
     instruction: [
       '你正在以输出美化模式回答。',
-      '优先使用 DeepChat 安全组件语法组织重点，不要输出原始 HTML。',
-      '可使用 :::summary、:::decision、:::steps、:::warning、:::source、:::todo、:::next 这类块表达摘要、推荐方案、步骤、风险、来源、行动清单和下一步。',
+      COMPONENT_OUTPUT_GUIDE,
       '正文保持 Markdown 层级清晰；复杂信息优先用表格，最后给行动清单。',
       '只美化表达和结构，不编造上一文或用户问题中没有的事实。',
     ].join('\n'),

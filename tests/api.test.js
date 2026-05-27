@@ -134,6 +134,15 @@ describe('browser settings fallback', () => {
     expect(getEffectiveSystemPrompt(settings)).toContain('Always format demo output as a checklist.');
   });
 
+  it('advertises safe answer components in the default output contract', () => {
+    expect(DEFAULT_SYSTEM_PROMPT).toContain(':::summary');
+    expect(DEFAULT_SYSTEM_PROMPT).toContain(':::source');
+    expect(DEFAULT_SYSTEM_PROMPT).toContain(':::todo');
+    expect(DEFAULT_SYSTEM_PROMPT).toContain(':::next');
+    expect(DEFAULT_SYSTEM_PROMPT).toContain(':::tool-result');
+    expect(DEFAULT_SYSTEM_PROMPT).toContain('不要输出原始 HTML');
+  });
+
   it('marks vision-capable models so image attachments are not silently accepted by text-only models', async () => {
     let settings = await saveSettings({ model: 'deepseek-v4-flash' });
     expect(supportsVisionModel(settings)).toBe(false);

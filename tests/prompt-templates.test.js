@@ -21,6 +21,8 @@ describe('prompt templates', () => {
     expect(entries.find((entry) => entry.id === 'project-audit').text).toContain('P0/P1/P2');
     expect(entries.find((entry) => entry.id === 'agent-execute').text).toContain('每一步保留证据');
     expect(entries.find((entry) => entry.id === 'research-topic').text).toContain('官方文档');
+    expect(entries.find((entry) => entry.id === 'polished-doc').text).toContain(':::summary');
+    expect(entries.find((entry) => entry.id === 'polished-doc').text).toContain('不要输出原始 HTML');
   });
 
   it('appends templates without losing existing composer text', () => {
