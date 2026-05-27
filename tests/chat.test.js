@@ -5,6 +5,7 @@ import {
   buildAnswerActionPrompt,
   getCompactMessagePreview,
   buildConversationUsageTelemetryDetails,
+  buildRunCodeArtifactMarkdown,
   buildRunCodeExplainPrompt,
   formatConversationUsageTelemetry,
   hasLocalFilesWithoutCitedSource,
@@ -452,6 +453,7 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('STDOUT · 12 bytes');
     expect(container.textContent).toContain('退出码：0');
     expect(container.textContent).toContain('复制代码');
+    expect(container.textContent).toContain('保存 artifact');
     expect(container.textContent).toContain('重新运行');
     expect(container.textContent).not.toContain('解释错误');
 
@@ -505,6 +507,36 @@ describe('chat regeneration', () => {
     expect(prompt).toContain('Traceback');
     expect(prompt).toContain('raise RuntimeError');
     expect(prompt).toContain('不要自动执行工具');
+  });
+
+  it('builds markdown artifacts for run_code experiment records', () => {
+    const artifact = buildRunCodeArtifactMarkdown(
+      {
+        id: 'tool-code',
+        args: { language: 'javascript', code: 'console.log("ok")' },
+        output: '退出码：0\nstdout:\nok',
+      },
+      {
+        ok: true,
+        language: 'javascript',
+        exitCode: 0,
+        durationMs: 12,
+        codeLength: 17,
+        stdinBytes: 0,
+        stdoutBytes: 3,
+        stdoutPreview: 'ok',
+        stderrBytes: 0,
+        stderrPreview: '',
+      }
+    );
+
+    expect(artifact).toContain('# DeepChat 代码实验');
+    expect(artifact).toContain('- 状态：成功');
+    expect(artifact).toContain('- Tool ID：tool-code');
+    expect(artifact).toContain('```javascript');
+    expect(artifact).toContain('console.log("ok")');
+    expect(artifact).toContain('## STDOUT (3 bytes)');
+    expect(artifact).toContain('退出码：0');
   });
 
   it('labels selected symbol context as a symbol chip', () => {

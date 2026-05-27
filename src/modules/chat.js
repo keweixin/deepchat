@@ -1311,6 +1311,13 @@ function appendRunExperimentActions(card, tool, result) {
     row.appendChild(copy);
   }
 
+  const save = createRunExperimentActionButton('保存 artifact', 'save-artifact');
+  save.addEventListener('click', () => {
+    downloadRunCodeArtifact(tool, result);
+    showToast('已保存代码实验 artifact');
+  });
+  row.appendChild(save);
+
   const rerun = createRunExperimentActionButton('重新运行', 'rerun');
   rerun.addEventListener('click', () => {
     fillComposerPrompt(buildRunCodeRerunPrompt(tool, result));
@@ -1384,6 +1391,42 @@ export function buildRunCodeExplainPrompt(tool = {}, result = {}) {
   if (code) lines.push('', '原始代码：', `\`\`\`${formatCodeFenceLanguage(language)}`, code, '```');
   lines.push('', '不要自动执行工具；如果需要重试，请先给出将要运行的代码和理由，等待我确认。');
   return lines.join('\n').trim();
+}
+
+function downloadRunCodeArtifact(tool = {}, result = {}) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const language = result.language || tool.args?.language || 'code';
+  const fileName = `deepchat-run-code-${formatCodeFenceLanguage(language)}-${stamp}.md`;
+  downloadTextFile(buildRunCodeArtifactMarkdown(tool, result), fileName, 'text/markdown;charset=utf-8');
+}
+
+export function buildRunCodeArtifactMarkdown(tool = {}, result = {}) {
+  const language = result.language || tool.args?.language || 'text';
+  const code = getRunCodeSourceCode(tool);
+  const status = result.ok ? '成功' : (result.timedOut ? '超时' : '失败');
+  const lines = [
+    '# DeepChat 代码实验',
+    '',
+    '## 运行摘要',
+    '',
+    `- 状态：${status}`,
+    `- 语言：${language}`,
+    `- 退出码：${result.exitCode ?? 'unknown'}`,
+    `- 耗时：${result.durationMs ?? 'unknown'}ms`,
+    `- 代码长度：${result.codeLength ?? code.length} chars`,
+    `- stdin：${result.stdinBytes || 0} bytes`,
+  ];
+  if (result.failureHint) lines.push(`- 失败提示：${result.failureHint}`);
+  if (tool.id) lines.push(`- Tool ID：${tool.id}`);
+  lines.push('', '## 代码', '', `\`\`\`${formatCodeFenceLanguage(language)}`, code || '// 原始工具记录没有保存代码', '```');
+  if (result.stdoutPreview) {
+    lines.push('', `## STDOUT (${result.stdoutBytes ?? 0} bytes)`, '', '```text', result.stdoutPreview, '```');
+  }
+  if (result.stderrPreview) {
+    lines.push('', `## STDERR (${result.stderrBytes ?? 0} bytes)`, '', '```text', result.stderrPreview, '```');
+  }
+  lines.push('', '## 原始工具输出', '', '```text', truncate(String(tool.output || ''), 12000), '```');
+  return lines.join('\n').trimEnd() + '\n';
 }
 
 function createRunOutputBlock(label, text, bytes) {
