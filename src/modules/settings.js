@@ -26,7 +26,7 @@ import {
   getProviderPreset,
   PROVIDER_PRESETS,
 } from './api.js';
-import { exportBackup, importBackup, listMcpStatus, pickExternalSkill, pickWorkspace, removeWorkspace } from './client-store.js';
+import { clearWorkspaceIndexCache, exportBackup, importBackup, listMcpStatus, pickExternalSkill, pickWorkspace, removeWorkspace } from './client-store.js';
 import { copyToClipboard, showToast, uid } from './utils.js';
 
 // ─── Quality-Boosting Prompt Presets ───
@@ -144,6 +144,8 @@ export function initSettings(onModelChange) {
     agentMaxRounds: document.getElementById('agent-max-rounds-input'),
     autoContextSummary: document.getElementById('auto-context-summary-toggle'),
     cacheOptimization: document.getElementById('cache-optimization-toggle'),
+    clearWorkspaceIndexCacheBtn: document.getElementById('clear-workspace-index-cache-btn'),
+    workspaceIndexCacheStatus: document.getElementById('workspace-index-cache-status'),
     toolApprovalTimeout: document.getElementById('tool-approval-timeout-input'),
     runCodeEnabled: document.getElementById('run-code-enabled-toggle'),
     systemPrompt: document.getElementById('system-prompt-input'),
@@ -421,6 +423,14 @@ export function initSettings(onModelChange) {
   if (els.cacheOptimization) {
     els.cacheOptimization.addEventListener('change', () => saveSettings({ cacheOptimization: els.cacheOptimization.checked }));
   }
+  if (els.clearWorkspaceIndexCacheBtn) {
+    els.clearWorkspaceIndexCacheBtn.addEventListener('click', () => runStatusAction(
+      els.workspaceIndexCacheStatus,
+      '正在清理工作区索引缓存...',
+      formatWorkspaceIndexClearResult,
+      clearWorkspaceIndexCache
+    ));
+  }
   if (els.toolApprovalTimeout) {
     els.toolApprovalTimeout.addEventListener('change', () => saveSettings({ toolApprovalTimeoutMs: parseInt(els.toolApprovalTimeout.value, 10) }));
   }
@@ -586,6 +596,19 @@ function renderStorageStatus(container, settings) {
   } else {
     container.textContent = '浏览器预览模式：非敏感设置和对话保存在 localStorage；密钥仅当前页面会话保留，备份不包含 API Key/Tavily Key/MCP env。';
   }
+}
+
+function formatWorkspaceIndexClearResult(result = {}) {
+  if (!result.diskEnabled) return '已清理内存索引；浏览器预览或当前存储目录未启用磁盘索引缓存。';
+  const bytes = Number(result.deletedBytes || 0);
+  return `已清理工作区索引缓存：${result.deletedFiles || 0} 个文件，${formatBytes(bytes)}。`;
+}
+
+function formatBytes(bytes) {
+  const value = Math.max(0, Number(bytes) || 0);
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
+  return `${Math.round((value / 1024 / 1024) * 10) / 10} MB`;
 }
 
 export function renderModelCapabilities(container, settings = getSettings()) {

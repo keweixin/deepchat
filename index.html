@@ -275,6 +275,10 @@
               <span>缓存命中优化</span>
             </label>
             <p class="form-hint">保持 system prompt 与工具 schema 前缀稳定，并在 token 统计中展示 prefix 和缓存命中。</p>
+            <div class="form-actions">
+              <button id="clear-workspace-index-cache-btn" class="secondary-btn" type="button">清理工作区索引缓存</button>
+            </div>
+            <p id="workspace-index-cache-status" class="form-hint">工作区索引用于加速本地搜索；清理后下次文件工具会按快照重新建立。</p>
           </div>
           <div class="form-group">
             <label class="toggle-row">

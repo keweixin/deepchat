@@ -680,6 +680,51 @@ async function writeWorkspaceIndexDiskCache(cacheKey, index, settings = {}) {
   }
 }
 
+async function clearWorkspaceIndexDiskCache(settings = {}) {
+  clearWorkspaceIndexCache();
+  const dir = getWorkspaceIndexDiskDir(settings);
+  if (!dir) {
+    return {
+      ok: true,
+      memoryCleared: true,
+      diskEnabled: false,
+      deletedFiles: 0,
+      deletedBytes: 0,
+    };
+  }
+  let entries = [];
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return {
+      ok: true,
+      memoryCleared: true,
+      diskEnabled: true,
+      deletedFiles: 0,
+      deletedBytes: 0,
+      cacheDir: dir,
+    };
+  }
+  let deletedFiles = 0;
+  let deletedBytes = 0;
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const filePath = path.join(dir, entry.name);
+    const stat = await fs.stat(filePath).catch(() => null);
+    await fs.rm(filePath, { force: true }).catch(() => {});
+    deletedFiles += 1;
+    deletedBytes += stat?.size || 0;
+  }
+  return {
+    ok: true,
+    memoryCleared: true,
+    diskEnabled: true,
+    deletedFiles,
+    deletedBytes,
+    cacheDir: dir,
+  };
+}
+
 function buildWorkspaceIndexCacheFileId(cacheKey) {
   return crypto.createHash('sha256').update(cacheKey).digest('hex').slice(0, 32);
 }
@@ -1186,4 +1231,5 @@ module.exports = {
   isPathInsideRoot,
   resolveAllowedPath,
   clearWorkspaceIndexCache,
+  clearWorkspaceIndexDiskCache,
 };

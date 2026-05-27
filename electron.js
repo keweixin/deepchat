@@ -13,7 +13,7 @@ const {
 } = require('./electron/storage');
 const { pickExternalSkill } = require('./electron/external-skills');
 const { ChatService, testApiConnection } = require('./electron/chat-service');
-const { executeTool } = require('./electron/tools');
+const { executeTool, clearWorkspaceIndexDiskCache } = require('./electron/tools');
 const { McpManager } = require('./electron/mcp-manager');
 const { validate, schemas } = require('./electron/ipc-validation');
 
@@ -89,6 +89,7 @@ function registerIpc() {
 
   ipcMain.handle('workspace:pick', () => pickWorkspaceRoot(mainWindow));
   ipcMain.handle('workspace:remove', (_event, root) => removeWorkspaceRoot(validate(schemas.WorkspaceRemoveSchema, root, 'workspace:remove')));
+  ipcMain.handle('workspace:clearIndexCache', async () => clearWorkspaceIndexDiskCache(await getSettings()));
   ipcMain.handle('skills:pickExternal', async () => {
     const settings = await getSettings();
     return pickExternalSkill(mainWindow, settings, setSettings);

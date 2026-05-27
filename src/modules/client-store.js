@@ -79,6 +79,19 @@ export async function removeWorkspace(root) {
   return saveSettings({ workspaceRoots: roots });
 }
 
+export async function clearWorkspaceIndexCache() {
+  if (hasNativeBridge() && window.deepchat.workspace.clearIndexCache) {
+    return window.deepchat.workspace.clearIndexCache();
+  }
+  return {
+    ok: true,
+    memoryCleared: false,
+    diskEnabled: false,
+    deletedFiles: 0,
+    deletedBytes: 0,
+  };
+}
+
 export async function pickExternalSkill() {
   if (hasNativeBridge()) return window.deepchat.skills.pickExternal();
   return new Promise((resolve, reject) => {

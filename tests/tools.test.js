@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const {
   buildTavilySearchRequest,
   clearWorkspaceIndexCache,
+  clearWorkspaceIndexDiskCache,
   executeTool,
   isPathInsideRoot,
   normalizeTavilyResults,
@@ -199,6 +200,32 @@ describe('electron tools helpers', () => {
       expect(second).toContain('磁盘缓存：已命中');
       expect(third).toContain('工作区索引：新建');
       expect(search).toContain('The snapshot should force a rebuild.');
+    } finally {
+      clearWorkspaceIndexCache();
+      await fs.rm(tmpDir, { recursive: true, force: true });
+      await fs.rm(cacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it('clears workspace index memory and disk cache on demand', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-index-clear-workspace-'));
+    const cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-index-clear-cache-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'src', 'agent.md'), 'Clearable workspace index cache.', 'utf8');
+      const settings = { workspaceRoots: [tmpDir], workspaceIndexCacheDir: cacheDir };
+
+      await executeTool('index_workspace', { directory: 'src' }, settings);
+      const before = await fs.readdir(cacheDir);
+      const result = await clearWorkspaceIndexDiskCache(settings);
+      const after = await fs.readdir(cacheDir);
+      const rebuilt = await executeTool('index_workspace', { directory: 'src' }, settings);
+
+      expect(before.some((name) => name.endsWith('.json'))).toBe(true);
+      expect(result).toMatchObject({ ok: true, memoryCleared: true, diskEnabled: true, deletedFiles: 1 });
+      expect(result.deletedBytes).toBeGreaterThan(0);
+      expect(after.filter((name) => name.endsWith('.json'))).toEqual([]);
+      expect(rebuilt).toContain('工作区索引：新建');
     } finally {
       clearWorkspaceIndexCache();
       await fs.rm(tmpDir, { recursive: true, force: true });
