@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildAnswerActionPrompt,
   getCompactMessagePreview,
   buildConversationUsageTelemetryDetails,
   formatConversationUsageTelemetry,
@@ -16,6 +17,22 @@ import {
 } from '../src/modules/chat.js';
 
 describe('chat regeneration', () => {
+  it('builds bounded follow-up prompts for answer action buttons', () => {
+    const shorter = buildAnswerActionPrompt('shorter', '结论：先做组件化回答。\n\n原因：提升阅读体验。');
+    const deeper = buildAnswerActionPrompt('deeper', '结论：先做组件化回答。');
+    const table = buildAnswerActionPrompt('table', 'P0：证据面板\nP1：回答组件');
+    const long = buildAnswerActionPrompt('shorter', 'A'.repeat(9000));
+
+    expect(shorter).toContain('更短版本');
+    expect(shorter).toContain('<previous_answer>');
+    expect(shorter).toContain('结论：先做组件化回答');
+    expect(deeper).toContain('更详细版本');
+    expect(table).toContain('Markdown 表格');
+    expect(long.length).toBeLessThan(6500);
+    expect(long).toContain('中间内容已省略');
+    expect(buildAnswerActionPrompt('unknown', 'content')).toBe('');
+  });
+
   it('truncates from the selected assistant message instead of the last message', () => {
     const messages = [
       { role: 'user', content: 'one' },

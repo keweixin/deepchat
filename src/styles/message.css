@@ -342,6 +342,18 @@
   color: var(--accent-secondary);
 }
 
+.answer-action-btn {
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 82%);
+  background: color-mix(in srgb, var(--accent-primary), transparent 94%);
+  color: color-mix(in srgb, var(--text-secondary), var(--accent-primary) 20%);
+}
+
+.answer-action-btn:hover {
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 58%);
+  background: color-mix(in srgb, var(--accent-primary), transparent 88%);
+  color: var(--text-primary);
+}
+
 /* Version Switcher */
 .version-switcher {
   display: inline-flex;
