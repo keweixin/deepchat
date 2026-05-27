@@ -5,7 +5,13 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { buildTavilySearchRequest, executeTool, isPathInsideRoot, normalizeTavilyResults } = require('../electron/tools');
+const {
+  buildTavilySearchRequest,
+  clearWorkspaceIndexCache,
+  executeTool,
+  isPathInsideRoot,
+  normalizeTavilyResults,
+} = require('../electron/tools');
 
 describe('electron tools helpers', () => {
   it('keeps file paths inside the approved workspace root', () => {
@@ -149,12 +155,54 @@ describe('electron tools helpers', () => {
       expect(first).toContain('文本块：1');
       expect(first).toContain('agent.md');
       expect(first).not.toContain('should_not_be_indexed');
-      expect(second).toContain('工作区索引：命中缓存');
-      expect(search).toContain('索引：命中缓存');
+      expect(second).toContain('工作区索引：命中缓存（内存）');
+      expect(search).toContain('索引：命中缓存（内存）');
       expect(search).toContain('agent.md:2-3');
       expect(search).toContain('2: Workspace index should speed up local search.');
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('persists workspace index cache to disk and invalidates it by snapshot', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-index-disk-workspace-'));
+    const cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-index-disk-cache-'));
+    try {
+      await fs.mkdir(path.join(tmpDir, 'src'), { recursive: true });
+      const filePath = path.join(tmpDir, 'src', 'agent.md');
+      await fs.writeFile(filePath, [
+        '# Agent Notes',
+        'Persistent workspace index should survive a process cache clear.',
+      ].join('\n'), 'utf8');
+
+      const settings = { workspaceRoots: [tmpDir], workspaceIndexCacheDir: cacheDir };
+      const first = await executeTool('index_workspace', { directory: 'src' }, settings);
+      clearWorkspaceIndexCache();
+      const second = await executeTool('index_workspace', { directory: 'src' }, settings);
+
+      await fs.writeFile(filePath, [
+        '# Agent Notes',
+        'Persistent workspace index changed after file update.',
+        'The snapshot should force a rebuild.',
+      ].join('\n'), 'utf8');
+      const future = new Date(Date.now() + 2000);
+      await fs.utimes(filePath, future, future);
+      clearWorkspaceIndexCache();
+      const third = await executeTool('index_workspace', { directory: 'src' }, settings);
+      const search = await executeTool('search_workspace', {
+        query: 'force a rebuild',
+        directory: 'src',
+      }, settings);
+
+      expect(first).toContain('磁盘缓存：已写入');
+      expect(second).toContain('工作区索引：命中缓存（磁盘）');
+      expect(second).toContain('磁盘缓存：已命中');
+      expect(third).toContain('工作区索引：新建');
+      expect(search).toContain('The snapshot should force a rebuild.');
+    } finally {
+      clearWorkspaceIndexCache();
+      await fs.rm(tmpDir, { recursive: true, force: true });
+      await fs.rm(cacheDir, { recursive: true, force: true });
     }
   });
 

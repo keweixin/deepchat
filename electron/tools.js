@@ -11,6 +11,9 @@ const MAX_SEARCH_SCAN_FILES = 700;
 const MAX_TOOL_OUTPUT = 12000;
 const RUN_TIMEOUT_MS = 5000;
 const WORKSPACE_INDEX_TTL_MS = 5 * 60 * 1000;
+const WORKSPACE_INDEX_DISK_TTL_MS = 24 * 60 * 60 * 1000;
+const WORKSPACE_INDEX_DISK_MAX_BYTES = 8 * 1024 * 1024;
+const WORKSPACE_INDEX_DISK_VERSION = 1;
 const WORKSPACE_INDEX_CACHE_MAX = 8;
 const SENSITIVE_PATH_PARTS = new Set(['.ssh', '.aws', '.azure', '.gnupg']);
 const SENSITIVE_FILE_NAMES = new Set([
@@ -80,7 +83,7 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'index_workspace',
-      description: 'Build or refresh a lightweight in-memory index of approved workspace text files for faster cited search.',
+      description: 'Build or refresh a lightweight cached index of approved workspace text files for faster cited search.',
       parameters: {
         type: 'object',
         properties: {
@@ -403,7 +406,7 @@ async function searchWorkspace(args, settings) {
       `工作区：${index.root}`,
       `目录：${index.relativeDirectory}`,
       index.pattern ? `文件筛选：${index.pattern}` : '',
-      `索引：${index.fromCache ? '命中缓存' : '新建'} · files=${index.fileCount} · chunks=${index.chunkCount} · hash=${index.hash}`,
+      `索引：${formatWorkspaceIndexCacheLabel(index)} · files=${index.fileCount} · chunks=${index.chunkCount} · snapshot=${index.snapshotHash || 'none'} · hash=${index.hash}`,
       '没有找到匹配的文本结果。',
     ].filter(Boolean).join('\n');
   }
@@ -414,7 +417,7 @@ async function searchWorkspace(args, settings) {
     `工作区：${index.root}`,
     `目录：${index.relativeDirectory}`,
     index.pattern ? `文件筛选：${index.pattern}` : '',
-    `索引：${index.fromCache ? '命中缓存' : '新建'} · files=${index.fileCount} · chunks=${index.chunkCount} · hash=${index.hash}`,
+    `索引：${formatWorkspaceIndexCacheLabel(index)} · files=${index.fileCount} · chunks=${index.chunkCount} · snapshot=${index.snapshotHash || 'none'} · hash=${index.hash}`,
     `结果数：${selected.length}`,
     '',
   ].filter(Boolean);
@@ -446,6 +449,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
     return {
       ...cached,
       fromCache: true,
+      cacheLayer: 'memory',
       ageMs: now - cached.builtAtMs,
     };
   }
@@ -453,6 +457,34 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   const matcher = createMatcher(pattern);
   const rawFiles = [];
   await walk(realScanRoot, realScanRoot, rawFiles, matcher, maxFiles);
+  const snapshot = buildWorkspaceSnapshot(rawFiles, realRoot);
+  if (!options.forceRefresh && cached && cached.snapshotHash === snapshot.hash && now - cached.builtAtMs < WORKSPACE_INDEX_DISK_TTL_MS) {
+    return {
+      ...cached,
+      rawFileCount: rawFiles.length,
+      snapshotFileCount: snapshot.fileCount,
+      fromCache: true,
+      cacheLayer: 'memory',
+      ageMs: now - cached.builtAtMs,
+    };
+  }
+
+  if (!options.forceRefresh) {
+    const diskIndex = await readWorkspaceIndexDiskCache(cacheKey, snapshot.hash, settings, now);
+    if (diskIndex) {
+      const restored = {
+        ...diskIndex,
+        rawFileCount: rawFiles.length,
+        snapshotFileCount: snapshot.fileCount,
+        fromCache: true,
+        cacheLayer: 'disk',
+        ageMs: now - diskIndex.builtAtMs,
+      };
+      rememberWorkspaceIndex(cacheKey, restored);
+      return restored;
+    }
+  }
+
   const files = [];
   let skippedSensitive = 0;
   let skippedBinary = 0;
@@ -494,6 +526,8 @@ async function getWorkspaceIndex(args, settings, options = {}) {
     pattern,
     fileCount: files.length,
     rawFileCount: rawFiles.length,
+    snapshotHash: snapshot.hash,
+    snapshotFileCount: snapshot.fileCount,
     skippedSensitive,
     skippedBinary,
     scannedBytes,
@@ -504,8 +538,14 @@ async function getWorkspaceIndex(args, settings, options = {}) {
     builtAtMs: now,
     ttlMs: WORKSPACE_INDEX_TTL_MS,
     fromCache: false,
+    cacheLayer: 'new',
     ageMs: 0,
+    diskCache: {
+      enabled: Boolean(getWorkspaceIndexDiskDir(settings)),
+      written: false,
+    },
   };
+  index.diskCache = await writeWorkspaceIndexDiskCache(cacheKey, index, settings);
   rememberWorkspaceIndex(cacheKey, index);
   return index;
 }
@@ -520,6 +560,10 @@ function rememberWorkspaceIndex(cacheKey, index) {
   }
 }
 
+function clearWorkspaceIndexCache() {
+  workspaceIndexCache.clear();
+}
+
 function buildWorkspaceIndexCacheKey(root, scanRoot, pattern, maxFiles) {
   return [root, scanRoot, pattern || '*', maxFiles].map((item) => String(item || '').toLowerCase()).join('\0');
 }
@@ -529,15 +573,145 @@ function buildWorkspaceIndexHash(files = []) {
   return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 16);
 }
 
+function buildWorkspaceSnapshot(rawFiles = [], realRoot = '') {
+  const entries = rawFiles
+    .filter((file) => file.fullPath && !isSensitivePath(file.fullPath))
+    .map((file) => [
+      path.relative(realRoot, file.fullPath) || file.path,
+      file.size || 0,
+      Math.round(file.mtimeMs || 0),
+    ].join(':'))
+    .sort();
+  const payload = entries.join('\n');
+  return {
+    hash: crypto.createHash('sha256').update(payload).digest('hex').slice(0, 16),
+    fileCount: entries.length,
+  };
+}
+
+function getWorkspaceIndexDiskDir(settings = {}) {
+  const explicit = String(settings.workspaceIndexCacheDir || process.env.DEEPCHAT_WORKSPACE_INDEX_CACHE_DIR || '').trim();
+  if (explicit) return explicit;
+  const dataDir = String(settings.storageStatus?.dataDir || '').trim();
+  return dataDir ? path.join(dataDir, 'workspace-indexes') : '';
+}
+
+function getWorkspaceIndexDiskPath(cacheKey, settings = {}) {
+  const dir = getWorkspaceIndexDiskDir(settings);
+  if (!dir) return '';
+  const id = crypto.createHash('sha256').update(cacheKey).digest('hex').slice(0, 32);
+  return path.join(dir, `${id}.json`);
+}
+
+async function readWorkspaceIndexDiskCache(cacheKey, snapshotHash, settings = {}, now = Date.now()) {
+  const filePath = getWorkspaceIndexDiskPath(cacheKey, settings);
+  if (!filePath) return null;
+  let payload;
+  try {
+    payload = JSON.parse(await fs.readFile(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!payload || payload.version !== WORKSPACE_INDEX_DISK_VERSION) return null;
+  if (payload.cacheKeyHash !== buildWorkspaceIndexCacheFileId(cacheKey)) return null;
+  if (payload.snapshotHash !== snapshotHash) return null;
+  const index = payload.index;
+  if (!index || !Array.isArray(index.files) || !Number.isFinite(index.builtAtMs)) return null;
+  if (now - index.builtAtMs > WORKSPACE_INDEX_DISK_TTL_MS) return null;
+  return {
+    ...index,
+    cacheKey,
+    snapshotHash,
+    diskCache: {
+      enabled: true,
+      hit: true,
+      path: filePath,
+    },
+  };
+}
+
+async function writeWorkspaceIndexDiskCache(cacheKey, index, settings = {}) {
+  const filePath = getWorkspaceIndexDiskPath(cacheKey, settings);
+  if (!filePath) {
+    return {
+      enabled: false,
+      written: false,
+      reason: 'missing-data-dir',
+    };
+  }
+  const payload = {
+    version: WORKSPACE_INDEX_DISK_VERSION,
+    cacheKeyHash: buildWorkspaceIndexCacheFileId(cacheKey),
+    snapshotHash: index.snapshotHash,
+    savedAt: new Date().toISOString(),
+    index: serializeWorkspaceIndex(index),
+  };
+  const text = JSON.stringify(payload);
+  const bytes = Buffer.byteLength(text, 'utf8');
+  if (bytes > WORKSPACE_INDEX_DISK_MAX_BYTES) {
+    return {
+      enabled: true,
+      written: false,
+      reason: 'too-large',
+      bytes,
+      maxBytes: WORKSPACE_INDEX_DISK_MAX_BYTES,
+      path: filePath,
+    };
+  }
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(tmpPath, text, 'utf8');
+    await fs.rename(tmpPath, filePath);
+    return {
+      enabled: true,
+      written: true,
+      bytes,
+      path: filePath,
+    };
+  } catch (error) {
+    return {
+      enabled: true,
+      written: false,
+      reason: 'write-failed',
+      error: error?.message || String(error),
+      path: filePath,
+    };
+  }
+}
+
+function buildWorkspaceIndexCacheFileId(cacheKey) {
+  return crypto.createHash('sha256').update(cacheKey).digest('hex').slice(0, 32);
+}
+
+function serializeWorkspaceIndex(index) {
+  const {
+    fromCache,
+    ageMs,
+    cacheLayer,
+    diskCache,
+    ...rest
+  } = index;
+  return {
+    ...rest,
+    files: (index.files || []).map((file) => {
+      const { fullPath, ...safeFile } = file;
+      return safeFile;
+    }),
+  };
+}
+
 function formatWorkspaceIndexOutput(index) {
   const files = index.files.slice(0, 80).map((file) => `- ${file.path} (${file.lineCount} lines, ${file.size} bytes, chunks ${file.chunks})`);
   return [
-    `工作区索引：${index.fromCache ? '命中缓存' : '新建'}`,
+    `工作区索引：${formatWorkspaceIndexCacheLabel(index)}`,
     `工作区：${index.root}`,
     `目录：${index.relativeDirectory}`,
     index.pattern ? `文件筛选：${index.pattern}` : '',
     `索引 hash：${index.hash}`,
-    `有效期：${formatDuration(index.ttlMs)}${index.fromCache ? ` · age ${formatDuration(index.ageMs)}` : ''}`,
+    index.snapshotHash ? `快照 hash：${index.snapshotHash}` : '',
+    `缓存策略：内存 ${formatDuration(WORKSPACE_INDEX_TTL_MS)} · 磁盘 ${formatDuration(WORKSPACE_INDEX_DISK_TTL_MS)}${index.fromCache ? ` · age ${formatDuration(index.ageMs)}` : ''}`,
+    formatWorkspaceIndexDiskStatus(index.diskCache),
     `文件数：${index.fileCount}/${index.rawFileCount}`,
     `文本块：${index.chunkCount}`,
     `扫描字节：${index.scannedBytes}`,
@@ -548,6 +722,22 @@ function formatWorkspaceIndexOutput(index) {
     ...files,
     index.files.length > files.length ? `... 仅显示前 ${files.length} 个文件` : '',
   ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+function formatWorkspaceIndexCacheLabel(index) {
+  if (!index?.fromCache) return '新建';
+  if (index.cacheLayer === 'disk') return '命中缓存（磁盘）';
+  if (index.cacheLayer === 'memory') return '命中缓存（内存）';
+  return '命中缓存';
+}
+
+function formatWorkspaceIndexDiskStatus(diskCache = {}) {
+  if (!diskCache.enabled) return '磁盘缓存：未启用（缺少应用数据目录）';
+  if (diskCache.hit) return '磁盘缓存：已命中';
+  if (diskCache.written) return `磁盘缓存：已写入${diskCache.bytes ? `（${diskCache.bytes} bytes）` : ''}`;
+  if (diskCache.reason === 'too-large') return `磁盘缓存：跳过写入（超过 ${diskCache.maxBytes} bytes）`;
+  if (diskCache.reason === 'write-failed') return '磁盘缓存：写入失败';
+  return '磁盘缓存：未写入';
 }
 
 async function readSearchableFile(filePath, maxBytes) {
@@ -995,4 +1185,5 @@ module.exports = {
   formatTavilyResults,
   isPathInsideRoot,
   resolveAllowedPath,
+  clearWorkspaceIndexCache,
 };
