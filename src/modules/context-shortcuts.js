@@ -67,15 +67,16 @@ export function buildContextShortcutEntries(settings = {}) {
       available: !unavailableReason,
       state: unavailableReason || '可插入',
       selectStartOffset: shortcut.placeholder ? shortcut.insertText.indexOf(shortcut.placeholder) : -1,
-      selectEndOffset: shortcut.placeholder ? shortcut.insertText.indexOf(shortcut.placeholder) + shortcut.placeholder.length : -1,
+      selectEndOffset: shortcut.placeholder
+        ? shortcut.insertText.indexOf(shortcut.placeholder) + shortcut.placeholder.length
+        : -1,
     };
   });
 }
 
 export function getContextShortcutUnavailableReason(shortcutOrId, settings = {}) {
-  const shortcut = typeof shortcutOrId === 'string'
-    ? CONTEXT_SHORTCUTS.find((item) => item.id === shortcutOrId)
-    : shortcutOrId;
+  const shortcut =
+    typeof shortcutOrId === 'string' ? CONTEXT_SHORTCUTS.find((item) => item.id === shortcutOrId) : shortcutOrId;
   if (!shortcut) return '未知上下文';
   if (shortcut.needs === 'workspace') {
     if (!hasNativeBridge()) return '需桌面版';

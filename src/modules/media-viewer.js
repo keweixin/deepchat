@@ -214,10 +214,7 @@ function ensureViewer() {
   }
 
   function fitToStage() {
-    state.fitScale = calculateFitScale(
-      { width: state.mediaWidth, height: state.mediaHeight },
-      getStageRect(),
-    );
+    state.fitScale = calculateFitScale({ width: state.mediaWidth, height: state.mediaHeight }, getStageRect());
     state.scale = state.fitScale;
     state.x = 0;
     state.y = 0;
@@ -270,11 +267,15 @@ function ensureViewer() {
     if (href) window.open(href, '_blank', 'noopener,noreferrer');
   });
 
-  stage.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    const point = getPointerFromEvent(event, stage);
-    setScale(state.scale * (event.deltaY < 0 ? 1.15 : 0.87), point);
-  }, { passive: false });
+  stage.addEventListener(
+    'wheel',
+    (event) => {
+      event.preventDefault();
+      const point = getPointerFromEvent(event, stage);
+      setScale(state.scale * (event.deltaY < 0 ? 1.15 : 0.87), point);
+    },
+    { passive: false }
+  );
 
   stage.addEventListener('pointerdown', (event) => {
     if (!canPan(state, getStageRect())) return;
@@ -373,19 +374,23 @@ function openImageViewer(sourceImage) {
     height: size.height,
   });
 
-  img.addEventListener('load', () => {
-    if (!img.naturalWidth || !img.naturalHeight) return;
-    if (img.naturalWidth === size.width && img.naturalHeight === size.height) return;
-    const active = ensureViewer();
-    if (active.state.src !== src) return;
-    active.open({
-      node: img,
-      title: sourceImage.alt || sourceImage.title || '图片预览',
-      src,
-      width: img.naturalWidth,
-      height: img.naturalHeight,
-    });
-  }, { once: true });
+  img.addEventListener(
+    'load',
+    () => {
+      if (!img.naturalWidth || !img.naturalHeight) return;
+      if (img.naturalWidth === size.width && img.naturalHeight === size.height) return;
+      const active = ensureViewer();
+      if (active.state.src !== src) return;
+      active.open({
+        node: img,
+        title: sourceImage.alt || sourceImage.title || '图片预览',
+        src,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+    },
+    { once: true }
+  );
 }
 
 function openSvgViewer(sourceSvg, title) {
@@ -425,7 +430,10 @@ function getSvgSize(svg) {
 }
 
 function parseViewBox(value) {
-  const parts = String(value || '').trim().split(/[\s,]+/).map(Number);
+  const parts = String(value || '')
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
   if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) return null;
   return {
     width: positiveNumber(parts[2], 960),

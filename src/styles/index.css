@@ -44,7 +44,7 @@
 }
 
 /* Dark Theme (Default) */
-[data-theme="dark"] {
+[data-theme='dark'] {
   --bg-primary: #090d10;
   --bg-secondary: #10161a;
   --bg-tertiary: #172027;
@@ -95,7 +95,7 @@
 }
 
 /* Light Theme */
-[data-theme="light"] {
+[data-theme='light'] {
   --bg-primary: #f7f8f5;
   --bg-secondary: #ffffff;
   --bg-tertiary: #edf2ee;
@@ -148,7 +148,9 @@
 /* ============================================
    Global Reset & Base
    ============================================ */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -185,7 +187,7 @@ body {
   z-index: -1;
 }
 
-[data-theme="dark"] .bg-gradient-animated::before {
+[data-theme='dark'] .bg-gradient-animated::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -193,23 +195,38 @@ body {
     linear-gradient(120deg, rgba(45, 212, 191, 0.07), transparent 32%, rgba(245, 158, 11, 0.05) 70%, transparent),
     linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: auto, 42px 42px, 42px 42px;
+  background-size:
+    auto,
+    42px 42px,
+    42px 42px;
   animation: bgShift 24s ease-in-out infinite alternate;
 }
 
 @keyframes bgShift {
-  0% { transform: translate3d(0, 0, 0); opacity: 0.85; }
-  100% { transform: translate3d(-14px, -10px, 0); opacity: 1; }
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(-14px, -10px, 0);
+    opacity: 1;
+  }
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: var(--radius-full);
 }
-::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
 
 /* Selection */
 ::selection {
@@ -227,7 +244,9 @@ button {
   font-size: inherit;
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
   font-family: inherit;
   font-size: inherit;
   color: inherit;
@@ -263,4 +282,6 @@ input, select, textarea {
   color: var(--text-primary);
 }
 
-.hidden { display: none !important; }
+.hidden {
+  display: none !important;
+}

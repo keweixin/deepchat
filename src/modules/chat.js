@@ -1,6 +1,6 @@
 /**
  * Chat Module — Conversation management & UI
- * 
+ *
  * Features:
  * - Conversation search (sidebar filter)
  * - Edit user message & regenerate from that point
@@ -13,7 +13,15 @@
  * - Adaptive render throttling
  */
 
-import { approveToolRequest, streamChat, extractContextMentions, getSettings, runTool, normalizeTokenUsage, getConversationUsageSummary } from './api.js';
+import {
+  approveToolRequest,
+  streamChat,
+  extractContextMentions,
+  getSettings,
+  runTool,
+  normalizeTokenUsage,
+  getConversationUsageSummary,
+} from './api.js';
 import { loadConversations, saveConversations } from './client-store.js';
 import {
   SIDEBAR_FILTERS,
@@ -54,8 +62,23 @@ import {
   hasSearchWithoutCitedSource as hasUncitedSearchSource,
   hasLocalFilesWithoutCitedSource as hasUncitedLocalSource,
 } from './tool-runs.js';
-import { uid, formatTime, relativeTime, scrollToBottom, truncate, copyToClipboard, showToast, escapeHtml } from './utils.js';
-import { createAgentRun, applyCrewToolRequest, applyCrewToolResult, handleCrewAgentStage, finalizeCrewRun } from './agent-run-store.js';
+import {
+  uid,
+  formatTime,
+  relativeTime,
+  scrollToBottom,
+  truncate,
+  copyToClipboard,
+  showToast,
+  escapeHtml,
+} from './utils.js';
+import {
+  createAgentRun,
+  applyCrewToolRequest,
+  applyCrewToolResult,
+  handleCrewAgentStage,
+  finalizeCrewRun,
+} from './agent-run-store.js';
 import { renderAgentCrew } from './agent-crew.js';
 
 let conversations = [];
@@ -172,7 +195,7 @@ export function switchConversation(id) {
 }
 
 export async function deleteConversation(id) {
-  const conv = conversations.find(c => c.id === id);
+  const conv = conversations.find((c) => c.id === id);
   const title = conv ? conv.title : '此对话';
   const ok = await confirmAction({
     title: '删除对话',
@@ -181,8 +204,8 @@ export async function deleteConversation(id) {
     tone: 'danger',
   });
   if (!ok) return;
-  
-  conversations = conversations.filter(c => c.id !== id);
+
+  conversations = conversations.filter((c) => c.id !== id);
   selectedConversationIds.delete(id);
   persist();
   if (activeConvId === id) {
@@ -200,7 +223,7 @@ export async function deleteConversation(id) {
 }
 
 function renameConversation(id, newTitle) {
-  const conv = conversations.find(c => c.id === id);
+  const conv = conversations.find((c) => c.id === id);
   if (!conv || !newTitle.trim()) return;
   conv.title = newTitle.trim();
   persist();
@@ -209,7 +232,7 @@ function renameConversation(id, newTitle) {
 }
 
 function togglePinConversation(id) {
-  const conv = conversations.find(c => c.id === id);
+  const conv = conversations.find((c) => c.id === id);
   if (!conv) return;
   conv.pinned = !conv.pinned;
   persist();
@@ -237,7 +260,7 @@ export async function clearCurrentChat() {
 }
 
 function getActiveConversation() {
-  return conversations.find(c => c.id === activeConvId) || null;
+  return conversations.find((c) => c.id === activeConvId) || null;
 }
 
 // ─── Export ───
@@ -273,7 +296,7 @@ export async function sendMessage(content, options = {}) {
   addUserMessageActions(userEl, userMsg, conv.messages.length - 1);
   scrollToBottom($messages);
 
-  if (conv.messages.filter(m => m.role === 'user').length === 1) {
+  if (conv.messages.filter((m) => m.role === 'user').length === 1) {
     conv.title = truncate(content.trim() || attachments[0]?.name || '附件对话', 25);
     renderConversationList();
     updateHeader();
@@ -308,7 +331,7 @@ export async function regenerateLastResponse() {
   const conv = getActiveConversation();
   if (!conv || conv.messages.length === 0) return;
 
-  const idx = conv.messages.map(m => m.role).lastIndexOf('assistant');
+  const idx = conv.messages.map((m) => m.role).lastIndexOf('assistant');
   if (idx >= 0) await regenerateResponseAt(idx);
 }
 
@@ -357,7 +380,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     toolRuns: [],
     toolCalls: [],
     agentStages: [],
-    agentRun: createAgentRun(composerOverrides?.activeSkill || getSettings().activeSkill || 'auto'),
+    agentRun: null,
     contextBudget: null,
     composerOverrides,
   };
@@ -368,7 +391,23 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
   const crewContainer = msgEl.querySelector('.agent-crew-container');
   const toolContainer = msgEl.querySelector('.tool-calls-container');
   const agentContainer = msgEl.querySelector('.agent-timeline-container');
-  renderAgentCrew(crewContainer, assistantMsg.agentRun);
+
+  function shouldShowAgentCrew() {
+    const skill = composerOverrides?.activeSkill || getSettings().activeSkill || 'auto';
+    return ['agent_auto', 'web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill);
+  }
+
+  function ensureAgentRun() {
+    if (!assistantMsg.agentRun) {
+      assistantMsg.agentRun = createAgentRun(composerOverrides?.activeSkill || getSettings().activeSkill || 'auto');
+    }
+    return assistantMsg.agentRun;
+  }
+
+  if (shouldShowAgentCrew()) {
+    ensureAgentRun();
+    renderAgentCrew(crewContainer, assistantMsg.agentRun);
+  }
   smartScroll();
 
   let fullContent = '';
@@ -411,8 +450,8 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
   }
 
   const apiMessages = conv.messages
-    .filter(m => m.role === 'user' || m.role === 'assistant')
-    .map(m => ({ role: m.role, content: m.modelContent || m.content, attachments: m.attachments || [] }));
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({ role: m.role, content: m.modelContent || m.content, attachments: m.attachments || [] }));
 
   const enhanceEnabled = composerOverrides?.enhance ?? isEnhanceEnabled();
   if (enhanceEnabled && apiMessages.length > 0) {
@@ -474,18 +513,18 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       const tool = createToolRecord(event);
       assistantMsg.toolCalls.push(tool);
       syncToolRuns(assistantMsg);
-      applyCrewToolRequest(assistantMsg.agentRun, tool);
+      applyCrewToolRequest(ensureAgentRun(), tool);
       renderAgentCrew(crewContainer, assistantMsg.agentRun);
       renderToolCalls(toolContainer, assistantMsg.toolCalls, {
         requestId: event.requestId,
         onDecision(toolCallId, approved) {
           applyToolDecision(tool, approved);
           syncToolRuns(assistantMsg);
-          applyCrewToolResult(assistantMsg.agentRun, tool, assistantMsg.toolCalls);
+          applyCrewToolResult(ensureAgentRun(), tool, assistantMsg.toolCalls);
           renderAgentCrew(crewContainer, assistantMsg.agentRun);
           approveToolRequest(event.requestId, toolCallId, approved);
           renderToolCalls(toolContainer, assistantMsg.toolCalls);
-        }
+        },
       });
     },
     onToolResult(event) {
@@ -493,7 +532,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       applyToolResult(assistantMsg.toolCalls, event);
       syncToolRuns(assistantMsg);
       renderToolCalls(toolContainer, assistantMsg.toolCalls);
-      applyCrewToolResult(assistantMsg.agentRun, event, assistantMsg.toolCalls);
+      applyCrewToolResult(ensureAgentRun(), event, assistantMsg.toolCalls);
       renderAgentCrew(crewContainer, assistantMsg.agentRun);
     },
     onAgentStage(event) {
@@ -502,7 +541,7 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         at: new Date().toISOString(),
       });
       renderAgentTimeline(agentContainer, assistantMsg);
-      handleCrewAgentStage(assistantMsg.agentRun, event);
+      handleCrewAgentStage(ensureAgentRun(), event);
       renderAgentCrew(crewContainer, assistantMsg.agentRun);
     },
     onContextBudget(event) {
@@ -517,9 +556,11 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     },
     async onDone(doneEvent = {}) {
       clearTimeout(renderTimer);
-      finalizeCrewRun(assistantMsg.agentRun, Boolean(doneEvent.aborted));
-      renderAgentCrew(crewContainer, assistantMsg.agentRun);
-      
+      if (assistantMsg.agentRun) {
+        finalizeCrewRun(assistantMsg.agentRun, Boolean(doneEvent.aborted));
+        renderAgentCrew(crewContainer, assistantMsg.agentRun);
+      }
+
       // Calculate final speed
       const elapsed = streamStartTime > 0 ? (Date.now() - streamStartTime) / 1000 : 0;
       const finalSpeed = elapsed > 0 ? Math.round(tokenCount / elapsed) : 0;
@@ -543,7 +584,8 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.thinking = fullThinking;
       assistantMsg.stopped = Boolean(doneEvent.aborted);
       assistantMsg.speed = finalSpeed;
-      assistantMsg.sourceWarning = hasUncitedSearchSource(assistantMsg, fullContent) || hasUncitedLocalSource(assistantMsg, fullContent);
+      assistantMsg.sourceWarning =
+        hasUncitedSearchSource(assistantMsg, fullContent) || hasUncitedLocalSource(assistantMsg, fullContent);
       if (assistantMsg.agentStages?.length) renderAgentTimeline(agentContainer, assistantMsg);
       conv.messages.push(assistantMsg);
       refreshConversationTaskCheckpoint(conv);
@@ -573,7 +615,10 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       removeSpeedIndicator(msgEl);
 
       // Auto retry on network errors (up to 2 times)
-      if (retryCount < 2 && (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed'))) {
+      if (
+        retryCount < 2 &&
+        (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed'))
+      ) {
         msgEl.remove();
         isStreaming = false;
         abortController = null;
@@ -582,8 +627,10 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         return;
       }
 
-      finalizeCrewRun(assistantMsg.agentRun, false, err.message);
-      renderAgentCrew(crewContainer, assistantMsg.agentRun);
+      if (assistantMsg.agentRun) {
+        finalizeCrewRun(assistantMsg.agentRun, false, err.message, { source: 'model_stream' });
+        renderAgentCrew(crewContainer, assistantMsg.agentRun);
+      }
 
       assistantMsg.content = fullContent;
       assistantMsg.thinking = fullThinking;
@@ -616,13 +663,13 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       } else {
         renderErrorContent(contentEl, err.message, () => msgEl.remove(), renderRetry);
       }
-      
+
       isStreaming = false;
       abortController = null;
       userScrolledUp = false;
       toggleStreamingUI(false);
       refreshReadingNavigator();
-    }
+    },
   });
 }
 
@@ -656,7 +703,7 @@ export function stopStreaming() {
 function showWelcome() {
   resetReadingNavigator();
   if ($welcome) $welcome.style.display = '';
-  $messages.querySelectorAll('.message').forEach(m => m.remove());
+  $messages.querySelectorAll('.message').forEach((m) => m.remove());
   refreshReadingNavigator();
 }
 
@@ -696,7 +743,12 @@ function hashString(value = '') {
   return (hash >>> 0).toString(36);
 }
 
-export function shouldCompactHistoricalMessage(totalMessages, index, message = {}, limit = HISTORICAL_FULL_RENDER_LIMIT) {
+export function shouldCompactHistoricalMessage(
+  totalMessages,
+  index,
+  message = {},
+  limit = HISTORICAL_FULL_RENDER_LIMIT
+) {
   if (message.role !== 'assistant') return false;
   if (message.error || message.stopped || message.thinking) return false;
   if (Array.isArray(message.toolCalls) && message.toolCalls.length > 0) return false;
@@ -704,7 +756,7 @@ export function shouldCompactHistoricalMessage(totalMessages, index, message = {
   if (Array.isArray(message.agentStages) && message.agentStages.length > 0) return false;
   const content = String(message.content || '');
   if (content.length < HISTORICAL_COMPACT_MIN_CHARS) return false;
-  return (Number(totalMessages) - Number(index)) > limit;
+  return Number(totalMessages) - Number(index) > limit;
 }
 
 export function getCompactMessagePreview(content = '', maxLength = 260) {
@@ -753,7 +805,7 @@ function renderCompactAssistantMessage(contentEl, msg, idx) {
 function renderMessages() {
   const conv = getActiveConversation();
   resetReadingNavigator();
-  $messages.querySelectorAll('.message').forEach(m => m.remove());
+  $messages.querySelectorAll('.message').forEach((m) => m.remove());
 
   if (!conv || conv.messages.length === 0) {
     if ($welcome) $welcome.style.display = '';
@@ -809,13 +861,16 @@ function renderMessages() {
       renderAgentTimeline(el.querySelector('.agent-timeline-container'), msg);
 
       let agentRun = msg.agentRun;
-      if (!agentRun && ((msg.toolCalls && msg.toolCalls.length > 0) || (msg.agentStages && msg.agentStages.length > 0))) {
+      if (
+        !agentRun &&
+        ((msg.toolCalls && msg.toolCalls.length > 0) || (msg.agentStages && msg.agentStages.length > 0))
+      ) {
         agentRun = createAgentRun(msg.composerOverrides?.activeSkill || 'auto');
         if (msg.agentStages && msg.agentStages.length > 0) {
-          msg.agentStages.forEach(stage => handleCrewAgentStage(agentRun, stage));
+          msg.agentStages.forEach((stage) => handleCrewAgentStage(agentRun, stage));
         }
         if (msg.toolCalls && msg.toolCalls.length > 0) {
-          msg.toolCalls.forEach(tool => {
+          msg.toolCalls.forEach((tool) => {
             applyCrewToolRequest(agentRun, tool);
             applyCrewToolResult(agentRun, tool, msg.toolCalls);
           });
@@ -941,9 +996,12 @@ export function renderContextMentionStrip(content = '') {
   for (const mention of mentions) {
     const chip = document.createElement('span');
     chip.className = `message-context-chip type-${mention.type}`;
-    chip.textContent = mention.type === 'folder'
-      ? `目录 ${mention.path}`
-      : (mention.type === 'symbol' ? `符号 ${mention.path}` : `文件 ${mention.path}`);
+    chip.textContent =
+      mention.type === 'folder'
+        ? `目录 ${mention.path}`
+        : mention.type === 'symbol'
+          ? `符号 ${mention.path}`
+          : `文件 ${mention.path}`;
     chip.title = mention.path;
     strip.appendChild(chip);
   }
@@ -1051,9 +1109,10 @@ export function renderToolCalls(container, toolCalls = [], options = {}) {
       const summary = document.createElement('summary');
       const rawTokens = tool.rawOutputTokens || 0;
       const contextTokens = tool.contextOutputTokens || 0;
-      summary.textContent = rawTokens && contextTokens
-        ? `查看进入上下文的压缩输出 (${rawTokens}→${contextTokens} tokens)`
-        : '查看进入上下文的压缩输出';
+      summary.textContent =
+        rawTokens && contextTokens
+          ? `查看进入上下文的压缩输出 (${rawTokens}→${contextTokens} tokens)`
+          : '查看进入上下文的压缩输出';
       const pre = document.createElement('pre');
       pre.textContent = tool.contextOutput;
       contextOutput.append(summary, pre);
@@ -1108,17 +1167,16 @@ const LOW_RISK_TOOLS = new Set([
   'index_workspace',
 ]);
 
-const HIGH_RISK_TOOLS = new Set([
-  'run_code',
-]);
+const HIGH_RISK_TOOLS = new Set(['run_code']);
 
 export function getToolRiskMeta(tool = {}) {
-  const rawRisk = String(tool.security?.riskLevel || '').trim().toLowerCase();
-  const toolName = String(getToolName(tool) || '').trim().toLowerCase();
-  const normalizedRisk = rawRisk
-    .replace('低', 'low')
-    .replace('中', 'medium')
-    .replace('高', 'high');
+  const rawRisk = String(tool.security?.riskLevel || '')
+    .trim()
+    .toLowerCase();
+  const toolName = String(getToolName(tool) || '')
+    .trim()
+    .toLowerCase();
+  const normalizedRisk = rawRisk.replace('低', 'low').replace('中', 'medium').replace('高', 'high');
 
   if (tool.autoApproved && (normalizedRisk === 'low' || LOW_RISK_TOOLS.has(toolName))) {
     return {
@@ -1231,12 +1289,7 @@ function createToolRepairAction(tool) {
 }
 
 function shouldOfferToolRepair(tool = {}) {
-  return Boolean(
-    tool.parseError ||
-    tool.status === 'failed' ||
-    tool.status === 'denied' ||
-    tool.ok === false
-  );
+  return Boolean(tool.parseError || tool.status === 'failed' || tool.status === 'denied' || tool.ok === false);
 }
 
 function buildToolRepairPrompt(tool = {}) {
@@ -1258,7 +1311,9 @@ function buildToolRepairPrompt(tool = {}) {
     args,
     output ? ['输出/错误：', output].join('\n') : '',
     '</failed_tool>',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function createToolOutputSummary(outputText, tool = {}) {
@@ -1383,7 +1438,7 @@ function createRunCodeExperimentCard(tool = {}) {
   title.textContent = '代码实验';
   const status = document.createElement('span');
   status.className = 'run-experiment-status';
-  status.textContent = result.ok ? '成功' : (result.timedOut ? '超时' : '失败');
+  status.textContent = result.ok ? '成功' : result.timedOut ? '超时' : '失败';
   header.append(title, status);
   card.appendChild(header);
 
@@ -1395,7 +1450,9 @@ function createRunCodeExperimentCard(tool = {}) {
     `耗时 ${result.durationMs}ms`,
     `代码 ${result.codeLength} chars`,
     result.stdinBytes ? `stdin ${result.stdinBytes} bytes` : '',
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
   card.appendChild(meta);
 
   if (result.failureHint) {
@@ -1407,8 +1464,10 @@ function createRunCodeExperimentCard(tool = {}) {
 
   const outputs = document.createElement('div');
   outputs.className = 'run-experiment-outputs';
-  if (result.stdoutPreview) outputs.appendChild(createRunOutputBlock('STDOUT', result.stdoutPreview, result.stdoutBytes));
-  if (result.stderrPreview) outputs.appendChild(createRunOutputBlock('STDERR', result.stderrPreview, result.stderrBytes));
+  if (result.stdoutPreview)
+    outputs.appendChild(createRunOutputBlock('STDOUT', result.stdoutPreview, result.stdoutBytes));
+  if (result.stderrPreview)
+    outputs.appendChild(createRunOutputBlock('STDERR', result.stderrPreview, result.stderrBytes));
   if (outputs.children.length) card.appendChild(outputs);
   appendRunExperimentActions(card, tool, result);
   return card;
@@ -1468,7 +1527,11 @@ function getRunCodeSourceCode(tool = {}) {
 }
 
 function formatCodeFenceLanguage(language) {
-  return String(language || 'text').replace(/[^\w#+.-]/g, '').slice(0, 32) || 'text';
+  return (
+    String(language || 'text')
+      .replace(/[^\w#+.-]/g, '')
+      .slice(0, 32) || 'text'
+  );
 }
 
 function getBoundedRunCodeForPrompt(tool = {}) {
@@ -1520,7 +1583,7 @@ function downloadRunCodeArtifact(tool = {}, result = {}) {
 export function buildRunCodeArtifactMarkdown(tool = {}, result = {}) {
   const language = result.language || tool.args?.language || 'text';
   const code = getRunCodeSourceCode(tool);
-  const status = result.ok ? '成功' : (result.timedOut ? '超时' : '失败');
+  const status = result.ok ? '成功' : result.timedOut ? '超时' : '失败';
   const lines = [
     '# DeepChat 代码实验',
     '',
@@ -1535,7 +1598,14 @@ export function buildRunCodeArtifactMarkdown(tool = {}, result = {}) {
   ];
   if (result.failureHint) lines.push(`- 失败提示：${result.failureHint}`);
   if (tool.id) lines.push(`- Tool ID：${tool.id}`);
-  lines.push('', '## 代码', '', `\`\`\`${formatCodeFenceLanguage(language)}`, code || '// 原始工具记录没有保存代码', '```');
+  lines.push(
+    '',
+    '## 代码',
+    '',
+    `\`\`\`${formatCodeFenceLanguage(language)}`,
+    code || '// 原始工具记录没有保存代码',
+    '```'
+  );
   if (result.stdoutPreview) {
     lines.push('', `## STDOUT (${result.stdoutBytes ?? 0} bytes)`, '', '```text', result.stdoutPreview, '```');
   }
@@ -1608,7 +1678,9 @@ export function renderAgentTimeline(container, message = {}) {
       stage.round ? `第 ${stage.round} 轮` : '',
       stage.toolName || '',
       stage.warning || stage.stopReason || '',
-    ].filter(Boolean).join(' · ');
+    ]
+      .filter(Boolean)
+      .join(' · ');
     item.append(title);
     if (meta.textContent) item.appendChild(meta);
     list.appendChild(item);
@@ -1631,7 +1703,9 @@ function createAgentPlanCard(plan = null, contextBudget = null) {
     plan.mode && plan.mode !== 'none' ? plan.mode : '普通回答',
     plan.maxRounds ? `最多 ${plan.maxRounds} 轮` : '',
     Number.isFinite(Number(plan.confidence)) ? `置信 ${Math.round(Number(plan.confidence) * 100)}%` : '',
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
   header.append(title, meta);
   card.appendChild(header);
 
@@ -1798,20 +1872,27 @@ function appendAgentPlanChips(card, labelText, values = [], extraClass = '') {
 }
 
 function buildAgentPlanExecutionSummaryParts(plan = {}) {
-  const selectedTools = Array.isArray(plan.selectedTools) ? plan.selectedTools.map((tool) => String(tool || '').trim()).filter(Boolean) : [];
+  const selectedTools = Array.isArray(plan.selectedTools)
+    ? plan.selectedTools.map((tool) => String(tool || '').trim()).filter(Boolean)
+    : [];
   const missing = Array.isArray(plan.missingPrerequisites) ? plan.missingPrerequisites.filter(Boolean) : [];
   const highRiskTools = selectedTools.filter((tool) => /run_code|write|delete|mcp/i.test(tool));
   const readOnlyTools = selectedTools.filter((tool) => /read|search|list|web/i.test(tool));
-  const autoReadonly = (Array.isArray(plan.approvalPolicy) ? plan.approvalPolicy : [])
-    .some((item) => /自动执行|自动通过|只读自动/.test(String(item || '')));
+  const autoReadonly = (Array.isArray(plan.approvalPolicy) ? plan.approvalPolicy : []).some((item) =>
+    /自动执行|自动通过|只读自动/.test(String(item || ''))
+  );
   const risk = missing.length
     ? '需配置'
-    : (highRiskTools.length
-      ? (autoReadonly && readOnlyTools.length ? '只读自动 · 高风险确认' : '高风险确认')
-      : (readOnlyTools.length ? (autoReadonly ? '只读自动' : '低风险读取') : '普通回答'));
-  const boundary = autoReadonly && readOnlyTools.length
-    ? '只读自动/高风险确认边界'
-    : '执行前会显示确认边界';
+    : highRiskTools.length
+      ? autoReadonly && readOnlyTools.length
+        ? '只读自动 · 高风险确认'
+        : '高风险确认'
+      : readOnlyTools.length
+        ? autoReadonly
+          ? '只读自动'
+          : '低风险读取'
+        : '普通回答';
+  const boundary = autoReadonly && readOnlyTools.length ? '只读自动/高风险确认边界' : '执行前会显示确认边界';
   return {
     parts: [
       `风险：${risk}`,
@@ -2076,7 +2157,9 @@ export function renderAssistantToc(container, contentEl, options = {}) {
   const minHeadings = Number.isFinite(options.minHeadings) ? options.minHeadings : 3;
   const headings = Array.from(contentEl.querySelectorAll('h2, h3'))
     .map((heading, index) => {
-      const text = String(heading.textContent || '').trim().replace(/\s+/g, ' ');
+      const text = String(heading.textContent || '')
+        .trim()
+        .replace(/\s+/g, ' ');
       if (!text) return null;
       const id = ensureHeadingId(heading, text, index);
       return {
@@ -2142,7 +2225,7 @@ function buildAssistantAnswerHeaderItems(message = {}) {
   if (runs.length) {
     const failed = runs.filter((run) => isFailedToolStatus(run.status) || run.ok === false).length;
     const completed = runs.filter((run) => run.status === 'completed' || run.ok === true).length;
-    const suffix = failed ? ` · ${failed} 失败` : (completed ? ` · ${completed} 完成` : '');
+    const suffix = failed ? ` · ${failed} 失败` : completed ? ` · ${completed} 完成` : '';
     items.push({ kind: failed ? 'tool-warning' : 'tool', label: `工具 ${runs.length}${suffix}` });
   }
 
@@ -2153,12 +2236,13 @@ function buildAssistantAnswerHeaderItems(message = {}) {
 
   if (message.tokens) {
     const usage = normalizeTokenUsage(message.tokens);
-    const source = usage.source === 'provider' ? '实测' : (usage.source === 'mixed' ? '混合' : '估算');
+    const source = usage.source === 'provider' ? '实测' : usage.source === 'mixed' ? '混合' : '估算';
     items.push({ kind: 'token', label: `${source} ${formatCompactTokenCount(usage.total)} tok` });
     if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
       items.push({ kind: 'cache', label: `缓存 ${Math.round((usage.cacheHitRate || 0) * 100)}%` });
     }
-    if (usage.reasoning > 0) items.push({ kind: 'thinking', label: `思考 ${formatCompactTokenCount(usage.reasoning)} tok` });
+    if (usage.reasoning > 0)
+      items.push({ kind: 'thinking', label: `思考 ${formatCompactTokenCount(usage.reasoning)} tok` });
   }
 
   if (message.contextBudget?.trimmed) {
@@ -2274,7 +2358,9 @@ function downloadHtmlArtifact(artifact, index) {
 
 export function renderAssistantEvidence(container, message) {
   if (!container) return;
-  container.querySelectorAll('.source-grounding-warning, .source-grounding-card, .tool-evidence-panel').forEach((item) => item.remove());
+  container
+    .querySelectorAll('.source-grounding-warning, .source-grounding-card, .tool-evidence-panel')
+    .forEach((item) => item.remove());
   const grounding = getSearchGrounding(message, message?.content || '');
   const localGrounding = getLocalFileGrounding(message, message?.content || '');
   appendToolEvidencePanel(container, message, grounding, localGrounding);
@@ -2282,10 +2368,9 @@ export function renderAssistantEvidence(container, message) {
     appendGroundingCard(container, {
       warning: grounding.warning,
       title: grounding.warning ? '联网结果未被明确引用' : '已引用联网来源',
-      meta: [
-        grounding.queries[0] ? `query: ${grounding.queries[0]}` : '',
-        `${grounding.sources.length} 个来源`,
-      ].filter(Boolean).join(' · '),
+      meta: [grounding.queries[0] ? `query: ${grounding.queries[0]}` : '', `${grounding.sources.length} 个来源`]
+        .filter(Boolean)
+        .join(' · '),
       items: grounding.sources.slice(0, 3).map((source) => ({
         label: source.title || source.url,
         href: source.url,
@@ -2400,19 +2485,35 @@ function createToolEvidenceRunCard(run = {}, answerContent = '') {
     run.args?.path ? `path: ${run.args.path}` : '',
     run.args?.symbol ? `symbol: ${run.args.symbol}` : '',
     run.args?.language ? `language: ${run.args.language}` : '',
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
   if (meta.textContent) card.appendChild(meta);
 
   const citationStatus = buildToolCitationStatus(run, answerContent);
   if (citationStatus) appendToolCitationStatus(card, citationStatus);
 
-  appendEvidenceChips(card, '来源', (run.sources || []).slice(0, 3).map((source) => source.title || source.url));
-  appendEvidenceChips(card, '文件', (run.localCitations || []).slice(0, 6).map((citation) => citation.label));
+  appendEvidenceChips(
+    card,
+    '来源',
+    (run.sources || []).slice(0, 3).map((source) => source.title || source.url)
+  );
+  appendEvidenceChips(
+    card,
+    '文件',
+    (run.localCitations || []).slice(0, 6).map((citation) => citation.label)
+  );
   if (Array.isArray(run.workspaceResults) && run.workspaceResults.length) {
-    appendEvidenceChips(card, '搜索命中', run.workspaceResults.slice(0, 4).map((item) => `${item.file}:${item.startLine}-${item.endLine}`));
+    appendEvidenceChips(
+      card,
+      '搜索命中',
+      run.workspaceResults.slice(0, 4).map((item) => `${item.file}:${item.startLine}-${item.endLine}`)
+    );
   }
   if (run.workspaceSymbol?.result) {
-    appendEvidenceChips(card, '符号', [`${run.workspaceSymbol.symbol} ${run.workspaceSymbol.result.file}:${run.workspaceSymbol.result.startLine}-${run.workspaceSymbol.result.endLine}`]);
+    appendEvidenceChips(card, '符号', [
+      `${run.workspaceSymbol.symbol} ${run.workspaceSymbol.result.file}:${run.workspaceSymbol.result.startLine}-${run.workspaceSymbol.result.endLine}`,
+    ]);
   }
   if (run.runResult) {
     appendEvidenceChips(card, '实验', [
@@ -2450,7 +2551,10 @@ function appendEvidenceChips(card, labelText, values = []) {
 function appendEvidencePreview(card, text) {
   const preview = document.createElement('p');
   preview.className = 'tool-evidence-preview';
-  preview.textContent = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 220);
+  preview.textContent = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 220);
   card.appendChild(preview);
 }
 
@@ -2542,10 +2646,10 @@ function buildToolCitationStatus(run = {}, answerContent = '') {
     cited: isEvidenceRefMentioned(content, ref),
   }));
   const cited = checkedRefs.filter((ref) => ref.cited).length;
-  const state = cited === checkedRefs.length ? 'is-cited' : (cited > 0 ? 'is-partial' : 'is-missing');
+  const state = cited === checkedRefs.length ? 'is-cited' : cited > 0 ? 'is-partial' : 'is-missing';
   return {
     state,
-    label: state === 'is-cited' ? '已被回答引用' : (state === 'is-partial' ? '部分证据已引用' : '未被回答引用'),
+    label: state === 'is-cited' ? '已被回答引用' : state === 'is-partial' ? '部分证据已引用' : '未被回答引用',
     cited,
     total: checkedRefs.length,
     refs: checkedRefs.slice(0, 8),
@@ -2561,20 +2665,23 @@ function collectToolEvidenceRefs(run = {}) {
   for (const citation of Array.isArray(run.localCitations) ? run.localCitations : []) {
     const file = String(citation?.file || '').trim();
     const label = String(citation?.label || '').trim();
-    if (file || label) refs.push({
-      type: 'file',
-      label: label || file,
-      value: label || file,
-      file,
-      lineStart: Number(citation?.lineStart || 0),
-      lineEnd: Number(citation?.lineEnd || citation?.lineStart || 0),
-    });
+    if (file || label)
+      refs.push({
+        type: 'file',
+        label: label || file,
+        value: label || file,
+        file,
+        lineStart: Number(citation?.lineStart || 0),
+        lineEnd: Number(citation?.lineEnd || citation?.lineStart || 0),
+      });
   }
   if (run.workspaceSymbol?.result) {
     const result = run.workspaceSymbol.result;
     const file = String(result.file || '').trim();
     if (file) {
-      const range = result.startLine ? `${result.startLine}${result.endLine && result.endLine !== result.startLine ? `-${result.endLine}` : ''}` : '';
+      const range = result.startLine
+        ? `${result.startLine}${result.endLine && result.endLine !== result.startLine ? `-${result.endLine}` : ''}`
+        : '';
       refs.push({
         type: 'file',
         label: `${run.workspaceSymbol.symbol || 'symbol'} ${file}${range ? `:${range}` : ''}`,
@@ -2737,16 +2844,16 @@ function addUserMessageActions(msgEl, msg, msgIndex) {
   editBtn.addEventListener('click', () => {
     const contentEl = msgEl.querySelector('.message-content');
     const originalText = msg.content;
-    
+
     contentEl.innerHTML = '';
     const textarea = document.createElement('textarea');
     textarea.className = 'edit-textarea';
     textarea.value = originalText;
     textarea.rows = Math.min(originalText.split('\n').length + 1, 10);
-    
+
     const btnGroup = document.createElement('div');
     btnGroup.className = 'edit-btn-group';
-    
+
     const saveBtn = document.createElement('button');
     saveBtn.className = 'edit-save-btn';
     saveBtn.textContent = '保存并重新生成';
@@ -2754,14 +2861,14 @@ function addUserMessageActions(msgEl, msg, msgIndex) {
       const newText = textarea.value.trim();
       if (newText) editMessageAt(msgIndex, newText);
     });
-    
+
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'edit-cancel-btn';
     cancelBtn.textContent = '取消';
     cancelBtn.addEventListener('click', () => {
       contentEl.textContent = originalText;
     });
-    
+
     btnGroup.appendChild(cancelBtn);
     btnGroup.appendChild(saveBtn);
     contentEl.appendChild(textarea);
@@ -2782,7 +2889,7 @@ function addUserMessageActions(msgEl, msg, msgIndex) {
       tone: 'danger',
     });
     if (!ok) return;
-    const conv = conversations.find(c => c.id === activeConvId);
+    const conv = conversations.find((c) => c.id === activeConvId);
     if (!conv) return;
     conv.messages = conv.messages.slice(0, msgIndex);
     persist();
@@ -2801,9 +2908,9 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
 
   const actions = document.createElement('div');
   actions.className = 'message-actions';
-  const conv = conversations.find(c => c.id === activeConvId);
+  const conv = conversations.find((c) => c.id === activeConvId);
   const msg = conv?.messages[msgIndex];
-  
+
   // Copy
   const copyBtn = document.createElement('button');
   copyBtn.className = 'msg-action-btn';
@@ -2854,23 +2961,39 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
 
   if (String(content || '').trim()) {
     const groups = buildAnswerActionMenuGroups();
-    actions.appendChild(createAnswerActionButton('更短', '生成一个更短版本', () => {
-      sendAnswerAction('shorter', content, msg);
-    }));
-    actions.appendChild(createAnswerActionButton('详细', '生成一个更详细版本', () => {
-      sendAnswerAction('deeper', content, msg);
-    }));
-    actions.appendChild(createAnswerActionMenu('改写', '把回答转成表格、精排、代码、TODO 或报告', groups.rewrite.map((item) => ({
-      ...item,
-      onClick: () => sendAnswerAction(item.action, content, msg),
-    }))));
-    actions.appendChild(createAnswerActionMenu('导出', '导出当前回答', groups.export.map((item) => ({
-      ...item,
-      onClick: () => {
-        if (item.action === 'markdown') exportAssistantMarkdown(content, msgIndex);
-        if (item.action === 'html') exportAssistantHtml(msgEl, content, msgIndex);
-      },
-    }))));
+    actions.appendChild(
+      createAnswerActionButton('更短', '生成一个更短版本', () => {
+        sendAnswerAction('shorter', content, msg);
+      })
+    );
+    actions.appendChild(
+      createAnswerActionButton('详细', '生成一个更详细版本', () => {
+        sendAnswerAction('deeper', content, msg);
+      })
+    );
+    actions.appendChild(
+      createAnswerActionMenu(
+        '改写',
+        '把回答转成表格、精排、代码、TODO 或报告',
+        groups.rewrite.map((item) => ({
+          ...item,
+          onClick: () => sendAnswerAction(item.action, content, msg),
+        }))
+      )
+    );
+    actions.appendChild(
+      createAnswerActionMenu(
+        '导出',
+        '导出当前回答',
+        groups.export.map((item) => ({
+          ...item,
+          onClick: () => {
+            if (item.action === 'markdown') exportAssistantMarkdown(content, msgIndex);
+            if (item.action === 'html') exportAssistantHtml(msgEl, content, msgIndex);
+          },
+        }))
+      )
+    );
   }
 
   const favoriteBtn = document.createElement('button');
@@ -2882,7 +3005,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
   // Version switcher (if message has version history)
   if (msg && msg.versions && msg.versions.length > 0) {
     const totalVersions = msg.versions.length + 1;
-    const currentIdx = msg._versionIdx ?? (totalVersions - 1);
+    const currentIdx = msg._versionIdx ?? totalVersions - 1;
 
     const switcher = document.createElement('div');
     switcher.className = 'version-switcher';
@@ -2919,7 +3042,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
     const parts = [];
     if (tokens) {
       const usage = normalizeTokenUsage(tokens);
-      const prefix = usage.source === 'provider' ? '实测' : (usage.source === 'mixed' ? '混合' : '估算');
+      const prefix = usage.source === 'provider' ? '实测' : usage.source === 'mixed' ? '混合' : '估算';
       parts.push(`${prefix} ${usage.total} tokens`);
       if (usage.cacheHit > 0) parts.push(`命中 ${Math.round(usage.cacheHitRate * 100)}%`);
       if (usage.cost?.estimatedCostUsd > 0) parts.push(`$${usage.cost.estimatedCostUsd.toFixed(6)}`);
@@ -2999,12 +3122,16 @@ export function buildAnswerActionPrompt(action, content = '', message = null) {
   if (!source) return '';
   const instructions = {
     shorter: '请基于下面这段上一条回答，重新输出一个更短版本。保留关键结论和必要步骤，删除展开解释，不要引入新事实。',
-    deeper: '请基于下面这段上一条回答，重新输出一个更详细版本。补充背景、原因、取舍、风险和下一步，但不要编造未验证事实。',
-    table: '请基于下面这段上一条回答，整理成表格优先的版本。适合对比、清单、优先级或行动项的内容用 Markdown 表格表达，最后保留简短结论。',
-    polish: '请基于下面这段上一条回答，改写成 DeepChat 组件化精排版。使用 :::summary 给 3-5 条核心结论；有风险用 :::warning；有推荐方案用 :::decision；有步骤用 :::steps；有来源或文件证据用 :::source；有行动项用 :::todo 或 :::next。正文保持 Markdown 层级清晰；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
+    deeper:
+      '请基于下面这段上一条回答，重新输出一个更详细版本。补充背景、原因、取舍、风险和下一步，但不要编造未验证事实。',
+    table:
+      '请基于下面这段上一条回答，整理成表格优先的版本。适合对比、清单、优先级或行动项的内容用 Markdown 表格表达，最后保留简短结论。',
+    polish:
+      '请基于下面这段上一条回答，改写成 DeepChat 组件化精排版。使用 :::summary 给 3-5 条核心结论；有风险用 :::warning；有推荐方案用 :::decision；有步骤用 :::steps；有来源或文件证据用 :::source；有行动项用 :::todo 或 :::next。正文保持 Markdown 层级清晰；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
     code: '请基于下面这段上一条回答，提炼成可复制的代码、配置或 patch 草案。优先输出带语言标记的 fenced code block；如果上一条回答包含文件路径或函数名，先列出目标文件和修改点；如果信息不足以生成可靠代码，明确列出缺少的输入，不要编造 API、依赖或未验证实现。',
     todo: '请基于下面这段上一条回答，提炼成可执行 TODO 清单。使用 :::todo 包裹最终清单，按 P0/P1/P2 分组，每项包含动作、验收标准、依赖或风险；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
-    report: '请基于下面这段上一条回答，整理成报告版。使用 :::summary 给 3-5 条核心结论，使用 :::decision 给推荐方案，使用 :::source 汇总上一条回答已经给出的来源或证据，使用 :::todo 给行动清单，使用 :::next 给下一步；正文按“依据 / 风险 / 建议”组织，必要时用 Markdown 表格；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
+    report:
+      '请基于下面这段上一条回答，整理成报告版。使用 :::summary 给 3-5 条核心结论，使用 :::decision 给推荐方案，使用 :::source 汇总上一条回答已经给出的来源或证据，使用 :::todo 给行动清单，使用 :::next 给下一步；正文按“依据 / 风险 / 建议”组织，必要时用 Markdown 表格；不要引入上一条回答之外的新事实，也不要输出原始 HTML。',
   };
   const instruction = instructions[action];
   if (!instruction) return '';
@@ -3029,17 +3156,26 @@ export function buildAnswerActionEvidenceSummary(message = null) {
         run.durationMs !== null && run.durationMs !== undefined ? `duration=${run.durationMs}ms` : '',
       ].filter(Boolean);
       lines.push(pieces.join(' · '));
-      const sources = (run.sources || []).slice(0, 3).map((source) => source.url || source.title).filter(Boolean);
+      const sources = (run.sources || [])
+        .slice(0, 3)
+        .map((source) => source.url || source.title)
+        .filter(Boolean);
       if (sources.length) lines.push(`   sources: ${sources.join(' | ')}`);
-      const citations = (run.localCitations || []).slice(0, 4).map((citation) => citation.label || citation.file).filter(Boolean);
+      const citations = (run.localCitations || [])
+        .slice(0, 4)
+        .map((citation) => citation.label || citation.file)
+        .filter(Boolean);
       if (citations.length) lines.push(`   files: ${citations.join(' | ')}`);
-      if (run.contextCompacted) lines.push(`   context: compacted ${run.rawOutputTokens || 0}->${run.contextOutputTokens || 0} tokens`);
+      if (run.contextCompacted)
+        lines.push(`   context: compacted ${run.rawOutputTokens || 0}->${run.contextOutputTokens || 0} tokens`);
       if (run.parseError) lines.push(`   parseError: ${run.parseError}`);
     });
   }
   const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
   const profile = {
-    ...(message.tokens?.cacheProfile && typeof message.tokens.cacheProfile === 'object' ? message.tokens.cacheProfile : {}),
+    ...(message.tokens?.cacheProfile && typeof message.tokens.cacheProfile === 'object'
+      ? message.tokens.cacheProfile
+      : {}),
     ...(message.cacheProfile && typeof message.cacheProfile === 'object' ? message.cacheProfile : {}),
   };
   if (usage || profile?.prefixFingerprint) {
@@ -3047,26 +3183,34 @@ export function buildAnswerActionEvidenceSummary(message = null) {
     const cacheMiss = usage?.cacheMiss ?? profile?.cacheMiss;
     const cacheRate = usage?.cacheHitRate ?? profile?.cacheHitRate;
     lines.push('Token/Cache：');
-    lines.push([
-      usage ? `input=${usage.input}` : '',
-      usage ? `output=${usage.output}` : '',
-      usage?.reasoning ? `reasoning=${usage.reasoning}` : '',
-      cacheHit !== undefined ? `cacheHit=${cacheHit}` : '',
-      cacheMiss !== undefined ? `cacheMiss=${cacheMiss}` : '',
-      cacheRate !== undefined ? `cacheRate=${Math.round(Number(cacheRate || 0) * 100)}%` : '',
-      profile?.prefixFingerprint ? `prefix=${profile.prefixFingerprint}` : '',
-    ].filter(Boolean).join(' · '));
+    lines.push(
+      [
+        usage ? `input=${usage.input}` : '',
+        usage ? `output=${usage.output}` : '',
+        usage?.reasoning ? `reasoning=${usage.reasoning}` : '',
+        cacheHit !== undefined ? `cacheHit=${cacheHit}` : '',
+        cacheMiss !== undefined ? `cacheMiss=${cacheMiss}` : '',
+        cacheRate !== undefined ? `cacheRate=${Math.round(Number(cacheRate || 0) * 100)}%` : '',
+        profile?.prefixFingerprint ? `prefix=${profile.prefixFingerprint}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    );
   }
   if (message.contextBudget) {
     const budget = message.contextBudget;
     lines.push('上下文预算：');
-    lines.push([
-      budget.maxInputTokens ? `maxInput=${budget.maxInputTokens}` : '',
-      budget.estimatedTokens ? `estimated=${budget.estimatedTokens}` : '',
-      budget.droppedMessages ? `dropped=${budget.droppedMessages}` : '',
-      budget.summaryInserted ? 'summary=used' : '',
-      budget.truncated ? 'history=truncated' : '',
-    ].filter(Boolean).join(' · '));
+    lines.push(
+      [
+        budget.maxInputTokens ? `maxInput=${budget.maxInputTokens}` : '',
+        budget.estimatedTokens ? `estimated=${budget.estimatedTokens}` : '',
+        budget.droppedMessages ? `dropped=${budget.droppedMessages}` : '',
+        budget.summaryInserted ? 'summary=used' : '',
+        budget.truncated ? 'history=truncated' : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    );
   }
   return lines.join('\n').trim().slice(0, 2400);
 }
@@ -3075,9 +3219,12 @@ export function buildAgentPlanActionPrompt(action, plan = {}) {
   const summary = serializeAgentPlanForPrompt(plan);
   if (!summary) return '';
   const instructions = {
-    execute_all: '请按下面的 DeepChat Agent 计划继续执行。低风险读取/搜索工具按计划推进；运行代码、MCP 外部操作和任何写入动作仍必须等待我的确认。每一步完成后保留证据，最终回答说明用了哪些工具和来源。',
-    single_step: '请只执行下面 DeepChat Agent 计划中的下一步。执行后先停下来汇报证据、结果和下一步建议，不要连续推进后续步骤。',
-    revise: '请先修改下面的 DeepChat Agent 计划。要求：减少无关工具调用，明确每一步需要的证据，标出哪些步骤需要我确认。先输出新计划，不要立刻执行工具。',
+    execute_all:
+      '请按下面的 DeepChat Agent 计划继续执行。低风险读取/搜索工具按计划推进；运行代码、MCP 外部操作和任何写入动作仍必须等待我的确认。每一步完成后保留证据，最终回答说明用了哪些工具和来源。',
+    single_step:
+      '请只执行下面 DeepChat Agent 计划中的下一步。执行后先停下来汇报证据、结果和下一步建议，不要连续推进后续步骤。',
+    revise:
+      '请先修改下面的 DeepChat Agent 计划。要求：减少无关工具调用，明确每一步需要的证据，标出哪些步骤需要我确认。先输出新计划，不要立刻执行工具。',
   };
   const instruction = instructions[action];
   if (!instruction) return '';
@@ -3101,20 +3248,23 @@ export function buildAgentPlanActionComposerOverrides(action) {
 function serializeAgentPlanForPrompt(plan = {}) {
   if (!plan || typeof plan !== 'object') return '';
   const executionSummary = buildAgentPlanExecutionSummaryParts(plan).parts.join(' · ');
-  const lines = [
-    `模式：${plan.mode || 'unknown'}`,
-    `最多轮数：${plan.maxRounds || ''}`,
-    `原因：${plan.reason || ''}`,
-  ];
+  const lines = [`模式：${plan.mode || 'unknown'}`, `最多轮数：${plan.maxRounds || ''}`, `原因：${plan.reason || ''}`];
   if (executionSummary) lines.push(`风险摘要：${executionSummary}`);
   const pushList = (label, values, mapper = (value) => value) => {
-    const list = (Array.isArray(values) ? values : []).map(mapper).map((value) => String(value || '').trim()).filter(Boolean);
+    const list = (Array.isArray(values) ? values : [])
+      .map(mapper)
+      .map((value) => String(value || '').trim())
+      .filter(Boolean);
     if (!list.length) return;
     lines.push('', `${label}：`);
     list.slice(0, 10).forEach((value, index) => lines.push(`${index + 1}. ${value}`));
   };
   pushList('步骤', plan.steps);
-  pushList('搜索计划', plan.searchPlan, (item) => `${item.purpose || '搜索'}：${item.query}${item.reason ? `（${item.reason}）` : ''}`);
+  pushList(
+    '搜索计划',
+    plan.searchPlan,
+    (item) => `${item.purpose || '搜索'}：${item.query}${item.reason ? `（${item.reason}）` : ''}`
+  );
   pushList('预计工具', plan.selectedTools);
   pushList('候选工具', plan.candidateTools);
   pushList('缺少配置', plan.missingPrerequisites);
@@ -3124,7 +3274,9 @@ function serializeAgentPlanForPrompt(plan = {}) {
 }
 
 function compactAnswerActionContext(content = '') {
-  const text = String(content || '').replace(/<\/previous_answer>/gi, '<\\/previous_answer>').trim();
+  const text = String(content || '')
+    .replace(/<\/previous_answer>/gi, '<\\/previous_answer>')
+    .trim();
   if (text.length <= ANSWER_ACTION_CONTEXT_LIMIT) return text;
   const head = text.slice(0, Math.floor(ANSWER_ACTION_CONTEXT_LIMIT * 0.62)).trimEnd();
   const tail = text.slice(-Math.floor(ANSWER_ACTION_CONTEXT_LIMIT * 0.28)).trimStart();
@@ -3206,7 +3358,7 @@ function formatTokenUsageTitle(tokens) {
     `输入: ${usage.input}`,
     `输出: ${usage.output}`,
     `总计: ${usage.total}`,
-    `统计来源: ${usage.source === 'provider' ? '服务商真实 usage' : (usage.source === 'mixed' ? '真实和估算混合' : '本地估算')}`,
+    `统计来源: ${usage.source === 'provider' ? '服务商真实 usage' : usage.source === 'mixed' ? '真实和估算混合' : '本地估算'}`,
   ];
   if (usage.reasoning > 0) lines.push(`思考: ${usage.reasoning}`);
   if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
@@ -3222,17 +3374,26 @@ function formatTokenUsageTitle(tokens) {
   if (profile.systemHash) lines.push(`System hash: ${profile.systemHash}`);
   if (profile.toolsHash) lines.push(`Tools hash: ${profile.toolsHash}`);
   if (profile.workspaceSignature) lines.push(`Workspace hash: ${profile.workspaceSignature}`);
-  if (Array.isArray(profile.toolNames) && profile.toolNames.length) lines.push(`工具 schema: ${profile.toolNames.join(', ')}`);
+  if (Array.isArray(profile.toolNames) && profile.toolNames.length)
+    lines.push(`工具 schema: ${profile.toolNames.join(', ')}`);
   const reasons = normalizeCacheStabilityReasons(tokens.cacheStabilityReasons || profile.cacheStabilityReasons);
   if (reasons.length) lines.push(`Cache miss 可能原因: ${reasons.map(formatCacheStabilityReason).join('、')}`);
   const details = tokens.cacheStabilityDetails || profile.cacheStabilityDetails;
   const detailText = formatCacheStabilityDetails(details);
   if (detailText) lines.push(`变化明细: ${detailText}`);
   if (tokens.byPurpose && Object.keys(tokens.byPurpose).length) {
-    lines.push(`用途: ${Object.entries(tokens.byPurpose).map(([key, value]) => `${key}=${value}`).join(', ')}`);
+    lines.push(
+      `用途: ${Object.entries(tokens.byPurpose)
+        .map(([key, value]) => `${key}=${value}`)
+        .join(', ')}`
+    );
   }
   if (usage.rounds > 1) lines.push(`Agent 轮次: ${usage.rounds}`);
-  const warnings = [...(usage.warnings || []), ...(tokens.cacheStabilityWarnings || []), ...(profile.cacheStabilityWarnings || [])];
+  const warnings = [
+    ...(usage.warnings || []),
+    ...(tokens.cacheStabilityWarnings || []),
+    ...(profile.cacheStabilityWarnings || []),
+  ];
   if (warnings.length) lines.push(`提示: ${[...new Set(warnings)].join('；')}`);
   return lines.join('\n');
 }
@@ -3252,9 +3413,7 @@ export function buildConversationUsageTelemetryDetails(conversation) {
   const usage = getConversationUsageSummary(conversation);
   if (!usage || usage.total <= 0) return null;
   const profile = getConversationCacheProfile(conversation) || {};
-  const hitRate = usage.cacheHit > 0 || usage.cacheMiss > 0
-    ? Math.round(usage.cacheHitRate * 100)
-    : null;
+  const hitRate = usage.cacheHit > 0 || usage.cacheMiss > 0 ? Math.round(usage.cacheHitRate * 100) : null;
   const reasons = normalizeCacheStabilityReasons(profile.cacheStabilityReasons);
   const warnings = [...new Set([...(usage.warnings || []), ...(profile.cacheStabilityWarnings || [])])];
   const textParts = [`${formatCompactTokenCount(usage.total)} tok`];
@@ -3267,7 +3426,7 @@ export function buildConversationUsageTelemetryDetails(conversation) {
     `输入: ${usage.input}`,
     `输出: ${usage.output}`,
     `总计: ${usage.total}`,
-    `统计来源: ${usage.source === 'provider' ? '服务商真实 usage' : (usage.source === 'mixed' ? '真实和估算混合' : '本地估算')}`,
+    `统计来源: ${usage.source === 'provider' ? '服务商真实 usage' : usage.source === 'mixed' ? '真实和估算混合' : '本地估算'}`,
   ];
   if (usage.reasoning > 0) titleLines.push(`思考: ${usage.reasoning}`);
   if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
@@ -3409,7 +3568,9 @@ export function renderLatestEvidenceDrawer(container, conversation) {
     `消息 #${index + 1}`,
     runs.length ? `${runs.length} 个工具` : '',
     usage ? `${formatCompactTokenCount(usage.total)} tok` : '',
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
   titleGroup.append(title, subtitle);
 
   const close = document.createElement('button');
@@ -3505,7 +3666,8 @@ function getConversationCacheProfile(conversation) {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
     if (message?.cacheProfile && typeof message.cacheProfile === 'object') return message.cacheProfile;
-    if (message?.tokens?.cacheProfile && typeof message.tokens.cacheProfile === 'object') return message.tokens.cacheProfile;
+    if (message?.tokens?.cacheProfile && typeof message.tokens.cacheProfile === 'object')
+      return message.tokens.cacheProfile;
   }
   return null;
 }
@@ -3538,9 +3700,12 @@ function buildCacheProfile(tokens, contextBudget) {
     prefixFingerprint: contextBudget?.prefixFingerprint || tokens?.prefixFingerprint || profile.prefixFingerprint || '',
     prefixTokens: contextBudget?.prefixTokens || tokens?.prefixTokens || profile.prefixTokens || 0,
     prefixBytes: contextBudget?.prefixBytes || tokens?.prefixBytes || profile.prefixBytes || 0,
-    cacheStabilityWarnings: tokens?.cacheStabilityWarnings || contextBudget?.cacheStabilityWarnings || profile.cacheStabilityWarnings || [],
-    cacheStabilityReasons: tokens?.cacheStabilityReasons || contextBudget?.cacheStabilityReasons || profile.cacheStabilityReasons || [],
-    cacheStabilityDetails: tokens?.cacheStabilityDetails || contextBudget?.cacheStabilityDetails || profile.cacheStabilityDetails || {},
+    cacheStabilityWarnings:
+      tokens?.cacheStabilityWarnings || contextBudget?.cacheStabilityWarnings || profile.cacheStabilityWarnings || [],
+    cacheStabilityReasons:
+      tokens?.cacheStabilityReasons || contextBudget?.cacheStabilityReasons || profile.cacheStabilityReasons || [],
+    cacheStabilityDetails:
+      tokens?.cacheStabilityDetails || contextBudget?.cacheStabilityDetails || profile.cacheStabilityDetails || {},
     cacheHit: usage.cacheHit,
     cacheMiss: usage.cacheMiss,
     cacheHitRate: usage.cacheHitRate,
@@ -3584,7 +3749,7 @@ function switchVersion(msgIndex, direction) {
   if (!msg || !msg.versions || msg.versions.length === 0) return;
 
   const totalVersions = msg.versions.length + 1;
-  let currentIdx = msg._versionIdx ?? (totalVersions - 1);
+  let currentIdx = msg._versionIdx ?? totalVersions - 1;
   const newIdx = currentIdx + direction;
   if (newIdx < 0 || newIdx >= totalVersions) return;
 
@@ -3650,7 +3815,7 @@ function toggleMessageFavorite(msgIndex) {
 
 function attachCopyHandlersOnly(container) {
   // Delegate to shared handler from renderer
-  container.querySelectorAll('.code-copy-btn:not([data-bound])').forEach(btn => {
+  container.querySelectorAll('.code-copy-btn:not([data-bound])').forEach((btn) => {
     btn.setAttribute('data-bound', '1');
     btn.addEventListener('click', async () => {
       const code = decodeURIComponent(btn.dataset.code || '');
@@ -3671,13 +3836,15 @@ function attachCopyHandlersOnly(container) {
   });
 
   // Run JS code blocks
-  container.querySelectorAll('.code-run-btn:not([data-bound])').forEach(btn => {
+  container.querySelectorAll('.code-run-btn:not([data-bound])').forEach((btn) => {
     btn.setAttribute('data-bound', '1');
     btn.addEventListener('click', () => {
       const code = decodeURIComponent(btn.dataset.code || '');
-      document.dispatchEvent(new CustomEvent('deepchat:run-code-block', {
-        detail: { button: btn, code, language: btn.dataset.language || 'javascript' },
-      }));
+      document.dispatchEvent(
+        new CustomEvent('deepchat:run-code-block', {
+          detail: { button: btn, code, language: btn.dataset.language || 'javascript' },
+        })
+      );
     });
   });
 }
@@ -3715,64 +3882,70 @@ async function handleRunCodeBlock(detail = {}) {
   wrapper.appendChild(confirmBox);
 
   cancel.addEventListener('click', () => confirmBox.remove(), { once: true });
-  approve.addEventListener('click', async () => {
-    approve.disabled = true;
-    cancel.disabled = true;
-    button.disabled = true;
-    button.textContent = '运行中...';
-    const msgEl = wrapper.closest('.message.assistant');
-    const msgIndex = Number.parseInt(msgEl?.dataset.messageIndex || '-1', 10);
-    const conv = getActiveConversation();
-    const msg = Number.isInteger(msgIndex) && msgIndex >= 0 ? conv?.messages?.[msgIndex] : null;
-    const tool = msg ? {
-      id: `manual_run_${uid()}`,
-      name: 'run_code',
-      args: { language, code },
-      risk: '用户从代码块手动确认运行代码片段。',
-      status: 'approved',
-      requestedAt: new Date().toISOString(),
-    } : null;
-    if (msg && tool) {
-      msg.toolCalls = [...(msg.toolCalls || []), tool];
-      syncToolRuns(msg);
-      renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
-      persist();
-    }
-    try {
-      const output = await runTool('run_code', { language, code });
-      if (tool) {
-        applyToolResult(msg.toolCalls, {
-          toolCallId: tool.id,
-          name: 'run_code',
-          args: { language, code },
-          ok: true,
-          output,
-        });
+  approve.addEventListener(
+    'click',
+    async () => {
+      approve.disabled = true;
+      cancel.disabled = true;
+      button.disabled = true;
+      button.textContent = '运行中...';
+      const msgEl = wrapper.closest('.message.assistant');
+      const msgIndex = Number.parseInt(msgEl?.dataset.messageIndex || '-1', 10);
+      const conv = getActiveConversation();
+      const msg = Number.isInteger(msgIndex) && msgIndex >= 0 ? conv?.messages?.[msgIndex] : null;
+      const tool = msg
+        ? {
+            id: `manual_run_${uid()}`,
+            name: 'run_code',
+            args: { language, code },
+            risk: '用户从代码块手动确认运行代码片段。',
+            status: 'approved',
+            requestedAt: new Date().toISOString(),
+          }
+        : null;
+      if (msg && tool) {
+        msg.toolCalls = [...(msg.toolCalls || []), tool];
         syncToolRuns(msg);
         renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
         persist();
       }
-      confirmBox.remove();
-      renderCodeOutput(wrapper, output, true);
-    } catch (error) {
-      if (tool) {
-        applyToolResult(msg.toolCalls, {
-          toolCallId: tool.id,
-          name: 'run_code',
-          args: { language, code },
-          ok: false,
-          output: error.message || String(error),
-        });
-        syncToolRuns(msg);
-        renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
-        persist();
+      try {
+        const output = await runTool('run_code', { language, code });
+        if (tool) {
+          applyToolResult(msg.toolCalls, {
+            toolCallId: tool.id,
+            name: 'run_code',
+            args: { language, code },
+            ok: true,
+            output,
+          });
+          syncToolRuns(msg);
+          renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
+          persist();
+        }
+        confirmBox.remove();
+        renderCodeOutput(wrapper, output, true);
+      } catch (error) {
+        if (tool) {
+          applyToolResult(msg.toolCalls, {
+            toolCallId: tool.id,
+            name: 'run_code',
+            args: { language, code },
+            ok: false,
+            output: error.message || String(error),
+          });
+          syncToolRuns(msg);
+          renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
+          persist();
+        }
+        renderCodeOutput(wrapper, error.message || String(error), false);
+      } finally {
+        button.disabled = false;
+        button.textContent = '▶ 运行';
       }
-      renderCodeOutput(wrapper, error.message || String(error), false);
-    } finally {
-      button.disabled = false;
-      button.textContent = '▶ 运行';
-    }
-  }, { once: true });
+    },
+    { once: true }
+  );
 }
 
 function renderCodeOutput(wrapper, output, ok) {
@@ -3817,9 +3990,9 @@ function renderConversationList(searchQuery = '') {
   closeConversationMenu();
   $convList.innerHTML = '';
   updateConversationToolbarState();
-  
+
   const filtered = filterConversations(conversations, { query: searchQuery, filter: sidebarFilter });
-  
+
   if (filtered.length === 0) {
     $convList.innerHTML = `<div class="sidebar-empty">${getEmptyConversationText(searchQuery)}</div>`;
     return;
@@ -3828,8 +4001,8 @@ function renderConversationList(searchQuery = '') {
   const sorted = sortConversations(filtered);
 
   let lastGroup = '';
-  
-  sorted.forEach(conv => {
+
+  sorted.forEach((conv) => {
     if (!searchQuery) {
       const group = getConversationGroup(conv);
       if (group !== lastGroup) {
@@ -3846,7 +4019,9 @@ function renderConversationList(searchQuery = '') {
     item.dataset.conversationId = conv.id;
     const pinIcon = conv.pinned ? '<span class="conv-pin-indicator" title="已置顶">📌</span>' : '';
     const tags = (conv.tags || []).map((tag) => `<span class="conv-tag">#${escapeHtml(tag)}</span>`).join('');
-    const meta = [conv.folderId ? `<span class="conv-folder-label">${escapeHtml(conv.folderId)}</span>` : '', tags].filter(Boolean).join('');
+    const meta = [conv.folderId ? `<span class="conv-folder-label">${escapeHtml(conv.folderId)}</span>` : '', tags]
+      .filter(Boolean)
+      .join('');
     const selected = selectedConversationIds.has(conv.id);
     item.innerHTML = `
       ${bulkMode ? `<input class="conv-select" type="checkbox" ${selected ? 'checked' : ''} aria-label="选择对话">` : ''}
@@ -3862,7 +4037,7 @@ function renderConversationList(searchQuery = '') {
         </button>
       </div>
     `;
-    
+
     // Click to switch
     item.addEventListener('click', (e) => {
       if (e.target.closest('.conv-actions') || e.target.closest('.conv-select')) return;
@@ -3907,11 +4082,17 @@ function renderConversationList(searchQuery = '') {
 
       titleEl.addEventListener('blur', finishEdit, { once: true });
       titleEl.addEventListener('keydown', (ke) => {
-        if (ke.key === 'Enter') { ke.preventDefault(); titleEl.blur(); }
-        if (ke.key === 'Escape') { titleEl.textContent = conv.title; titleEl.blur(); }
+        if (ke.key === 'Enter') {
+          ke.preventDefault();
+          titleEl.blur();
+        }
+        if (ke.key === 'Escape') {
+          titleEl.textContent = conv.title;
+          titleEl.blur();
+        }
       });
     });
-    
+
     $convList.appendChild(item);
   });
 }
@@ -3925,7 +4106,7 @@ function toggleConversationMenu(id, anchor) {
 }
 
 function openConversationMenu(id, anchor) {
-  const conv = conversations.find(c => c.id === id);
+  const conv = conversations.find((c) => c.id === id);
   if (!conv || !anchor) return;
   closeConversationMenu();
 
@@ -3943,7 +4124,11 @@ function openConversationMenu(id, anchor) {
     { label: '编辑标签', icon: '#', onClick: () => editConversationTags(id) },
     { label: '移动到文件夹', icon: '▣', onClick: () => moveConversationFolder(id) },
     { label: conv.pinned ? '取消置顶' : '置顶聊天', icon: '⌃', onClick: () => togglePinConversation(id) },
-    { label: conv.archivedAt ? '取消归档' : '归档', icon: conv.archivedAt ? '↩' : '□', onClick: () => toggleArchiveConversation(id) },
+    {
+      label: conv.archivedAt ? '取消归档' : '归档',
+      icon: conv.archivedAt ? '↩' : '□',
+      onClick: () => toggleArchiveConversation(id),
+    },
     { label: '删除', icon: '⌫', tone: 'danger', onClick: () => deleteConversation(id) },
   ];
 
@@ -4025,7 +4210,7 @@ function positionConversationMenu(menu, anchor) {
 }
 
 async function promptRenameConversation(id) {
-  const conv = conversations.find(c => c.id === id);
+  const conv = conversations.find((c) => c.id === id);
   if (!conv) return;
 
   const next = await promptText({
@@ -4106,26 +4291,26 @@ function archiveSelectedConversations() {
 }
 
 function toggleArchiveConversation(id) {
-  const conv = conversations.find(c => c.id === id);
+  const conv = conversations.find((c) => c.id === id);
   if (!conv) return;
   conv.archivedAt = conv.archivedAt ? null : Date.now();
   persist();
-    if (conv.id === activeConvId && conv.archivedAt && sidebarFilter === SIDEBAR_FILTERS.active) {
-      const next = conversations.find((item) => !item.archivedAt && item.id !== conv.id);
-      if (next) switchConversation(next.id);
-      else {
-        activeConvId = null;
-        showWelcome();
-        updateHeader();
-        renderConversationList(document.getElementById('search-input')?.value.trim() || '');
-      }
-      return;
+  if (conv.id === activeConvId && conv.archivedAt && sidebarFilter === SIDEBAR_FILTERS.active) {
+    const next = conversations.find((item) => !item.archivedAt && item.id !== conv.id);
+    if (next) switchConversation(next.id);
+    else {
+      activeConvId = null;
+      showWelcome();
+      updateHeader();
+      renderConversationList(document.getElementById('search-input')?.value.trim() || '');
     }
+    return;
+  }
   renderConversationList(document.getElementById('search-input')?.value.trim() || '');
 }
 
 async function editConversationTags(id) {
-  const conv = conversations.find(c => c.id === id);
+  const conv = conversations.find((c) => c.id === id);
   if (!conv) return;
   const next = await promptText({
     title: '编辑标签',
@@ -4140,7 +4325,7 @@ async function editConversationTags(id) {
 }
 
 async function moveConversationFolder(id) {
-  const conv = conversations.find(c => c.id === id);
+  const conv = conversations.find((c) => c.id === id);
   if (!conv) return;
   const next = await promptText({
     title: '移动到文件夹',
@@ -4271,9 +4456,7 @@ function updateEvidenceButton(conversation) {
   }
   const runCount = Array.isArray(evidence.message.toolRuns) ? evidence.message.toolRuns.length : 0;
   $evidencePanelBtn.classList.remove('hidden');
-  $evidencePanelBtn.title = runCount
-    ? `查看最近工具证据：${runCount} 个工具`
-    : '查看最近 Token / Cache 证据';
+  $evidencePanelBtn.title = runCount ? `查看最近工具证据：${runCount} 个工具` : '查看最近 Token / Cache 证据';
   if (evidenceDrawerEl) renderLatestEvidenceDrawer(evidenceDrawerEl, conversation);
 }
 
@@ -4316,12 +4499,7 @@ function getLatestEvidenceMessage(conversation) {
 function formatAgentStageBrief(stage = {}) {
   const round = stage.round !== undefined ? `R${stage.round} ` : '';
   const name = stage.stage || 'stage';
-  const detail = [
-    stage.toolName,
-    stage.intent?.toolMode,
-    stage.warning,
-    stage.stopReason,
-  ].filter(Boolean).join(' · ');
+  const detail = [stage.toolName, stage.intent?.toolMode, stage.warning, stage.stopReason].filter(Boolean).join(' · ');
   return `${round}${name}${detail ? `：${detail}` : ''}`;
 }
 
@@ -4329,7 +4507,7 @@ function toggleStreamingUI(streaming) {
   const sendBtn = document.getElementById('send-btn');
   const stopBtn = document.getElementById('stop-btn');
   const input = document.getElementById('message-input');
-  
+
   if (streaming) {
     sendBtn.classList.add('hidden');
     stopBtn.classList.remove('hidden');

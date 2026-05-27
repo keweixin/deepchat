@@ -51,14 +51,16 @@ describe('browser settings fallback', () => {
       tavilyApiKey: 'tvly-local-secret',
       model: 'demo-model',
       storageStatus: { mode: 'browser' },
-      mcpServers: [{
-        id: 'github',
-        name: 'GitHub MCP',
-        command: 'node',
-        args: ['server.js', '--token', 'ghp_should_not_leak', '--project=demo', '--api-key=sk-inline-secret'],
-        env: { GITHUB_TOKEN: 'ghp_env_should_not_leak' },
-        enabled: true,
-      }],
+      mcpServers: [
+        {
+          id: 'github',
+          name: 'GitHub MCP',
+          command: 'node',
+          args: ['server.js', '--token', 'ghp_should_not_leak', '--project=demo', '--api-key=sk-inline-secret'],
+          env: { GITHUB_TOKEN: 'ghp_env_should_not_leak' },
+          enabled: true,
+        },
+      ],
     });
 
     expect(sanitized.apiKey).toBeUndefined();
@@ -121,13 +123,15 @@ describe('browser settings fallback', () => {
   it('adds enabled external skills to the effective prompt', async () => {
     const settings = await saveSettings({
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
-      externalSkills: [{
-        id: 'skill_test',
-        name: 'Test Skill',
-        description: 'demo',
-        content: 'Always format demo output as a checklist.',
-        enabled: true,
-      }],
+      externalSkills: [
+        {
+          id: 'skill_test',
+          name: 'Test Skill',
+          description: 'demo',
+          content: 'Always format demo output as a checklist.',
+          enabled: true,
+        },
+      ],
     });
 
     expect(getEffectiveSystemPrompt(settings)).toContain('Test Skill');
@@ -153,7 +157,9 @@ describe('browser settings fallback', () => {
   });
 
   it('resolves provider registry presets and model capability matrix', async () => {
-    expect(PROVIDER_PRESETS.map((provider) => provider.id)).toEqual(expect.arrayContaining(['deepseek', 'openai', 'openrouter', 'ollama', 'lmstudio']));
+    expect(PROVIDER_PRESETS.map((provider) => provider.id)).toEqual(
+      expect.arrayContaining(['deepseek', 'openai', 'openrouter', 'ollama', 'lmstudio'])
+    );
 
     let settings = await saveSettings({
       providerId: 'deepseek',
@@ -211,12 +217,9 @@ describe('browser settings fallback', () => {
     });
     const localReport = getProviderCompatibilityReport(settings);
     expect(localReport.status).toBe('warning');
-    expect(localReport.items.map((item) => item.label)).toEqual(expect.arrayContaining([
-      'Agent 工具受限',
-      '无法显示真实缓存命中',
-      '流式 usage 可能缺失',
-      '本地服务',
-    ]));
+    expect(localReport.items.map((item) => item.label)).toEqual(
+      expect.arrayContaining(['Agent 工具受限', '无法显示真实缓存命中', '流式 usage 可能缺失', '本地服务'])
+    );
 
     settings = await saveSettings({
       providerId: 'custom',
@@ -227,11 +230,9 @@ describe('browser settings fallback', () => {
     });
     const blocked = getProviderCompatibilityReport(settings);
     expect(blocked.status).toBe('blocked');
-    expect(blocked.items.map((item) => item.label)).toEqual(expect.arrayContaining([
-      '缺少 API Base URL',
-      '需要 API Key',
-      '缺少模型名称',
-    ]));
+    expect(blocked.items.map((item) => item.label)).toEqual(
+      expect.arrayContaining(['缺少 API Base URL', '需要 API Key', '缺少模型名称'])
+    );
   });
 
   it('normalizes DeepSeek cache hit and miss usage fields', () => {
@@ -324,11 +325,14 @@ describe('browser settings fallback', () => {
   });
 
   it('returns context budget metadata with dropped message counts', () => {
-    const bundle = buildContextBudgetBundle([
-      { role: 'user', content: 'old question' },
-      { role: 'assistant', content: 'a'.repeat(200) },
-      { role: 'user', content: 'latest question' },
-    ], { maxMessages: 20, maxInputTokens: 14 });
+    const bundle = buildContextBudgetBundle(
+      [
+        { role: 'user', content: 'old question' },
+        { role: 'assistant', content: 'a'.repeat(200) },
+        { role: 'user', content: 'latest question' },
+      ],
+      { maxMessages: 20, maxInputTokens: 14 }
+    );
 
     expect(bundle.messages).toEqual([{ role: 'user', content: 'latest question' }]);
     expect(bundle.meta).toMatchObject({
@@ -383,7 +387,9 @@ describe('browser settings fallback', () => {
     expect(generic.toolMode).toBe('none');
     expect(generic.selectedTools).not.toContain('read_file');
     expect(localProject.toolMode).toBe('file_reader');
-    expect(localProject.selectedTools).toEqual(expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file']));
+    expect(localProject.selectedTools).toEqual(
+      expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file'])
+    );
     expect(pathTarget.toolMode).toBe('file_reader');
     expect(pathTarget.selectedTools).toContain('read_file');
   });
@@ -401,7 +407,9 @@ describe('browser settings fallback', () => {
     expect(run.selectedTools).toContain('run_code');
     expect(run.explicitDirectives).toContain('code');
     expect(changed.toolMode).toBe('file_reader');
-    expect(changed.selectedTools).toEqual(expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file']));
+    expect(changed.selectedTools).toEqual(
+      expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file'])
+    );
     expect(changed.reason).toContain('explicit_changed_context');
   });
 
@@ -425,13 +433,15 @@ describe('browser settings fallback', () => {
   });
 
   it('extracts @file/@folder/@symbol context mentions outside code blocks', () => {
-    const mentions = extractContextMentions([
-      '请看 @file:src/modules/api.js 和 @folder:"src/modules" 以及 @symbol:detectAgentIntent',
-      '```txt',
-      '@file:should-not-read.env @symbol:ignoredSymbol',
-      '```',
-      '重复 @file:src/modules/api.js',
-    ].join('\n'));
+    const mentions = extractContextMentions(
+      [
+        '请看 @file:src/modules/api.js 和 @folder:"src/modules" 以及 @symbol:detectAgentIntent',
+        '```txt',
+        '@file:should-not-read.env @symbol:ignoredSymbol',
+        '```',
+        '重复 @file:src/modules/api.js',
+      ].join('\n')
+    );
 
     expect(mentions).toEqual([
       { type: 'file', path: 'src/modules/api.js', label: '文件 src/modules/api.js' },
@@ -441,11 +451,14 @@ describe('browser settings fallback', () => {
   });
 
   it('adds selected context hints only to the latest user message', () => {
-    const messages = applyContextMentionsToMessages([
-      { role: 'user', content: '旧问题 @file:README.md' },
-      { role: 'assistant', content: '旧回答' },
-      { role: 'user', content: '检查 @folder:src' },
-    ], { workspaceRoots: ['E:/repo'] });
+    const messages = applyContextMentionsToMessages(
+      [
+        { role: 'user', content: '旧问题 @file:README.md' },
+        { role: 'assistant', content: '旧回答' },
+        { role: 'user', content: '检查 @folder:src' },
+      ],
+      { workspaceRoots: ['E:/repo'] }
+    );
 
     expect(messages[0].content).toBe('旧问题 @file:README.md');
     expect(messages[2].content).toContain('<selected_context>');
@@ -454,10 +467,14 @@ describe('browser settings fallback', () => {
   });
 
   it('does not claim selected context was already read', () => {
-    const content = appendContextHintsToUserContent('分析 @file:README.md', [
-      { type: 'file', path: 'README.md' },
-      { type: 'symbol', path: 'buildContextBudgetBundle' },
-    ], { workspaceRoots: [] });
+    const content = appendContextHintsToUserContent(
+      '分析 @file:README.md',
+      [
+        { type: 'file', path: 'README.md' },
+        { type: 'symbol', path: 'buildContextBudgetBundle' },
+      ],
+      { workspaceRoots: [] }
+    );
 
     expect(content).toContain('不要声称已经读取');
     expect(content).toContain('缺少工作区配置');
@@ -492,12 +509,15 @@ describe('browser settings fallback', () => {
   });
 
   it('adds DeepSeek cost metadata when model pricing is known', () => {
-    const usage = normalizeTokenUsage({
-      prompt_tokens: 1000,
-      completion_tokens: 100,
-      prompt_cache_hit_tokens: 800,
-      prompt_cache_miss_tokens: 200,
-    }, { model: 'deepseek-v4-flash' });
+    const usage = normalizeTokenUsage(
+      {
+        prompt_tokens: 1000,
+        completion_tokens: 100,
+        prompt_cache_hit_tokens: 800,
+        prompt_cache_miss_tokens: 200,
+      },
+      { model: 'deepseek-v4-flash' }
+    );
 
     expect(usage.cost.estimatedCostUsd).toBeGreaterThan(0);
     expect(usage.cost.estimatedSavingsUsd).toBeGreaterThan(0);
@@ -506,8 +526,14 @@ describe('browser settings fallback', () => {
   it('summarizes token usage for a conversation', () => {
     const summary = getConversationUsageSummary({
       messages: [
-        { role: 'assistant', tokens: { input: 10, output: 2, total: 12, cacheHit: 5, cacheMiss: 5, source: 'provider' } },
-        { role: 'assistant', tokens: { input: 20, output: 4, total: 24, cacheHit: 5, cacheMiss: 15, source: 'provider' } },
+        {
+          role: 'assistant',
+          tokens: { input: 10, output: 2, total: 12, cacheHit: 5, cacheMiss: 5, source: 'provider' },
+        },
+        {
+          role: 'assistant',
+          tokens: { input: 20, output: 4, total: 24, cacheHit: 5, cacheMiss: 15, source: 'provider' },
+        },
       ],
     });
 

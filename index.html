@@ -1,379 +1,801 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN" data-theme="dark">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: file:; font-src 'self' data:; connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'self'; frame-src 'none';" />
-  <title>DeepChat — AI 智能对话</title>
-  <meta name="description" content="高颜值 AI 对话界面，支持 Markdown、表格、代码高亮、数学公式、流程图和安全交互组件" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>" />
-</head>
-<body>
-  <div id="app">
-    <div class="bg-gradient-animated"></div>
-    <aside id="sidebar" class="sidebar">
-      <div class="sidebar-header">
-        <div class="logo">
-          <div class="logo-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="url(#logo-grad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <defs><linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#2dd4bf" /><stop offset="100%" style="stop-color:#f59e0b" /></linearGradient></defs>
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: file:; font-src 'self' data:; connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'self'; frame-src 'none';"
+    />
+    <title>DeepChat — AI 智能对话</title>
+    <meta
+      name="description"
+      content="高颜值 AI 对话界面，支持 Markdown、表格、代码高亮、数学公式、流程图和安全交互组件"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <div class="bg-gradient-animated"></div>
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+          <div class="logo">
+            <div class="logo-icon">
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="url(#logo-grad)"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <defs>
+                  <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color: #2dd4bf" />
+                    <stop offset="100%" style="stop-color: #f59e0b" />
+                  </linearGradient>
+                </defs>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+            <span class="logo-text">DeepChat</span>
           </div>
-          <span class="logo-text">DeepChat</span>
+          <button id="sidebar-toggle" class="icon-btn" title="折叠侧边栏">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </button>
         </div>
-        <button id="sidebar-toggle" class="icon-btn" title="折叠侧边栏">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <button id="new-chat-btn" class="new-chat-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>新建对话</span>
         </button>
-      </div>
-      <button id="new-chat-btn" class="new-chat-btn">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>新建对话</span>
+        <div class="sidebar-search">
+          <svg
+            class="search-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input type="text" id="search-input" class="search-input" placeholder="搜索对话..." />
+        </div>
+        <div class="conversation-toolbar" aria-label="会话筛选">
+          <button type="button" class="conv-filter-btn active" data-conv-filter="active">对话</button>
+          <button type="button" class="conv-filter-btn" data-conv-filter="favorites">收藏</button>
+          <button type="button" class="conv-filter-btn" data-conv-filter="archived">归档</button>
+          <button type="button" class="conv-filter-btn" data-conv-filter="all">全部</button>
+          <button type="button" id="conversation-bulk-toggle" class="conv-filter-btn conv-bulk-toggle">批量</button>
+        </div>
+        <div id="conversation-bulk-bar" class="conversation-bulk-bar hidden">
+          <span id="conversation-bulk-count">已选 0</span>
+          <button type="button" id="conversation-bulk-archive">归档</button>
+          <button type="button" id="conversation-bulk-delete">删除</button>
+          <button type="button" id="conversation-bulk-cancel">取消</button>
+        </div>
+        <div class="sidebar-conversations" id="conversation-list"></div>
+        <div class="sidebar-footer">
+          <button id="theme-toggle-btn" class="icon-btn" title="切换主题">
+            <svg
+              class="icon-sun"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+            <svg
+              class="icon-moon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          </button>
+          <button id="settings-btn" class="icon-btn" title="设置">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+          </button>
+        </div>
+      </aside>
+      <button id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" title="菜单">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
       </button>
-      <div class="sidebar-search">
-        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="search-input" class="search-input" placeholder="搜索对话..." />
-      </div>
-      <div class="conversation-toolbar" aria-label="会话筛选">
-        <button type="button" class="conv-filter-btn active" data-conv-filter="active">对话</button>
-        <button type="button" class="conv-filter-btn" data-conv-filter="favorites">收藏</button>
-        <button type="button" class="conv-filter-btn" data-conv-filter="archived">归档</button>
-        <button type="button" class="conv-filter-btn" data-conv-filter="all">全部</button>
-        <button type="button" id="conversation-bulk-toggle" class="conv-filter-btn conv-bulk-toggle">批量</button>
-      </div>
-      <div id="conversation-bulk-bar" class="conversation-bulk-bar hidden">
-        <span id="conversation-bulk-count">已选 0</span>
-        <button type="button" id="conversation-bulk-archive">归档</button>
-        <button type="button" id="conversation-bulk-delete">删除</button>
-        <button type="button" id="conversation-bulk-cancel">取消</button>
-      </div>
-      <div class="sidebar-conversations" id="conversation-list"></div>
-      <div class="sidebar-footer">
-        <button id="theme-toggle-btn" class="icon-btn" title="切换主题">
-          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        </button>
-        <button id="settings-btn" class="icon-btn" title="设置">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
-      </div>
-    </aside>
-    <button id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" title="菜单">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-    </button>
-    <main id="main-content" class="main-content">
-      <header id="chat-header" class="chat-header">
-        <div class="chat-header-info">
-          <h1 class="chat-title" id="chat-title">新的对话</h1>
-          <div class="model-badge" id="model-badge"><span class="model-dot"></span><span id="model-name">deepseek-v4-flash</span></div>
-          <span class="header-usage-badge hidden" id="chat-usage-badge" title=""></span>
-        </div>
-        <div class="chat-header-actions">
-          <button id="evidence-panel-btn" class="icon-btn evidence-panel-btn hidden" title="查看最近工具证据">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          </button>
-          <button id="export-chat-btn" class="icon-btn" title="导出对话">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          </button>
-          <button id="clear-chat-btn" class="icon-btn" title="清空对话">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          </button>
-        </div>
-      </header>
-      <div id="chat-messages" class="chat-messages">
-        <div id="welcome-screen" class="welcome-screen">
-          <div class="welcome-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="url(#welcome-grad)" stroke-width="1.5">
-              <defs><linearGradient id="welcome-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#2dd4bf" /><stop offset="100%" style="stop-color:#f59e0b" /></linearGradient></defs>
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
+      <main id="main-content" class="main-content">
+        <header id="chat-header" class="chat-header">
+          <div class="chat-header-info">
+            <h1 class="chat-title" id="chat-title">新的对话</h1>
+            <div class="model-badge" id="model-badge">
+              <span class="model-dot"></span><span id="model-name">deepseek-v4-flash</span>
+            </div>
+            <span class="header-usage-badge hidden" id="chat-usage-badge" title=""></span>
           </div>
-          <h2 class="welcome-title">你好，有什么可以帮你的？</h2>
-          <p class="welcome-subtitle">我会用清晰的排版呈现回答——Markdown、表格、代码高亮、数学公式、流程图和安全交互组件。</p>
-          <div class="welcome-suggestions">
-            <button class="suggestion-card" data-prompt="用 Python 写一个快速排序算法，并解释时间复杂度"><div class="suggestion-icon">💻</div><div class="suggestion-text">写一个快速排序算法</div></button>
-            <button class="suggestion-card" data-prompt="我需要计算房贷。请在当前界面生成一个交互式房贷计算器组件，让我可以直接输入本金、利率和年限查看结果"><div class="suggestion-icon">🏠</div><div class="suggestion-text">生成房贷计算器</div></button>
-            <button class="suggestion-card" data-prompt="解释傅里叶变换的数学原理，包含公式推导"><div class="suggestion-icon">📐</div><div class="suggestion-text">解释傅里叶变换</div></button>
-            <button class="suggestion-card" data-prompt="对比 React, Vue, Angular 三大前端框架的优劣，用表格展示"><div class="suggestion-icon">⚖️</div><div class="suggestion-text">对比前端框架</div></button>
+          <div class="chat-header-actions">
+            <button id="evidence-panel-btn" class="icon-btn evidence-panel-btn hidden" title="查看最近工具证据">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+            </button>
+            <button id="export-chat-btn" class="icon-btn" title="导出对话">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+            <button id="clear-chat-btn" class="icon-btn" title="清空对话">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <div id="chat-messages" class="chat-messages">
+          <div id="welcome-screen" class="welcome-screen">
+            <div class="welcome-icon">
+              <svg
+                width="64"
+                height="64"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="url(#welcome-grad)"
+                stroke-width="1.5"
+              >
+                <defs>
+                  <linearGradient id="welcome-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color: #2dd4bf" />
+                    <stop offset="100%" style="stop-color: #f59e0b" />
+                  </linearGradient>
+                </defs>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </div>
+            <h2 class="welcome-title">你好，有什么可以帮你的？</h2>
+            <p class="welcome-subtitle">
+              我会用清晰的排版呈现回答——Markdown、表格、代码高亮、数学公式、流程图和安全交互组件。
+            </p>
+            <div class="welcome-suggestions">
+              <button class="suggestion-card" data-prompt="用 Python 写一个快速排序算法，并解释时间复杂度">
+                <div class="suggestion-icon">💻</div>
+                <div class="suggestion-text">写一个快速排序算法</div>
+              </button>
+              <button
+                class="suggestion-card"
+                data-prompt="我需要计算房贷。请在当前界面生成一个交互式房贷计算器组件，让我可以直接输入本金、利率和年限查看结果"
+              >
+                <div class="suggestion-icon">🏠</div>
+                <div class="suggestion-text">生成房贷计算器</div>
+              </button>
+              <button class="suggestion-card" data-prompt="解释傅里叶变换的数学原理，包含公式推导">
+                <div class="suggestion-icon">📐</div>
+                <div class="suggestion-text">解释傅里叶变换</div>
+              </button>
+              <button class="suggestion-card" data-prompt="对比 React, Vue, Angular 三大前端框架的优劣，用表格展示">
+                <div class="suggestion-icon">⚖️</div>
+                <div class="suggestion-text">对比前端框架</div>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="input-area">
-        <div class="composer-toolbar" aria-label="发送选项">
-          <label class="composer-control composer-mode-control" for="composer-mode-select">
-            <span class="composer-control-label">模式</span>
-            <select id="composer-mode-select" class="composer-select composer-mode-select" title="选择本轮回答模式">
-              <option value="daily">日常</option>
-              <option value="analysis">深析</option>
-              <option value="project">项目</option>
-              <option value="agent">Agent</option>
-              <option value="research">研究</option>
-              <option value="code">代码</option>
-              <option value="writing">写作</option>
-              <option value="polish">美化</option>
-            </select>
-          </label>
-          <button id="composer-context-btn" class="composer-context-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="插入 @file / @folder / @symbol 等显式上下文">上下文</button>
-          <button id="composer-advanced-toggle" class="composer-advanced-toggle" type="button" aria-expanded="false" aria-controls="composer-advanced-options" title="展开思考、工具、联网和模板选项">选项</button>
-          <div id="composer-advanced-options" class="composer-advanced-options" aria-label="高级发送选项">
-            <label class="composer-control" for="composer-thinking-select">
-              <span class="composer-control-label">思考程度</span>
-              <select id="composer-thinking-select" class="composer-select" title="控制本应用保存的思考 token 预算">
-                <option value="0">自动</option>
-                <option value="4096">轻量</option>
-                <option value="8192">标准</option>
-                <option value="16384">深度</option>
-                <option value="32768">极深</option>
+        <div class="input-area">
+          <div class="composer-toolbar" aria-label="发送选项">
+            <label class="composer-control composer-mode-control" for="composer-mode-select">
+              <span class="composer-control-label">模式</span>
+              <select id="composer-mode-select" class="composer-select composer-mode-select" title="选择本轮回答模式">
+                <option value="daily">日常</option>
+                <option value="analysis">深析</option>
+                <option value="project">项目</option>
+                <option value="agent">Agent</option>
+                <option value="research">研究</option>
+                <option value="code">代码</option>
+                <option value="writing">写作</option>
+                <option value="polish">美化</option>
               </select>
             </label>
-            <button id="composer-tool-drawer-btn" class="composer-tool-drawer-btn" type="button" aria-haspopup="menu" aria-expanded="false" title="选择本轮可用工具">
-              <span class="composer-tool-icon" aria-hidden="true">✦</span>
-              <span class="composer-tool-copy">
-                <span class="composer-tool-title">工具</span>
-                <span id="composer-tool-status" class="composer-toggle-status">智能 Agent</span>
-              </span>
+            <button
+              id="composer-context-btn"
+              class="composer-context-btn"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              title="插入 @file / @folder / @symbol 等显式上下文"
+            >
+              上下文
             </button>
-            <label class="composer-search-toggle" for="composer-web-search-toggle" title="开启后切换到 Tavily 联网检索模式">
-              <input type="checkbox" id="composer-web-search-toggle" />
-              <span class="composer-toggle-track" aria-hidden="true"></span>
-              <span class="composer-toggle-copy">
-                <span class="composer-toggle-title">联网搜索</span>
-                <span id="composer-search-status" class="composer-toggle-status">关闭</span>
-              </span>
-            </label>
-            <label class="composer-search-toggle composer-enhance-toggle" for="composer-enhance-toggle" title="开启后会按问题类型自动补充输出要求">
-              <input type="checkbox" id="composer-enhance-toggle" />
-              <span class="composer-toggle-track" aria-hidden="true"></span>
-              <span class="composer-toggle-copy">
-                <span class="composer-toggle-title">自动增强</span>
-                <span id="composer-enhance-status" class="composer-toggle-status">开启</span>
-              </span>
-            </label>
-            <span id="composer-run-status" class="composer-run-status">本轮：自动思考 · 离线 · 增强开启</span>
-            <button id="composer-template-btn" class="composer-settings-shortcut" type="button" title="插入常用提示词">模板</button>
-            <button id="composer-settings-shortcut" class="composer-settings-shortcut" type="button" title="打开设置">设置</button>
-          </div>
-        </div>
-        <div class="composer-chip-row" aria-label="本轮上下文快捷选择">
-          <span class="composer-chip-label">上下文</span>
-          <button class="composer-context-chip" type="button" data-context-chip="file" title="插入 @file">文件</button>
-          <button class="composer-context-chip" type="button" data-context-chip="folder" title="插入 @folder">目录</button>
-          <button class="composer-context-chip" type="button" data-context-chip="symbol" title="插入 @symbol">符号</button>
-          <button class="composer-context-chip" type="button" data-context-chip="changed" title="插入 @changed">变更</button>
-          <button class="composer-context-chip" type="button" data-context-chip="web" title="插入 @web">联网</button>
-          <button class="composer-context-chip" type="button" data-context-chip="run" title="插入 @run">运行</button>
-        </div>
-        <div id="composer-context-preview" class="composer-context-preview" aria-label="本轮将使用的上下文和工具"></div>
-        <div class="input-container">
-          <textarea id="message-input" class="message-input" placeholder="输入你的问题… (Enter 发送, Shift+Enter 换行)" rows="1"></textarea>
-          <div class="input-addons">
-            <span class="token-badge hidden" id="token-badge">0 tokens</span>
-            <div class="input-actions">
-              <button id="stop-btn" class="stop-btn hidden" title="停止生成"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span>停止</span></button>
-              <button id="send-btn" class="send-btn" title="发送 (Enter)" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+            <button
+              id="composer-advanced-toggle"
+              class="composer-advanced-toggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="composer-advanced-options"
+              title="展开思考、工具、联网和模板选项"
+            >
+              选项
+            </button>
+            <div id="composer-advanced-options" class="composer-advanced-options" aria-label="高级发送选项">
+              <label class="composer-control" for="composer-thinking-select">
+                <span class="composer-control-label">思考程度</span>
+                <select id="composer-thinking-select" class="composer-select" title="控制本应用保存的思考 token 预算">
+                  <option value="0">自动</option>
+                  <option value="4096">轻量</option>
+                  <option value="8192">标准</option>
+                  <option value="16384">深度</option>
+                  <option value="32768">极深</option>
+                </select>
+              </label>
+              <button
+                id="composer-tool-drawer-btn"
+                class="composer-tool-drawer-btn"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                title="选择本轮可用工具"
+              >
+                <span class="composer-tool-icon" aria-hidden="true">✦</span>
+                <span class="composer-tool-copy">
+                  <span class="composer-tool-title">工具</span>
+                  <span id="composer-tool-status" class="composer-toggle-status">智能 Agent</span>
+                </span>
+              </button>
+              <label
+                class="composer-search-toggle"
+                for="composer-web-search-toggle"
+                title="开启后切换到 Tavily 联网检索模式"
+              >
+                <input type="checkbox" id="composer-web-search-toggle" />
+                <span class="composer-toggle-track" aria-hidden="true"></span>
+                <span class="composer-toggle-copy">
+                  <span class="composer-toggle-title">联网搜索</span>
+                  <span id="composer-search-status" class="composer-toggle-status">关闭</span>
+                </span>
+              </label>
+              <label
+                class="composer-search-toggle composer-enhance-toggle"
+                for="composer-enhance-toggle"
+                title="开启后会按问题类型自动补充输出要求"
+              >
+                <input type="checkbox" id="composer-enhance-toggle" />
+                <span class="composer-toggle-track" aria-hidden="true"></span>
+                <span class="composer-toggle-copy">
+                  <span class="composer-toggle-title">自动增强</span>
+                  <span id="composer-enhance-status" class="composer-toggle-status">开启</span>
+                </span>
+              </label>
+              <span id="composer-run-status" class="composer-run-status">本轮：自动思考 · 离线 · 增强开启</span>
+              <button
+                id="composer-template-btn"
+                class="composer-settings-shortcut"
+                type="button"
+                title="插入常用提示词"
+              >
+                模板
+              </button>
+              <button id="composer-settings-shortcut" class="composer-settings-shortcut" type="button" title="打开设置">
+                设置
+              </button>
             </div>
           </div>
-        </div>
-        <div class="input-footer"><span class="footer-text">DeepChat · Ctrl+N 新建 · Ctrl+/ 聚焦 · Ctrl+↑ 历史 · F1 快捷键</span></div>
-      </div>
-    </main>
-    <div id="settings-overlay" class="settings-overlay hidden"></div>
-    <div id="settings-panel" class="settings-panel hidden">
-      <div class="settings-header"><h2>设置</h2><button id="settings-close-btn" class="icon-btn" title="关闭"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
-      <div class="settings-body">
-        <div class="settings-section">
-          <h3>API 配置</h3>
-          <div class="form-group">
-            <label>快速切换服务商</label>
-            <div class="provider-presets">
-              <button class="provider-btn" data-provider="deepseek" data-url="https://api.deepseek.com" data-model="deepseek-v4-flash" title="DeepSeek 官方">
-                <span class="provider-name">DeepSeek</span>
-              </button>
-              <button class="provider-btn" data-provider="openai" data-url="https://api.openai.com/v1" data-model="gpt-4o" title="OpenAI 官方">
-                <span class="provider-name">OpenAI</span>
-              </button>
-              <button class="provider-btn" data-provider="ollama" data-url="http://localhost:11434/v1" data-model="llama3" title="Ollama 本地">
-                <span class="provider-name">Ollama</span>
-              </button>
-              <button class="provider-btn" data-provider="openrouter" data-url="https://openrouter.ai/api/v1" data-model="deepseek/deepseek-chat" title="OpenRouter 多模型网关">
-                <span class="provider-name">OpenRouter</span>
-              </button>
-              <button class="provider-btn" data-provider="siliconflow" data-url="https://api.siliconflow.cn/v1" data-model="deepseek-ai/DeepSeek-V3" title="硅基流动">
-                <span class="provider-name">硅基流动</span>
-              </button>
-              <button class="provider-btn" data-provider="custom" data-url="" data-model="" title="自定义 API">
-                <span class="provider-name">自定义</span>
-              </button>
-            </div>
+          <div class="composer-chip-row" aria-label="本轮上下文快捷选择">
+            <span class="composer-chip-label">上下文</span>
+            <button class="composer-context-chip" type="button" data-context-chip="file" title="插入 @file">
+              文件
+            </button>
+            <button class="composer-context-chip" type="button" data-context-chip="folder" title="插入 @folder">
+              目录
+            </button>
+            <button class="composer-context-chip" type="button" data-context-chip="symbol" title="插入 @symbol">
+              符号
+            </button>
+            <button class="composer-context-chip" type="button" data-context-chip="changed" title="插入 @changed">
+              变更
+            </button>
+            <button class="composer-context-chip" type="button" data-context-chip="web" title="插入 @web">联网</button>
+            <button class="composer-context-chip" type="button" data-context-chip="run" title="插入 @run">运行</button>
           </div>
-            <div class="form-group"><label for="api-key-input">API Key</label><div class="password-input-wrap"><input type="password" id="api-key-input" class="form-input" placeholder="sk-xxxxxxxxxxxxxxxx" /><button id="toggle-key-visibility" class="icon-btn-sm" title="显示/隐藏"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div><p class="form-hint">桌面版使用系统安全存储加密保存；浏览器预览模式仅本次页面会话保留密钥。</p></div>
-          <div class="form-group"><label for="api-base-input">API Base URL</label><input type="text" id="api-base-input" class="form-input" value="https://api.deepseek.com" placeholder="https://api.deepseek.com" /></div>
-          <div class="form-actions"><button id="test-api-btn" class="secondary-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>测试 API 连接</button><span id="api-test-status" class="inline-status"></span></div>
-        </div>
-        <div class="settings-section">
-          <h3>联网搜索</h3>
-          <div class="form-group"><label for="tavily-key-input">Tavily API Key</label><div class="password-input-wrap"><input type="password" id="tavily-key-input" class="form-input" placeholder="tvly-xxxxxxxxxxxxxxxx" /><button id="toggle-tavily-key-visibility" class="icon-btn-sm" title="显示/隐藏"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div><p class="form-hint">启用“联网检索/全工具”模式后，模型会通过 Tavily 工具搜索真实网页。</p></div>
-          <div class="form-group"><label for="tavily-max-results-input">搜索结果数</label><input type="number" id="tavily-max-results-input" class="form-input" value="5" min="1" max="10" step="1" /></div>
-          <div class="form-actions"><button id="test-search-btn" class="secondary-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>测试搜索</button><span id="search-test-status" class="inline-status"></span></div>
-        </div>
-        <div class="settings-section">
-          <h3>工作区与备份</h3>
-          <div class="form-group">
-            <label>允许读取的工作区</label>
-            <div id="workspace-list" class="workspace-list"></div>
-            <div class="form-actions"><button id="add-workspace-btn" class="secondary-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>添加工作区</button></div>
-            <p class="form-hint">文件工具只能读取这些目录内的文本文件，运行代码仍会逐次要求确认。</p>
-          </div>
-          <div class="form-group">
-            <label>数据管理</label>
-            <div class="form-actions">
-              <button id="export-backup-btn" class="secondary-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>导出全部数据</button>
-              <button id="import-backup-btn" class="secondary-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>导入备份</button>
-            </div>
-            <p id="storage-status" class="form-hint">正在读取存储状态...</p>
-          </div>
-        </div>
-        <div class="settings-section">
-          <h3>外部 Skill</h3>
-          <div class="form-group">
-            <label>已导入的 Skill</label>
-            <div id="external-skill-list" class="workspace-list"></div>
-            <div class="form-actions"><button id="add-external-skill-btn" class="secondary-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>导入 SKILL.md</button></div>
-            <p class="form-hint">导入本地 SKILL.md 后，启用的 Skill 会追加到系统提示词中。</p>
-          </div>
-        </div>
-        <div class="settings-section">
-          <h3>MCP Server</h3>
-          <div class="form-group">
-            <label>添加 stdio MCP</label>
-            <input type="text" id="mcp-name-input" class="form-input" placeholder="名称，例如 filesystem" />
-            <input type="text" id="mcp-command-input" class="form-input compact-input" placeholder="命令，例如 npx 或 python" />
-            <input type="text" id="mcp-args-input" class="form-input compact-input" placeholder="参数，例如 -y @modelcontextprotocol/server-filesystem E:\\资料" />
-            <textarea id="mcp-env-input" class="form-textarea compact-textarea" rows="3" placeholder='环境变量 JSON，可选，例如 {"API_KEY":"..."}'></textarea>
-            <div class="form-actions">
-              <button id="add-mcp-server-btn" class="secondary-btn" type="button">添加 MCP</button>
-              <button id="refresh-mcp-status-btn" class="secondary-btn" type="button">测试 MCP</button>
-              <span id="mcp-status-text" class="inline-status"></span>
-            </div>
-            <p class="form-hint">MCP 仅桌面版可执行。浏览器预览不能启动外部进程。</p>
-          </div>
-          <div class="form-group">
-            <label>已配置 MCP</label>
-            <div id="mcp-server-list" class="workspace-list"></div>
-          </div>
-        </div>
-        <div class="settings-section">
-          <h3>模型设置</h3>
-          <div class="form-group">
-            <label for="model-input">模型名称</label>
-            <input type="text" id="model-input" class="form-input" value="deepseek-v4-flash" placeholder="输入模型名称，如 deepseek-v4-pro..." />
-            <div class="model-quick-select">
-              <div class="model-group">
-                <span class="model-group-title">DeepSeek</span>
-                <button class="model-tag" data-model="deepseek-v4-pro">v4-pro ✨</button>
-                <button class="model-tag" data-model="deepseek-v4-flash">v4-flash ⚡</button>
-                <button class="model-tag" data-model="deepseek-chat">V3 Chat</button>
-                <button class="model-tag" data-model="deepseek-reasoner">R1 Reasoner</button>
-              </div>
-              <div class="model-group">
-                <span class="model-group-title">OpenAI</span>
-                <button class="model-tag" data-model="gpt-4o">gpt-4o</button>
-                <button class="model-tag" data-model="gpt-4o-mini">gpt-4o-mini</button>
-              </div>
-              <div class="model-group">
-                <span class="model-group-title">其他</span>
-                <button class="model-tag" data-model="claude-3.5-sonnet">claude-3.5</button>
-                <button class="model-tag" data-model="qwen-plus">qwen-plus</button>
+          <div
+            id="composer-context-preview"
+            class="composer-context-preview"
+            aria-label="本轮将使用的上下文和工具"
+          ></div>
+          <div class="input-container">
+            <textarea
+              id="message-input"
+              class="message-input"
+              placeholder="输入你的问题… (Enter 发送, Shift+Enter 换行)"
+              rows="1"
+            ></textarea>
+            <div class="input-addons">
+              <span class="token-badge hidden" id="token-badge">0 tokens</span>
+              <div class="input-actions">
+                <button id="stop-btn" class="stop-btn hidden" title="停止生成">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="6" width="12" height="12" rx="2" /></svg
+                  ><span>停止</span>
+                </button>
+                <button id="send-btn" class="send-btn" title="发送 (Enter)" disabled>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                </button>
               </div>
             </div>
-            <p class="form-hint">可直接输入任意 OpenAI 兼容的模型名称；请以服务商当前文档为准。</p>
-            <div id="model-capability-status" class="model-capability-status" aria-live="polite"></div>
           </div>
-          <div class="form-group"><label for="temperature-input">Temperature: <span id="temperature-value">0.7</span></label><input type="range" id="temperature-input" class="form-range" min="0" max="2" step="0.1" value="0.7" /><div class="range-labels"><span>精确</span><span>创意</span></div></div>
-          <div class="form-group"><label for="thinking-budget-input">思考深度: <span id="thinking-budget-value">自动</span></label><input type="range" id="thinking-budget-input" class="form-range" min="0" max="32768" step="1024" value="0" /><div class="range-labels"><span>自动/关闭</span><span>深度思考 (32K)</span></div><p class="form-hint">控制 AI 思考时消耗的 token 数，0=自动。适用于 reasoner 和支持思考的模型</p></div>
-          <div class="form-group"><label for="max-tokens-input">最大 Tokens</label><input type="number" id="max-tokens-input" class="form-input" value="4096" min="256" max="65536" step="256" /></div>
-          <div class="form-group"><label for="max-input-tokens-input">输入 Token 预算</label><input type="number" id="max-input-tokens-input" class="form-input" value="24000" min="1024" max="262144" step="1024" /><p class="form-hint">限制每次请求送入模型的系统提示、历史消息和工具上下文，当前用户消息会优先保留。</p></div>
-          <div class="form-group"><label for="max-context-input">上下文消息数</label><input type="number" id="max-context-input" class="form-input" value="20" min="2" max="50" step="2" /><p class="form-hint">发送给 API 的历史消息条数上限，越少越省 token</p></div>
-          <div class="form-group"><label for="agent-max-rounds-input">Agent 最大工具轮数</label><input type="number" id="agent-max-rounds-input" class="form-input" value="3" min="1" max="10" step="1" /><p class="form-hint">限制模型连续规划并请求工具的轮数，超过后停止并保留已执行记录。</p></div>
+          <div class="input-footer">
+            <span class="footer-text">DeepChat · Ctrl+N 新建 · Ctrl+/ 聚焦 · Ctrl+↑ 历史 · F1 快捷键</span>
+          </div>
         </div>
-        <div class="settings-section">
-          <h3>Agent 与 Token</h3>
-          <div class="form-group">
-            <label class="toggle-row">
-              <input type="checkbox" id="cache-optimization-toggle" checked />
-              <span>缓存命中优化</span>
-            </label>
-            <p class="form-hint">保持 system prompt 与工具 schema 前缀稳定，并在 token 统计中展示 prefix 和缓存命中。</p>
+      </main>
+      <div id="settings-overlay" class="settings-overlay hidden"></div>
+      <div id="settings-panel" class="settings-panel hidden">
+        <div class="settings-header">
+          <h2>设置</h2>
+          <button id="settings-close-btn" class="icon-btn" title="关闭">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div class="settings-body">
+          <div class="settings-section">
+            <h3>API 配置</h3>
+            <div class="form-group">
+              <label>快速切换服务商</label>
+              <div class="provider-presets">
+                <button
+                  class="provider-btn"
+                  data-provider="deepseek"
+                  data-url="https://api.deepseek.com"
+                  data-model="deepseek-v4-flash"
+                  title="DeepSeek 官方"
+                >
+                  <span class="provider-name">DeepSeek</span>
+                </button>
+                <button
+                  class="provider-btn"
+                  data-provider="openai"
+                  data-url="https://api.openai.com/v1"
+                  data-model="gpt-4o"
+                  title="OpenAI 官方"
+                >
+                  <span class="provider-name">OpenAI</span>
+                </button>
+                <button
+                  class="provider-btn"
+                  data-provider="ollama"
+                  data-url="http://localhost:11434/v1"
+                  data-model="llama3"
+                  title="Ollama 本地"
+                >
+                  <span class="provider-name">Ollama</span>
+                </button>
+                <button
+                  class="provider-btn"
+                  data-provider="openrouter"
+                  data-url="https://openrouter.ai/api/v1"
+                  data-model="deepseek/deepseek-chat"
+                  title="OpenRouter 多模型网关"
+                >
+                  <span class="provider-name">OpenRouter</span>
+                </button>
+                <button
+                  class="provider-btn"
+                  data-provider="siliconflow"
+                  data-url="https://api.siliconflow.cn/v1"
+                  data-model="deepseek-ai/DeepSeek-V3"
+                  title="硅基流动"
+                >
+                  <span class="provider-name">硅基流动</span>
+                </button>
+                <button class="provider-btn" data-provider="custom" data-url="" data-model="" title="自定义 API">
+                  <span class="provider-name">自定义</span>
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="api-key-input">API Key</label>
+              <div class="password-input-wrap">
+                <input type="password" id="api-key-input" class="form-input" placeholder="sk-xxxxxxxxxxxxxxxx" /><button
+                  id="toggle-key-visibility"
+                  class="icon-btn-sm"
+                  title="显示/隐藏"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </div>
+              <p class="form-hint">桌面版使用系统安全存储加密保存；浏览器预览模式仅本次页面会话保留密钥。</p>
+            </div>
+            <div class="form-group">
+              <label for="api-base-input">API Base URL</label
+              ><input
+                type="text"
+                id="api-base-input"
+                class="form-input"
+                value="https://api.deepseek.com"
+                placeholder="https://api.deepseek.com"
+              />
+            </div>
             <div class="form-actions">
-              <button id="clear-workspace-index-cache-btn" class="secondary-btn" type="button">清理工作区索引缓存</button>
+              <button id="test-api-btn" class="secondary-btn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12" /></svg
+                >测试 API 连接</button
+              ><span id="api-test-status" class="inline-status"></span>
             </div>
-            <p id="workspace-index-cache-status" class="form-hint">工作区索引用于加速本地搜索；清理后下次文件工具会按快照重新建立。</p>
           </div>
-          <div class="form-group">
-            <label class="toggle-row">
-              <input type="checkbox" id="auto-context-summary-toggle" checked />
-              <span>自动摘要长上下文</span>
-            </label>
-            <p class="form-hint">历史消息被预算裁剪或接近输入预算时，自动生成短记忆并计入本轮 token 用量。</p>
-          </div>
-          <div class="form-group"><label for="tool-approval-timeout-input">工具确认超时 (ms)</label><input type="number" id="tool-approval-timeout-input" class="form-input" value="60000" min="5000" max="300000" step="5000" /><p class="form-hint">超过时间未确认时自动拒绝工具调用，避免请求一直挂起。</p></div>
-          <div class="form-group">
-            <label for="tool-approval-policy-select">工具审批策略</label>
-            <select id="tool-approval-policy-select" class="form-input">
-              <option value="confirm_all">所有工具都确认</option>
-              <option value="auto_readonly">低风险读取/搜索自动通过</option>
-            </select>
-            <p class="form-hint">默认保持逐次确认。自动通过只适用于联网搜索、列文件、工作区搜索、读符号和读文件；运行代码、MCP 和写入类操作仍需确认。</p>
-          </div>
-          <div class="form-group">
-            <label class="toggle-row">
-              <input type="checkbox" id="run-code-enabled-toggle" checked />
-              <span>允许运行代码工具</span>
-            </label>
-            <p class="form-hint">关闭后模型仍可生成代码，但不能通过本机运行。开启时使用轻量隔离环境并逐次确认。</p>
-          </div>
-        </div>
-        <div class="settings-section">
-          <h3>回答模式</h3>
-          <div class="form-group">
-            <label>调整 AI 的回答边界</label>
-            <div class="skill-grid" id="skill-grid">
-              <!-- Populated by JS -->
+          <div class="settings-section">
+            <h3>联网搜索</h3>
+            <div class="form-group">
+              <label for="tavily-key-input">Tavily API Key</label>
+              <div class="password-input-wrap">
+                <input
+                  type="password"
+                  id="tavily-key-input"
+                  class="form-input"
+                  placeholder="tvly-xxxxxxxxxxxxxxxx"
+                /><button id="toggle-tavily-key-visibility" class="icon-btn-sm" title="显示/隐藏">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </div>
+              <p class="form-hint">启用“联网检索/全工具”模式后，模型会通过 Tavily 工具搜索真实网页。</p>
             </div>
-            <p class="form-hint">工具模式会在模型请求执行时弹出确认卡片，确认后才会联网、读文件或运行代码。</p>
+            <div class="form-group">
+              <label for="tavily-max-results-input">搜索结果数</label
+              ><input
+                type="number"
+                id="tavily-max-results-input"
+                class="form-input"
+                value="5"
+                min="1"
+                max="10"
+                step="1"
+              />
+            </div>
+            <div class="form-actions">
+              <button id="test-search-btn" class="secondary-btn" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" /></svg
+                >测试搜索</button
+              ><span id="search-test-status" class="inline-status"></span>
+            </div>
           </div>
-        </div>
-        <div class="settings-section">
-          <h3>系统提示词</h3>
-          <div class="form-group"><label for="system-prompt-input">System Prompt</label><textarea id="system-prompt-input" class="form-textarea" rows="6" placeholder="定义 AI 的角色、行为准则和回答质量标准..."></textarea></div>
-          <div class="prompt-presets">
-            <button class="preset-btn" data-preset="default">🎯 默认</button>
-            <button class="preset-btn" data-preset="coder">💻 编程</button>
-            <button class="preset-btn" data-preset="analyst">📊 分析</button>
-            <button class="preset-btn" data-preset="translator">🌐 翻译</button>
-            <button class="preset-btn" data-preset="writer">✍️ 写作</button>
-            <button class="preset-btn" data-preset="teacher">📚 教学</button>
+          <div class="settings-section">
+            <h3>工作区与备份</h3>
+            <div class="form-group">
+              <label>允许读取的工作区</label>
+              <div id="workspace-list" class="workspace-list"></div>
+              <div class="form-actions">
+                <button id="add-workspace-btn" class="secondary-btn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" /></svg
+                  >添加工作区
+                </button>
+              </div>
+              <p class="form-hint">文件工具只能读取这些目录内的文本文件，运行代码仍会逐次要求确认。</p>
+            </div>
+            <div class="form-group">
+              <label>数据管理</label>
+              <div class="form-actions">
+                <button id="export-backup-btn" class="secondary-btn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" /></svg
+                  >导出全部数据
+                </button>
+                <button id="import-backup-btn" class="secondary-btn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" /></svg
+                  >导入备份
+                </button>
+              </div>
+              <p id="storage-status" class="form-hint">正在读取存储状态...</p>
+            </div>
           </div>
-        </div>
-        <div class="settings-section">
-          <h3>智能增强</h3>
-          <div class="form-group enhance-row">
-            <label class="toggle-label enhance-toggle-control" for="enhance-toggle">
-              <input type="checkbox" id="enhance-toggle" checked />
-              <span class="toggle-copy">
-                <span class="toggle-title">提示词自动增强</span>
-                <span class="toggle-subtitle">短问题自动补充结构、深度和输出格式要求</span>
-              </span>
-              <span class="toggle-slider" aria-hidden="true"></span>
-            </label>
-            <p class="form-hint">适合日常问答；需要精确原文提示时可以关闭。</p>
+          <div class="settings-section">
+            <h3>外部 Skill</h3>
+            <div class="form-group">
+              <label>已导入的 Skill</label>
+              <div id="external-skill-list" class="workspace-list"></div>
+              <div class="form-actions">
+                <button id="add-external-skill-btn" class="secondary-btn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" /></svg
+                  >导入 SKILL.md
+                </button>
+              </div>
+              <p class="form-hint">导入本地 SKILL.md 后，启用的 Skill 会追加到系统提示词中。</p>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3>MCP Server</h3>
+            <div class="form-group">
+              <label>添加 stdio MCP</label>
+              <input type="text" id="mcp-name-input" class="form-input" placeholder="名称，例如 filesystem" />
+              <input
+                type="text"
+                id="mcp-command-input"
+                class="form-input compact-input"
+                placeholder="命令，例如 npx 或 python"
+              />
+              <input
+                type="text"
+                id="mcp-args-input"
+                class="form-input compact-input"
+                placeholder="参数，例如 -y @modelcontextprotocol/server-filesystem E:\\资料"
+              />
+              <textarea
+                id="mcp-env-input"
+                class="form-textarea compact-textarea"
+                rows="3"
+                placeholder='环境变量 JSON，可选，例如 {"API_KEY":"..."}'
+              ></textarea>
+              <div class="form-actions">
+                <button id="add-mcp-server-btn" class="secondary-btn" type="button">添加 MCP</button>
+                <button id="refresh-mcp-status-btn" class="secondary-btn" type="button">测试 MCP</button>
+                <span id="mcp-status-text" class="inline-status"></span>
+              </div>
+              <p class="form-hint">MCP 仅桌面版可执行。浏览器预览不能启动外部进程。</p>
+            </div>
+            <div class="form-group">
+              <label>已配置 MCP</label>
+              <div id="mcp-server-list" class="workspace-list"></div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3>模型设置</h3>
+            <div class="form-group">
+              <label for="model-input">模型名称</label>
+              <input
+                type="text"
+                id="model-input"
+                class="form-input"
+                value="deepseek-v4-flash"
+                placeholder="输入模型名称，如 deepseek-v4-pro..."
+              />
+              <div class="model-quick-select">
+                <div class="model-group">
+                  <span class="model-group-title">DeepSeek</span>
+                  <button class="model-tag" data-model="deepseek-v4-pro">v4-pro ✨</button>
+                  <button class="model-tag" data-model="deepseek-v4-flash">v4-flash ⚡</button>
+                  <button class="model-tag" data-model="deepseek-chat">V3 Chat</button>
+                  <button class="model-tag" data-model="deepseek-reasoner">R1 Reasoner</button>
+                </div>
+                <div class="model-group">
+                  <span class="model-group-title">OpenAI</span>
+                  <button class="model-tag" data-model="gpt-4o">gpt-4o</button>
+                  <button class="model-tag" data-model="gpt-4o-mini">gpt-4o-mini</button>
+                </div>
+                <div class="model-group">
+                  <span class="model-group-title">其他</span>
+                  <button class="model-tag" data-model="claude-3.5-sonnet">claude-3.5</button>
+                  <button class="model-tag" data-model="qwen-plus">qwen-plus</button>
+                </div>
+              </div>
+              <p class="form-hint">可直接输入任意 OpenAI 兼容的模型名称；请以服务商当前文档为准。</p>
+              <div id="model-capability-status" class="model-capability-status" aria-live="polite"></div>
+            </div>
+            <div class="form-group">
+              <label for="temperature-input">Temperature: <span id="temperature-value">0.7</span></label
+              ><input type="range" id="temperature-input" class="form-range" min="0" max="2" step="0.1" value="0.7" />
+              <div class="range-labels"><span>精确</span><span>创意</span></div>
+            </div>
+            <div class="form-group">
+              <label for="thinking-budget-input">思考深度: <span id="thinking-budget-value">自动</span></label
+              ><input
+                type="range"
+                id="thinking-budget-input"
+                class="form-range"
+                min="0"
+                max="32768"
+                step="1024"
+                value="0"
+              />
+              <div class="range-labels"><span>自动/关闭</span><span>深度思考 (32K)</span></div>
+              <p class="form-hint">控制 AI 思考时消耗的 token 数，0=自动。适用于 reasoner 和支持思考的模型</p>
+            </div>
+            <div class="form-group">
+              <label for="max-tokens-input">最大 Tokens</label
+              ><input
+                type="number"
+                id="max-tokens-input"
+                class="form-input"
+                value="4096"
+                min="256"
+                max="65536"
+                step="256"
+              />
+            </div>
+            <div class="form-group">
+              <label for="max-input-tokens-input">输入 Token 预算</label
+              ><input
+                type="number"
+                id="max-input-tokens-input"
+                class="form-input"
+                value="24000"
+                min="1024"
+                max="262144"
+                step="1024"
+              />
+              <p class="form-hint">限制每次请求送入模型的系统提示、历史消息和工具上下文，当前用户消息会优先保留。</p>
+            </div>
+            <div class="form-group">
+              <label for="max-context-input">上下文消息数</label
+              ><input type="number" id="max-context-input" class="form-input" value="20" min="2" max="50" step="2" />
+              <p class="form-hint">发送给 API 的历史消息条数上限，越少越省 token</p>
+            </div>
+            <div class="form-group">
+              <label for="agent-max-rounds-input">Agent 最大工具轮数</label
+              ><input
+                type="number"
+                id="agent-max-rounds-input"
+                class="form-input"
+                value="3"
+                min="1"
+                max="10"
+                step="1"
+              />
+              <p class="form-hint">限制模型连续规划并请求工具的轮数，超过后停止并保留已执行记录。</p>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3>Agent 与 Token</h3>
+            <div class="form-group">
+              <label class="toggle-row">
+                <input type="checkbox" id="cache-optimization-toggle" checked />
+                <span>缓存命中优化</span>
+              </label>
+              <p class="form-hint">
+                保持 system prompt 与工具 schema 前缀稳定，并在 token 统计中展示 prefix 和缓存命中。
+              </p>
+              <div class="form-actions">
+                <button id="clear-workspace-index-cache-btn" class="secondary-btn" type="button">
+                  清理工作区索引缓存
+                </button>
+              </div>
+              <p id="workspace-index-cache-status" class="form-hint">
+                工作区索引用于加速本地搜索；清理后下次文件工具会按快照重新建立。
+              </p>
+            </div>
+            <div class="form-group">
+              <label class="toggle-row">
+                <input type="checkbox" id="auto-context-summary-toggle" checked />
+                <span>自动摘要长上下文</span>
+              </label>
+              <p class="form-hint">历史消息被预算裁剪或接近输入预算时，自动生成短记忆并计入本轮 token 用量。</p>
+            </div>
+            <div class="form-group">
+              <label for="tool-approval-timeout-input">工具确认超时 (ms)</label
+              ><input
+                type="number"
+                id="tool-approval-timeout-input"
+                class="form-input"
+                value="60000"
+                min="5000"
+                max="300000"
+                step="5000"
+              />
+              <p class="form-hint">超过时间未确认时自动拒绝工具调用，避免请求一直挂起。</p>
+            </div>
+            <div class="form-group">
+              <label for="tool-approval-policy-select">工具审批策略</label>
+              <select id="tool-approval-policy-select" class="form-input">
+                <option value="confirm_all">所有工具都确认</option>
+                <option value="auto_readonly">低风险读取/搜索自动通过</option>
+              </select>
+              <p class="form-hint">
+                默认保持逐次确认。自动通过只适用于联网搜索、列文件、工作区搜索、读符号和读文件；运行代码、MCP
+                和写入类操作仍需确认。
+              </p>
+            </div>
+            <div class="form-group">
+              <label class="toggle-row">
+                <input type="checkbox" id="run-code-enabled-toggle" checked />
+                <span>允许运行代码工具</span>
+              </label>
+              <p class="form-hint">关闭后模型仍可生成代码，但不能通过本机运行。开启时使用轻量隔离环境并逐次确认。</p>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3>回答模式</h3>
+            <div class="form-group">
+              <label>调整 AI 的回答边界</label>
+              <div class="skill-grid" id="skill-grid">
+                <!-- Populated by JS -->
+              </div>
+              <p class="form-hint">工具模式会在模型请求执行时弹出确认卡片，确认后才会联网、读文件或运行代码。</p>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3>系统提示词</h3>
+            <div class="form-group">
+              <label for="system-prompt-input">System Prompt</label
+              ><textarea
+                id="system-prompt-input"
+                class="form-textarea"
+                rows="6"
+                placeholder="定义 AI 的角色、行为准则和回答质量标准..."
+              ></textarea>
+            </div>
+            <div class="prompt-presets">
+              <button class="preset-btn" data-preset="default">🎯 默认</button>
+              <button class="preset-btn" data-preset="coder">💻 编程</button>
+              <button class="preset-btn" data-preset="analyst">📊 分析</button>
+              <button class="preset-btn" data-preset="translator">🌐 翻译</button>
+              <button class="preset-btn" data-preset="writer">✍️ 写作</button>
+              <button class="preset-btn" data-preset="teacher">📚 教学</button>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3>智能增强</h3>
+            <div class="form-group enhance-row">
+              <label class="toggle-label enhance-toggle-control" for="enhance-toggle">
+                <input type="checkbox" id="enhance-toggle" checked />
+                <span class="toggle-copy">
+                  <span class="toggle-title">提示词自动增强</span>
+                  <span class="toggle-subtitle">短问题自动补充结构、深度和输出格式要求</span>
+                </span>
+                <span class="toggle-slider" aria-hidden="true"></span>
+              </label>
+              <p class="form-hint">适合日常问答；需要精确原文提示时可以关闭。</p>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-
-  <script type="module" src="/src/main.js"></script>
-</body>
+    <script type="module" src="/src/main.js"></script>
+  </body>
 </html>

@@ -6,7 +6,7 @@ import {
   applyCrewToolResult,
   handleCrewAgentStage,
   markCrewMemberDone,
-  finalizeCrewRun
+  finalizeCrewRun,
 } from '../src/modules/agent-run-store.js';
 import { renderAgentCrew } from '../src/modules/agent-crew.js';
 
@@ -17,11 +17,11 @@ describe('agent crew state engine', () => {
     expect(run.mode).toBe('auto');
     expect(run.crew).toHaveLength(6);
 
-    const planner = run.crew.find(c => c.id === 'planner');
+    const planner = run.crew.find((c) => c.id === 'planner');
     expect(planner.status).toBe('running');
     expect(planner.currentAction).toBe('正在拆解任务');
 
-    const coder = run.crew.find(c => c.id === 'coder');
+    const coder = run.crew.find((c) => c.id === 'coder');
     expect(coder.status).toBe('idle');
     expect(coder.currentAction).toBe('等待中');
   });
@@ -30,12 +30,12 @@ describe('agent crew state engine', () => {
     expect(getCrewRoleForTool('read_file')).toBe('reader');
     expect(getCrewRoleForTool('search_workspace')).toBe('reader');
     expect(getCrewRoleForTool('list_files')).toBe('reader');
-    
+
     expect(getCrewRoleForTool('web_search')).toBe('researcher');
     expect(getCrewRoleForTool('mcp_my_custom_tool')).toBe('researcher');
 
     expect(getCrewRoleForTool('run_code')).toBe('coder');
-    
+
     // Fallbacks
     expect(getCrewRoleForTool('ncbi_sequence_fetch')).toBe('researcher');
     expect(getCrewRoleForTool('protein_sequence_msa')).toBe('reader');
@@ -44,12 +44,12 @@ describe('agent crew state engine', () => {
 
   it('handles tool requests and marks the mapped role appropriately', () => {
     const run = createAgentRun('auto');
-    
+
     // Test approved tool request
     const readerTool = { id: 't1', name: 'read_file', status: 'approved' };
     applyCrewToolRequest(run, readerTool);
-    
-    const reader = run.crew.find(c => c.id === 'reader');
+
+    const reader = run.crew.find((c) => c.id === 'reader');
     expect(reader.status).toBe('running');
     expect(reader.currentAction).toContain('read_file');
     expect(reader.linkedToolCallIds).toContain('t1');
@@ -57,8 +57,8 @@ describe('agent crew state engine', () => {
     // Test pending approval tool request
     const coderTool = { id: 't2', name: 'run_code', status: 'pending' };
     applyCrewToolRequest(run, coderTool);
-    
-    const coder = run.crew.find(c => c.id === 'coder');
+
+    const coder = run.crew.find((c) => c.id === 'coder');
     expect(coder.status).toBe('waiting');
     expect(coder.currentAction).toContain('等待审批');
     expect(coder.linkedToolCallIds).toContain('t2');
@@ -68,7 +68,7 @@ describe('agent crew state engine', () => {
     const run = createAgentRun('auto');
     const toolCalls = [
       { id: 't1', name: 'read_file', status: 'approved', args: { path: 'README.md' } },
-      { id: 't2', name: 'run_code', status: 'approved' }
+      { id: 't2', name: 'run_code', status: 'approved' },
     ];
 
     applyCrewToolRequest(run, toolCalls[0]);
@@ -76,13 +76,13 @@ describe('agent crew state engine', () => {
 
     // Success tool result
     applyCrewToolResult(run, { toolCallId: 't1', ok: true, status: 'completed' }, toolCalls);
-    const reader = run.crew.find(c => c.id === 'reader');
+    const reader = run.crew.find((c) => c.id === 'reader');
     expect(reader.status).toBe('done');
     expect(reader.outputSummary).toContain('README.md');
 
     // Denied tool result
     applyCrewToolResult(run, { toolCallId: 't2', status: 'denied' }, toolCalls);
-    const coder = run.crew.find(c => c.id === 'coder');
+    const coder = run.crew.find((c) => c.id === 'coder');
     expect(coder.status).toBe('skipped');
     expect(coder.outputSummary).toBe('审批拒绝');
   });
@@ -93,47 +93,47 @@ describe('agent crew state engine', () => {
     // stage: plan with steps
     handleCrewAgentStage(run, {
       stage: 'plan',
-      planSummary: { steps: ['Step 1', 'Step 2'] }
+      planSummary: { steps: ['Step 1', 'Step 2'] },
     });
-    const planner = run.crew.find(c => c.id === 'planner');
+    const planner = run.crew.find((c) => c.id === 'planner');
     expect(planner.status).toBe('done');
     expect(planner.outputSummary).toContain('2 步');
     expect(run.steps).toEqual(['Step 1', 'Step 2']);
 
     // stage: summary (Reviewer running)
     handleCrewAgentStage(run, { stage: 'summary' });
-    const reviewer = run.crew.find(c => c.id === 'reviewer');
+    const reviewer = run.crew.find((c) => c.id === 'reviewer');
     expect(reviewer.status).toBe('running');
     expect(reviewer.currentAction).toContain('整理/压缩');
 
     // stage: final (Writer running, Reviewer completed)
     handleCrewAgentStage(run, { stage: 'final' });
-    const writer = run.crew.find(c => c.id === 'writer');
+    const writer = run.crew.find((c) => c.id === 'writer');
     expect(writer.status).toBe('running');
     expect(reviewer.status).toBe('done');
   });
 
   it('finalizes a successful run and marks inactive agents as skipped', () => {
     const run = createAgentRun('auto');
-    
+
     // Make planner done
     markCrewMemberDone(run, 'planner', '已生成计划');
-    
+
     finalizeCrewRun(run, false);
 
     expect(run.status).toBe('done');
-    
-    const planner = run.crew.find(c => c.id === 'planner');
+
+    const planner = run.crew.find((c) => c.id === 'planner');
     expect(planner.status).toBe('done');
 
-    const reader = run.crew.find(c => c.id === 'reader');
+    const reader = run.crew.find((c) => c.id === 'reader');
     expect(reader.status).toBe('skipped');
     expect(reader.currentAction).toBe('本轮跳过');
 
-    const reviewer = run.crew.find(c => c.id === 'reviewer');
+    const reviewer = run.crew.find((c) => c.id === 'reviewer');
     expect(reviewer.status).toBe('done');
 
-    const writer = run.crew.find(c => c.id === 'writer');
+    const writer = run.crew.find((c) => c.id === 'writer');
     expect(writer.status).toBe('done');
   });
 
@@ -144,10 +144,27 @@ describe('agent crew state engine', () => {
     finalizeCrewRun(run, false, 'API request timeout');
 
     expect(run.status).toBe('error');
-    
-    const reader = run.crew.find(c => c.id === 'reader');
+
+    const reader = run.crew.find((c) => c.id === 'reader');
     expect(reader.status).toBe('error');
     expect(reader.outputSummary).toBe('API request timeout');
+  });
+
+  it('attributes model_stream errors to Writer/Planner and skips other agents', () => {
+    const run = createAgentRun('auto');
+    applyCrewToolRequest(run, { id: 't1', name: 'read_file', status: 'approved' });
+
+    finalizeCrewRun(run, false, 'Stream was interrupted', { source: 'model_stream' });
+
+    expect(run.status).toBe('error');
+
+    const writer = run.crew.find((c) => c.id === 'writer');
+    expect(writer.status).toBe('error');
+    expect(writer.outputSummary).toBe('Stream was interrupted');
+
+    const reader = run.crew.find((c) => c.id === 'reader');
+    expect(reader.status).toBe('skipped');
+    expect(reader.currentAction).toBe('因模型流错误被跳过');
   });
 
   describe('agent crew DOM component', () => {

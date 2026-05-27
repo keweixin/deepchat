@@ -23,13 +23,46 @@ secrets.json
 settings.json
 conversations.json
 
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Test artifacts
+coverage/
+*.lcov
+.nyc_output/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.stackdump
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.swp
+*.swo
+*~
+
+# Package manager
+.yarn-integrity
+.pnpm-debug.log*
+
+# Claude Code / Agent files
+.claude/
+CLAUDE.md

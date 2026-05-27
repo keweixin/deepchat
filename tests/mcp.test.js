@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { parseSkillMeta } = require('../electron/external-skills');
-const { McpManager, hashMcpTools, isMcpToolName, makeOpenAiToolName, restoreFlattenedArgs } = require('../electron/mcp-manager');
+const {
+  McpManager,
+  hashMcpTools,
+  isMcpToolName,
+  makeOpenAiToolName,
+  restoreFlattenedArgs,
+} = require('../electron/mcp-manager');
 
 describe('external skills and MCP helpers', () => {
   it('parses frontmatter from SKILL.md files', () => {
@@ -59,7 +65,9 @@ description: Demo skill description
   it('refreshes cached MCP tool definitions on demand', async () => {
     const manager = new McpManager();
     let version = 0;
-    manager.listTools = async () => [{ name: `tool_${version += 1}`, description: 'demo', inputSchema: { type: 'object' } }];
+    manager.listTools = async () => [
+      { name: `tool_${(version += 1)}`, description: 'demo', inputSchema: { type: 'object' } },
+    ];
     const settings = { mcpServers: [{ id: 'a', name: 'A', command: 'node', args: [] }] };
 
     const first = await manager.getToolDefinitions(settings);
@@ -84,7 +92,11 @@ description: Demo skill description
       calls.push(server.id);
       return server.id === 'a'
         ? [
-            { name: 'zeta', description: 'last', inputSchema: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] } },
+            {
+              name: 'zeta',
+              description: 'last',
+              inputSchema: { type: 'object', properties: { q: { type: 'string' } }, required: ['q'] },
+            },
             { name: 'alpha', description: 'first', inputSchema: { type: 'object', properties: {} } },
           ]
         : [{ name: 'beta', description: 'middle', inputSchema: { type: 'object' } }];
@@ -106,8 +118,16 @@ description: Demo skill description
 
   it('changes MCP schema hash when tool schemas change', () => {
     const server = { id: 'a', name: 'A' };
-    const first = hashMcpTools(server, [{ name: 'search', description: 'Search', inputSchema: { type: 'object', properties: { q: { type: 'string' } } } }]);
-    const second = hashMcpTools(server, [{ name: 'search', description: 'Search', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }]);
+    const first = hashMcpTools(server, [
+      { name: 'search', description: 'Search', inputSchema: { type: 'object', properties: { q: { type: 'string' } } } },
+    ]);
+    const second = hashMcpTools(server, [
+      {
+        name: 'search',
+        description: 'Search',
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+      },
+    ]);
 
     expect(first).toMatch(/^[a-f0-9]{16}$/);
     expect(second).not.toBe(first);

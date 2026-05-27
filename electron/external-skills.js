@@ -14,7 +14,7 @@ async function pickExternalSkill(parentWindow, settings, setSettings) {
 
   const skills = [];
   for (const selectedPath of result.filePaths) {
-    skills.push(...await loadSkillsFromPath(selectedPath));
+    skills.push(...(await loadSkillsFromPath(selectedPath)));
   }
   if (skills.length === 0) throw new Error('没有找到可导入的 SKILL.md。');
 
@@ -64,7 +64,10 @@ function parseSkillMeta(content) {
     const parts = line.split(':');
     if (parts.length < 2) continue;
     const key = parts.shift().trim();
-    const value = parts.join(':').trim().replace(/^["']|["']$/g, '');
+    const value = parts
+      .join(':')
+      .trim()
+      .replace(/^["']|["']$/g, '');
     if (key === 'name' || key === 'description') meta[key] = value;
   }
   return meta;

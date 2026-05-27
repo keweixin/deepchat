@@ -31,7 +31,10 @@ describe('context shortcut helpers', () => {
       mcpServers: [{ command: 'node', enabled: true }],
     });
 
-    expect(entries.find((entry) => entry.id === 'file')).toMatchObject({ available: true, insertText: '@file:"src/path/to/file"' });
+    expect(entries.find((entry) => entry.id === 'file')).toMatchObject({
+      available: true,
+      insertText: '@file:"src/path/to/file"',
+    });
     expect(entries.find((entry) => entry.id === 'folder')).toMatchObject({ available: true });
     expect(entries.find((entry) => entry.id === 'symbol')).toMatchObject({ available: true, selectStartOffset: 8 });
     expect(entries.find((entry) => entry.id === 'web')).toMatchObject({ available: true });
@@ -39,15 +42,13 @@ describe('context shortcut helpers', () => {
   });
 
   it('formats mention titles by type', () => {
-    expect(formatContextMentionTitle([
-      { type: 'file', path: 'src/main.js' },
-      { type: 'folder', path: 'src/modules' },
-      { type: 'symbol', path: 'detectAgentIntent' },
-    ])).toBe([
-      '文件：src/main.js',
-      '目录：src/modules',
-      '符号：detectAgentIntent',
-    ].join('\n'));
+    expect(
+      formatContextMentionTitle([
+        { type: 'file', path: 'src/main.js' },
+        { type: 'folder', path: 'src/modules' },
+        { type: 'symbol', path: 'detectAgentIntent' },
+      ])
+    ).toBe(['文件：src/main.js', '目录：src/modules', '符号：detectAgentIntent'].join('\n'));
   });
 
   it('explains disabled code and MCP shortcuts', () => {

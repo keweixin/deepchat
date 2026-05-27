@@ -19,12 +19,15 @@ describe('tool run state', () => {
   it('records approval, denial, results, duration, and output preview', () => {
     const requestedAt = new Date('2026-05-19T00:00:00.000Z');
     const completedAt = new Date('2026-05-19T00:00:01.250Z');
-    const tool = createToolRecord({
-      toolCallId: 't1',
-      name: 'read_file',
-      args: { path: 'README.md' },
-      risk: '读取文件',
-    }, requestedAt);
+    const tool = createToolRecord(
+      {
+        toolCallId: 't1',
+        name: 'read_file',
+        args: { path: 'README.md' },
+        risk: '读取文件',
+      },
+      requestedAt
+    );
 
     expect(tool).toMatchObject({ id: 't1', status: 'pending', name: 'read_file' });
     applyToolDecision(tool, true, requestedAt);
@@ -63,7 +66,11 @@ describe('tool run state', () => {
     applyToolResult([tool], { toolCallId: 's1', name: 'web_search', ok: true, output });
     const message = { toolRuns: buildToolRuns([tool]) };
 
-    expect(getSearchGrounding(message, '来源：https://example.com/news')).toMatchObject({ hasSearch: true, cited: true, warning: false });
+    expect(getSearchGrounding(message, '来源：https://example.com/news')).toMatchObject({
+      hasSearch: true,
+      cited: true,
+      warning: false,
+    });
     expect(hasSearchWithoutCitedSource(message, '根据搜索结果回答。')).toBe(true);
   });
 
@@ -81,7 +88,11 @@ describe('tool run state', () => {
       '',
       '2: DeepSeek cache telemetry should explain hit and miss tokens.',
     ].join('\n');
-    const searchTool = createToolRecord({ toolCallId: 'l1', name: 'search_workspace', args: { query: 'cache telemetry' } });
+    const searchTool = createToolRecord({
+      toolCallId: 'l1',
+      name: 'search_workspace',
+      args: { query: 'cache telemetry' },
+    });
     const readTool = createToolRecord({ toolCallId: 'l2', name: 'read_file', args: { path: 'src/agent.md:2-3' } });
     applyToolResult([searchTool], { toolCallId: 'l1', name: 'search_workspace', ok: true, output: searchOutput });
     applyToolResult([readTool], { toolCallId: 'l2', name: 'read_file', ok: true, output: readOutput });
@@ -106,21 +117,27 @@ describe('tool run state', () => {
     const output = [
       '工作区搜索：cache telemetry',
       'Structured Results:',
-      JSON.stringify({
-        type: 'deepchat.workspaceSearchResults',
-        version: 1,
-        query: 'cache telemetry',
-        results: [{
-          index: 1,
-          file: 'src/agent.md',
-          startLine: 2,
-          endLine: 3,
-          score: 6,
-          kind: 'text',
-          symbol: '',
-          snippet: [{ line: 2, text: 'DeepSeek cache telemetry should explain hit and miss tokens.' }],
-        }],
-      }, null, 2),
+      JSON.stringify(
+        {
+          type: 'deepchat.workspaceSearchResults',
+          version: 1,
+          query: 'cache telemetry',
+          results: [
+            {
+              index: 1,
+              file: 'src/agent.md',
+              startLine: 2,
+              endLine: 3,
+              score: 6,
+              kind: 'text',
+              symbol: '',
+              snippet: [{ line: 2, text: 'DeepSeek cache telemetry should explain hit and miss tokens.' }],
+            },
+          ],
+        },
+        null,
+        2
+      ),
       '',
       '1. src/agent.md:2-3',
       '   score: 6',
@@ -131,13 +148,15 @@ describe('tool run state', () => {
     const runs = buildToolRuns([tool]);
     const evidence = buildToolEvidencePayload(tool);
 
-    expect(extractWorkspaceSearchResults(output, 'search_workspace')).toEqual([expect.objectContaining({
-      file: 'src/agent.md',
-      startLine: 2,
-      endLine: 3,
-      score: 6,
-      kind: 'text',
-    })]);
+    expect(extractWorkspaceSearchResults(output, 'search_workspace')).toEqual([
+      expect.objectContaining({
+        file: 'src/agent.md',
+        startLine: 2,
+        endLine: 3,
+        score: 6,
+        kind: 'text',
+      }),
+    ]);
     expect(runs[0].workspaceResults[0].snippet[0].text).toContain('DeepSeek cache telemetry');
     expect(evidence.workspaceResults[0]).toMatchObject({ file: 'src/agent.md', startLine: 2 });
   });
@@ -172,27 +191,35 @@ describe('tool run state', () => {
       '类型：function',
       '签名：export function buildContextBudgetBundle(messages, options = {}) {',
       'Structured Symbol:',
-      JSON.stringify({
-        type: 'deepchat.workspaceSymbolResult',
-        version: 1,
-        symbol: 'buildContextBudgetBundle',
-        result: {
-          file: 'src/budget.js',
-          startLine: 3,
-          endLine: 6,
-          definitionLine: 3,
-          score: 24,
-          kind: 'function',
-          signature: 'export function buildContextBudgetBundle(messages, options = {}) {',
-          snippet: [
-            { line: 3, text: 'export function buildContextBudgetBundle(messages, options = {}) {' },
-            { line: 4, text: '  return { messages, options };' },
-          ],
+      JSON.stringify(
+        {
+          type: 'deepchat.workspaceSymbolResult',
+          version: 1,
+          symbol: 'buildContextBudgetBundle',
+          result: {
+            file: 'src/budget.js',
+            startLine: 3,
+            endLine: 6,
+            definitionLine: 3,
+            score: 24,
+            kind: 'function',
+            signature: 'export function buildContextBudgetBundle(messages, options = {}) {',
+            snippet: [
+              { line: 3, text: 'export function buildContextBudgetBundle(messages, options = {}) {' },
+              { line: 4, text: '  return { messages, options };' },
+            ],
+          },
+          alternatives: [],
         },
-        alternatives: [],
-      }, null, 2),
+        null,
+        2
+      ),
     ].join('\n');
-    const tool = createToolRecord({ toolCallId: 'sym1', name: 'read_symbol', args: { symbol: 'buildContextBudgetBundle' } });
+    const tool = createToolRecord({
+      toolCallId: 'sym1',
+      name: 'read_symbol',
+      args: { symbol: 'buildContextBudgetBundle' },
+    });
     applyToolResult([tool], { toolCallId: 'sym1', name: 'read_symbol', ok: true, output });
 
     const runs = buildToolRuns([tool]);
@@ -221,14 +248,17 @@ describe('tool run state', () => {
       '   摘要: result',
       'x'.repeat(1400),
     ].join('\n');
-    const tool = createToolRecord({
-      toolCallId: 'e1',
-      name: 'web_search',
-      args: { query: 'cache hit' },
-      security: { riskLevel: 'low', redaction: true },
-      approvalPolicy: 'auto_readonly',
-      autoApproved: true,
-    }, requestedAt);
+    const tool = createToolRecord(
+      {
+        toolCallId: 'e1',
+        name: 'web_search',
+        args: { query: 'cache hit' },
+        security: { riskLevel: 'low', redaction: true },
+        approvalPolicy: 'auto_readonly',
+        autoApproved: true,
+      },
+      requestedAt
+    );
     applyToolResult([tool], { toolCallId: 'e1', name: 'web_search', ok: true, output }, completedAt);
 
     const evidence = buildToolEvidencePayload(tool);
@@ -258,22 +288,26 @@ describe('tool run state', () => {
       '退出码：1',
       '耗时：42ms',
       'Structured Run:',
-      JSON.stringify({
-        type: 'deepchat.runCodeResult',
-        version: 1,
-        language: 'javascript',
-        codeLength: 32,
-        stdinBytes: 0,
-        durationMs: 42,
-        exitCode: 1,
-        timedOut: false,
-        ok: false,
-        stdoutBytes: 6,
-        stderrBytes: 17,
-        stdoutPreview: 'before',
-        stderrPreview: 'ReferenceError: x',
-        failureHint: '变量或函数未定义：请检查上下文是否完整。',
-      }, null, 2),
+      JSON.stringify(
+        {
+          type: 'deepchat.runCodeResult',
+          version: 1,
+          language: 'javascript',
+          codeLength: 32,
+          stdinBytes: 0,
+          durationMs: 42,
+          exitCode: 1,
+          timedOut: false,
+          ok: false,
+          stdoutBytes: 6,
+          stderrBytes: 17,
+          stdoutPreview: 'before',
+          stderrPreview: 'ReferenceError: x',
+          failureHint: '变量或函数未定义：请检查上下文是否完整。',
+        },
+        null,
+        2
+      ),
       '',
       'STDOUT:',
       'before',

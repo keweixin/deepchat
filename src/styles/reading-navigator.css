@@ -69,7 +69,9 @@
   justify-content: center;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .reading-nav-collapse:hover,
@@ -217,7 +219,7 @@
   transform: rotate(90deg);
 }
 
-[data-theme="light"] .reading-navigator {
+[data-theme='light'] .reading-navigator {
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
 }
 

@@ -1,4 +1,13 @@
-export const COMPOSER_MODE_IDS = Object.freeze(['daily', 'analysis', 'project', 'agent', 'research', 'code', 'writing', 'polish']);
+export const COMPOSER_MODE_IDS = Object.freeze([
+  'daily',
+  'analysis',
+  'project',
+  'agent',
+  'research',
+  'code',
+  'writing',
+  'polish',
+]);
 
 const COMPONENT_OUTPUT_GUIDE = [
   '需要精排或长回答时，优先使用 DeepChat 安全组件语法，不要输出原始 HTML。',
@@ -140,7 +149,8 @@ export function buildComposerModeEntries(settings = {}) {
 export function resolveComposerModeActiveSkill(modeId = 'daily', settings = {}) {
   const mode = getComposerMode(modeId);
   if (mode.id === 'research' && !settings.tavilyApiKey) return 'agent_auto';
-  if (mode.id === 'code' && (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0)) return 'agent_auto';
+  if (mode.id === 'code' && (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0))
+    return 'agent_auto';
   return mode.activeSkill;
 }
 
@@ -157,18 +167,12 @@ export function applyComposerModeToPrompt(content = '', modeId = 'daily') {
   const mode = getComposerMode(modeId);
   if (!text || !mode.instruction) return text;
   if (text.includes('<response_mode>')) return text;
-  return [
-    text,
-    '',
-    '<response_mode>',
-    `模式：${mode.label}`,
-    mode.instruction,
-    '</response_mode>',
-  ].join('\n');
+  return [text, '', '<response_mode>', `模式：${mode.label}`, mode.instruction, '</response_mode>'].join('\n');
 }
 
 export function getComposerModeUnavailableReason(modeId = 'daily', settings = {}) {
   if (modeId === 'research' && !settings.tavilyApiKey) return '缺 Tavily Key 时会退回智能 Agent';
-  if (modeId === 'code' && (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0)) return '缺工作区时会退回智能 Agent';
+  if (modeId === 'code' && (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0))
+    return '缺工作区时会退回智能 Agent';
   return '';
 }

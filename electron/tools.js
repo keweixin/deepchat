@@ -42,7 +42,8 @@ const TOOL_SCHEMAS = {
             type: 'array',
             items: { type: 'string' },
             maxItems: 4,
-            description: 'Optional multiple planned search queries for research mode. Results are merged and de-duplicated by URL.',
+            description:
+              'Optional multiple planned search queries for research mode. Results are merged and de-duplicated by URL.',
           },
           max_results: { type: 'integer', minimum: 1, maximum: 10, description: 'Maximum number of results.' },
         },
@@ -57,10 +58,18 @@ const TOOL_SCHEMAS = {
       parameters: {
         type: 'object',
         properties: {
-          root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
+          root: {
+            type: 'string',
+            description: 'Approved workspace root. If omitted, the first configured root is used.',
+          },
           directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to list.' },
           pattern: { type: 'string', description: 'Optional filename substring or simple wildcard pattern.' },
-          recent_days: { type: 'integer', minimum: 1, maximum: 3650, description: 'Only include files modified within this many days.' },
+          recent_days: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 3650,
+            description: 'Only include files modified within this many days.',
+          },
           sort_by: { type: 'string', enum: ['name', 'modified'], description: 'Sort files by name or modified time.' },
         },
       },
@@ -70,13 +79,20 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'search_workspace',
-      description: 'Search text files, file names, paths, or an exact code symbol inside a user-approved workspace. Returns IDE-like structured results with file, line range, score, kind, symbol, and snippets.',
+      description:
+        'Search text files, file names, paths, or an exact code symbol inside a user-approved workspace. Returns IDE-like structured results with file, line range, score, kind, symbol, and snippets.',
       parameters: {
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Keyword or phrase to search for.' },
-          symbol: { type: 'string', description: 'Optional exact function/class/variable/component symbol to search for.' },
-          root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
+          symbol: {
+            type: 'string',
+            description: 'Optional exact function/class/variable/component symbol to search for.',
+          },
+          root: {
+            type: 'string',
+            description: 'Approved workspace root. If omitted, the first configured root is used.',
+          },
           directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to search.' },
           pattern: { type: 'string', description: 'Optional filename substring or wildcard, such as *.js or README.' },
           max_results: { type: 'integer', minimum: 1, maximum: 20, description: 'Maximum number of file hits.' },
@@ -88,15 +104,24 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'index_workspace',
-      description: 'Build or refresh a lightweight cached index of approved workspace text files for faster cited search.',
+      description:
+        'Build or refresh a lightweight cached index of approved workspace text files for faster cited search.',
       parameters: {
         type: 'object',
         properties: {
-          root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
+          root: {
+            type: 'string',
+            description: 'Approved workspace root. If omitted, the first configured root is used.',
+          },
           directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to index.' },
           pattern: { type: 'string', description: 'Optional filename substring or wildcard, such as *.js or README.' },
           force_refresh: { type: 'boolean', description: 'Rebuild the index even when a fresh cached index exists.' },
-          max_files: { type: 'integer', minimum: 1, maximum: MAX_SEARCH_SCAN_FILES, description: 'Maximum files to scan.' },
+          max_files: {
+            type: 'integer',
+            minimum: 1,
+            maximum: MAX_SEARCH_SCAN_FILES,
+            description: 'Maximum files to scan.',
+          },
         },
       },
     },
@@ -105,13 +130,18 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'read_file',
-      description: 'Read a text file inside a user-approved workspace directory. Supports focused line ranges via start_line/end_line or path citations like src/file.js:10-20.',
+      description:
+        'Read a text file inside a user-approved workspace directory. Supports focused line ranges via start_line/end_line or path citations like src/file.js:10-20.',
       parameters: {
         type: 'object',
         properties: {
           path: { type: 'string', description: 'Absolute or workspace-relative file path.' },
           max_bytes: { type: 'integer', minimum: 1024, maximum: MAX_FILE_BYTES, description: 'Maximum bytes to read.' },
-          start_line: { type: 'integer', minimum: 1, description: 'Optional 1-based line number to start reading from.' },
+          start_line: {
+            type: 'integer',
+            minimum: 1,
+            description: 'Optional 1-based line number to start reading from.',
+          },
           end_line: { type: 'integer', minimum: 1, description: 'Optional 1-based line number to stop reading at.' },
         },
         required: ['path'],
@@ -122,16 +152,36 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'read_symbol',
-      description: 'Read the definition block for a function, class, variable, or component symbol inside a user-approved workspace. Prefer this before reading broad file ranges when the user names a code symbol.',
+      description:
+        'Read the definition block for a function, class, variable, or component symbol inside a user-approved workspace. Prefer this before reading broad file ranges when the user names a code symbol.',
       parameters: {
         type: 'object',
         properties: {
-          symbol: { type: 'string', description: 'Exact symbol name to locate, such as renderMarkdown or buildContextBudgetBundle.' },
-          root: { type: 'string', description: 'Approved workspace root. If omitted, the first configured root is used.' },
+          symbol: {
+            type: 'string',
+            description: 'Exact symbol name to locate, such as renderMarkdown or buildContextBudgetBundle.',
+          },
+          root: {
+            type: 'string',
+            description: 'Approved workspace root. If omitted, the first configured root is used.',
+          },
           directory: { type: 'string', description: 'Optional workspace-relative or absolute subdirectory to search.' },
-          pattern: { type: 'string', description: 'Optional filename substring or wildcard, such as *.js or renderer.' },
-          context_lines: { type: 'integer', minimum: 0, maximum: 20, description: 'Extra lines before and after the symbol definition.' },
-          max_lines: { type: 'integer', minimum: 20, maximum: 240, description: 'Maximum lines returned for the symbol block.' },
+          pattern: {
+            type: 'string',
+            description: 'Optional filename substring or wildcard, such as *.js or renderer.',
+          },
+          context_lines: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 20,
+            description: 'Extra lines before and after the symbol definition.',
+          },
+          max_lines: {
+            type: 'integer',
+            minimum: 20,
+            maximum: 240,
+            description: 'Maximum lines returned for the symbol block.',
+          },
         },
         required: ['symbol'],
       },
@@ -160,7 +210,15 @@ const MODE_TOOLS = {
   web_search: ['web_search'],
   file_reader: ['index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'],
   code_runner: ['run_code'],
-  multi_tool: ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file', 'run_code'],
+  multi_tool: [
+    'web_search',
+    'index_workspace',
+    'list_files',
+    'search_workspace',
+    'read_symbol',
+    'read_file',
+    'run_code',
+  ],
 };
 
 const workspaceIndexCache = new Map();
@@ -183,7 +241,8 @@ function getToolModeStatus(settings) {
 function describeToolRisk(name, args) {
   if (name === 'web_search') {
     const queries = normalizeSearchQueries(args);
-    const preview = queries.length > 1 ? `${queries.length} 个 query：${queries.join(' / ')}` : (queries[0] || args.query || '');
+    const preview =
+      queries.length > 1 ? `${queries.length} 个 query：${queries.join(' / ')}` : queries[0] || args.query || '';
     return `将使用 Tavily 搜索网络：${String(preview || '').slice(0, 180)}`;
   }
   if (name === 'list_files') {
@@ -214,7 +273,9 @@ function describeToolRisk(name, args) {
   }
   if (name === 'read_symbol') {
     const directory = String(args.directory || '').trim();
-    const symbol = String(args.symbol || '').trim().slice(0, 160);
+    const symbol = String(args.symbol || '')
+      .trim()
+      .slice(0, 160);
     return directory
       ? `将在已授权工作区目录 ${directory.slice(0, 160)} 内读取代码符号：${symbol}，并返回定义位置和上下文片段。`
       : `将在已授权工作区内读取代码符号：${symbol}，并返回定义位置和上下文片段。`;
@@ -250,9 +311,10 @@ async function webSearch(args, settings) {
 
   const queries = normalizeSearchQueries(args);
   if (queries.length === 0) throw new Error('搜索关键词不能为空。');
-  const maxPerQuery = queries.length > 1
-    ? Math.max(1, Math.ceil(clampInt(args.max_results ?? settings.tavilyMaxResults, 1, 10, 5) / queries.length))
-    : args.max_results;
+  const maxPerQuery =
+    queries.length > 1
+      ? Math.max(1, Math.ceil(clampInt(args.max_results ?? settings.tavilyMaxResults, 1, 10, 5) / queries.length))
+      : args.max_results;
   const requests = queries.map((query) => buildTavilySearchRequest(query, settings, maxPerQuery));
   const allResults = [];
 
@@ -272,13 +334,19 @@ async function webSearch(args, settings) {
     }
 
     const json = await response.json();
-    const results = normalizeTavilyResults(json, request.payload.max_results)
-      .map((item) => ({ ...item, query: request.originalQuery, normalizedQuery: request.payload.query }));
+    const results = normalizeTavilyResults(json, request.payload.max_results).map((item) => ({
+      ...item,
+      query: request.originalQuery,
+      normalizedQuery: request.payload.query,
+    }));
     allResults.push(...results);
   }
 
   if (requests.length === 1) return formatTavilyResults(requests[0], allResults);
-  return formatTavilySearchPlanResults(requests, dedupeTavilyResults(allResults, clampInt(args.max_results ?? settings.tavilyMaxResults, 1, 10, 5)));
+  return formatTavilySearchPlanResults(
+    requests,
+    dedupeTavilyResults(allResults, clampInt(args.max_results ?? settings.tavilyMaxResults, 1, 10, 5))
+  );
 }
 
 function normalizeSearchQueries(args = {}) {
@@ -377,7 +445,8 @@ function formatTavilyResults(request, results) {
       requestedAt: new Date().toISOString().slice(0, 10),
     };
   }
-  if (results.length === 0) return `没有找到与「${request.originalQuery}」相关的搜索结果。\n实际搜索 query：${request.payload.query}`;
+  if (results.length === 0)
+    return `没有找到与「${request.originalQuery}」相关的搜索结果。\n实际搜索 query：${request.payload.query}`;
   const lines = [
     `搜索时间：${request.requestedAt}`,
     `用户原始问题：${request.originalQuery}`,
@@ -400,7 +469,9 @@ function dedupeTavilyResults(results = [], maxResults = 5) {
   const seen = new Set();
   const out = [];
   for (const item of results) {
-    const key = String(item.url || item.title || '').trim().toLowerCase();
+    const key = String(item.url || item.title || '')
+      .trim()
+      .toLowerCase();
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push({ ...item, index: out.length + 1 });
@@ -474,16 +545,18 @@ async function listFiles(args, settings) {
   const pattern = String(args.pattern || '').trim();
   const matcher = createMatcher(pattern);
   const recentDays = clampInt(args.recent_days, 0, 3650, 0);
-  const sortBy = String(args.sort_by || '').trim().toLowerCase();
+  const sortBy = String(args.sort_by || '')
+    .trim()
+    .toLowerCase();
   const sortByModified = sortBy === 'modified' || recentDays > 0;
   const cutoff = recentDays > 0 ? Date.now() - recentDays * 24 * 60 * 60 * 1000 : 0;
   const files = [];
   await walk(scanRoot, scanRoot, files, matcher);
   const matchedFiles = files
     .filter((file) => cutoff <= 0 || file.mtimeMs >= cutoff)
-    .sort((a, b) => sortByModified
-      ? (b.mtimeMs - a.mtimeMs) || a.path.localeCompare(b.path)
-      : a.path.localeCompare(b.path));
+    .sort((a, b) =>
+      sortByModified ? b.mtimeMs - a.mtimeMs || a.path.localeCompare(b.path) : a.path.localeCompare(b.path)
+    );
   const relativeDirectory = path.relative(realRoot, scanRoot) || '.';
   if (matchedFiles.length === 0) return `工作区 ${root} 的目录 ${relativeDirectory} 中没有找到匹配文件。`;
   return [
@@ -495,7 +568,10 @@ async function listFiles(args, settings) {
     '',
     ...matchedFiles.slice(0, 200).map((file) => formatListedFile(file, sortByModified)),
     matchedFiles.length > 200 ? `\n仅显示前 200 个结果。` : '',
-  ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, MAX_TOOL_OUTPUT);
 }
 
 async function indexWorkspace(args, settings) {
@@ -543,7 +619,7 @@ async function searchWorkspace(args, settings) {
   }
 
   const rankedHits = hits.map((hit) => scoreWorkspaceHit(hit));
-  rankedHits.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
+  rankedHits.sort((a, b) => b.score - a.score || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
   const selected = rankedHits.slice(0, maxResults);
   if (selected.length === 0) {
     const structured = buildWorkspaceSearchStructuredResults({ query, symbol, index, selected });
@@ -556,7 +632,9 @@ async function searchWorkspace(args, settings) {
       'Structured Results:',
       JSON.stringify(structured, null, 2),
       '没有找到匹配的文本结果。',
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
 
   const structured = buildWorkspaceSearchStructuredResults({ query, symbol, index, selected });
@@ -633,7 +711,7 @@ async function readSymbol(args, settings) {
     for (const hit of symbolHits) matches.push(hit);
   }
 
-  matches.sort((a, b) => (b.score - a.score) || a.file.localeCompare(b.file) || a.startLine - b.startLine);
+  matches.sort((a, b) => b.score - a.score || a.file.localeCompare(b.file) || a.startLine - b.startLine);
   const selected = matches[0] || null;
   const structured = buildWorkspaceSymbolStructuredResult({
     symbol,
@@ -652,7 +730,10 @@ async function readSymbol(args, settings) {
       'Structured Symbol:',
       JSON.stringify(structured, null, 2),
       `没有找到 ${symbol} 的明确符号定义。可先调用 search_workspace({ "symbol": "${symbol}" }) 查看引用。`,
-    ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
+    ]
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, MAX_TOOL_OUTPUT);
   }
 
   const lines = [
@@ -802,9 +883,10 @@ function inferWorkspaceHitKind(hit, symbol = '') {
 
 function inferWorkspaceHitSymbol(hit) {
   const text = (hit?.snippet || []).map((item) => item.text).join('\n');
-  const match = text.match(/^\s*(?:export\s+)?(?:async\s+)?function\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/um)
-    || text.match(/^\s*(?:export\s+)?class\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/um)
-    || text.match(/^\s*(?:export\s+)?(?:const|let|var)\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/um);
+  const match =
+    text.match(/^\s*(?:export\s+)?(?:async\s+)?function\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/mu) ||
+    text.match(/^\s*(?:export\s+)?class\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/mu) ||
+    text.match(/^\s*(?:export\s+)?(?:const|let|var)\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/mu);
   return match?.[1] || '';
 }
 
@@ -832,7 +914,12 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   const rawFiles = [];
   await walk(realScanRoot, realScanRoot, rawFiles, matcher, maxFiles);
   const snapshot = buildWorkspaceSnapshot(rawFiles, realRoot);
-  if (!options.forceRefresh && cached && cached.snapshotHash === snapshot.hash && now - cached.builtAtMs < WORKSPACE_INDEX_DISK_TTL_MS) {
+  if (
+    !options.forceRefresh &&
+    cached &&
+    cached.snapshotHash === snapshot.hash &&
+    now - cached.builtAtMs < WORKSPACE_INDEX_DISK_TTL_MS
+  ) {
     return {
       ...cached,
       rawFileCount: rawFiles.length,
@@ -871,7 +958,10 @@ async function getWorkspaceIndex(args, settings, options = {}) {
       skippedSensitive += 1;
       continue;
     }
-    const text = await readSearchableFile(file.fullPath, Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES));
+    const text = await readSearchableFile(
+      file.fullPath,
+      Math.min(file.size || MAX_SEARCH_FILE_BYTES, MAX_SEARCH_FILE_BYTES)
+    );
     if (!text) {
       skippedBinary += 1;
       continue;
@@ -927,8 +1017,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
 function rememberWorkspaceIndex(cacheKey, index) {
   workspaceIndexCache.set(cacheKey, index);
   while (workspaceIndexCache.size > WORKSPACE_INDEX_CACHE_MAX) {
-    const oldest = [...workspaceIndexCache.entries()]
-      .sort((a, b) => a[1].builtAtMs - b[1].builtAtMs)[0];
+    const oldest = [...workspaceIndexCache.entries()].sort((a, b) => a[1].builtAtMs - b[1].builtAtMs)[0];
     if (!oldest) break;
     workspaceIndexCache.delete(oldest[0]);
   }
@@ -943,18 +1032,18 @@ function buildWorkspaceIndexCacheKey(root, scanRoot, pattern, maxFiles) {
 }
 
 function buildWorkspaceIndexHash(files = []) {
-  const payload = files.map((file) => `${file.path}:${file.size}:${Math.round(file.mtimeMs || 0)}:${file.lineCount}`).join('\n');
+  const payload = files
+    .map((file) => `${file.path}:${file.size}:${Math.round(file.mtimeMs || 0)}:${file.lineCount}`)
+    .join('\n');
   return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 16);
 }
 
 function buildWorkspaceSnapshot(rawFiles = [], realRoot = '') {
   const entries = rawFiles
     .filter((file) => file.fullPath && !isSensitivePath(file.fullPath))
-    .map((file) => [
-      path.relative(realRoot, file.fullPath) || file.path,
-      file.size || 0,
-      Math.round(file.mtimeMs || 0),
-    ].join(':'))
+    .map((file) =>
+      [path.relative(realRoot, file.fullPath) || file.path, file.size || 0, Math.round(file.mtimeMs || 0)].join(':')
+    )
     .sort();
   const payload = entries.join('\n');
   return {
@@ -964,7 +1053,9 @@ function buildWorkspaceSnapshot(rawFiles = [], realRoot = '') {
 }
 
 function getWorkspaceIndexDiskDir(settings = {}) {
-  const explicit = String(settings.workspaceIndexCacheDir || process.env.DEEPCHAT_WORKSPACE_INDEX_CACHE_DIR || '').trim();
+  const explicit = String(
+    settings.workspaceIndexCacheDir || process.env.DEEPCHAT_WORKSPACE_INDEX_CACHE_DIR || ''
+  ).trim();
   if (explicit) return explicit;
   const dataDir = String(settings.storageStatus?.dataDir || '').trim();
   return dataDir ? path.join(dataDir, 'workspace-indexes') : '';
@@ -1104,13 +1195,7 @@ function buildWorkspaceIndexCacheFileId(cacheKey) {
 }
 
 function serializeWorkspaceIndex(index) {
-  const {
-    fromCache,
-    ageMs,
-    cacheLayer,
-    diskCache,
-    ...rest
-  } = index;
+  const { fromCache, ageMs, cacheLayer, diskCache, ...rest } = index;
   return {
     ...rest,
     files: (index.files || []).map((file) => {
@@ -1121,7 +1206,9 @@ function serializeWorkspaceIndex(index) {
 }
 
 function formatWorkspaceIndexOutput(index) {
-  const files = index.files.slice(0, 80).map((file) => `- ${file.path} (${file.lineCount} lines, ${file.size} bytes, chunks ${file.chunks})`);
+  const files = index.files
+    .slice(0, 80)
+    .map((file) => `- ${file.path} (${file.lineCount} lines, ${file.size} bytes, chunks ${file.chunks})`);
   return [
     `工作区索引：${formatWorkspaceIndexCacheLabel(index)}`,
     `工作区：${index.root}`,
@@ -1140,7 +1227,10 @@ function formatWorkspaceIndexOutput(index) {
     '索引文件：',
     ...files,
     index.files.length > files.length ? `... 仅显示前 ${files.length} 个文件` : '',
-  ].filter(Boolean).join('\n').slice(0, MAX_TOOL_OUTPUT);
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, MAX_TOOL_OUTPUT);
 }
 
 function formatWorkspaceIndexCacheLabel(index) {
@@ -1175,12 +1265,16 @@ async function readSearchableFile(filePath, maxBytes) {
 }
 
 function tokenizeSearchQuery(query) {
-  return [...new Set(String(query || '')
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}_.$/-]+/u)
-    .map((term) => term.trim())
-    .filter((term) => term.length >= 2)
-    .slice(0, 8))];
+  return [
+    ...new Set(
+      String(query || '')
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}_.$/-]+/u)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 2)
+        .slice(0, 8)
+    ),
+  ];
 }
 
 function normalizeSearchSymbol(value) {
@@ -1214,7 +1308,7 @@ function findTextHits(text, terms, queryLower, symbol = '', maxHits = 2) {
     }
     candidates.push({ contentScore: score, score, lineStart, lineEnd, snippet });
   }
-  candidates.sort((a, b) => (b.score - a.score) || a.lineStart - b.lineStart);
+  candidates.sort((a, b) => b.score - a.score || a.lineStart - b.lineStart);
   const selected = [];
   for (const candidate of candidates) {
     const overlaps = selected.some((hit) => candidate.lineStart <= hit.lineEnd && candidate.lineEnd >= hit.lineStart);
@@ -1411,10 +1505,7 @@ async function readFile(args, settings) {
   const maxBytes = clampInt(args.max_bytes, 1024, MAX_FILE_BYTES, DEFAULT_FILE_BYTES);
   const explicitStart = clampInt(args.start_line, 1, Number.MAX_SAFE_INTEGER, 0);
   const explicitEnd = clampInt(args.end_line, 1, Number.MAX_SAFE_INTEGER, 0);
-  const lineRange = normalizeLineRange(
-    explicitStart || citation.startLine,
-    explicitEnd || citation.endLine,
-  );
+  const lineRange = normalizeLineRange(explicitStart || citation.startLine, explicitEnd || citation.endLine);
   const bytesToRead = Math.min(stat.size, maxBytes);
   const handle = await fs.open(filePath, 'r');
   try {
@@ -1429,7 +1520,9 @@ async function readFile(args, settings) {
       `大小：${stat.size} bytes${truncated ? `（仅读取前 ${maxBytes} bytes）` : ''}`,
       '',
       text,
-    ].join('\n').slice(0, MAX_TOOL_OUTPUT);
+    ]
+      .join('\n')
+      .slice(0, MAX_TOOL_OUTPUT);
   } finally {
     await handle.close();
   }
@@ -1468,16 +1561,19 @@ function formatLineRangeFileOutput(filePath, fileSize, maxBytes, text, truncated
     selected.push(`请求的行范围 ${range.start}-${range.end} 不在已读取内容内。`);
   }
   const rangeText = range.start === range.end ? String(range.start) : `${range.start}-${range.end}`;
-  const cappedText = selected.length > 0 && cappedEnd < range.end
-    ? `（范围已限制到 ${range.start}-${cappedEnd}，单次最多读取 400 行）`
-    : '';
+  const cappedText =
+    selected.length > 0 && cappedEnd < range.end
+      ? `（范围已限制到 ${range.start}-${cappedEnd}，单次最多读取 400 行）`
+      : '';
   return [
     `文件：${filePath}`,
     `大小：${fileSize} bytes${truncated ? `（仅读取前 ${maxBytes} bytes）` : ''}`,
     `行范围：${rangeText}${cappedText}`,
     '',
     ...selected,
-  ].join('\n').slice(0, MAX_TOOL_OUTPUT);
+  ]
+    .join('\n')
+    .slice(0, MAX_TOOL_OUTPUT);
 }
 
 async function resolveWorkspaceRoot(inputRoot, workspaceRoots) {
@@ -1496,9 +1592,7 @@ async function resolveAllowedPath(inputPath, workspaceRoots) {
   const raw = String(inputPath || '').trim();
   if (!raw) throw new Error('文件路径不能为空。');
 
-  const candidates = path.isAbsolute(raw)
-    ? [path.resolve(raw)]
-    : roots.map((root) => path.resolve(root, raw));
+  const candidates = path.isAbsolute(raw) ? [path.resolve(raw)] : roots.map((root) => path.resolve(root, raw));
 
   for (const candidate of candidates) {
     const realCandidate = await fs.realpath(candidate).catch(() => candidate);
@@ -1536,9 +1630,7 @@ function normalizeRoots(roots) {
 function pathEquals(a, b) {
   const left = path.resolve(a);
   const right = path.resolve(b);
-  return process.platform === 'win32'
-    ? left.toLowerCase() === right.toLowerCase()
-    : left === right;
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
 
 function isPathInsideRoot(candidate, root) {
@@ -1574,9 +1666,10 @@ async function runCode(args, settings = {}) {
   const filePath = path.join(tempDir, `${id}.${ext}`);
   await fs.writeFile(filePath, code, 'utf8');
 
-  const command = language === 'python'
-    ? (process.env.DEEPCHAT_PYTHON_PATH || 'python')
-    : (process.env.DEEPCHAT_NODE_PATH || process.execPath);
+  const command =
+    language === 'python'
+      ? process.env.DEEPCHAT_PYTHON_PATH || 'python'
+      : process.env.DEEPCHAT_NODE_PATH || process.execPath;
   const env = buildSandboxEnv(language, tempDir);
   const startedAt = Date.now();
   const output = await spawnWithLimits(command, [filePath], String(args.stdin || ''), env, tempDir);
@@ -1609,7 +1702,9 @@ async function runCode(args, settings = {}) {
     '',
     'STDERR:',
     output.stderr || '(empty)',
-  ].join('\n').slice(0, MAX_TOOL_OUTPUT);
+  ]
+    .join('\n')
+    .slice(0, MAX_TOOL_OUTPUT);
 }
 
 function buildRunCodeStructuredResult(result) {
@@ -1647,7 +1742,9 @@ function buildRunFailureHint(exitCode, timedOut, stderr) {
   if (/ModuleNotFoundError|Cannot find module/i.test(text)) return '依赖缺失：当前轻沙箱不会自动安装依赖。';
   if (/NameError|ReferenceError/i.test(text)) return '变量或函数未定义：请检查上下文是否完整。';
   if (/PermissionError|EACCES/i.test(text)) return '权限错误：轻沙箱目录隔离，无法访问未授权路径。';
-  return exitCode === null ? '运行进程启动失败，请检查本机运行时配置。' : '代码运行失败，请查看 stderr 首尾输出定位原因。';
+  return exitCode === null
+    ? '运行进程启动失败，请检查本机运行时配置。'
+    : '代码运行失败，请查看 stderr 首尾输出定位原因。';
 }
 
 function buildSandboxEnv(language, tempDir) {
@@ -1676,7 +1773,9 @@ function isSensitiveEnvKey(key) {
 }
 
 function normalizeLanguage(value) {
-  const lang = String(value || '').trim().toLowerCase();
+  const lang = String(value || '')
+    .trim()
+    .toLowerCase();
   if (lang === 'python' || lang === 'py') return 'python';
   if (lang === 'javascript' || lang === 'js') return 'javascript';
   return '';
@@ -1709,8 +1808,12 @@ function spawnWithLimits(command, args, stdin, env = process.env, cwd) {
       resolve({ stdout, stderr, exitCode, timedOut });
     });
 
-    if (stdin) child.stdin.write(stdin);
-    child.stdin.end();
+    try {
+      if (stdin) child.stdin.write(stdin);
+      child.stdin.end();
+    } catch {
+      // Child may have exited before reading stdin; error is surfaced via exitCode.
+    }
   });
 }
 

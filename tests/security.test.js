@@ -11,46 +11,78 @@ const { sanitizeSettingsForBackup } = require('../electron/storage');
 
 describe('ipc validation schemas', () => {
   it('rejects unknown settings fields and invalid manual tool names', () => {
-    expect(() => validate(schemas.SettingsPatchSchema, { model: 'deepseek-v4-flash', unknown: true }, 'settings:set')).toThrow('入参无效');
-    expect(() => validate(schemas.RunManualToolSchema, { name: 'read_file', args: {} }, 'tools:runManual')).toThrow('入参无效');
-    expect(validate(schemas.SettingsPatchSchema, { toolApprovalPolicy: 'auto_readonly' }, 'settings:set').toolApprovalPolicy).toBe('auto_readonly');
-    expect(() => validate(schemas.SettingsPatchSchema, { toolApprovalPolicy: 'auto_write' }, 'settings:set')).toThrow('toolApprovalPolicy');
+    expect(() =>
+      validate(schemas.SettingsPatchSchema, { model: 'deepseek-v4-flash', unknown: true }, 'settings:set')
+    ).toThrow('入参无效');
+    expect(() => validate(schemas.RunManualToolSchema, { name: 'read_file', args: {} }, 'tools:runManual')).toThrow(
+      '入参无效'
+    );
+    expect(
+      validate(schemas.SettingsPatchSchema, { toolApprovalPolicy: 'auto_readonly' }, 'settings:set').toolApprovalPolicy
+    ).toBe('auto_readonly');
+    expect(() => validate(schemas.SettingsPatchSchema, { toolApprovalPolicy: 'auto_write' }, 'settings:set')).toThrow(
+      'toolApprovalPolicy'
+    );
   });
 
   it('rejects oversized chat messages and malformed approval payloads', () => {
-    expect(() => validate(schemas.ChatStartSchema, {
-      requestId: 'req',
-      messages: [{ role: 'user', content: 'x'.repeat(210000) }],
-    }, 'chat:start')).toThrow('content');
-    expect(() => validate(schemas.ToolApprovalSchema, { requestId: 'req', toolCallId: 'tool', approved: 'yes' }, 'tools:approve')).toThrow('approved');
+    expect(() =>
+      validate(
+        schemas.ChatStartSchema,
+        {
+          requestId: 'req',
+          messages: [{ role: 'user', content: 'x'.repeat(210000) }],
+        },
+        'chat:start'
+      )
+    ).toThrow('content');
+    expect(() =>
+      validate(schemas.ToolApprovalSchema, { requestId: 'req', toolCallId: 'tool', approved: 'yes' }, 'tools:approve')
+    ).toThrow('approved');
   });
 
   it('allows only known agent execution modes in chat overrides', () => {
-    const validated = validate(schemas.ChatStartSchema, {
-      requestId: 'req-agent-mode',
-      messages: [{ role: 'user', content: '单步执行计划' }],
-      overrides: { agentExecutionMode: 'single_step' },
-    }, 'chat:start');
+    const validated = validate(
+      schemas.ChatStartSchema,
+      {
+        requestId: 'req-agent-mode',
+        messages: [{ role: 'user', content: '单步执行计划' }],
+        overrides: { agentExecutionMode: 'single_step' },
+      },
+      'chat:start'
+    );
 
     expect(validated.overrides.agentExecutionMode).toBe('single_step');
-    expect(() => validate(schemas.ChatStartSchema, {
-      requestId: 'req-agent-mode-bad',
-      messages: [{ role: 'user', content: '执行计划' }],
-      overrides: { agentExecutionMode: 'auto_write' },
-    }, 'chat:start')).toThrow('agentExecutionMode');
+    expect(() =>
+      validate(
+        schemas.ChatStartSchema,
+        {
+          requestId: 'req-agent-mode-bad',
+          messages: [{ role: 'user', content: '执行计划' }],
+          overrides: { agentExecutionMode: 'auto_write' },
+        },
+        'chat:start'
+      )
+    ).toThrow('agentExecutionMode');
   });
 
   it('persists bounded task checkpoints while stripping unknown checkpoint fields', () => {
-    const validated = validate(schemas.ConversationsSaveSchema, [{
-      id: 'c1',
-      taskCheckpoint: {
-        objective: '缓存命中优化',
-        latestUserGoal: '继续做 cache-first 会话',
-        lastTools: ['read_file:completed'],
-        unsafeExtra: 'drop me',
-      },
-      messages: [],
-    }], 'conversations:save');
+    const validated = validate(
+      schemas.ConversationsSaveSchema,
+      [
+        {
+          id: 'c1',
+          taskCheckpoint: {
+            objective: '缓存命中优化',
+            latestUserGoal: '继续做 cache-first 会话',
+            lastTools: ['read_file:completed'],
+            unsafeExtra: 'drop me',
+          },
+          messages: [],
+        },
+      ],
+      'conversations:save'
+    );
 
     expect(validated[0].taskCheckpoint).toMatchObject({
       objective: '缓存命中优化',
@@ -61,32 +93,42 @@ describe('ipc validation schemas', () => {
   });
 
   it('persists bounded agent crew run state while stripping unknown fields', () => {
-    const validated = validate(schemas.ConversationsSaveSchema, [{
-      id: 'c1',
-      messages: [{
-        id: 'm1',
-        role: 'assistant',
-        content: '处理中',
-        agentRun: {
-          id: 'run1',
-          mode: 'agent_auto',
-          status: 'running',
-          startedAt: '2026-05-27T00:00:00.000Z',
-          crew: [{
-            id: 'planner',
-            label: 'Planner',
-            icon: '🧭',
-            title: '计划员',
-            status: 'running',
-            currentAction: '正在规划',
-            linkedStepIds: ['step1'],
-            unsafeExtra: 'drop me',
-          }],
-          steps: [{ id: 'step1', stage: 'planning' }],
-          unsafeExtra: 'drop me',
+    const validated = validate(
+      schemas.ConversationsSaveSchema,
+      [
+        {
+          id: 'c1',
+          messages: [
+            {
+              id: 'm1',
+              role: 'assistant',
+              content: '处理中',
+              agentRun: {
+                id: 'run1',
+                mode: 'agent_auto',
+                status: 'running',
+                startedAt: '2026-05-27T00:00:00.000Z',
+                crew: [
+                  {
+                    id: 'planner',
+                    label: 'Planner',
+                    icon: '🧭',
+                    title: '计划员',
+                    status: 'running',
+                    currentAction: '正在规划',
+                    linkedStepIds: ['step1'],
+                    unsafeExtra: 'drop me',
+                  },
+                ],
+                steps: [{ id: 'step1', stage: 'planning' }],
+                unsafeExtra: 'drop me',
+              },
+            },
+          ],
         },
-      }],
-    }], 'conversations:save');
+      ],
+      'conversations:save'
+    );
 
     const agentRun = validated[0].messages[0].agentRun;
     expect(agentRun.status).toBe('running');
@@ -112,7 +154,9 @@ describe('tool security boundaries', () => {
   it('detects sensitive paths and redacts common secret tokens', () => {
     expect(isSensitivePath(path.join('C:\\demo', '.env'))).toBe(true);
     expect(isSensitivePath(path.join('C:\\demo', '.ssh', 'id_rsa'))).toBe(true);
-    expect(redactSensitiveText('sk-abcdef123456 Bearer abcdef1234567890 ghp_abcdefghijk123456789 tvly-abcdef123456')).toContain('[REDACTED]');
+    expect(
+      redactSensitiveText('sk-abcdef123456 Bearer abcdef1234567890 ghp_abcdefghijk123456789 tvly-abcdef123456')
+    ).toContain('[REDACTED]');
   });
 
   it('refuses sensitive files and redacts readable file output', async () => {
@@ -131,9 +175,11 @@ describe('tool security boundaries', () => {
     const env = buildSandboxEnv('javascript', os.tmpdir());
     expect(env.DEEPCHAT_TEST_SECRET_TOKEN).toBeUndefined();
 
-    const output = await executeTool('run_code', {
-      language: 'javascript',
-      code: `
+    const output = await executeTool(
+      'run_code',
+      {
+        language: 'javascript',
+        code: `
         console.log(JSON.stringify({
           secret: process.env.DEEPCHAT_TEST_SECRET_TOKEN || '',
           cwd: process.cwd(),
@@ -141,7 +187,9 @@ describe('tool security boundaries', () => {
           temp: process.env.TEMP || process.env.TMP || ''
         }));
       `,
-    }, { runCodeEnabled: true });
+      },
+      { runCodeEnabled: true }
+    );
 
     expect(output).toContain('"secret":""');
     expect(output).toContain('Structured Run:');
@@ -152,10 +200,16 @@ describe('tool security boundaries', () => {
   });
 
   it('honors the runCodeEnabled setting', async () => {
-    await expect(executeTool('run_code', {
-      language: 'javascript',
-      code: 'console.log(1)',
-    }, { runCodeEnabled: false })).rejects.toThrow('已在设置中关闭');
+    await expect(
+      executeTool(
+        'run_code',
+        {
+          language: 'javascript',
+          code: 'console.log(1)',
+        },
+        { runCodeEnabled: false }
+      )
+    ).rejects.toThrow('已在设置中关闭');
   });
 });
 
@@ -165,25 +219,29 @@ describe('backup secret handling', () => {
       apiKey: 'sk-electron-secret',
       tavilyApiKey: 'tvly-electron-secret',
       storageStatus: { mode: 'electron' },
-      mcpServers: [{
-        id: 'local',
-        name: 'Local MCP',
-        command: 'node',
-        args: ['server.js', '--auth', 'Bearer abcdef1234567890', '--repo=demo'],
-        env: { API_KEY: 'sk-env-secret' },
-        enabled: false,
-      }],
+      mcpServers: [
+        {
+          id: 'local',
+          name: 'Local MCP',
+          command: 'node',
+          args: ['server.js', '--auth', 'Bearer abcdef1234567890', '--repo=demo'],
+          env: { API_KEY: 'sk-env-secret' },
+          enabled: false,
+        },
+      ],
     });
 
     expect(sanitized.apiKey).toBeUndefined();
     expect(sanitized.tavilyApiKey).toBeUndefined();
     expect(sanitized.storageStatus).toBeUndefined();
-    expect(sanitized.mcpServers).toEqual([{
-      id: 'local',
-      name: 'Local MCP',
-      command: 'node',
-      args: ['server.js', '--auth', '[REDACTED]', '--repo=demo'],
-      enabled: false,
-    }]);
+    expect(sanitized.mcpServers).toEqual([
+      {
+        id: 'local',
+        name: 'Local MCP',
+        command: 'node',
+        args: ['server.js', '--auth', '[REDACTED]', '--repo=demo'],
+        enabled: false,
+      },
+    ]);
   });
 });

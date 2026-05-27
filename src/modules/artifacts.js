@@ -12,7 +12,10 @@ export function extractHtmlArtifacts(markdown, options = {}) {
   let match;
 
   while ((match = fencePattern.exec(source)) && artifacts.length < maxArtifacts) {
-    const language = String(match[1] || '').trim().split(/\s+/)[0].toLowerCase();
+    const language = String(match[1] || '')
+      .trim()
+      .split(/\s+/)[0]
+      .toLowerCase();
     if (!HTML_ARTIFACT_LANGS.has(language)) continue;
     const html = normalizeArtifactSource(match[2], maxSourceChars);
     if (!html.trim()) continue;
@@ -37,9 +40,9 @@ export function createSandboxedHtmlDocument(source, options = {}) {
   const title = escapeHtml(options.title || 'DeepChat Artifact');
   const csp = [
     "default-src 'none'",
-    "img-src data: https:",
-    "media-src data: https:",
-    "font-src data:",
+    'img-src data: https:',
+    'media-src data: https:',
+    'font-src data:',
     "style-src 'unsafe-inline'",
     "connect-src 'none'",
     "script-src 'none'",
@@ -48,7 +51,8 @@ export function createSandboxedHtmlDocument(source, options = {}) {
     "base-uri 'none'",
   ].join('; ');
   const meta = `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width, initial-scale=1">`;
-  const baseStyle = '<style>html,body{margin:0;min-height:100%;background:#fff;color:#111;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}body{padding:16px;box-sizing:border-box;}*{box-sizing:border-box;}img,video,canvas,svg{max-width:100%;height:auto;}pre{white-space:pre-wrap;overflow:auto;}</style>';
+  const baseStyle =
+    '<style>html,body{margin:0;min-height:100%;background:#fff;color:#111;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}body{padding:16px;box-sizing:border-box;}*{box-sizing:border-box;}img,video,canvas,svg{max-width:100%;height:auto;}pre{white-space:pre-wrap;overflow:auto;}</style>';
 
   if (looksLikeFullHtmlDocument(safeSource)) {
     const withMeta = insertIntoHead(safeSource, `${meta}<title>${title}</title>${baseStyle}`);
@@ -60,7 +64,10 @@ export function createSandboxedHtmlDocument(source, options = {}) {
 
 export function buildArtifactDownloadName(artifact, index = 0) {
   const suffix = Number.isInteger(index) && index > 0 ? `-${index + 1}` : '';
-  const title = String(artifact?.title || 'html-preview').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/gi, '-').replace(/^-+|-+$/g, '');
+  const title = String(artifact?.title || 'html-preview')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/gi, '-')
+    .replace(/^-+|-+$/g, '');
   return `${title || 'html-preview'}${suffix}.html`;
 }
 
@@ -116,9 +123,5 @@ function hashArtifactSource(source) {
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

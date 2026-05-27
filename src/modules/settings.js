@@ -1,6 +1,6 @@
 /**
  * Settings Module — Panel UI logic
- * 
+ *
  * Features:
  * - Provider presets & model selection
  * - Quality-boosting system prompt presets
@@ -26,7 +26,15 @@ import {
   getProviderPreset,
   PROVIDER_PRESETS,
 } from './api.js';
-import { clearWorkspaceIndexCache, exportBackup, importBackup, listMcpStatus, pickExternalSkill, pickWorkspace, removeWorkspace } from './client-store.js';
+import {
+  clearWorkspaceIndexCache,
+  exportBackup,
+  importBackup,
+  listMcpStatus,
+  pickExternalSkill,
+  pickWorkspace,
+  removeWorkspace,
+} from './client-store.js';
 import { copyToClipboard, showToast, uid } from './utils.js';
 
 // ─── Quality-Boosting Prompt Presets ───
@@ -90,7 +98,7 @@ const PROMPT_PRESETS = {
 1. **由浅入深**：从已知概念引入新知识
 2. **类比先行**：用日常类比解释抽象概念
 3. **主动检验**：在关键节点提出思考题
-4. **常见误区**：主动指出容易犯的错误`)
+4. **常见误区**：主动指出容易犯的错误`),
 };
 
 export function getPromptPresetText(preset = 'default') {
@@ -100,16 +108,40 @@ export function getPromptPresetText(preset = 'default') {
 // ─── Prompt Enhancement ───
 
 const ENHANCE_RULES = [
-  { pattern: /^(.*房贷.*计算.*|.*交互式.*组件.*)$/, enhance: '$1\n\n如果适合在当前界面直接操作，请使用受支持的 ```widget``` JSON 组件，不要输出 HTML 或 JavaScript。' },
-  { pattern: /^(报错|错误|失败|修复|为什么)(.+)/,     enhance: '请排查$2：按「最可能原因 → 如何验证 → 修复步骤 → 注意/风险」组织；不要泛泛解释。' },
-  { pattern: /^(总结|梳理|归纳)(.+)/,                enhance: '请总结$2：先给一句总览，再按真正有信息量的层次展开；必要时用表格或图示，避免固定模板。' },
-  { pattern: /^(分析|评估)(.+)/,                    enhance: '请分析$2：先给摘要结论，再说明依据、风险和建议；信息不足时明确列出缺口。' },
-  { pattern: /^(写|生成|实现)(.+代码|.+脚本|.+程序)/, enhance: '请实现$2：先给可运行代码并标注语言，再解释关键点、边界条件和验证方式。' },
-  { pattern: /^(.{1,15})[?？]$/,           enhance: '请直接回答：$1？保持短答；只有确实需要时再补充背景、例子或注意点。' },
-  { pattern: /^(怎么|如何|怎样)(.+)/,       enhance: '请给出$2的可执行方法：用步骤组织；多路线时用表格对比；结尾给注意点或下一步。' },
-  { pattern: /^(对比|比较|区别)(.+)/,       enhance: '请从真正影响选择的维度对比$2：优先用表格，最后给适用/不适用场景和建议。' },
-  { pattern: /^(推荐|建议)(.+)/,            enhance: '请推荐$2：按优先级说明理由、适用场景和风险；信息可能过期时先说明需要联网检索。' },
-  { pattern: /^(解释|什么是|介绍)(.+)/,     enhance: '请解释$2：先给直观结论，再按复杂度补充原理、例子或图示；不要套固定小标题。' },
+  {
+    pattern: /^(.*房贷.*计算.*|.*交互式.*组件.*)$/,
+    enhance: '$1\n\n如果适合在当前界面直接操作，请使用受支持的 ```widget``` JSON 组件，不要输出 HTML 或 JavaScript。',
+  },
+  {
+    pattern: /^(报错|错误|失败|修复|为什么)(.+)/,
+    enhance: '请排查$2：按「最可能原因 → 如何验证 → 修复步骤 → 注意/风险」组织；不要泛泛解释。',
+  },
+  {
+    pattern: /^(总结|梳理|归纳)(.+)/,
+    enhance: '请总结$2：先给一句总览，再按真正有信息量的层次展开；必要时用表格或图示，避免固定模板。',
+  },
+  { pattern: /^(分析|评估)(.+)/, enhance: '请分析$2：先给摘要结论，再说明依据、风险和建议；信息不足时明确列出缺口。' },
+  {
+    pattern: /^(写|生成|实现)(.+代码|.+脚本|.+程序)/,
+    enhance: '请实现$2：先给可运行代码并标注语言，再解释关键点、边界条件和验证方式。',
+  },
+  { pattern: /^(.{1,15})[?？]$/, enhance: '请直接回答：$1？保持短答；只有确实需要时再补充背景、例子或注意点。' },
+  {
+    pattern: /^(怎么|如何|怎样)(.+)/,
+    enhance: '请给出$2的可执行方法：用步骤组织；多路线时用表格对比；结尾给注意点或下一步。',
+  },
+  {
+    pattern: /^(对比|比较|区别)(.+)/,
+    enhance: '请从真正影响选择的维度对比$2：优先用表格，最后给适用/不适用场景和建议。',
+  },
+  {
+    pattern: /^(推荐|建议)(.+)/,
+    enhance: '请推荐$2：按优先级说明理由、适用场景和风险；信息可能过期时先说明需要联网检索。',
+  },
+  {
+    pattern: /^(解释|什么是|介绍)(.+)/,
+    enhance: '请解释$2：先给直观结论，再按复杂度补充原理、例子或图示；不要套固定小标题。',
+  },
 ];
 
 export function enhancePrompt(input) {
@@ -340,7 +372,7 @@ export function initSettings(onModelChange) {
   els.overlay.addEventListener('click', close);
 
   // ─── Provider Presets ───
-  document.querySelectorAll('.provider-btn').forEach(btn => {
+  document.querySelectorAll('.provider-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const providerId = btn.dataset.provider || 'custom';
       const url = btn.dataset.url;
@@ -363,7 +395,7 @@ export function initSettings(onModelChange) {
   });
 
   // ─── Model Quick-Select Tags ───
-  document.querySelectorAll('.model-tag').forEach(tag => {
+  document.querySelectorAll('.model-tag').forEach((tag) => {
     tag.addEventListener('click', () => {
       const model = tag.dataset.model;
       const providerId = tag.dataset.provider || getSettings().providerId;
@@ -427,27 +459,39 @@ export function initSettings(onModelChange) {
     });
   }
   if (els.agentMaxRounds) {
-    els.agentMaxRounds.addEventListener('change', () => saveSettings({ agentMaxRounds: parseInt(els.agentMaxRounds.value, 10) }));
+    els.agentMaxRounds.addEventListener('change', () =>
+      saveSettings({ agentMaxRounds: parseInt(els.agentMaxRounds.value, 10) })
+    );
   }
   if (els.autoContextSummary) {
-    els.autoContextSummary.addEventListener('change', () => saveSettings({ autoContextSummary: els.autoContextSummary.checked }));
+    els.autoContextSummary.addEventListener('change', () =>
+      saveSettings({ autoContextSummary: els.autoContextSummary.checked })
+    );
   }
   if (els.cacheOptimization) {
-    els.cacheOptimization.addEventListener('change', () => saveSettings({ cacheOptimization: els.cacheOptimization.checked }));
+    els.cacheOptimization.addEventListener('change', () =>
+      saveSettings({ cacheOptimization: els.cacheOptimization.checked })
+    );
   }
   if (els.clearWorkspaceIndexCacheBtn) {
-    els.clearWorkspaceIndexCacheBtn.addEventListener('click', () => runStatusAction(
-      els.workspaceIndexCacheStatus,
-      '正在清理工作区索引缓存...',
-      formatWorkspaceIndexClearResult,
-      clearWorkspaceIndexCache
-    ));
+    els.clearWorkspaceIndexCacheBtn.addEventListener('click', () =>
+      runStatusAction(
+        els.workspaceIndexCacheStatus,
+        '正在清理工作区索引缓存...',
+        formatWorkspaceIndexClearResult,
+        clearWorkspaceIndexCache
+      )
+    );
   }
   if (els.toolApprovalTimeout) {
-    els.toolApprovalTimeout.addEventListener('change', () => saveSettings({ toolApprovalTimeoutMs: parseInt(els.toolApprovalTimeout.value, 10) }));
+    els.toolApprovalTimeout.addEventListener('change', () =>
+      saveSettings({ toolApprovalTimeoutMs: parseInt(els.toolApprovalTimeout.value, 10) })
+    );
   }
   if (els.toolApprovalPolicy) {
-    els.toolApprovalPolicy.addEventListener('change', () => saveSettings({ toolApprovalPolicy: els.toolApprovalPolicy.value }));
+    els.toolApprovalPolicy.addEventListener('change', () =>
+      saveSettings({ toolApprovalPolicy: els.toolApprovalPolicy.value })
+    );
   }
   if (els.runCodeEnabled) {
     els.runCodeEnabled.addEventListener('change', () => saveSettings({ runCodeEnabled: els.runCodeEnabled.checked }));
@@ -468,13 +512,19 @@ export function initSettings(onModelChange) {
     });
   }
   if (els.tavilyMaxResults) {
-    els.tavilyMaxResults.addEventListener('change', () => saveSettings({ tavilyMaxResults: parseInt(els.tavilyMaxResults.value, 10) }));
+    els.tavilyMaxResults.addEventListener('change', () =>
+      saveSettings({ tavilyMaxResults: parseInt(els.tavilyMaxResults.value, 10) })
+    );
   }
   if (els.testApiBtn) {
-    els.testApiBtn.addEventListener('click', () => runStatusAction(els.apiTestStatus, '测试中...', '连接正常', () => testApiConnection()));
+    els.testApiBtn.addEventListener('click', () =>
+      runStatusAction(els.apiTestStatus, '测试中...', '连接正常', () => testApiConnection())
+    );
   }
   if (els.testSearchBtn) {
-    els.testSearchBtn.addEventListener('click', () => runStatusAction(els.searchTestStatus, '搜索中...', '搜索正常', () => testSearchConnection('DeepChat test')));
+    els.testSearchBtn.addEventListener('click', () =>
+      runStatusAction(els.searchTestStatus, '搜索中...', '搜索正常', () => testSearchConnection('DeepChat test'))
+    );
   }
   if (els.addWorkspaceBtn) {
     els.addWorkspaceBtn.addEventListener('click', async () => {
@@ -513,12 +563,14 @@ export function initSettings(onModelChange) {
     });
   }
   if (els.refreshMcpStatusBtn) {
-    els.refreshMcpStatusBtn.addEventListener('click', () => runStatusAction(
-      els.mcpStatusText,
-      '刷新 MCP 工具 schema...',
-      (statuses) => summarizeMcpStatusRefresh(statuses),
-      refreshMcpStatuses
-    ));
+    els.refreshMcpStatusBtn.addEventListener('click', () =>
+      runStatusAction(
+        els.mcpStatusText,
+        '刷新 MCP 工具 schema...',
+        (statuses) => summarizeMcpStatusRefresh(statuses),
+        refreshMcpStatuses
+      )
+    );
   }
   if (els.exportBackupBtn) {
     els.exportBackupBtn.addEventListener('click', async () => {
@@ -544,7 +596,7 @@ export function initSettings(onModelChange) {
   }
 
   // Prompt Preset buttons
-  document.querySelectorAll('.preset-btn').forEach(btn => {
+  document.querySelectorAll('.preset-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const preset = btn.dataset.preset;
       if (PROMPT_PRESETS[preset]) {
@@ -583,7 +635,7 @@ function renderSkillGrid(container, activeSkill, settings = getSettings()) {
         return;
       }
       saveSettings({ activeSkill: id });
-      container.querySelectorAll('.skill-card').forEach(c => c.classList.remove('active'));
+      container.querySelectorAll('.skill-card').forEach((c) => c.classList.remove('active'));
       card.classList.add('active');
     });
     container.appendChild(card);
@@ -609,7 +661,8 @@ function renderStorageStatus(container, settings) {
   if (status.mode === 'electron') {
     container.textContent = `桌面安全存储：${status.encryptionAvailable ? '加密可用' : '加密不可用'} · 备份不包含 API Key/Tavily Key/MCP env · ${status.dataDir || ''}`;
   } else {
-    container.textContent = '浏览器预览模式：非敏感设置和对话保存在 localStorage；密钥仅当前页面会话保留，备份不包含 API Key/Tavily Key/MCP env。';
+    container.textContent =
+      '浏览器预览模式：非敏感设置和对话保存在 localStorage；密钥仅当前页面会话保留，备份不包含 API Key/Tavily Key/MCP env。';
   }
 }
 
@@ -660,7 +713,7 @@ function renderProviderReadinessCard(report) {
   const title = document.createElement('strong');
   title.textContent = report.summary;
   const status = document.createElement('span');
-  status.textContent = report.status === 'blocked' ? '需配置' : (report.status === 'warning' ? '有限制' : '可用');
+  status.textContent = report.status === 'blocked' ? '需配置' : report.status === 'warning' ? '有限制' : '可用';
   head.append(title, status);
   card.appendChild(head);
 
@@ -710,7 +763,9 @@ function renderProviderPresets(container) {
       provider.name,
       provider.authType === 'none' ? '无需 API Key' : 'Bearer API Key',
       provider.supportsPromptCacheUsage ? '支持 cache usage' : '',
-    ].filter(Boolean).join(' · ');
+    ]
+      .filter(Boolean)
+      .join(' · ');
     const name = document.createElement('span');
     name.className = 'provider-name';
     name.textContent = provider.name;
@@ -765,7 +820,7 @@ function renderExternalSkillList(container, skills = [], onChange) {
     toggle.className = 'icon-btn-sm';
     toggle.textContent = skill.enabled === false ? '启用' : '停用';
     toggle.addEventListener('click', () => {
-      onChange?.(skills.map((item) => item.id === skill.id ? { ...item, enabled: item.enabled === false } : item));
+      onChange?.(skills.map((item) => (item.id === skill.id ? { ...item, enabled: item.enabled === false } : item)));
     });
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -805,7 +860,7 @@ export function renderMcpServerList(container, servers = [], onChange, statuses 
     toggle.className = 'icon-btn-sm';
     toggle.textContent = server.enabled === false ? '启用' : '停用';
     toggle.addEventListener('click', () => {
-      onChange?.(servers.map((item) => item.id === server.id ? { ...item, enabled: item.enabled === false } : item));
+      onChange?.(servers.map((item) => (item.id === server.id ? { ...item, enabled: item.enabled === false } : item)));
     });
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -818,14 +873,16 @@ export function renderMcpServerList(container, servers = [], onChange, statuses 
     meta.className = 'workspace-item-meta';
     const toolCount = status?.toolCount ?? status?.tools?.length ?? 0;
     const schemaText = status?.schemaHash ? ` · schema ${shortHash(status.schemaHash)}` : '';
-    const toolText = status?.ok ? `工具 ${toolCount} 个${schemaText}` : (status?.error || '未测试');
+    const toolText = status?.ok ? `工具 ${toolCount} 个${schemaText}` : status?.error || '未测试';
     meta.textContent = `${server.enabled === false ? '停用' : '启用'} · ${server.command} ${(server.args || []).join(' ')} · ${toolText}`;
     item.append(main, meta);
     if (status) {
       const detail = document.createElement('details');
       detail.className = 'mcp-status-detail';
       const summary = document.createElement('summary');
-      summary.textContent = status.ok ? `查看工具列表${status.schemaHash ? ` · ${shortHash(status.schemaHash)}` : ''}` : '查看错误详情';
+      summary.textContent = status.ok
+        ? `查看工具列表${status.schemaHash ? ` · ${shortHash(status.schemaHash)}` : ''}`
+        : '查看错误详情';
       const body = document.createElement('div');
       body.className = 'mcp-status-body';
       if (status.ok && status.tools.length) {
@@ -834,7 +891,9 @@ export function renderMcpServerList(container, servers = [], onChange, statuses 
         const schema = document.createElement('span');
         schema.className = 'mcp-schema-badge';
         schema.textContent = status.schemaHash ? `schema ${shortHash(status.schemaHash)}` : 'schema 未知';
-        schema.title = status.schemaHash ? `完整 schema hash：${status.schemaHash}` : 'MCP Server 未返回可计算 schema。';
+        schema.title = status.schemaHash
+          ? `完整 schema hash：${status.schemaHash}`
+          : 'MCP Server 未返回可计算 schema。';
         const ttl = document.createElement('span');
         ttl.className = 'mcp-schema-badge';
         ttl.textContent = `缓存 TTL ${formatDuration(status.cacheTtlMs)}`;
@@ -872,7 +931,9 @@ export function renderMcpServerList(container, servers = [], onChange, statuses 
         `检测时间 ${status.checkedAt || '-'}`,
         `耗时 ${status.durationMs ?? '-'}ms`,
         status.cacheExpiresAt ? `缓存到 ${status.cacheExpiresAt}` : '',
-      ].filter(Boolean).join(' · ');
+      ]
+        .filter(Boolean)
+        .join(' · ');
       body.appendChild(metaLine);
       detail.append(summary, body);
       item.appendChild(detail);
@@ -892,12 +953,14 @@ function summarizeMcpStatusRefresh(statuses = []) {
 
 function emitMcpStatusChanged(statuses = [], meta = {}) {
   if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
-  window.dispatchEvent(new CustomEvent('deepchat:mcp-status-changed', {
-    detail: {
-      statuses: Array.isArray(statuses) ? statuses : [],
-      stale: Boolean(meta.stale),
-    },
-  }));
+  window.dispatchEvent(
+    new CustomEvent('deepchat:mcp-status-changed', {
+      detail: {
+        statuses: Array.isArray(statuses) ? statuses : [],
+        stale: Boolean(meta.stale),
+      },
+    })
+  );
 }
 
 function shortHash(value) {
@@ -912,21 +975,25 @@ function formatDuration(ms) {
 }
 
 function buildMcpToolsClipboard(server, status) {
-  return JSON.stringify({
-    server: {
-      id: server.id,
-      name: server.name,
-      command: server.command,
-      args: server.args || [],
-      enabled: server.enabled !== false,
+  return JSON.stringify(
+    {
+      server: {
+        id: server.id,
+        name: server.name,
+        command: server.command,
+        args: server.args || [],
+        enabled: server.enabled !== false,
+      },
+      ok: Boolean(status.ok),
+      schemaHash: status.schemaHash || '',
+      toolCount: status.toolCount ?? status.tools?.length ?? 0,
+      cacheTtlMs: status.cacheTtlMs || 0,
+      cacheExpiresAt: status.cacheExpiresAt || '',
+      tools: status.tools || [],
     },
-    ok: Boolean(status.ok),
-    schemaHash: status.schemaHash || '',
-    toolCount: status.toolCount ?? status.tools?.length ?? 0,
-    cacheTtlMs: status.cacheTtlMs || 0,
-    cacheExpiresAt: status.cacheExpiresAt || '',
-    tools: status.tools || [],
-  }, null, 2);
+    null,
+    2
+  );
 }
 
 function renderEmptyList(container, titleText, hintText) {
@@ -1034,13 +1101,13 @@ async function runStatusAction(statusEl, pendingText, successText, action) {
 function highlightActiveProvider(current) {
   const settings = typeof current === 'object' && current !== null ? current : { apiBase: current };
   const provider = getProviderPreset(settings);
-  document.querySelectorAll('.provider-btn').forEach(btn => {
+  document.querySelectorAll('.provider-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.provider === provider.id);
   });
 }
 
 function highlightActiveModelTag(currentModel) {
-  document.querySelectorAll('.model-tag').forEach(tag => {
+  document.querySelectorAll('.model-tag').forEach((tag) => {
     tag.classList.toggle('active', tag.dataset.model === currentModel);
   });
 }
@@ -1063,7 +1130,8 @@ function applySettingsToInputs(els, settings, onModelChange) {
   if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = settings.toolApprovalTimeoutMs;
   if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
   if (els.thinkingBudget) els.thinkingBudget.value = settings.thinkingBudget;
-  if (els.thinkingBudgetVal) els.thinkingBudgetVal.textContent = settings.thinkingBudget === 0 ? '自动' : `${settings.thinkingBudget} tokens`;
+  if (els.thinkingBudgetVal)
+    els.thinkingBudgetVal.textContent = settings.thinkingBudget === 0 ? '自动' : `${settings.thinkingBudget} tokens`;
   if (els.systemPrompt) els.systemPrompt.value = settings.systemPrompt || '';
   if (els.enhanceToggle) els.enhanceToggle.checked = settings.enhance !== false;
   highlightActiveProvider(settings);

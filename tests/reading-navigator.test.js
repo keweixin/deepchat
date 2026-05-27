@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { renderMarkdown, postProcess } from '../src/modules/renderer.js';
-import { collectReadingAnchors, getAnchorSignature, initReadingNavigator, refreshReadingNavigator } from '../src/modules/reading-navigator.js';
+import {
+  collectReadingAnchors,
+  getAnchorSignature,
+  initReadingNavigator,
+  refreshReadingNavigator,
+} from '../src/modules/reading-navigator.js';
 
 describe('reading navigator anchors', () => {
   it('extracts only the largest heading level from rich assistant content', async () => {

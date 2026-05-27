@@ -104,8 +104,9 @@ function openDialog(options) {
 }
 
 function trapFocus(event, root) {
-  const focusables = [...root.querySelectorAll('button, input, textarea, select, [tabindex]:not([tabindex="-1"])')]
-    .filter((node) => !node.disabled && node.offsetParent !== null);
+  const focusables = [
+    ...root.querySelectorAll('button, input, textarea, select, [tabindex]:not([tabindex="-1"])'),
+  ].filter((node) => !node.disabled && node.offsetParent !== null);
   if (focusables.length === 0) return;
   const first = focusables[0];
   const last = focusables[focusables.length - 1];

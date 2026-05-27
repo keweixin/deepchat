@@ -48,21 +48,25 @@ export async function importBackup() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json,.json';
-    input.addEventListener('change', async () => {
-      const file = input.files?.[0];
-      if (!file) {
-        resolve({ canceled: true });
-        return;
-      }
-      try {
-        const parsed = JSON.parse(await file.text());
-        if (parsed.settings) await saveSettings(sanitizeSettingsForBackup(parsed.settings));
-        if (Array.isArray(parsed.conversations)) await saveConversations(parsed.conversations);
-        resolve({ canceled: false });
-      } catch (error) {
-        reject(error);
-      }
-    }, { once: true });
+    input.addEventListener(
+      'change',
+      async () => {
+        const file = input.files?.[0];
+        if (!file) {
+          resolve({ canceled: true });
+          return;
+        }
+        try {
+          const parsed = JSON.parse(await file.text());
+          if (parsed.settings) await saveSettings(sanitizeSettingsForBackup(parsed.settings));
+          if (Array.isArray(parsed.conversations)) await saveConversations(parsed.conversations);
+          resolve({ canceled: false });
+        } catch (error) {
+          reject(error);
+        }
+      },
+      { once: true }
+    );
     input.click();
   });
 }
@@ -98,29 +102,33 @@ export async function pickExternalSkill() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.md,text/markdown,text/plain';
-    input.addEventListener('change', async () => {
-      const file = input.files?.[0];
-      if (!file) {
-        resolve(getSettings());
-        return;
-      }
-      try {
-        const content = await file.text();
-        const settings = getSettings();
-        const skill = {
-          id: `skill_${Date.now().toString(36)}`,
-          name: file.name.replace(/\.md$/i, ''),
-          description: '',
-          sourcePath: file.name,
-          content,
-          enabled: true,
-          updatedAt: new Date().toISOString(),
-        };
-        resolve(await saveSettings({ externalSkills: [...(settings.externalSkills || []), skill] }));
-      } catch (error) {
-        reject(error);
-      }
-    }, { once: true });
+    input.addEventListener(
+      'change',
+      async () => {
+        const file = input.files?.[0];
+        if (!file) {
+          resolve(getSettings());
+          return;
+        }
+        try {
+          const content = await file.text();
+          const settings = getSettings();
+          const skill = {
+            id: `skill_${Date.now().toString(36)}`,
+            name: file.name.replace(/\.md$/i, ''),
+            description: '',
+            sourcePath: file.name,
+            content,
+            enabled: true,
+            updatedAt: new Date().toISOString(),
+          };
+          resolve(await saveSettings({ externalSkills: [...(settings.externalSkills || []), skill] }));
+        } catch (error) {
+          reject(error);
+        }
+      },
+      { once: true }
+    );
     input.click();
   });
 }
@@ -183,9 +191,11 @@ function isSecretLikeArg(value) {
 
 function looksLikeSecretValue(value) {
   const text = String(value || '');
-  return /\b(sk-|tvly-|ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{6,}/i.test(text) ||
+  return (
+    /\b(sk-|tvly-|ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{6,}/i.test(text) ||
     /\bBearer\s+[A-Za-z0-9._-]{8,}/i.test(text) ||
-    /\b[A-Z0-9_]*(API[-_]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z0-9_]*\s*=\s*[^;\s]{4,}/i.test(text);
+    /\b[A-Z0-9_]*(API[-_]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z0-9_]*\s*=\s*[^;\s]{4,}/i.test(text)
+  );
 }
 
 function downloadJson(value, fileName) {

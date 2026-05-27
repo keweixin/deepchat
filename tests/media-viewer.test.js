@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  bindZoomableMedia,
-  calculateFitScale,
-  clampViewerState,
-  zoomAtPoint,
-} from '../src/modules/media-viewer.js';
+import { bindZoomableMedia, calculateFitScale, clampViewerState, zoomAtPoint } from '../src/modules/media-viewer.js';
 
 function defineImageSize(img, width = 1200, height = 800) {
   Object.defineProperty(img, 'naturalWidth', { configurable: true, value: width });
@@ -36,14 +31,14 @@ describe('media viewer', () => {
   it('clamps pan only when scaled media exceeds the stage', () => {
     const centered = clampViewerState(
       { scale: 0.5, x: 200, y: 100 },
-      { mediaWidth: 400, mediaHeight: 300, stageWidth: 800, stageHeight: 600 },
+      { mediaWidth: 400, mediaHeight: 300, stageWidth: 800, stageHeight: 600 }
     );
     expect(centered.x).toBe(0);
     expect(centered.y).toBe(0);
 
     const clamped = clampViewerState(
       { scale: 2, x: 2000, y: -2000 },
-      { mediaWidth: 1000, mediaHeight: 800, stageWidth: 800, stageHeight: 600 },
+      { mediaWidth: 1000, mediaHeight: 800, stageWidth: 800, stageHeight: 600 }
     );
     expect(clamped.x).toBeLessThan(2000);
     expect(clamped.y).toBeGreaterThan(-2000);
@@ -102,7 +97,8 @@ describe('media viewer', () => {
 
   it('opens SVG charts without losing viewBox', () => {
     const root = document.createElement('div');
-    root.innerHTML = '<div class="mermaid-wrapper"><svg viewBox="0 0 640 300"><rect width="640" height="300"></rect></svg></div>';
+    root.innerHTML =
+      '<div class="mermaid-wrapper"><svg viewBox="0 0 640 300"><rect width="640" height="300"></rect></svg></div>';
     document.body.appendChild(root);
 
     bindZoomableMedia(root);

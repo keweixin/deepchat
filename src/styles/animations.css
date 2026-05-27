@@ -17,27 +17,36 @@
 }
 
 @keyframes cursorPulse {
-  0%, 100% { opacity: 1; transform: scaleY(1); }
-  40% { opacity: 0.4; transform: scaleY(0.85); }
-  60% { opacity: 0.3; transform: scaleY(0.85); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  40% {
+    opacity: 0.4;
+    transform: scaleY(0.85);
+  }
+  60% {
+    opacity: 0.3;
+    transform: scaleY(0.85);
+  }
 }
 
 /* Skeleton loading */
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--glass-bg) 25%,
-    var(--glass-bg-hover) 50%,
-    var(--glass-bg) 75%
-  );
+  background: linear-gradient(90deg, var(--glass-bg) 25%, var(--glass-bg-hover) 50%, var(--glass-bg) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
   border-radius: var(--radius-sm);
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Smooth enter for message content updates */
@@ -45,8 +54,12 @@
   animation: contentFade 0.2s ease;
 }
 @keyframes contentFade {
-  from { opacity: 0.7; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Toast notification */

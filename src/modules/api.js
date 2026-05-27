@@ -83,10 +83,31 @@ export const PROVIDER_PRESETS = Object.freeze([
     supportsPromptCacheUsage: true,
     supportsStreamUsage: true,
     models: [
-      { id: 'deepseek-v4-flash', label: 'v4-flash', tools: true, reasoning: true, promptCacheUsage: true, streamUsage: true },
-      { id: 'deepseek-v4-pro', label: 'v4-pro', tools: true, reasoning: true, promptCacheUsage: true, streamUsage: true },
+      {
+        id: 'deepseek-v4-flash',
+        label: 'v4-flash',
+        tools: true,
+        reasoning: true,
+        promptCacheUsage: true,
+        streamUsage: true,
+      },
+      {
+        id: 'deepseek-v4-pro',
+        label: 'v4-pro',
+        tools: true,
+        reasoning: true,
+        promptCacheUsage: true,
+        streamUsage: true,
+      },
       { id: 'deepseek-chat', label: 'V3 Chat', tools: true, promptCacheUsage: true, streamUsage: true },
-      { id: 'deepseek-reasoner', label: 'R1 Reasoner', tools: false, reasoning: true, promptCacheUsage: true, streamUsage: true },
+      {
+        id: 'deepseek-reasoner',
+        label: 'R1 Reasoner',
+        tools: false,
+        reasoning: true,
+        promptCacheUsage: true,
+        streamUsage: true,
+      },
     ],
   },
   {
@@ -185,9 +206,7 @@ export const PROVIDER_PRESETS = Object.freeze([
     supportsReasoning: false,
     supportsPromptCacheUsage: false,
     supportsStreamUsage: false,
-    models: [
-      { id: 'local-model', label: 'local' },
-    ],
+    models: [{ id: 'local-model', label: 'local' }],
   },
   {
     id: 'custom',
@@ -213,7 +232,8 @@ export const SKILLS = {
     icon: '✦',
     description: '自动判断是否需要联网、读文件、运行代码或 MCP',
     needs: [],
-    promptSuffix: '\n\n当前客户端启用了智能 Agent。你需要先判断是否需要工具：最新事实用联网搜索，本地资料用文件工具，代码验证用代码工具，外部系统用 MCP。所有工具调用都必须等待用户确认；缺少配置时说明需要配置什么。',
+    promptSuffix:
+      '\n\n当前客户端启用了智能 Agent。你需要先判断是否需要工具：最新事实用联网搜索，本地资料用文件工具，代码验证用代码工具，外部系统用 MCP。所有工具调用都必须等待用户确认；缺少配置时说明需要配置什么。',
   },
   none: {
     name: '标准',
@@ -227,47 +247,44 @@ export const SKILLS = {
     icon: '🌐',
     description: '使用 Tavily 搜索网页并带来源回答',
     needs: ['tavilyApiKey'],
-    promptSuffix: '\n\n当前客户端具备联网搜索能力（Tavily）。当问题需要最新信息或你不确定事实时，请明确说明你需要搜索，客户端会自动调用搜索工具并将结果提供给你。基于搜索结果回答时请标注信息来源。',
+    promptSuffix:
+      '\n\n当前客户端具备联网搜索能力（Tavily）。当问题需要最新信息或你不确定事实时，请明确说明你需要搜索，客户端会自动调用搜索工具并将结果提供给你。基于搜索结果回答时请标注信息来源。',
   },
   file_reader: {
     name: '文件分析',
     icon: '📄',
     description: '读取已授权工作区内的文本文件',
     needs: ['workspaceRoots'],
-    promptSuffix: '\n\n当前客户端具备文件读取能力。用户提到文件或符号时，客户端会在授权工作区内建立索引、查找并提供带 file:line 的内容；遇到函数/类/变量名或 @symbol 时优先按符号读取定义块。请基于实际提供的文件内容进行分析，不要假装已读取文件。',
+    promptSuffix:
+      '\n\n当前客户端具备文件读取能力。用户提到文件或符号时，客户端会在授权工作区内建立索引、查找并提供带 file:line 的内容；遇到函数/类/变量名或 @symbol 时优先按符号读取定义块。请基于实际提供的文件内容进行分析，不要假装已读取文件。',
   },
   code_runner: {
     name: '代码运行',
     icon: '▶',
     description: '确认后运行 JavaScript / Python 小片段',
     needs: [],
-    promptSuffix: '\n\n当前客户端具备代码执行能力（需用户确认）。当需要计算验证或运行代码时，请提供可执行代码。客户端会弹出确认卡片，用户同意后才会执行。',
+    promptSuffix:
+      '\n\n当前客户端具备代码执行能力（需用户确认）。当需要计算验证或运行代码时，请提供可执行代码。客户端会弹出确认卡片，用户同意后才会执行。',
   },
   mcp_tool: {
     name: 'MCP',
     icon: '🔌',
     description: '调用外部 MCP Server 工具',
     needs: ['mcpServers'],
-    promptSuffix: '\n\n当前客户端具备 MCP 工具能力。需要外部系统数据或操作时，可以调用已配置的 MCP 工具；所有 MCP 调用都需要用户确认后才会执行。',
+    promptSuffix:
+      '\n\n当前客户端具备 MCP 工具能力。需要外部系统数据或操作时，可以调用已配置的 MCP 工具；所有 MCP 调用都需要用户确认后才会执行。',
   },
   multi_tool: {
     name: '全工具',
     icon: '🛠',
     description: '按需联网、读文件、运行代码、MCP',
     needs: ['anyTool'],
-    promptSuffix: '\n\n当前客户端具备多种工具能力：联网搜索（Tavily）、文件读取（授权工作区）、代码执行（需确认）、MCP Server 工具。根据用户需求主动使用合适的工具。所有工具调用都需要用户确认后才会执行。',
+    promptSuffix:
+      '\n\n当前客户端具备多种工具能力：联网搜索（Tavily）、文件读取（授权工作区）、代码执行（需确认）、MCP Server 工具。根据用户需求主动使用合适的工具。所有工具调用都需要用户确认后才会执行。',
   },
 };
 
-const VISION_MODEL_PATTERNS = [
-  /gpt-4o/i,
-  /gpt-4\.1/i,
-  /vision/i,
-  /vl/i,
-  /qwen.*vl/i,
-  /gemini/i,
-  /claude-3/i,
-];
+const VISION_MODEL_PATTERNS = [/gpt-4o/i, /gpt-4\.1/i, /vision/i, /vl/i, /qwen.*vl/i, /gemini/i, /claude-3/i];
 
 const CONTEXT_MENTION_LIMIT = 8;
 const CONTEXT_MENTION_PATH_LIMIT = 300;
@@ -290,7 +307,7 @@ export function extractContextMentions(content = '') {
     mentions.push({
       type,
       path: pathValue,
-      label: type === 'folder' ? `目录 ${pathValue}` : (type === 'symbol' ? `符号 ${pathValue}` : `文件 ${pathValue}`),
+      label: type === 'folder' ? `目录 ${pathValue}` : type === 'symbol' ? `符号 ${pathValue}` : `文件 ${pathValue}`,
     });
   }
   return mentions;
@@ -308,7 +325,8 @@ export function appendContextHintsToUserContent(content = '', mentions = [], set
     ...selected.map((item) => {
       const value = JSON.stringify(item.path);
       if (item.type === 'folder') return `- folder: ${item.path}；建议先调用 list_files({ "directory": ${value} })`;
-      if (item.type === 'symbol') return `- symbol: ${item.path}；建议先调用 read_symbol({ "symbol": ${value} }) 读取定义块；若未命中，再调用 search_workspace({ "symbol": ${value}, "max_results": 8 }) 查看引用。`;
+      if (item.type === 'symbol')
+        return `- symbol: ${item.path}；建议先调用 read_symbol({ "symbol": ${value} }) 读取定义块；若未命中，再调用 search_workspace({ "symbol": ${value}, "max_results": 8 }) 查看引用。`;
       return `- file: ${item.path}；建议调用 read_file({ "path": ${value} })`;
     }),
     '</selected_context>',
@@ -347,13 +365,7 @@ function stripVolatileContextBlocks(content = '') {
     .replace(/<task_checkpoint>[\s\S]*?<\/task_checkpoint>/gi, ' ');
 }
 
-const TOOL_MODEL_PATTERNS = [
-  /deepseek/i,
-  /gpt/i,
-  /qwen/i,
-  /claude/i,
-  /gemini/i,
-];
+const TOOL_MODEL_PATTERNS = [/deepseek/i, /gpt/i, /qwen/i, /claude/i, /gemini/i];
 
 const DEEPSEEK_PRICING = {
   'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
@@ -372,7 +384,8 @@ export function getModelCapabilities(settings = getSettings()) {
     authType: provider.authType,
     vision: modelPreset?.vision ?? VISION_MODEL_PATTERNS.some((pattern) => pattern.test(model)),
     tools: modelPreset?.tools ?? (provider.supportsTools && TOOL_MODEL_PATTERNS.some((pattern) => pattern.test(model))),
-    thinking: modelPreset?.reasoning ?? (provider.supportsReasoning && /reasoner|r1|o1|o3|deepseek-v4|thinking/i.test(model)),
+    thinking:
+      modelPreset?.reasoning ?? (provider.supportsReasoning && /reasoner|r1|o1|o3|deepseek-v4|thinking/i.test(model)),
     streaming: true,
     promptCacheUsage: modelPreset?.promptCacheUsage ?? provider.supportsPromptCacheUsage,
     streamUsage: modelPreset?.streamUsage ?? provider.supportsStreamUsage,
@@ -423,7 +436,8 @@ export function getProviderCompatibilityReport(settings = getSettings()) {
     items.push({
       severity: 'warning',
       label: 'Agent 工具受限',
-      detail: '当前模型未标记为支持 tool_calls；桌面端会禁用工具 schema，联网/文件/代码/MCP 只能切换到支持工具的模型后使用。',
+      detail:
+        '当前模型未标记为支持 tool_calls；桌面端会禁用工具 schema，联网/文件/代码/MCP 只能切换到支持工具的模型后使用。',
     });
     suggestions.push('使用 DeepSeek v4、deepseek-chat、gpt-4o、qwen-plus 等支持 tool_calls 的模型，或切换到标准模式。');
   }
@@ -465,13 +479,16 @@ export function getProviderCompatibilityReport(settings = getSettings()) {
     items.push({
       severity: 'info',
       label: '自定义能力按规则推断',
-      detail: '自定义 provider 的工具、视觉、thinking 和 usage 能力会按模型名和降级重试判断，最终以服务商实际支持为准。',
+      detail:
+        '自定义 provider 的工具、视觉、thinking 和 usage 能力会按模型名和降级重试判断，最终以服务商实际支持为准。',
     });
   }
 
   const status = items.some((item) => item.severity === 'error')
     ? 'blocked'
-    : (items.some((item) => item.severity === 'warning') ? 'warning' : 'ready');
+    : items.some((item) => item.severity === 'warning')
+      ? 'warning'
+      : 'ready';
 
   return {
     status,
@@ -522,22 +539,23 @@ export function isSkillRunnable(id, settings = getSettings()) {
   if (id === 'web_search') return Boolean(settings.tavilyApiKey);
   if (id === 'file_reader') return (settings.workspaceRoots || []).length > 0;
   if (id === 'code_runner') return settings.runCodeEnabled !== false;
-  if (id === 'mcp_tool') return (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
+  if (id === 'mcp_tool')
+    return (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
   if (id === 'multi_tool') return true;
   return true;
 }
 
 export function getProviderPreset(settingsOrApiBase = getSettings()) {
-  const input = typeof settingsOrApiBase === 'string' ? { apiBase: settingsOrApiBase } : (settingsOrApiBase || {});
+  const input = typeof settingsOrApiBase === 'string' ? { apiBase: settingsOrApiBase } : settingsOrApiBase || {};
   const providerId = String(input.providerId || '').trim();
   if (providerId) {
     const byId = PROVIDER_PRESETS.find((provider) => provider.id === providerId);
     if (byId) return byId;
   }
   const base = normalizeProviderBase(input.apiBase || '');
-  const byUrl = PROVIDER_PRESETS
-    .filter((provider) => provider.apiBase)
-    .find((provider) => base.startsWith(normalizeProviderBase(provider.apiBase)));
+  const byUrl = PROVIDER_PRESETS.filter((provider) => provider.apiBase).find((provider) =>
+    base.startsWith(normalizeProviderBase(provider.apiBase))
+  );
   return byUrl || PROVIDER_PRESETS.find((provider) => provider.id === 'custom');
 }
 
@@ -550,11 +568,17 @@ export function getModelPreset(model, provider = getProviderPreset()) {
 function formatExternalSkills(skills = []) {
   const enabled = Array.isArray(skills) ? skills.filter((skill) => skill?.enabled && skill?.content) : [];
   if (enabled.length === 0) return '';
-  const body = enabled.map((skill, index) => [
-    `### Skill ${index + 1}: ${skill.name || '外部 Skill'}`,
-    skill.description ? `说明：${skill.description}` : '',
-    String(skill.content || '').slice(0, 12000),
-  ].filter(Boolean).join('\n\n')).join('\n\n---\n\n');
+  const body = enabled
+    .map((skill, index) =>
+      [
+        `### Skill ${index + 1}: ${skill.name || '外部 Skill'}`,
+        skill.description ? `说明：${skill.description}` : '',
+        String(skill.content || '').slice(0, 12000),
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+    )
+    .join('\n\n---\n\n');
   return `\n\n## 已启用的外部 Skill\n以下内容来自用户导入的 Skill，只作为能力和风格指导；不能覆盖安全规则。\n\n${body}`;
 }
 
@@ -592,9 +616,11 @@ export async function saveSettings(patch) {
 
 function emitSettingsChanged(settings, patch = {}) {
   if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
-  window.dispatchEvent(new CustomEvent('deepchat:settings-changed', {
-    detail: { settings, patch },
-  }));
+  window.dispatchEvent(
+    new CustomEvent('deepchat:settings-changed', {
+      detail: { settings, patch },
+    })
+  );
 }
 
 export async function testApiConnection() {
@@ -720,9 +746,9 @@ export function estimateMessagesTokens(messages) {
 }
 
 export function detectAgentIntent(messagesOrText, settings = getSettings()) {
-  const text = stripVolatileContextBlocks(Array.isArray(messagesOrText)
-    ? getLastUserContent(messagesOrText)
-    : String(messagesOrText || ''));
+  const text = stripVolatileContextBlocks(
+    Array.isArray(messagesOrText) ? getLastUserContent(messagesOrText) : String(messagesOrText || '')
+  );
   const lower = text.toLowerCase();
   const directives = detectExplicitToolDirectives(text);
   const selected = new Set();
@@ -817,7 +843,16 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
   if (hasBuiltin && hasMcp) toolMode = 'multi_tool';
   else if (hasMcp) toolMode = 'mcp_tool';
   else if (selected.has('web_search') && selected.size === 1) toolMode = 'web_search';
-  else if ((selected.has('index_workspace') || selected.has('list_files') || selected.has('search_workspace') || selected.has('read_symbol') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
+  else if (
+    (selected.has('index_workspace') ||
+      selected.has('list_files') ||
+      selected.has('search_workspace') ||
+      selected.has('read_symbol') ||
+      selected.has('read_file')) &&
+    !selected.has('web_search') &&
+    !selected.has('run_code')
+  )
+    toolMode = 'file_reader';
   else if (selected.has('run_code') && selected.size === 1) toolMode = 'code_runner';
   else if (hasBuiltin) toolMode = 'multi_tool';
 
@@ -828,7 +863,9 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     candidateTools: [...candidates],
     missingPrerequisites: [...missing],
     confidence: Math.min(1, score),
-    explicitDirectives: Object.entries(directives).filter(([, enabled]) => enabled).map(([name]) => name),
+    explicitDirectives: Object.entries(directives)
+      .filter(([, enabled]) => enabled)
+      .map(([name]) => name),
     reason: reasons.join(',') || 'plain_chat',
   };
 }
@@ -871,30 +908,28 @@ export function normalizeTokenUsage(usage, fallback = {}) {
   const output = toTokenNumber(usage.completion_tokens ?? usage.output_tokens ?? usage.output, outputFallback);
   const total = toTokenNumber(usage.total_tokens ?? usage.total, input + output);
   const reasoning = toTokenNumber(
-    usage.completion_tokens_details?.reasoning_tokens ??
-    usage.reasoning_tokens ??
-    usage.reasoning
+    usage.completion_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens ?? usage.reasoning
   );
   const cacheHit = toTokenNumber(
-    usage.prompt_cache_hit_tokens ??
-    usage.prompt_tokens_details?.cached_tokens ??
-    usage.cached_tokens ??
-    usage.cacheHit
+    usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? usage.cached_tokens ?? usage.cacheHit
   );
-  const cacheMiss = usage.prompt_cache_miss_tokens !== undefined
-    ? toTokenNumber(usage.prompt_cache_miss_tokens)
-    : toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
-  const hasProviderFields = (
+  const cacheMiss =
+    usage.prompt_cache_miss_tokens !== undefined
+      ? toTokenNumber(usage.prompt_cache_miss_tokens)
+      : toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  const hasProviderFields =
     usage.prompt_tokens !== undefined ||
     usage.completion_tokens !== undefined ||
     usage.total_tokens !== undefined ||
     usage.prompt_cache_hit_tokens !== undefined ||
     usage.prompt_cache_miss_tokens !== undefined ||
-    usage.prompt_tokens_details !== undefined
-  );
-  const source = usage.source === 'provider' || usage.source === 'estimated' || usage.source === 'mixed'
-    ? usage.source
-    : (hasProviderFields ? 'provider' : 'estimated');
+    usage.prompt_tokens_details !== undefined;
+  const source =
+    usage.source === 'provider' || usage.source === 'estimated' || usage.source === 'mixed'
+      ? usage.source
+      : hasProviderFields
+        ? 'provider'
+        : 'estimated';
 
   return finalizeTokenUsage({
     input,
@@ -913,22 +948,23 @@ export function normalizeTokenUsage(usage, fallback = {}) {
 }
 
 export function mergeTokenUsage(usages = [], options = {}) {
-  const normalized = (Array.isArray(usages) ? usages : [])
-    .filter(Boolean)
-    .map((usage) => normalizeTokenUsage(usage));
-  const totals = normalized.reduce((acc, usage) => {
-    acc.input += usage.input;
-    acc.output += usage.output;
-    acc.total += usage.total;
-    acc.reasoning += usage.reasoning;
-    acc.cacheHit += usage.cacheHit;
-    acc.cacheMiss += usage.cacheMiss;
-    acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
-    acc.cost = mergeUsageCost(acc.cost, usage.cost);
-    return acc;
-  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, byPurpose: {}, cost: null });
+  const normalized = (Array.isArray(usages) ? usages : []).filter(Boolean).map((usage) => normalizeTokenUsage(usage));
+  const totals = normalized.reduce(
+    (acc, usage) => {
+      acc.input += usage.input;
+      acc.output += usage.output;
+      acc.total += usage.total;
+      acc.reasoning += usage.reasoning;
+      acc.cacheHit += usage.cacheHit;
+      acc.cacheMiss += usage.cacheMiss;
+      acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
+      acc.cost = mergeUsageCost(acc.cost, usage.cost);
+      return acc;
+    },
+    { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, byPurpose: {}, cost: null }
+  );
   const sources = new Set(normalized.map((usage) => usage.source));
-  const source = sources.size === 0 ? 'estimated' : (sources.size === 1 ? [...sources][0] : 'mixed');
+  const source = sources.size === 0 ? 'estimated' : sources.size === 1 ? [...sources][0] : 'mixed';
   return finalizeTokenUsage({ ...totals, source, rounds: normalized.length, warnings: options.warnings || [] });
 }
 
@@ -941,12 +977,22 @@ export function buildContextBudgetBundle(messages, options = {}) {
   const maxInputTokens = Math.round(clampNumber(options.maxInputTokens, 1, 262144, DEFAULT_SETTINGS.maxInputTokens));
   const prefixTokens = Math.max(0, toTokenNumber(options.prefixTokens));
   const budget = Math.max(1, maxInputTokens - prefixTokens);
-  const clean = (Array.isArray(messages) ? messages : [])
-    .filter((message) => message && ['system', 'user', 'assistant', 'tool'].includes(message.role));
+  const clean = (Array.isArray(messages) ? messages : []).filter(
+    (message) => message && ['system', 'user', 'assistant', 'tool'].includes(message.role)
+  );
   if (clean.length === 0) {
     return {
       messages: [],
-      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped: [], retained: [], used: 0 }),
+      meta: createContextBudgetMeta({
+        maxMessages,
+        maxInputTokens,
+        prefixTokens,
+        budget,
+        clean,
+        capped: [],
+        retained: [],
+        used: 0,
+      }),
     };
   }
 
@@ -956,7 +1002,16 @@ export function buildContextBudgetBundle(messages, options = {}) {
     const retained = dropLeadingAssistant(trimByRecentBudget(capped, budget));
     return {
       messages: retained,
-      meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained, used: estimateMessagesTokens(retained) }),
+      meta: createContextBudgetMeta({
+        maxMessages,
+        maxInputTokens,
+        prefixTokens,
+        budget,
+        clean,
+        capped,
+        retained,
+        used: estimateMessagesTokens(retained),
+      }),
     };
   }
 
@@ -975,7 +1030,16 @@ export function buildContextBudgetBundle(messages, options = {}) {
   const messagesOut = dropLeadingAssistant(retained);
   return {
     messages: messagesOut,
-    meta: createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, budget, clean, capped, retained: messagesOut, used: estimateMessagesTokens(messagesOut) }),
+    meta: createContextBudgetMeta({
+      maxMessages,
+      maxInputTokens,
+      prefixTokens,
+      budget,
+      clean,
+      capped,
+      retained: messagesOut,
+      used: estimateMessagesTokens(messagesOut),
+    }),
   };
 }
 
@@ -1008,7 +1072,9 @@ function normalizePurposeUsage(value) {
   if (!value || typeof value !== 'object') return {};
   const out = {};
   for (const [key, amount] of Object.entries(value)) {
-    const safeKey = String(key || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 40);
+    const safeKey = String(key || '')
+      .replace(/[^a-z0-9_-]/gi, '')
+      .slice(0, 40);
     if (safeKey) out[safeKey] = toTokenNumber(amount);
   }
   return out;
@@ -1046,13 +1112,15 @@ function mergeUsageCost(left, right) {
 function estimateUsageCost(model, usage) {
   const pricing = pricingForModel(model);
   if (!pricing) return null;
-  const inputCacheHitCostUsd = usage.cacheHit * pricing.inputCacheHit / 1000000;
-  const inputCacheMissCostUsd = usage.cacheMiss * pricing.inputCacheMiss / 1000000;
-  const outputCostUsd = usage.output * pricing.output / 1000000;
+  const inputCacheHitCostUsd = (usage.cacheHit * pricing.inputCacheHit) / 1000000;
+  const inputCacheMissCostUsd = (usage.cacheMiss * pricing.inputCacheMiss) / 1000000;
+  const outputCostUsd = (usage.output * pricing.output) / 1000000;
   return {
     model,
     estimatedCostUsd: roundCost(inputCacheHitCostUsd + inputCacheMissCostUsd + outputCostUsd),
-    estimatedSavingsUsd: roundCost(usage.cacheHit * Math.max(0, pricing.inputCacheMiss - pricing.inputCacheHit) / 1000000),
+    estimatedSavingsUsd: roundCost(
+      (usage.cacheHit * Math.max(0, pricing.inputCacheMiss - pricing.inputCacheHit)) / 1000000
+    ),
     inputCacheHitCostUsd: roundCost(inputCacheHitCostUsd),
     inputCacheMissCostUsd: roundCost(inputCacheMissCostUsd),
     outputCostUsd: roundCost(outputCostUsd),
@@ -1074,22 +1142,25 @@ function roundCost(value) {
 export function getConversationUsageSummary(conversation) {
   const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
   const sources = new Set();
-  const summary = messages.reduce((acc, message) => {
-    if (!message?.tokens) return acc;
-    const usage = normalizeTokenUsage(message.tokens);
-    sources.add(usage.source || 'estimated');
-    acc.input += usage.input;
-    acc.output += usage.output;
-    acc.total += usage.total;
-    acc.reasoning += usage.reasoning;
-    acc.cacheHit += usage.cacheHit;
-    acc.cacheMiss += usage.cacheMiss;
-    acc.rounds += usage.rounds || 1;
-    acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
-    acc.cost = mergeUsageCost(acc.cost, usage.cost);
-    return acc;
-  }, { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, rounds: 0, byPurpose: {}, cost: null });
-  const source = sources.size === 0 ? 'estimated' : (sources.size === 1 ? [...sources][0] : 'mixed');
+  const summary = messages.reduce(
+    (acc, message) => {
+      if (!message?.tokens) return acc;
+      const usage = normalizeTokenUsage(message.tokens);
+      sources.add(usage.source || 'estimated');
+      acc.input += usage.input;
+      acc.output += usage.output;
+      acc.total += usage.total;
+      acc.reasoning += usage.reasoning;
+      acc.cacheHit += usage.cacheHit;
+      acc.cacheMiss += usage.cacheMiss;
+      acc.rounds += usage.rounds || 1;
+      acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
+      acc.cost = mergeUsageCost(acc.cost, usage.cost);
+      return acc;
+    },
+    { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, rounds: 0, byPurpose: {}, cost: null }
+  );
+  const source = sources.size === 0 ? 'estimated' : sources.size === 1 ? [...sources][0] : 'mixed';
   return finalizeTokenUsage({ ...summary, source });
 }
 
@@ -1152,41 +1223,68 @@ function dropLeadingAssistant(messages) {
 }
 
 function needsSearch(text, lower) {
-  return /最新|新闻|今日|今天|今年|实时|刚刚|本周|价格|版本|政策|法规|官网|资料|搜索|查询|查一下|联网|来源|引用|current|latest|today|news|price|version|release|search|source/i.test(text)
-    || (/20\d{2}/.test(lower) && needsYearScopedExternalLookup(text));
+  return (
+    /最新|新闻|今日|今天|今年|实时|刚刚|本周|价格|版本|政策|法规|官网|资料|搜索|查询|查一下|联网|来源|引用|current|latest|today|news|price|version|release|search|source/i.test(
+      text
+    ) ||
+    (/20\d{2}/.test(lower) && needsYearScopedExternalLookup(text))
+  );
 }
 
 function needsYearScopedExternalLookup(text) {
-  return /价格|版本|政策|法规|官网|资料|数据|统计|趋势|报告|来源|引用|发布|名单|榜单|排名|current|latest|news|price|version|release|source|data|report|trend|ranking|schedule|score/i.test(text);
+  return /价格|版本|政策|法规|官网|资料|数据|统计|趋势|报告|来源|引用|发布|名单|榜单|排名|current|latest|news|price|version|release|source|data|report|trend|ranking|schedule|score/i.test(
+    text
+  );
 }
 
 function needsFiles(text, lower) {
   const value = String(text || '');
-  return /@(file|folder|symbol)\s*:/i.test(value)
-    || /[a-z]:[\\/]/i.test(value)
-    || /\b(readme|package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|tsconfig\.json|vite\.config|webpack\.config)\b/i.test(value)
-    || /\.(js|jsx|ts|tsx|vue|md|py|json|yaml|yml|toml|css|html|java|go|rs)\b/i.test(value)
-    || /文件|目录|代码库|仓库|路径|工作区|本地|源码|源代码|报错日志/i.test(value)
-    || /(当前|这个|本地|我的).{0,6}(项目|工程|仓库|代码库)/i.test(value)
-    || /(读取|打开|查看|列出|搜索|扫描|定位|修改|检查|分析).{0,16}(项目|工程|仓库|代码库|workspace|repo|repository)/i.test(value)
-    || /(项目|工程|仓库|代码库|workspace|repo|repository).{0,16}(文件|目录|代码|源码|结构|依赖|配置|package|readme|报错|日志)/i.test(value)
-    || lower.includes('workspace');
+  return (
+    /@(file|folder|symbol)\s*:/i.test(value) ||
+    /[a-z]:[\\/]/i.test(value) ||
+    /\b(readme|package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|tsconfig\.json|vite\.config|webpack\.config)\b/i.test(
+      value
+    ) ||
+    /\.(js|jsx|ts|tsx|vue|md|py|json|yaml|yml|toml|css|html|java|go|rs)\b/i.test(value) ||
+    /文件|目录|代码库|仓库|路径|工作区|本地|源码|源代码|报错日志/i.test(value) ||
+    /(当前|这个|本地|我的).{0,6}(项目|工程|仓库|代码库)/i.test(value) ||
+    /(读取|打开|查看|列出|搜索|扫描|定位|修改|检查|分析).{0,16}(项目|工程|仓库|代码库|workspace|repo|repository)/i.test(
+      value
+    ) ||
+    /(项目|工程|仓库|代码库|workspace|repo|repository).{0,16}(文件|目录|代码|源码|结构|依赖|配置|package|readme|报错|日志)/i.test(
+      value
+    ) ||
+    lower.includes('workspace')
+  );
 }
 
 function needsCode(text, lower) {
-  return /运行|执行|调试|复现|验证.*代码|算一下|计算|单元测试|测试一下|run code|debug|reproduce|calculate|execute/i.test(text)
-    || /```/.test(lower);
+  return (
+    /运行|执行|调试|复现|验证.*代码|算一下|计算|单元测试|测试一下|run code|debug|reproduce|calculate|execute/i.test(
+      text
+    ) || /```/.test(lower)
+  );
 }
 
 function needsMcp(text, lower) {
   const value = String(text || '');
   const normalized = String(lower || value.toLowerCase());
-  if (/(调用|使用|连接|测试|通过|启用|配置)\s*(mcp|外部系统|server 工具)|\b(mcp)\b\s*(server|tool|工具|服务器|调用|连接)/i.test(value)) return true;
+  if (
+    /(调用|使用|连接|测试|通过|启用|配置)\s*(mcp|外部系统|server 工具)|\b(mcp)\b\s*(server|tool|工具|服务器|调用|连接)/i.test(
+      value
+    )
+  )
+    return true;
   const target = /(notion|github|gitlab|jira|linear|slack|数据库|database)/i.test(normalized);
   if (!target) return false;
-  const action = /(创建|新建|更新|修改|删除|发送|发布|提交|推送|同步|写入|拉取|获取|查询|列出|打开|关闭|指派|评论|回复|上传|下载|create|update|delete|send|post|publish|submit|sync|fetch|query|list|open|close|assign|comment|upload|download|push|pull)/i.test(value);
+  const action =
+    /(创建|新建|更新|修改|删除|发送|发布|提交|推送|同步|写入|拉取|获取|查询|列出|打开|关闭|指派|评论|回复|上传|下载|create|update|delete|send|post|publish|submit|sync|fetch|query|list|open|close|assign|comment|upload|download|push|pull)/i.test(
+      value
+    );
   if (!action) return false;
-  return /(issue|pull request|pr\b|merge request|ticket|任务|工单|页面|数据库|database|record|评论|comment|频道|channel|消息|message|仓库|repo|repository|release|项目|project)/i.test(normalized);
+  return /(issue|pull request|pr\b|merge request|ticket|任务|工单|页面|数据库|database|record|评论|comment|频道|channel|消息|message|仓库|repo|repository|release|项目|project)/i.test(
+    normalized
+  );
 }
 
 export function trimContext(messages, maxMessages = 20) {
@@ -1262,7 +1360,9 @@ async function streamBrowserChat(messages, opts = {}) {
     return;
   }
 
-  const hasImageAttachments = messages.some((msg) => Array.isArray(msg.attachments) && msg.attachments.some(isImageAttachment));
+  const hasImageAttachments = messages.some(
+    (msg) => Array.isArray(msg.attachments) && msg.attachments.some(isImageAttachment)
+  );
   if (!supportsVisionModel(settings) && hasImageAttachments) {
     opts.onError?.(new Error(`当前模型 ${settings.model} 未标记为支持图片输入，请切换到 vision 模型后再发送图片。`));
     return;
@@ -1276,9 +1376,10 @@ async function streamBrowserChat(messages, opts = {}) {
   opts.onContextBudget?.(contextBundle.meta);
   const trimmedMessages = contextBundle.messages;
   let requestMessages = trimmedMessages;
-  const intent = settings.activeSkill === 'agent_auto'
-    ? detectAgentIntent(trimmedMessages, settings)
-    : { toolMode: settings.activeSkill, selectedTools: [], missingPrerequisites: [] };
+  const intent =
+    settings.activeSkill === 'agent_auto'
+      ? detectAgentIntent(trimmedMessages, settings)
+      : { toolMode: settings.activeSkill, selectedTools: [], missingPrerequisites: [] };
   opts.onAgentStage?.({
     stage: 'plan',
     round: 0,
@@ -1288,7 +1389,10 @@ async function streamBrowserChat(messages, opts = {}) {
     missingPrerequisites: intent.missingPrerequisites || [],
   });
 
-  if ((settings.activeSkill === 'web_search' || intent.toolMode === 'web_search' || intent.toolMode === 'multi_tool') && settings.tavilyApiKey) {
+  if (
+    (settings.activeSkill === 'web_search' || intent.toolMode === 'web_search' || intent.toolMode === 'multi_tool') &&
+    settings.tavilyApiKey
+  ) {
     const searchQuery = getLastUserContent(trimmedMessages);
     if (searchQuery) {
       try {
@@ -1327,10 +1431,7 @@ async function streamBrowserChat(messages, opts = {}) {
 
   const body = {
     model: settings.model,
-    messages: [
-      { role: 'system', content: getEffectiveSystemPrompt(settings) },
-      ...requestMessages.map(toApiMessage),
-    ],
+    messages: [{ role: 'system', content: getEffectiveSystemPrompt(settings) }, ...requestMessages.map(toApiMessage)],
     stream: true,
     stream_options: { include_usage: true },
     temperature: settings.temperature,
@@ -1367,7 +1468,11 @@ async function streamBrowserChat(messages, opts = {}) {
   }
 
   try {
-    const { response, warnings: fallbackWarnings } = await fetchBrowserChatCompletionWithFallback(settings, body, opts.signal);
+    const { response, warnings: fallbackWarnings } = await fetchBrowserChatCompletionWithFallback(
+      settings,
+      body,
+      opts.signal
+    );
     warnings.push(...fallbackWarnings);
 
     if (!response.ok) {
@@ -1391,7 +1496,10 @@ async function streamBrowserChat(messages, opts = {}) {
         const trimmed = line.trim();
         if (!trimmed || !trimmed.startsWith('data:')) continue;
         const data = trimmed.slice(5).trim();
-        if (data === '[DONE]') { callDone(fullOutput); return; }
+        if (data === '[DONE]') {
+          callDone(fullOutput);
+          return;
+        }
         try {
           const json = JSON.parse(data);
           if (json.usage) providerUsage = normalizeTokenUsage(json.usage, { model: settings.model });
@@ -1426,7 +1534,11 @@ async function fetchBrowserChatCompletionWithFallback(settings, body, signal) {
     });
     if (response.ok) return { response, warnings };
     const errorText = await response.text().catch(() => '');
-    if (response.status === 400 && currentBody.stream_options && isUnsupportedParameterError(errorText, 'stream_options')) {
+    if (
+      response.status === 400 &&
+      currentBody.stream_options &&
+      isUnsupportedParameterError(errorText, 'stream_options')
+    ) {
       currentBody = { ...currentBody };
       delete currentBody.stream_options;
       warnings.push('当前服务商不支持 stream_options.include_usage，已自动重试并使用本地估算 token。');
@@ -1448,9 +1560,12 @@ function applyComposerOverrides(settings, overrides = {}) {
   if (overrides.thinkingBudget !== undefined) next.thinkingBudget = Number.parseInt(overrides.thinkingBudget, 10) || 0;
   if (overrides.activeSkill !== undefined) next.activeSkill = String(overrides.activeSkill || 'none');
   if (overrides.enhance !== undefined) next.enhance = overrides.enhance !== false;
-  if (overrides.agentMaxRounds !== undefined) next.agentMaxRounds = Number.parseInt(overrides.agentMaxRounds, 10) || DEFAULT_SETTINGS.agentMaxRounds;
-  if (overrides.maxInputTokens !== undefined) next.maxInputTokens = Number.parseInt(overrides.maxInputTokens, 10) || DEFAULT_SETTINGS.maxInputTokens;
-  if (overrides.agentExecutionMode !== undefined) next.agentExecutionMode = String(overrides.agentExecutionMode || 'execute_all');
+  if (overrides.agentMaxRounds !== undefined)
+    next.agentMaxRounds = Number.parseInt(overrides.agentMaxRounds, 10) || DEFAULT_SETTINGS.agentMaxRounds;
+  if (overrides.maxInputTokens !== undefined)
+    next.maxInputTokens = Number.parseInt(overrides.maxInputTokens, 10) || DEFAULT_SETTINGS.maxInputTokens;
+  if (overrides.agentExecutionMode !== undefined)
+    next.agentExecutionMode = String(overrides.agentExecutionMode || 'execute_all');
   return next;
 }
 
@@ -1499,7 +1614,9 @@ async function browserWebSearch(query, settings) {
   try {
     result = await requestTavilySearch(query, settings);
   } catch (error) {
-    throw new Error(`浏览器联网检索失败：${error.message || '网络请求被拦截'}。如果浏览器阻止跨域请求，请使用桌面版运行。`);
+    throw new Error(
+      `浏览器联网检索失败：${error.message || '网络请求被拦截'}。如果浏览器阻止跨域请求，请使用桌面版运行。`
+    );
   }
   const { response, request } = result;
   if (!response.ok) {
@@ -1528,7 +1645,8 @@ function normalizeBrowserTavilyResults(payload, maxResults) {
 }
 
 function formatBrowserSearchResults(request, results) {
-  if (results.length === 0) return `没有找到与「${request.originalQuery}」相关的搜索结果。\n实际搜索 query：${request.payload.query}`;
+  if (results.length === 0)
+    return `没有找到与「${request.originalQuery}」相关的搜索结果。\n实际搜索 query：${request.payload.query}`;
   const meta = [
     `搜索时间：${request.requestedAt}`,
     `用户原始问题：${request.originalQuery}`,
@@ -1578,7 +1696,11 @@ async function migrateLegacyStorage() {
   let conversations = [];
   const rawConversations = localStorage.getItem('dc_conversations');
   if (rawConversations) {
-    try { conversations = JSON.parse(rawConversations); } catch { conversations = []; }
+    try {
+      conversations = JSON.parse(rawConversations);
+    } catch {
+      conversations = [];
+    }
   }
 
   if (Object.keys(settings).length > 0 || conversations.length > 0) {
@@ -1599,18 +1721,27 @@ function loadBrowserSettings() {
     maxTokens: parseInt(localStorage.getItem('dc_maxTokens') || String(DEFAULT_SETTINGS.maxTokens), 10),
     maxInputTokens: parseInt(localStorage.getItem('dc_maxInputTokens') || String(DEFAULT_SETTINGS.maxInputTokens), 10),
     systemPrompt: localStorage.getItem('dc_systemPrompt') || DEFAULT_SYSTEM_PROMPT,
-    maxContextMessages: parseInt(localStorage.getItem('dc_maxContext') || String(DEFAULT_SETTINGS.maxContextMessages), 10),
+    maxContextMessages: parseInt(
+      localStorage.getItem('dc_maxContext') || String(DEFAULT_SETTINGS.maxContextMessages),
+      10
+    ),
     agentMaxRounds: parseInt(localStorage.getItem('dc_agentMaxRounds') || String(DEFAULT_SETTINGS.agentMaxRounds), 10),
     thinkingBudget: parseInt(localStorage.getItem('dc_thinkingBudget') || String(DEFAULT_SETTINGS.thinkingBudget), 10),
     activeSkill: localStorage.getItem('dc_activeSkill') || DEFAULT_SETTINGS.activeSkill,
     autoContextSummary: localStorage.getItem('dc_autoContextSummary') !== 'false',
     cacheOptimization: localStorage.getItem('dc_cacheOptimization') !== 'false',
-    toolApprovalTimeoutMs: parseInt(localStorage.getItem('dc_toolApprovalTimeoutMs') || String(DEFAULT_SETTINGS.toolApprovalTimeoutMs), 10),
+    toolApprovalTimeoutMs: parseInt(
+      localStorage.getItem('dc_toolApprovalTimeoutMs') || String(DEFAULT_SETTINGS.toolApprovalTimeoutMs),
+      10
+    ),
     toolApprovalPolicy: localStorage.getItem('dc_toolApprovalPolicy') || DEFAULT_SETTINGS.toolApprovalPolicy,
     runCodeEnabled: localStorage.getItem('dc_runCodeEnabled') !== 'false',
     enhance: localStorage.getItem('dc_enhance') !== 'false',
     tavilyApiKey: localStorage.getItem('dc_tavilyApiKey') || '',
-    tavilyMaxResults: parseInt(localStorage.getItem('dc_tavilyMaxResults') || String(DEFAULT_SETTINGS.tavilyMaxResults), 10),
+    tavilyMaxResults: parseInt(
+      localStorage.getItem('dc_tavilyMaxResults') || String(DEFAULT_SETTINGS.tavilyMaxResults),
+      10
+    ),
     workspaceRoots: safeJsonArray(localStorage.getItem('dc_workspaceRoots')),
     externalSkills: safeJsonArray(localStorage.getItem('dc_externalSkills')),
     mcpServers: [],
@@ -1651,18 +1782,26 @@ function normalizeSettings(input = {}) {
   const next = { ...DEFAULT_SETTINGS, ...input };
   const hasProviderId = input.providerId !== undefined && input.providerId !== null && input.providerId !== '';
   const provider = getProviderPreset(hasProviderId ? next : next.apiBase);
-  next.providerId = hasProviderId && PROVIDER_PRESETS.some((item) => item.id === next.providerId) ? next.providerId : provider.id;
+  next.providerId =
+    hasProviderId && PROVIDER_PRESETS.some((item) => item.id === next.providerId) ? next.providerId : provider.id;
   if (!next.apiBase && provider.apiBase) next.apiBase = provider.apiBase;
   if (!next.model && provider.defaultModel) next.model = provider.defaultModel;
   next.temperature = clampNumber(next.temperature, 0, 2, DEFAULT_SETTINGS.temperature);
   next.maxTokens = Math.round(clampNumber(next.maxTokens, 256, 65536, DEFAULT_SETTINGS.maxTokens));
   next.maxInputTokens = Math.round(clampNumber(next.maxInputTokens, 1024, 262144, DEFAULT_SETTINGS.maxInputTokens));
-  next.maxContextMessages = Math.round(clampNumber(next.maxContextMessages, 2, 100, DEFAULT_SETTINGS.maxContextMessages));
+  next.maxContextMessages = Math.round(
+    clampNumber(next.maxContextMessages, 2, 100, DEFAULT_SETTINGS.maxContextMessages)
+  );
   next.agentMaxRounds = Math.round(clampNumber(next.agentMaxRounds, 1, 10, DEFAULT_SETTINGS.agentMaxRounds));
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
-  next.toolApprovalTimeoutMs = Math.round(clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs));
-  next.toolApprovalPolicy = String(next.toolApprovalPolicy || DEFAULT_SETTINGS.toolApprovalPolicy) === 'auto_readonly' ? 'auto_readonly' : DEFAULT_SETTINGS.toolApprovalPolicy;
+  next.toolApprovalTimeoutMs = Math.round(
+    clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs)
+  );
+  next.toolApprovalPolicy =
+    String(next.toolApprovalPolicy || DEFAULT_SETTINGS.toolApprovalPolicy) === 'auto_readonly'
+      ? 'auto_readonly'
+      : DEFAULT_SETTINGS.toolApprovalPolicy;
   next.workspaceRoots = Array.isArray(next.workspaceRoots) ? next.workspaceRoots : [];
   next.externalSkills = Array.isArray(next.externalSkills) ? next.externalSkills : [];
   next.mcpServers = Array.isArray(next.mcpServers) ? next.mcpServers : [];
@@ -1681,8 +1820,20 @@ function clampNumber(value, min, max, fallback) {
 
 function parseStoredValue(key, value) {
   if (['temperature'].includes(key)) return parseFloat(value);
-  if (['maxTokens', 'maxInputTokens', 'maxContextMessages', 'agentMaxRounds', 'thinkingBudget', 'tavilyMaxResults', 'toolApprovalTimeoutMs'].includes(key)) return parseInt(value, 10);
-  if (key === 'enhance' || key === 'autoContextSummary' || key === 'cacheOptimization' || key === 'runCodeEnabled') return value !== 'false';
+  if (
+    [
+      'maxTokens',
+      'maxInputTokens',
+      'maxContextMessages',
+      'agentMaxRounds',
+      'thinkingBudget',
+      'tavilyMaxResults',
+      'toolApprovalTimeoutMs',
+    ].includes(key)
+  )
+    return parseInt(value, 10);
+  if (key === 'enhance' || key === 'autoContextSummary' || key === 'cacheOptimization' || key === 'runCodeEnabled')
+    return value !== 'false';
   return value;
 }
 
@@ -1704,7 +1855,10 @@ function normalizeBaseUrl(apiBase) {
 }
 
 function normalizeProviderBase(apiBase) {
-  return String(apiBase || '').trim().replace(/\/+$/, '').toLowerCase();
+  return String(apiBase || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase();
 }
 
 function buildHeaders(apiKey, accept) {
@@ -1722,11 +1876,16 @@ function isLocalApi(apiBase) {
 
 function parseApiError(status, text) {
   let msg = `API 错误 (${status})`;
-  try { msg = JSON.parse(text).error?.message || msg; } catch {}
+  try {
+    msg = JSON.parse(text).error?.message || msg;
+  } catch {}
   return msg;
 }
 
 function isUnsupportedParameterError(text, parameter) {
   const body = String(text || '').toLowerCase();
-  return body.includes(parameter.toLowerCase()) && /unsupported|unknown|unrecognized|invalid|not support|不支持|未知|无效/.test(body);
+  return (
+    body.includes(parameter.toLowerCase()) &&
+    /unsupported|unknown|unrecognized|invalid|not support|不支持|未知|无效/.test(body)
+  );
 }

@@ -26,7 +26,8 @@ contextBridge.exposeInMainWorld('deepchat', {
     onEvent: (callback) => on('chat:event', callback),
   },
   tools: {
-    approve: (requestId, toolCallId, approved) => ipcRenderer.send('tools:approve', { requestId, toolCallId, approved }),
+    approve: (requestId, toolCallId, approved) =>
+      ipcRenderer.send('tools:approve', { requestId, toolCallId, approved }),
     run: (name, args) => ipcRenderer.invoke('tools:runManual', { name, args }),
   },
   workspace: {

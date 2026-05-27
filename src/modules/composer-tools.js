@@ -12,22 +12,20 @@ export const COMPOSER_TOOL_IDS = Object.freeze([
 
 export function buildComposerToolEntries(settings = {}, activeSkill = settings.activeSkill) {
   const current = activeSkill || settings.activeSkill || 'agent_auto';
-  return COMPOSER_TOOL_IDS
-    .filter((id) => SKILLS[id])
-    .map((id) => {
-      const skill = SKILLS[id];
-      const available = isSkillRunnable(id, { ...settings, activeSkill: id });
-      return {
-        id,
-        name: skill.name,
-        icon: skill.icon,
-        description: skill.description,
-        active: id === current,
-        available,
-        state: available ? '可用' : getComposerToolUnavailableReason(id, settings),
-        risk: getComposerToolRisk(id, settings),
-      };
-    });
+  return COMPOSER_TOOL_IDS.filter((id) => SKILLS[id]).map((id) => {
+    const skill = SKILLS[id];
+    const available = isSkillRunnable(id, { ...settings, activeSkill: id });
+    return {
+      id,
+      name: skill.name,
+      icon: skill.icon,
+      description: skill.description,
+      active: id === current,
+      available,
+      state: available ? '可用' : getComposerToolUnavailableReason(id, settings),
+      risk: getComposerToolRisk(id, settings),
+    };
+  });
 }
 
 export function getComposerToolModeLabel(id) {
@@ -52,7 +50,11 @@ export function hasAnyToolConfigured(settings = {}) {
   return hasEnabledMcpServer(settings);
 }
 
-export function resolveActiveSkillForExplicitDirectives(inputText = '', settings = {}, fallbackActiveSkill = settings.activeSkill || 'agent_auto') {
+export function resolveActiveSkillForExplicitDirectives(
+  inputText = '',
+  settings = {},
+  fallbackActiveSkill = settings.activeSkill || 'agent_auto'
+) {
   const text = String(inputText || '');
   const requested = new Set();
   if (/(?:^|[\s([，,;；])@(?:file|folder|symbol|changed)\b/i.test(text)) requested.add('file_reader');
@@ -114,16 +116,26 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
   const hasMcpDirective = /(?:^|[\s([，,;；])@mcp\b/i.test(String(inputText || ''));
   const hasChangedDirective = /(?:^|[\s([，,;；])@(?:changed|recent)\b/i.test(String(inputText || ''));
   const intent = buildComposerIntentPreview(inputText, effectiveSettings);
-  const needsWorkspace = roots.length
-    || mentions.length > 0
-    || activeSkill === 'file_reader'
-    || activeSkill === 'multi_tool'
-    || (intent.state === 'warning' && /工作区/.test(intent.text || intent.title || ''));
+  const needsWorkspace =
+    roots.length ||
+    mentions.length > 0 ||
+    activeSkill === 'file_reader' ||
+    activeSkill === 'multi_tool' ||
+    (intent.state === 'warning' && /工作区/.test(intent.text || intent.title || ''));
 
   if (roots.length) {
-    items.push({ kind: 'workspace', label: roots.length === 1 ? '工作区 1 个' : `工作区 ${roots.length} 个`, tone: 'ready' });
+    items.push({
+      kind: 'workspace',
+      label: roots.length === 1 ? '工作区 1 个' : `工作区 ${roots.length} 个`,
+      tone: 'ready',
+    });
   } else if (needsWorkspace) {
-    items.push({ kind: 'workspace', label: '未选工作区', tone: 'muted', title: '需要本地文件工具时，请先在设置中添加工作区。' });
+    items.push({
+      kind: 'workspace',
+      label: '未选工作区',
+      tone: 'muted',
+      title: '需要本地文件工具时，请先在设置中添加工作区。',
+    });
   }
 
   for (const mention of mentions.slice(0, 6)) {
@@ -158,7 +170,7 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     items.push({
       kind: 'intent',
       label: intent.text.replace(/^预判：/, ''),
-      tone: intent.state === 'warning' ? 'warning' : (intent.state === 'tool' ? 'ready' : 'muted'),
+      tone: intent.state === 'warning' ? 'warning' : intent.state === 'tool' ? 'ready' : 'muted',
       title: intent.title,
     });
   }
@@ -189,11 +201,11 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
       kind: 'mcp',
       label: readyCount
         ? `MCP ${readyCount}/${servers.length} 可用${toolCount ? ` · ${toolCount} 工具` : ''}`
-        : (configuredCount ? `MCP ${configuredCount} 个待测试` : 'MCP 未配置'),
-      tone: readyCount ? 'ready' : (configuredCount ? 'warning' : 'warning'),
-      title: servers.length
-        ? '来自 MCP 配置和最近一次状态刷新；MCP 调用仍需确认。'
-        : '请先在设置中添加 MCP Server。',
+        : configuredCount
+          ? `MCP ${configuredCount} 个待测试`
+          : 'MCP 未配置',
+      tone: readyCount ? 'ready' : configuredCount ? 'warning' : 'warning',
+      title: servers.length ? '来自 MCP 配置和最近一次状态刷新；MCP 调用仍需确认。' : '请先在设置中添加 MCP Server。',
     });
     for (const server of servers.slice(0, 4)) {
       items.push({
@@ -235,18 +247,20 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     kind: 'summary',
     label: settings.autoContextSummary === false ? '自动摘要关闭' : '自动摘要开启',
     tone: settings.autoContextSummary === false ? 'muted' : 'ready',
-    title: settings.autoContextSummary === false
-      ? '长上下文只会按预算裁剪，不会额外生成长期摘要。'
-      : '历史被裁剪或接近预算时，会尝试生成长期摘要并计入 usage。',
+    title:
+      settings.autoContextSummary === false
+        ? '长上下文只会按预算裁剪，不会额外生成长期摘要。'
+        : '历史被裁剪或接近预算时，会尝试生成长期摘要并计入 usage。',
   });
 
   items.push({
     kind: 'cache',
     label: settings.cacheOptimization === false ? '缓存优化关闭' : '缓存前缀稳定',
     tone: settings.cacheOptimization === false ? 'warning' : 'ready',
-    title: settings.cacheOptimization === false
-      ? '本轮不会主动保持缓存友好的固定前缀。'
-      : '系统提示、Agent 规则和工具 schema 会尽量保持稳定顺序，提高 prefix cache 命中。',
+    title:
+      settings.cacheOptimization === false
+        ? '本轮不会主动保持缓存友好的固定前缀。'
+        : '系统提示、Agent 规则和工具 schema 会尽量保持稳定顺序，提高 prefix cache 命中。',
   });
 
   const visibleItems = limitPreviewItems(dedupePreviewItems(items), 12);
@@ -294,7 +308,9 @@ function buildMcpServerPreviewReason({ disabled, command, status, toolCount }) {
       `最近测试可用，工具 ${toolCount} 个。`,
       status.schemaHash ? `schema ${String(status.schemaHash).slice(0, 8)}` : '',
       status.cacheExpiresAt ? `缓存到 ${status.cacheExpiresAt}` : '',
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
   }
   return status.error ? `最近测试失败：${status.error}` : '最近测试失败。';
 }
@@ -308,7 +324,8 @@ function formatToolLabels(tools = []) {
     if (tool === 'web_search') add('联网搜索');
     else if (tool === 'run_code') add('代码运行');
     else if (tool === 'mcp') add('MCP');
-    else if (tool === 'list_files' || tool === 'search_workspace' || tool === 'read_symbol' || tool === 'read_file') add('工作区文件');
+    else if (tool === 'list_files' || tool === 'search_workspace' || tool === 'read_symbol' || tool === 'read_file')
+      add('工作区文件');
     else add(tool);
   }
   return labels.join('、');
@@ -322,7 +339,9 @@ function buildIntentPreviewTitle(intent = {}, missing = []) {
     intent.selectedTools?.length ? `可用工具：${formatToolLabels(intent.selectedTools)}` : '',
     intent.candidateTools?.length ? `候选工具：${formatToolLabels(intent.candidateTools)}` : '',
     missing.length ? `缺少配置：${missing.join('、')}` : '',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function getIntentApprovalPreview(selectedTools = [], settings = {}) {
@@ -337,14 +356,9 @@ function getIntentApprovalPreview(selectedTools = [], settings = {}) {
 }
 
 function isReadOnlyToolName(toolName = '') {
-  return [
-    'web_search',
-    'index_workspace',
-    'list_files',
-    'search_workspace',
-    'read_symbol',
-    'read_file',
-  ].includes(String(toolName || ''));
+  return ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(
+    String(toolName || '')
+  );
 }
 
 function buildExplicitContextToolRoute(mentions = [], options = {}) {
@@ -400,7 +414,10 @@ function limitPreviewItems(items = [], limit = 12) {
     kind: 'more',
     label: `另有 ${hidden.length} 项`,
     tone: hidden.some((item) => item.tone === 'warning' || item.tone === 'danger') ? 'warning' : 'muted',
-    title: hidden.map((item) => item.label).filter(Boolean).join('\n'),
+    title: hidden
+      .map((item) => item.label)
+      .filter(Boolean)
+      .join('\n'),
   });
   return visible;
 }

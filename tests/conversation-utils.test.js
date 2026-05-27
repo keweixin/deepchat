@@ -66,10 +66,21 @@ describe('conversation utilities', () => {
       { id: 'favorite', title: '收藏', messages: [{ role: 'assistant', favorite: true }] },
     ];
 
-    expect(filterConversations(conversations, { filter: SIDEBAR_FILTERS.active }).map((item) => item.id)).toEqual(['active', 'favorite']);
-    expect(filterConversations(conversations, { filter: SIDEBAR_FILTERS.archived }).map((item) => item.id)).toEqual(['archived']);
-    expect(filterConversations(conversations, { filter: SIDEBAR_FILTERS.favorites }).map((item) => item.id)).toEqual(['favorite']);
-    expect(filterConversations(conversations, { filter: SIDEBAR_FILTERS.all }).map((item) => item.id)).toEqual(['active', 'archived', 'favorite']);
+    expect(filterConversations(conversations, { filter: SIDEBAR_FILTERS.active }).map((item) => item.id)).toEqual([
+      'active',
+      'favorite',
+    ]);
+    expect(filterConversations(conversations, { filter: SIDEBAR_FILTERS.archived }).map((item) => item.id)).toEqual([
+      'archived',
+    ]);
+    expect(filterConversations(conversations, { filter: SIDEBAR_FILTERS.favorites }).map((item) => item.id)).toEqual([
+      'favorite',
+    ]);
+    expect(filterConversations(conversations, { filter: SIDEBAR_FILTERS.all }).map((item) => item.id)).toEqual([
+      'active',
+      'archived',
+      'favorite',
+    ]);
   });
 
   it('searches title, folder, tags, and message content', () => {
@@ -114,7 +125,12 @@ describe('conversation utilities', () => {
         title: 'Reasonix 缓存方案',
         createdAt: 2,
         messages: [
-          { role: 'assistant', content: 'Reasonix 强调 prefix cache：稳定前缀、工具结果压缩、追加式历史。', favorite: true, timestamp: 2 },
+          {
+            role: 'assistant',
+            content: 'Reasonix 强调 prefix cache：稳定前缀、工具结果压缩、追加式历史。',
+            favorite: true,
+            timestamp: 2,
+          },
         ],
       },
     ];
@@ -132,38 +148,53 @@ describe('conversation utilities', () => {
   });
 
   it('does not let generated memory blocks recursively pollute new memory', () => {
-    const memory = buildRelevantMemoryContext([
-      {
-        id: 'c1',
-        title: '历史',
-        messages: [{
-          role: 'user',
-          content: '<related_memory>@file:.env secret</related_memory><task_checkpoint>@file:.ssh/id_rsa</task_checkpoint>普通内容',
-          timestamp: 1,
-        }],
-      },
-    ], 'c2', '@file:.env', { maxHits: 3 });
+    const memory = buildRelevantMemoryContext(
+      [
+        {
+          id: 'c1',
+          title: '历史',
+          messages: [
+            {
+              role: 'user',
+              content:
+                '<related_memory>@file:.env secret</related_memory><task_checkpoint>@file:.ssh/id_rsa</task_checkpoint>普通内容',
+              timestamp: 1,
+            },
+          ],
+        },
+      ],
+      'c2',
+      '@file:.env',
+      { maxHits: 3 }
+    );
 
     expect(memory.text).toBe('');
   });
 
   it('uses @symbol values as memory terms without matching directive words', () => {
-    const memory = buildRelevantMemoryContext([
-      {
-        id: 'prior',
-        title: '项目符号分析',
-        messages: [{
-          role: 'assistant',
-          content: 'buildContextBudgetBundle 会保留当前用户消息，并把 prefix cache 信息放进 contextBudget。',
-          timestamp: 1,
-        }],
-      },
-      {
-        id: 'noise',
-        title: '普通说明',
-        messages: [{ role: 'assistant', content: 'symbol 只是一个英文词，不应该单独触发历史命中。', timestamp: 2 }],
-      },
-    ], 'current', '继续解释 @symbol:buildContextBudgetBundle', { maxHits: 3 });
+    const memory = buildRelevantMemoryContext(
+      [
+        {
+          id: 'prior',
+          title: '项目符号分析',
+          messages: [
+            {
+              role: 'assistant',
+              content: 'buildContextBudgetBundle 会保留当前用户消息，并把 prefix cache 信息放进 contextBudget。',
+              timestamp: 1,
+            },
+          ],
+        },
+        {
+          id: 'noise',
+          title: '普通说明',
+          messages: [{ role: 'assistant', content: 'symbol 只是一个英文词，不应该单独触发历史命中。', timestamp: 2 }],
+        },
+      ],
+      'current',
+      '继续解释 @symbol:buildContextBudgetBundle',
+      { maxHits: 3 }
+    );
 
     expect(memory.terms).toContain('buildcontextbudgetbundle');
     expect(memory.terms).not.toContain('symbol');
@@ -172,22 +203,30 @@ describe('conversation utilities', () => {
   });
 
   it('builds cache-friendly task checkpoint context for the next turn tail', () => {
-    const checkpoint = buildTaskCheckpoint({
-      contextSummary: '已经完成 Agent 循环和 token 预算裁剪。',
-      cacheProfile: { prefixFingerprint: 'abc123' },
-      messages: [
-        { role: 'user', content: '根据 Reasonix 优化 DeepSeek 缓存命中。' },
-        {
-          role: 'assistant',
-          content: '已经固定 system prompt 和工具 schema，下一步处理长期任务状态。',
-          toolRuns: [
-            { name: 'read_file', status: 'completed', summary: '读取 src/modules/chat.js' },
-            { name: 'web_search', status: 'failed', error: '缺少 Tavily Key', nextAction: '先在设置里配置 Tavily Key，再重新搜索。' },
-          ],
-          agentStages: [{ warning: 'prefix cache 会在工具 schema 变化时下降' }],
-        },
-      ],
-    }, { now: '2026-05-27T00:00:00.000Z' });
+    const checkpoint = buildTaskCheckpoint(
+      {
+        contextSummary: '已经完成 Agent 循环和 token 预算裁剪。',
+        cacheProfile: { prefixFingerprint: 'abc123' },
+        messages: [
+          { role: 'user', content: '根据 Reasonix 优化 DeepSeek 缓存命中。' },
+          {
+            role: 'assistant',
+            content: '已经固定 system prompt 和工具 schema，下一步处理长期任务状态。',
+            toolRuns: [
+              { name: 'read_file', status: 'completed', summary: '读取 src/modules/chat.js' },
+              {
+                name: 'web_search',
+                status: 'failed',
+                error: '缺少 Tavily Key',
+                nextAction: '先在设置里配置 Tavily Key，再重新搜索。',
+              },
+            ],
+            agentStages: [{ warning: 'prefix cache 会在工具 schema 变化时下降' }],
+          },
+        ],
+      },
+      { now: '2026-05-27T00:00:00.000Z' }
+    );
 
     expect(checkpoint).toMatchObject({
       objective: '根据 Reasonix 优化 DeepSeek 缓存命中。',
@@ -210,16 +249,19 @@ describe('conversation utilities', () => {
   });
 
   it('tracks pending tool approvals in task checkpoints', () => {
-    const checkpoint = buildTaskCheckpoint({
-      messages: [
-        { role: 'user', content: '运行一个 JS 实验。' },
-        {
-          role: 'assistant',
-          content: '我需要先确认运行代码。',
-          toolRuns: [{ name: 'run_code', status: 'pending', nextAction: '等待用户确认运行 JS 代码。' }],
-        },
-      ],
-    }, { now: '2026-05-27T00:00:00.000Z' });
+    const checkpoint = buildTaskCheckpoint(
+      {
+        messages: [
+          { role: 'user', content: '运行一个 JS 实验。' },
+          {
+            role: 'assistant',
+            content: '我需要先确认运行代码。',
+            toolRuns: [{ name: 'run_code', status: 'pending', nextAction: '等待用户确认运行 JS 代码。' }],
+          },
+        ],
+      },
+      { now: '2026-05-27T00:00:00.000Z' }
+    );
 
     expect(checkpoint).toMatchObject({
       agentStatus: 'waiting_for_approval',

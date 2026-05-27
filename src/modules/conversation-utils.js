@@ -13,11 +13,16 @@ export function normalizeConversation(conversation = {}) {
     archivedAt: normalizeArchiveTime(conversation.archivedAt),
     contextSummary: typeof conversation.contextSummary === 'string' ? conversation.contextSummary : '',
     contextSummaryUpdatedAt: conversation.contextSummaryUpdatedAt || null,
-    contextSummaryMeta: conversation.contextSummaryMeta && typeof conversation.contextSummaryMeta === 'object' ? conversation.contextSummaryMeta : null,
+    contextSummaryMeta:
+      conversation.contextSummaryMeta && typeof conversation.contextSummaryMeta === 'object'
+        ? conversation.contextSummaryMeta
+        : null,
     taskCheckpoint: normalizeTaskCheckpoint(conversation.taskCheckpoint),
     taskCheckpointUpdatedAt: conversation.taskCheckpointUpdatedAt || conversation.taskCheckpoint?.updatedAt || null,
-    usageTotals: conversation.usageTotals && typeof conversation.usageTotals === 'object' ? conversation.usageTotals : null,
-    cacheProfile: conversation.cacheProfile && typeof conversation.cacheProfile === 'object' ? conversation.cacheProfile : null,
+    usageTotals:
+      conversation.usageTotals && typeof conversation.usageTotals === 'object' ? conversation.usageTotals : null,
+    cacheProfile:
+      conversation.cacheProfile && typeof conversation.cacheProfile === 'object' ? conversation.cacheProfile : null,
     messages: Array.isArray(conversation.messages) ? conversation.messages : [],
   };
 }
@@ -74,7 +79,7 @@ export function buildRelevantMemoryContext(conversations, activeConversationId, 
   }
 
   const selected = hits
-    .sort((left, right) => (right.score - left.score) || (right.timestamp - left.timestamp))
+    .sort((left, right) => right.score - left.score || right.timestamp - left.timestamp)
     .slice(0, maxHits);
   if (selected.length === 0) return { text: '', hits: [], terms };
 
@@ -93,8 +98,9 @@ export function buildRelevantMemoryContext(conversations, activeConversationId, 
 }
 
 export function buildTaskCheckpoint(conversation = {}, options = {}) {
-  const messages = (Array.isArray(conversation.messages) ? conversation.messages : [])
-    .filter((message) => message && (message.role === 'user' || message.role === 'assistant'));
+  const messages = (Array.isArray(conversation.messages) ? conversation.messages : []).filter(
+    (message) => message && (message.role === 'user' || message.role === 'assistant')
+  );
   if (messages.length === 0) return null;
 
   const users = messages.filter((message) => message.role === 'user');
@@ -102,9 +108,8 @@ export function buildTaskCheckpoint(conversation = {}, options = {}) {
   const firstUser = users[0];
   const latestUser = users.at(-1);
   const latestAssistant = assistants.at(-1);
-  const cacheProfile = conversation.cacheProfile && typeof conversation.cacheProfile === 'object'
-    ? conversation.cacheProfile
-    : {};
+  const cacheProfile =
+    conversation.cacheProfile && typeof conversation.cacheProfile === 'object' ? conversation.cacheProfile : {};
 
   return normalizeTaskCheckpoint({
     objective: compactMemorySnippet(firstUser?.content || '', 320),
@@ -179,7 +184,8 @@ export function normalizeTaskCheckpoint(value) {
     updatedAt: compactCheckpointText(value.updatedAt, 80),
     prefixFingerprint: compactCheckpointText(value.prefixFingerprint, 80),
   };
-  const hasContent = checkpoint.objective ||
+  const hasContent =
+    checkpoint.objective ||
     checkpoint.latestUserGoal ||
     checkpoint.lastAssistantSummary ||
     checkpoint.contextSummary ||
@@ -212,7 +218,10 @@ export function normalizeTags(tags) {
   const seen = new Set();
   const next = [];
   for (const tag of tags) {
-    const value = String(tag || '').trim().replace(/^#/, '').slice(0, 24);
+    const value = String(tag || '')
+      .trim()
+      .replace(/^#/, '')
+      .slice(0, 24);
     const key = value.toLowerCase();
     if (!value || seen.has(key)) continue;
     seen.add(key);
@@ -223,7 +232,9 @@ export function normalizeTags(tags) {
 }
 
 export function normalizeFolderName(value) {
-  return String(value || '').trim().slice(0, 40);
+  return String(value || '')
+    .trim()
+    .slice(0, 40);
 }
 
 function normalizeArchiveTime(value) {
@@ -246,12 +257,16 @@ function matchesConversationSearch(conversation, query) {
     conversation.folderId,
     ...(conversation.tags || []),
     ...(conversation.messages || []).map((message) => message?.content || ''),
-  ].join('\n').toLowerCase();
+  ]
+    .join('\n')
+    .toLowerCase();
   return haystack.includes(query);
 }
 
 function normalizeSearchQuery(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .trim()
+    .toLowerCase();
 }
 
 function extractMemoryTerms(content = '') {
@@ -260,16 +275,36 @@ function extractMemoryTerms(content = '') {
     .toLowerCase();
   const matches = cleaned.match(/[a-z0-9_./-]{3,}|[\u4e00-\u9fa5]{2,}/g) || [];
   const stopWords = new Set([
-    '这个', '那个', '一下', '帮我', '请你', '请帮', '怎么', '为什么', '进行', '根据', '优化', '问题',
-    'the', 'and', 'for', 'with', 'this', 'that', 'from', 'file', 'folder', 'symbol', 'web', 'run',
+    '这个',
+    '那个',
+    '一下',
+    '帮我',
+    '请你',
+    '请帮',
+    '怎么',
+    '为什么',
+    '进行',
+    '根据',
+    '优化',
+    '问题',
+    'the',
+    'and',
+    'for',
+    'with',
+    'this',
+    'that',
+    'from',
+    'file',
+    'folder',
+    'symbol',
+    'web',
+    'run',
   ]);
   const terms = [];
   const seen = new Set();
   for (const match of matches) {
     const term = match.trim();
-    const candidates = /[\u4e00-\u9fa5]/.test(term)
-      ? [term, ...buildChineseSubTerms(term)]
-      : [term];
+    const candidates = /[\u4e00-\u9fa5]/.test(term) ? [term, ...buildChineseSubTerms(term)] : [term];
     for (const candidate of candidates) {
       if (candidate.length < 2 || stopWords.has(candidate) || seen.has(candidate)) continue;
       seen.add(candidate);
@@ -284,7 +319,8 @@ function extractMemoryTerms(content = '') {
 function normalizeContextDirectivesForMemory(content = '') {
   return String(content || '').replace(
     /@(file|folder|symbol)\s*:\s*(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s,，;；)\]]+))/gi,
-    (_match, _type, doubleQuoted, singleQuoted, backticked, bare) => ` ${doubleQuoted || singleQuoted || backticked || bare || ''} `,
+    (_match, _type, doubleQuoted, singleQuoted, backticked, bare) =>
+      ` ${doubleQuoted || singleQuoted || backticked || bare || ''} `
   );
 }
 
@@ -313,7 +349,10 @@ function scoreMemoryCandidate(conversation, message, terms) {
 function getNeighborSnippet(messages, index) {
   const neighbors = [messages[index - 1], messages[index + 1]]
     .filter((message) => message && (message.role === 'user' || message.role === 'assistant'))
-    .map((message) => `${message.role === 'assistant' ? '助手' : '用户'}: ${compactMemorySnippet(message.content || '', 180)}`)
+    .map(
+      (message) =>
+        `${message.role === 'assistant' ? '助手' : '用户'}: ${compactMemorySnippet(message.content || '', 180)}`
+    )
     .filter(Boolean);
   return neighbors[0] || '';
 }
@@ -327,10 +366,7 @@ function compactMemorySnippet(content = '', maxLength = 280) {
 }
 
 function normalizeMemoryText(content = '') {
-  return stripGeneratedMemoryBlocks(content)
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  return stripGeneratedMemoryBlocks(content).replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function stripGeneratedMemoryBlocks(content = '') {
@@ -401,7 +437,7 @@ function extractRecentToolNames(messages) {
       const run = runs[j] || {};
       const name = String(run.name || run.function?.name || '').trim();
       if (!name) continue;
-      const status = String(run.status || (run.ok === true ? 'completed' : (run.ok === false ? 'failed' : ''))).trim();
+      const status = String(run.status || (run.ok === true ? 'completed' : run.ok === false ? 'failed' : '')).trim();
       names.push(status ? `${name}:${status}` : name);
     }
   }
@@ -415,7 +451,9 @@ function extractRecentToolSummaries(messages, { statuses = [], maxItems = 6 } = 
     const runs = getMessageToolRuns(messages[i]);
     for (let j = runs.length - 1; j >= 0 && items.length < maxItems; j -= 1) {
       const run = runs[j] || {};
-      const status = normalizeToolStatus(run.status || (run.ok === true ? 'completed' : (run.ok === false ? 'failed' : '')));
+      const status = normalizeToolStatus(
+        run.status || (run.ok === true ? 'completed' : run.ok === false ? 'failed' : '')
+      );
       if (!status || (wanted.size && !wanted.has(status))) continue;
       const name = getToolRunName(run);
       if (!name) continue;
@@ -447,7 +485,9 @@ function inferAgentStatus(messages) {
     if (message?.error) return 'failed';
     const runs = getMessageToolRuns(message);
     for (let j = runs.length - 1; j >= 0; j -= 1) {
-      const status = normalizeToolStatus(runs[j]?.status || (runs[j]?.ok === true ? 'completed' : (runs[j]?.ok === false ? 'failed' : '')));
+      const status = normalizeToolStatus(
+        runs[j]?.status || (runs[j]?.ok === true ? 'completed' : runs[j]?.ok === false ? 'failed' : '')
+      );
       if (['pending', 'approval_required', 'awaiting_approval', 'waiting_approval', 'requested'].includes(status)) {
         return 'waiting_for_approval';
       }
@@ -477,7 +517,8 @@ function getToolRunName(run) {
 }
 
 function getToolRunDetail(run, status) {
-  const raw = run?.nextAction ||
+  const raw =
+    run?.nextAction ||
     run?.parseError ||
     run?.error ||
     run?.summary ||
@@ -485,12 +526,19 @@ function getToolRunDetail(run, status) {
     run?.outputSummary ||
     run?.output ||
     '';
-  const detail = compactMemorySnippet(typeof raw === 'string' ? raw : JSON.stringify(raw), status === 'completed' ? 120 : 180);
+  const detail = compactMemorySnippet(
+    typeof raw === 'string' ? raw : JSON.stringify(raw),
+    status === 'completed' ? 120 : 180
+  );
   return detail ? `- ${detail}` : '';
 }
 
 function normalizeToolStatus(value) {
-  const status = String(value || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+  const status = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_');
   if (status === 'complete' || status === 'ok' || status === 'done') return 'completed';
   if (status === 'failure') return 'failed';
   if (status === 'rejected') return 'denied';

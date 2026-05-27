@@ -90,14 +90,21 @@ function normalizeSettings(input = {}) {
   next.temperature = clampNumber(next.temperature, 0, 2, DEFAULT_SETTINGS.temperature);
   next.maxTokens = Math.round(clampNumber(next.maxTokens, 256, 65536, DEFAULT_SETTINGS.maxTokens));
   next.maxInputTokens = Math.round(clampNumber(next.maxInputTokens, 1024, 262144, DEFAULT_SETTINGS.maxInputTokens));
-  next.maxContextMessages = Math.round(clampNumber(next.maxContextMessages, 2, 100, DEFAULT_SETTINGS.maxContextMessages));
+  next.maxContextMessages = Math.round(
+    clampNumber(next.maxContextMessages, 2, 100, DEFAULT_SETTINGS.maxContextMessages)
+  );
   next.agentMaxRounds = Math.round(clampNumber(next.agentMaxRounds, 1, 10, DEFAULT_SETTINGS.agentMaxRounds));
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
   next.autoContextSummary = next.autoContextSummary !== false && next.autoContextSummary !== 'false';
   next.cacheOptimization = next.cacheOptimization !== false && next.cacheOptimization !== 'false';
-  next.toolApprovalTimeoutMs = Math.round(clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs));
-  next.toolApprovalPolicy = String(next.toolApprovalPolicy || DEFAULT_SETTINGS.toolApprovalPolicy) === 'auto_readonly' ? 'auto_readonly' : DEFAULT_SETTINGS.toolApprovalPolicy;
+  next.toolApprovalTimeoutMs = Math.round(
+    clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs)
+  );
+  next.toolApprovalPolicy =
+    String(next.toolApprovalPolicy || DEFAULT_SETTINGS.toolApprovalPolicy) === 'auto_readonly'
+      ? 'auto_readonly'
+      : DEFAULT_SETTINGS.toolApprovalPolicy;
   next.runCodeEnabled = next.runCodeEnabled !== false && next.runCodeEnabled !== 'false';
   next.workspaceRoots = normalizeWorkspaceRoots(next.workspaceRoots);
   next.externalSkills = normalizeExternalSkills(next.externalSkills);
@@ -108,11 +115,16 @@ function normalizeSettings(input = {}) {
 
 function normalizeProviderId(value) {
   const id = String(value || DEFAULT_SETTINGS.providerId).trim();
-  return /^(deepseek|openai|openrouter|siliconflow|dashscope|ollama|lmstudio|custom)$/.test(id) ? id : DEFAULT_SETTINGS.providerId;
+  return /^(deepseek|openai|openrouter|siliconflow|dashscope|ollama|lmstudio|custom)$/.test(id)
+    ? id
+    : DEFAULT_SETTINGS.providerId;
 }
 
 function inferProviderId(apiBase) {
-  const base = String(apiBase || '').trim().replace(/\/+$/, '').toLowerCase();
+  const base = String(apiBase || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase();
   if (base.startsWith('https://api.deepseek.com')) return 'deepseek';
   if (base.startsWith('https://api.openai.com/v1')) return 'openai';
   if (base.startsWith('https://openrouter.ai/api/v1')) return 'openrouter';
@@ -144,8 +156,12 @@ function normalizeExternalSkills(skills) {
     .filter((skill) => skill && typeof skill === 'object')
     .map((skill) => ({
       id: String(skill.id || '').trim() || randomId('skill'),
-      name: String(skill.name || '外部 Skill').trim().slice(0, 80),
-      description: String(skill.description || '').trim().slice(0, 300),
+      name: String(skill.name || '外部 Skill')
+        .trim()
+        .slice(0, 80),
+      description: String(skill.description || '')
+        .trim()
+        .slice(0, 300),
       sourcePath: String(skill.sourcePath || '').trim(),
       content: String(skill.content || '').slice(0, 40000),
       enabled: skill.enabled !== false,
@@ -161,7 +177,9 @@ function normalizeMcpServers(servers) {
     .filter((server) => server && typeof server === 'object')
     .map((server) => ({
       id: String(server.id || '').trim() || randomId('mcp'),
-      name: String(server.name || 'MCP Server').trim().slice(0, 80),
+      name: String(server.name || 'MCP Server')
+        .trim()
+        .slice(0, 80),
       command: String(server.command || '').trim(),
       args: Array.isArray(server.args) ? server.args.map(String).slice(0, 40) : parseArgs(String(server.args || '')),
       env: normalizeEnv(server.env),
@@ -388,7 +406,8 @@ async function importBackup(parentWindow) {
   const raw = await fs.readFile(result.filePaths[0], 'utf8');
   const parsed = JSON.parse(raw);
   if (!parsed || typeof parsed !== 'object') throw new Error('备份文件格式不正确。');
-  if (parsed.settings && typeof parsed.settings === 'object') await setSettings(sanitizeSettingsForBackup(parsed.settings));
+  if (parsed.settings && typeof parsed.settings === 'object')
+    await setSettings(sanitizeSettingsForBackup(parsed.settings));
   if (Array.isArray(parsed.conversations)) await saveConversations(parsed.conversations);
   return { canceled: false, path: result.filePaths[0] };
 }
@@ -435,9 +454,11 @@ function isSecretLikeArg(value) {
 
 function looksLikeSecretValue(value) {
   const text = String(value || '');
-  return /\b(sk-|tvly-|ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{6,}/i.test(text) ||
+  return (
+    /\b(sk-|tvly-|ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{6,}/i.test(text) ||
     /\bBearer\s+[A-Za-z0-9._-]{8,}/i.test(text) ||
-    /\b[A-Z0-9_]*(API[-_]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z0-9_]*\s*=\s*[^;\s]{4,}/i.test(text);
+    /\b[A-Z0-9_]*(API[-_]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z0-9_]*\s*=\s*[^;\s]{4,}/i.test(text)
+  );
 }
 
 function getStorageStatus() {

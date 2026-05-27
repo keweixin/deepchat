@@ -7,15 +7,17 @@ import {
 
 describe('artifact helpers', () => {
   it('extracts bounded HTML code blocks as artifacts', () => {
-    const artifacts = extractHtmlArtifacts([
-      '普通说明',
-      '```html',
-      '<main><h1>Demo</h1><script>alert(1)</script></main>',
-      '```',
-      '```js',
-      'console.log("ignored")',
-      '```',
-    ].join('\n'));
+    const artifacts = extractHtmlArtifacts(
+      [
+        '普通说明',
+        '```html',
+        '<main><h1>Demo</h1><script>alert(1)</script></main>',
+        '```',
+        '```js',
+        'console.log("ignored")',
+        '```',
+      ].join('\n')
+    );
 
     expect(artifacts).toHaveLength(1);
     expect(artifacts[0]).toMatchObject({

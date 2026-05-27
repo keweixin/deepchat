@@ -72,8 +72,12 @@ function registerIpc() {
   mcpManager = new McpManager();
 
   ipcMain.handle('settings:get', () => getSettings());
-  ipcMain.handle('settings:set', (_event, patch) => setSettings(validate(schemas.SettingsPatchSchema, patch, 'settings:set')));
-  ipcMain.handle('settings:migrateLegacy', (_event, payload) => migrateLegacy(validate(schemas.MigrateLegacySchema, payload, 'settings:migrateLegacy')));
+  ipcMain.handle('settings:set', (_event, patch) =>
+    setSettings(validate(schemas.SettingsPatchSchema, patch, 'settings:set'))
+  );
+  ipcMain.handle('settings:migrateLegacy', (_event, payload) =>
+    migrateLegacy(validate(schemas.MigrateLegacySchema, payload, 'settings:migrateLegacy'))
+  );
   ipcMain.handle('settings:testApi', async () => testApiConnection());
   ipcMain.handle('settings:testSearch', async (_event, query) => {
     const safeQuery = validate(schemas.TestSearchSchema, query, 'settings:testSearch');
@@ -83,12 +87,16 @@ function registerIpc() {
   });
 
   ipcMain.handle('conversations:load', () => loadConversations());
-  ipcMain.handle('conversations:save', (_event, conversations) => saveConversations(validate(schemas.ConversationsSaveSchema, conversations, 'conversations:save')));
+  ipcMain.handle('conversations:save', (_event, conversations) =>
+    saveConversations(validate(schemas.ConversationsSaveSchema, conversations, 'conversations:save'))
+  );
   ipcMain.handle('conversations:exportBackup', () => exportBackup(mainWindow));
   ipcMain.handle('conversations:importBackup', () => importBackup(mainWindow));
 
   ipcMain.handle('workspace:pick', () => pickWorkspaceRoot(mainWindow));
-  ipcMain.handle('workspace:remove', (_event, root) => removeWorkspaceRoot(validate(schemas.WorkspaceRemoveSchema, root, 'workspace:remove')));
+  ipcMain.handle('workspace:remove', (_event, root) =>
+    removeWorkspaceRoot(validate(schemas.WorkspaceRemoveSchema, root, 'workspace:remove'))
+  );
   ipcMain.handle('workspace:clearIndexCache', async () => clearWorkspaceIndexDiskCache(await getSettings()));
   ipcMain.handle('skills:pickExternal', async () => {
     const settings = await getSettings();
@@ -198,10 +206,16 @@ function emitChatValidationError(requestId, error) {
   });
 }
 
+const path = require('path');
+
 function isAllowedAppNavigation(url) {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol === 'file:') return true;
+    if (parsed.protocol === 'file:') {
+      const filePath = path.normalize(decodeURIComponent(parsed.pathname));
+      const resolvedPath = filePath.replace(/^\/([A-Za-z]:\/)/, '$1');
+      return resolvedPath.startsWith(path.normalize(__dirname));
+    }
     if (process.env.NODE_ENV === 'development' && /^https?:$/.test(parsed.protocol)) {
       return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
     }

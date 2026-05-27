@@ -10,7 +10,9 @@ describe('renderer security and widgets', () => {
   });
 
   it('renders raw HTML as text instead of interactive UI', () => {
-    const html = renderMarkdown('<button style="color:red" onclick="alert(1)">click</button><input style="color:red" onfocus="alert(1)">');
+    const html = renderMarkdown(
+      '<button style="color:red" onclick="alert(1)">click</button><input style="color:red" onfocus="alert(1)">'
+    );
     const root = document.createElement('div');
     root.innerHTML = html;
 
@@ -118,7 +120,9 @@ describe('renderer security and widgets', () => {
 
   it('only highlights explicit conclusion-style paragraphs', async () => {
     const root = document.createElement('div');
-    root.innerHTML = renderMarkdown('这是一个普通开场段落，长度足够但不应该被套成固定卡片。\n\n结论：这里才是需要强调的摘要。');
+    root.innerHTML = renderMarkdown(
+      '这是一个普通开场段落，长度足够但不应该被套成固定卡片。\n\n结论：这里才是需要强调的摘要。'
+    );
 
     await postProcess(root);
 
@@ -272,9 +276,13 @@ flowchart LR
     document.body.appendChild(root);
 
     let detail;
-    document.addEventListener('deepchat:run-code-block', (event) => {
-      detail = event.detail;
-    }, { once: true });
+    document.addEventListener(
+      'deepchat:run-code-block',
+      (event) => {
+        detail = event.detail;
+      },
+      { once: true }
+    );
 
     await postProcess(root);
     root.querySelector('.code-run-btn').click();

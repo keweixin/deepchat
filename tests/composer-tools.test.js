@@ -27,7 +27,10 @@ describe('composer tool drawer helpers', () => {
     });
 
     expect(entries.find((entry) => entry.id === 'agent_auto')).toMatchObject({ available: true, active: true });
-    expect(entries.find((entry) => entry.id === 'web_search')).toMatchObject({ available: false, state: '需 Tavily Key' });
+    expect(entries.find((entry) => entry.id === 'web_search')).toMatchObject({
+      available: false,
+      state: '需 Tavily Key',
+    });
     expect(entries.find((entry) => entry.id === 'file_reader')).toMatchObject({ available: false, state: '需桌面版' });
     expect(entries.find((entry) => entry.id === 'multi_tool')).toMatchObject({ available: false, state: '需桌面版' });
     expect(entries.find((entry) => entry.id === 'none')).toMatchObject({ risk: '无工具' });
@@ -109,7 +112,9 @@ describe('composer tool drawer helpers', () => {
     expect(resolveActiveSkillForExplicitDirectives('读取 @file:src/main.js', settings, 'none')).toBe('file_reader');
     expect(resolveActiveSkillForExplicitDirectives('@run 验证这段逻辑', settings, 'none')).toBe('code_runner');
     expect(resolveActiveSkillForExplicitDirectives('@mcp 查询 issue', settings, 'none')).toBe('mcp_tool');
-    expect(resolveActiveSkillForExplicitDirectives('@web @file:README.md 交叉检查', settings, 'none')).toBe('multi_tool');
+    expect(resolveActiveSkillForExplicitDirectives('@web @file:README.md 交叉检查', settings, 'none')).toBe(
+      'multi_tool'
+    );
   });
 
   it('keeps the fallback tool mode when explicit directives lack prerequisites', () => {
@@ -158,19 +163,21 @@ describe('composer tool drawer helpers', () => {
       mcpServers: [{ name: 'github', command: 'node', enabled: true }],
     });
 
-    expect(preview.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: '工作区 1 个', tone: 'ready' }),
-      expect.objectContaining({ label: '文件 src/main.js', kind: 'file' }),
-      expect.objectContaining({ label: '符号 sendMessage', kind: 'symbol' }),
-      expect.objectContaining({ label: '本地工具 read_file + read_symbol', kind: 'context-route', tone: 'ready' }),
-      expect.objectContaining({ label: '工具 全工具' }),
-      expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
-      expect.objectContaining({ label: '只读工具可自动通过' }),
-      expect.objectContaining({ label: '输入预算 24k', tone: 'ready' }),
-      expect.objectContaining({ label: 'Agent 4 轮上限' }),
-      expect.objectContaining({ label: '自动摘要开启', tone: 'ready' }),
-      expect.objectContaining({ label: '缓存前缀稳定', tone: 'ready' }),
-    ]));
+    expect(preview.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: '工作区 1 个', tone: 'ready' }),
+        expect.objectContaining({ label: '文件 src/main.js', kind: 'file' }),
+        expect.objectContaining({ label: '符号 sendMessage', kind: 'symbol' }),
+        expect.objectContaining({ label: '本地工具 read_file + read_symbol', kind: 'context-route', tone: 'ready' }),
+        expect.objectContaining({ label: '工具 全工具' }),
+        expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
+        expect.objectContaining({ label: '只读工具可自动通过' }),
+        expect.objectContaining({ label: '输入预算 24k', tone: 'ready' }),
+        expect.objectContaining({ label: 'Agent 4 轮上限' }),
+        expect.objectContaining({ label: '自动摘要开启', tone: 'ready' }),
+        expect.objectContaining({ label: '缓存前缀稳定', tone: 'ready' }),
+      ])
+    );
     expect(preview.title).toContain('@file');
     expect(preview.title).toContain('token 预算');
   });
@@ -192,16 +199,20 @@ describe('composer tool drawer helpers', () => {
       mcpServers: [],
     });
 
-    expect(web.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: '工具 联网检索', tone: 'ready' }),
-      expect.objectContaining({ label: '联网可用', tone: 'ready' }),
-    ]));
-    expect(localAndRun.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: '工具 全工具', tone: 'ready' }),
-      expect.objectContaining({ label: '文件 src/main.js' }),
-      expect.objectContaining({ label: '本地工具 read_file', tone: 'ready' }),
-      expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
-    ]));
+    expect(web.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: '工具 联网检索', tone: 'ready' }),
+        expect.objectContaining({ label: '联网可用', tone: 'ready' }),
+      ])
+    );
+    expect(localAndRun.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: '工具 全工具', tone: 'ready' }),
+        expect.objectContaining({ label: '文件 src/main.js' }),
+        expect.objectContaining({ label: '本地工具 read_file', tone: 'ready' }),
+        expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
+      ])
+    );
   });
 
   it('previews changed-context tool routes before send', () => {
@@ -221,14 +232,26 @@ describe('composer tool drawer helpers', () => {
       mcpServers: [],
     });
 
-    expect(ready.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: '本地工具 index_workspace + list_files + search_workspace + read_symbol + read_file', kind: 'context-route', tone: 'ready' }),
-      expect.objectContaining({ label: '工具 文件分析', tone: 'ready' }),
-    ]));
-    expect(missing.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: '未选工作区', tone: 'muted' }),
-      expect.objectContaining({ label: '本地工具 index_workspace + list_files + search_workspace + read_symbol + read_file', kind: 'context-route', tone: 'warning' }),
-    ]));
+    expect(ready.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: '本地工具 index_workspace + list_files + search_workspace + read_symbol + read_file',
+          kind: 'context-route',
+          tone: 'ready',
+        }),
+        expect.objectContaining({ label: '工具 文件分析', tone: 'ready' }),
+      ])
+    );
+    expect(missing.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: '未选工作区', tone: 'muted' }),
+        expect.objectContaining({
+          label: '本地工具 index_workspace + list_files + search_workspace + read_symbol + read_file',
+          kind: 'context-route',
+          tone: 'warning',
+        }),
+      ])
+    );
   });
 
   it('shows MCP server status lights in the send-time context preview', () => {
@@ -245,12 +268,14 @@ describe('composer tool drawer helpers', () => {
       ],
     });
 
-    expect(preview.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'MCP 1/3 可用', tone: 'ready' }),
-      expect.objectContaining({ label: 'MCP GitHub ✓', tone: 'ready' }),
-      expect.objectContaining({ label: 'MCP Notion ×', tone: 'warning' }),
-      expect.objectContaining({ label: 'MCP Filesystem ×', tone: 'warning' }),
-    ]));
+    expect(preview.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'MCP 1/3 可用', tone: 'ready' }),
+        expect.objectContaining({ label: 'MCP GitHub ✓', tone: 'ready' }),
+        expect.objectContaining({ label: 'MCP Notion ×', tone: 'warning' }),
+        expect.objectContaining({ label: 'MCP Filesystem ×', tone: 'warning' }),
+      ])
+    );
     expect(preview.items.find((item) => item.label === 'MCP Notion ×').title).toContain('已关闭');
     expect(preview.items.find((item) => item.label === 'MCP Filesystem ×').title).toContain('缺少启动命令');
   });
@@ -282,11 +307,13 @@ describe('composer tool drawer helpers', () => {
       ],
     });
 
-    expect(preview.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'MCP 1/2 可用 · 7 工具', tone: 'ready' }),
-      expect.objectContaining({ label: 'MCP GitHub ✓ 7', tone: 'ready' }),
-      expect.objectContaining({ label: 'MCP Notion ×', tone: 'warning' }),
-    ]));
+    expect(preview.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'MCP 1/2 可用 · 7 工具', tone: 'ready' }),
+        expect.objectContaining({ label: 'MCP GitHub ✓ 7', tone: 'ready' }),
+        expect.objectContaining({ label: 'MCP Notion ×', tone: 'warning' }),
+      ])
+    );
     expect(preview.items.find((item) => item.label === 'MCP GitHub ✓ 7').title).toContain('schema abcdef12');
     expect(preview.items.find((item) => item.label === 'MCP Notion ×').title).toContain('spawn failed');
   });
@@ -328,11 +355,13 @@ describe('composer tool drawer helpers', () => {
       mcpServers: [],
     });
 
-    expect(preview.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: '未选工作区', tone: 'muted' }),
-      expect.objectContaining({ label: '文件 README.md', tone: 'warning' }),
-      expect.objectContaining({ label: '本地工具 read_file', kind: 'context-route', tone: 'warning' }),
-    ]));
+    expect(preview.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: '未选工作区', tone: 'muted' }),
+        expect.objectContaining({ label: '文件 README.md', tone: 'warning' }),
+        expect.objectContaining({ label: '本地工具 read_file', kind: 'context-route', tone: 'warning' }),
+      ])
+    );
   });
 
   it('does not show missing workspace noise for ordinary chat', () => {
@@ -359,11 +388,13 @@ describe('composer tool drawer helpers', () => {
       mcpServers: [],
     });
 
-    expect(preview.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: '输入预算 4.1k', tone: 'warning' }),
-      expect.objectContaining({ label: '自动摘要关闭', tone: 'muted' }),
-      expect.objectContaining({ label: '缓存优化关闭', tone: 'warning' }),
-    ]));
+    expect(preview.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: '输入预算 4.1k', tone: 'warning' }),
+        expect.objectContaining({ label: '自动摘要关闭', tone: 'muted' }),
+        expect.objectContaining({ label: '缓存优化关闭', tone: 'warning' }),
+      ])
+    );
     expect(preview.items.some((item) => /^Agent /.test(item.label))).toBe(false);
   });
 

@@ -23,7 +23,7 @@
   transition: all 0.3s ease;
 }
 
-[data-theme="light"] .agent-crew-wrapper {
+[data-theme='light'] .agent-crew-wrapper {
   background: color-mix(in srgb, var(--surface-card-strong), transparent 5%);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
 }
@@ -52,16 +52,16 @@
   transition: background 0.3s;
 }
 
-.crew-pulse-icon[data-status="running"] {
+.crew-pulse-icon[data-status='running'] {
   background: var(--accent-primary);
   animation: pulseCrew 1.5s infinite alternate ease-in-out;
 }
 
-.crew-pulse-icon[data-status="done"] {
+.crew-pulse-icon[data-status='done'] {
   background: #10b981;
 }
 
-.crew-pulse-icon[data-status="error"] {
+.crew-pulse-icon[data-status='error'] {
   background: #ef4444;
 }
 
@@ -153,7 +153,11 @@
 
 .agent-crew-card.status-running {
   border-color: color-mix(in srgb, var(--accent-primary), transparent 30%);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-primary), transparent 93%), color-mix(in srgb, var(--surface-card-strong), transparent 20%));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent-primary), transparent 93%),
+    color-mix(in srgb, var(--surface-card-strong), transparent 20%)
+  );
   box-shadow: 0 0 10px rgba(45, 212, 191, 0.08);
   animation: cardBreath 3s infinite ease-in-out;
 }
@@ -165,7 +169,11 @@
 
 .agent-crew-card.status-waiting {
   border-color: color-mix(in srgb, #f59e0b, transparent 30%);
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.05), color-mix(in srgb, var(--surface-card-strong), transparent 20%));
+  background: linear-gradient(
+    135deg,
+    rgba(245, 158, 11, 0.05),
+    color-mix(in srgb, var(--surface-card-strong), transparent 20%)
+  );
 }
 
 .agent-crew-card.status-waiting .agent-crew-status-dot {
@@ -205,7 +213,10 @@
   max-height: 0;
   overflow: hidden;
   opacity: 0;
-  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, margin-top 0.25s ease;
+  transition:
+    max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.25s ease,
+    margin-top 0.25s ease;
   font-size: 10px;
 }
 
@@ -259,18 +270,35 @@
 
 /* Animations */
 @keyframes pulseCrew {
-  0% { transform: scale(0.9); opacity: 0.6; }
-  100% { transform: scale(1.15); opacity: 1; box-shadow: 0 0 6px var(--accent-primary); }
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 1;
+    box-shadow: 0 0 6px var(--accent-primary);
+  }
 }
 
 @keyframes cardBreath {
-  0%, 100% { box-shadow: 0 0 8px rgba(45, 212, 191, 0.04); }
-  50% { box-shadow: 0 0 16px rgba(45, 212, 191, 0.15); border-color: var(--accent-primary); }
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(45, 212, 191, 0.04);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(45, 212, 191, 0.15);
+    border-color: var(--accent-primary);
+  }
 }
 
 @keyframes textBlink {
-  0% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 /* Responsive adjustment */

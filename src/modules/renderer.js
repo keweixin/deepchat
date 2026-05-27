@@ -1,7 +1,7 @@
 /**
  * Markdown Rendering Pipeline
  * marked.js → highlight.js (selective) → KaTeX → Mermaid → DOMPurify
- * 
+ *
  * Optimizations:
  * - Only import commonly used languages (saves ~300KB bundle)
  * - Incremental rendering support for streaming
@@ -125,9 +125,7 @@ renderer.code = function ({ text, lang }) {
   // Remove trailing empty line that most code blocks have
   if (rawLines.length > 1 && rawLines[rawLines.length - 1].trim() === '') rawLines.pop();
   const lineCount = rawLines.length;
-  const numberedLines = rawLines.map((line) =>
-    `<span class="code-line">${line || ' '}</span>`
-  ).join('\n');
+  const numberedLines = rawLines.map((line) => `<span class="code-line">${line || ' '}</span>`).join('\n');
 
   const langLabel = language || 'code';
   const lineInfo = lineCount > 1 ? `<span class="code-line-count">${lineCount} 行</span>` : '';
@@ -163,10 +161,23 @@ renderer.html = function ({ text }) {
 };
 
 // Open links in new tab to prevent navigating away from the app.
+const ALLOWED_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
 renderer.link = function ({ href, title, tokens }) {
   const text = this.parser.parseInline(tokens);
   const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-  return `<a href="${escapeHtml(href)}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+
+  let safeHref = '#';
+  try {
+    const url = new URL(href, 'https://example.com');
+    if (ALLOWED_LINK_PROTOCOLS.has(url.protocol)) {
+      safeHref = escapeHtml(href);
+    }
+  } catch {
+    // Invalid URL, keep as #
+  }
+
+  return `<a href="${safeHref}"${titleAttr} target="_blank" rel="noopener noreferrer nofollow">${text}</a>`;
 };
 
 // Render images as media blocks so they can be opened in the built-in viewer.
@@ -213,32 +224,108 @@ renderer.table = function (token) {
 marked.setOptions({
   renderer,
   breaks: true,
-  gfm: true
+  gfm: true,
 });
 
 // ─── DOMPurify config ───
 
 const purifyConfig = {
   ALLOWED_TAGS: [
-    'h1','h2','h3','h4','h5','h6','p','br','hr','div','span','figure','figcaption',
-    'strong','em','del','s','u','sub','sup','mark',
-    'ul','ol','li','a','img','input',
-    'table','thead','tbody','tr','th','td',
-    'pre','code','blockquote',
-    'button','svg','path','line','rect','circle','polyline','polygon','text',
-    'defs','linearGradient','stop'
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'p',
+    'br',
+    'hr',
+    'div',
+    'span',
+    'figure',
+    'figcaption',
+    'strong',
+    'em',
+    'del',
+    's',
+    'u',
+    'sub',
+    'sup',
+    'mark',
+    'ul',
+    'ol',
+    'li',
+    'a',
+    'img',
+    'input',
+    'table',
+    'thead',
+    'tbody',
+    'tr',
+    'th',
+    'td',
+    'pre',
+    'code',
+    'blockquote',
+    'button',
+    'svg',
+    'path',
+    'line',
+    'rect',
+    'circle',
+    'polyline',
+    'polygon',
+    'text',
+    'defs',
+    'linearGradient',
+    'stop',
   ],
   ALLOWED_ATTR: [
-    'class','id','href','src','alt','title','target','rel',
-    'data-code','data-mermaid-id','align',
-    'loading','decoding',
-    'type','checked','disabled','hidden','role','aria-label',
-    'width','height','viewBox','fill','stroke','stroke-width',
-    'stroke-linecap','stroke-linejoin','d','points',
-    'x','y','rx','ry','cx','cy','r','x1','y1','x2','y2',
-    'offset','stop-color','gradientTransform'
+    'class',
+    'id',
+    'href',
+    'src',
+    'alt',
+    'title',
+    'target',
+    'rel',
+    'data-code',
+    'data-mermaid-id',
+    'align',
+    'loading',
+    'decoding',
+    'type',
+    'checked',
+    'disabled',
+    'hidden',
+    'role',
+    'aria-label',
+    'width',
+    'height',
+    'viewBox',
+    'fill',
+    'stroke',
+    'stroke-width',
+    'stroke-linecap',
+    'stroke-linejoin',
+    'd',
+    'points',
+    'x',
+    'y',
+    'rx',
+    'ry',
+    'cx',
+    'cy',
+    'r',
+    'x1',
+    'y1',
+    'x2',
+    'y2',
+    'offset',
+    'stop-color',
+    'gradientTransform',
   ],
-  ALLOW_DATA_ATTR: true
+  ALLOW_DATA_ATTR: true,
 };
 
 // ─── Exports ───
@@ -278,10 +365,10 @@ function renderKatex(container) {
         { left: '$$', right: '$$', display: true },
         { left: '$', right: '$', display: false },
         { left: '\\[', right: '\\]', display: true },
-        { left: '\\(', right: '\\)', display: false }
+        { left: '\\(', right: '\\)', display: false },
       ],
       throwOnError: false,
-      trust: false
+      trust: false,
     });
   } catch (e) {
     console.warn('KaTeX render error:', e);
@@ -331,9 +418,9 @@ async function getMermaid() {
  * Attach click handlers to code copy buttons (idempotent)
  */
 function attachCopyHandlers(container) {
-  container.querySelectorAll('.code-copy-btn:not([data-bound])').forEach(btn => {
+  container.querySelectorAll('.code-copy-btn:not([data-bound])').forEach((btn) => {
     btn.setAttribute('data-bound', '1');
-    
+
     btn.addEventListener('click', async () => {
       const code = decodeURIComponent(btn.dataset.code || '');
       try {
@@ -342,7 +429,7 @@ function attachCopyHandlers(container) {
         btn.querySelector('.check-icon').hidden = false;
         btn.querySelector('.copy-text').textContent = '已复制';
         btn.classList.add('copied');
-        
+
         setTimeout(() => {
           btn.querySelector('.copy-icon').hidden = false;
           btn.querySelector('.check-icon').hidden = true;
@@ -356,7 +443,7 @@ function attachCopyHandlers(container) {
   });
 
   // Code block expand/collapse
-  container.querySelectorAll('.code-expand-btn:not([data-bound])').forEach(btn => {
+  container.querySelectorAll('.code-expand-btn:not([data-bound])').forEach((btn) => {
     btn.setAttribute('data-bound', '1');
     btn.addEventListener('click', () => {
       const wrapper = btn.closest('.code-block-wrapper');
@@ -366,25 +453,27 @@ function attachCopyHandlers(container) {
     });
   });
 
-  container.querySelectorAll('.code-run-btn:not([data-bound])').forEach(btn => {
+  container.querySelectorAll('.code-run-btn:not([data-bound])').forEach((btn) => {
     btn.setAttribute('data-bound', '1');
     btn.addEventListener('click', () => {
-      document.dispatchEvent(new CustomEvent('deepchat:run-code-block', {
-        detail: {
-          button: btn,
-          code: decodeURIComponent(btn.dataset.code || ''),
-          language: btn.dataset.language || 'javascript',
-        },
-      }));
+      document.dispatchEvent(
+        new CustomEvent('deepchat:run-code-block', {
+          detail: {
+            button: btn,
+            code: decodeURIComponent(btn.dataset.code || ''),
+            language: btn.dataset.language || 'javascript',
+          },
+        })
+      );
     });
   });
 
-  container.querySelectorAll('.table-export-btn:not([data-bound])').forEach(btn => {
+  container.querySelectorAll('.table-export-btn:not([data-bound])').forEach((btn) => {
     btn.setAttribute('data-bound', '1');
     btn.addEventListener('click', () => exportTableCsv(btn.closest('.markdown-table-wrap')));
   });
 
-  container.querySelectorAll('.mermaid-download-btn:not([data-bound])').forEach(btn => {
+  container.querySelectorAll('.mermaid-download-btn:not([data-bound])').forEach((btn) => {
     btn.setAttribute('data-bound', '1');
     btn.addEventListener('click', () => downloadMermaid(btn.closest('.mermaid-wrapper'), btn.dataset.format || 'svg'));
   });
@@ -486,14 +575,16 @@ function resetAdaptiveDecorations(container) {
     'answer-table-dense',
     'answer-troubleshoot',
     'answer-report',
-    'answer-sourced',
+    'answer-sourced'
   );
-  container.querySelectorAll('.answer-note, .answer-callout, .answer-summary, .answer-steps, .answer-checklist').forEach((node) => {
-    if (node.classList.contains('answer-component')) return;
-    node.classList.remove('answer-note', 'answer-callout', 'answer-summary', 'answer-steps', 'answer-checklist');
-    delete node.dataset.calloutType;
-    delete node.dataset.noteType;
-  });
+  container
+    .querySelectorAll('.answer-note, .answer-callout, .answer-summary, .answer-steps, .answer-checklist')
+    .forEach((node) => {
+      if (node.classList.contains('answer-component')) return;
+      node.classList.remove('answer-note', 'answer-callout', 'answer-summary', 'answer-steps', 'answer-checklist');
+      delete node.dataset.calloutType;
+      delete node.dataset.noteType;
+    });
 }
 
 function decorateCallouts(container) {
@@ -538,14 +629,21 @@ function classifyAnswer(container) {
 
   if (textLength <= 180 && !hasHeavyBlock) container.classList.add('answer-short');
   if (textLength > 420 || headings >= 2 || blockCount >= 6) container.classList.add('answer-long');
-  if (container.querySelector('.answer-steps') || /步骤|教程|操作步骤|操作流程|处理流程|怎么做|如何做/.test(text)) container.classList.add('answer-tutorial');
-  if (tables.some((table) => table.dataset.tableKind === 'compare') || /对比|比较|区别|选型|取舍|方案\s*[A-ZＡ-Ｚ一二三四五六]?/.test(text)) container.classList.add('answer-compare');
+  if (container.querySelector('.answer-steps') || /步骤|教程|操作步骤|操作流程|处理流程|怎么做|如何做/.test(text))
+    container.classList.add('answer-tutorial');
+  if (
+    tables.some((table) => table.dataset.tableKind === 'compare') ||
+    /对比|比较|区别|选型|取舍|方案\s*[A-ZＡ-Ｚ一二三四五六]?/.test(text)
+  )
+    container.classList.add('answer-compare');
   if (codeBlocks > 0) container.classList.add('answer-code');
   if (visuals > 0) container.classList.add('answer-visual');
   if (tables.length >= 2 || tableRows >= 6) container.classList.add('answer-table-dense');
   if (/报错|错误|失败|排查|修复|验证|复现|原因/.test(text)) container.classList.add('answer-troubleshoot');
-  if (/摘要|依据|风险|建议|结论|分析|评估|报告/.test(text) && (headings >= 2 || paragraphs >= 4)) container.classList.add('answer-report');
-  if (container.querySelectorAll('a').length >= 2 || container.querySelector('[data-callout-type="source"]')) container.classList.add('answer-sourced');
+  if (/摘要|依据|风险|建议|结论|分析|评估|报告/.test(text) && (headings >= 2 || paragraphs >= 4))
+    container.classList.add('answer-report');
+  if (container.querySelectorAll('a').length >= 2 || container.querySelector('[data-callout-type="source"]'))
+    container.classList.add('answer-sourced');
 }
 
 function decorateSummary(container) {
@@ -561,20 +659,23 @@ function decorateSummary(container) {
 function extractAnswerComponents(markdown = '') {
   const components = [];
   const source = String(markdown || '');
-  const output = source.replace(/^:::(summary|warning|steps|decision|source|next|todo|tool-result)[ \t]*\n([\s\S]*?)^:::[ \t]*$/gmi, (_match, type, body) => {
-    const normalizedType = String(type || '').toLowerCase();
-    const config = ANSWER_COMPONENT_TYPES[normalizedType];
-    if (!config) return _match;
-    const token = `DEEPCOMPONENT_${components.length}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    components.push({
-      token,
-      type: normalizedType,
-      label: config.label,
-      className: config.className,
-      body: String(body || '').trim(),
-    });
-    return `\n\n${token}\n\n`;
-  });
+  const output = source.replace(
+    /^:::(summary|warning|steps|decision|source|next|todo|tool-result)[ \t]*\n([\s\S]*?)^:::[ \t]*$/gim,
+    (_match, type, body) => {
+      const normalizedType = String(type || '').toLowerCase();
+      const config = ANSWER_COMPONENT_TYPES[normalizedType];
+      if (!config) return _match;
+      const token = `DEEPCOMPONENT_${components.length}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      components.push({
+        token,
+        type: normalizedType,
+        label: config.label,
+        className: config.className,
+        body: String(body || '').trim(),
+      });
+      return `\n\n${token}\n\n`;
+    }
+  );
   return { markdown: output, components };
 }
 
@@ -607,17 +708,13 @@ function classifyTableToken(token) {
   const columnCount = headers.length;
 
   if (
-    /对比|比较|区别|方案|维度|优点|缺点|优势|劣势|适用|不适用|取舍|选择|推荐/.test(allText)
-    || (columnCount >= 3 && /维度|项目|能力|特性|指标|标准/.test(firstHeader))
+    /对比|比较|区别|方案|维度|优点|缺点|优势|劣势|适用|不适用|取舍|选择|推荐/.test(allText) ||
+    (columnCount >= 3 && /维度|项目|能力|特性|指标|标准/.test(firstHeader))
   ) {
     return 'compare';
   }
 
-  if (
-    columnCount <= 2
-    && rows.length <= 12
-    && /参数|配置|字段|属性|项目|名称|键|说明|值|含义/.test(allText)
-  ) {
+  if (columnCount <= 2 && rows.length <= 12 && /参数|配置|字段|属性|项目|名称|键|说明|值|含义/.test(allText)) {
     return 'kv';
   }
 
@@ -659,7 +756,9 @@ function firstMeaningfulChild(container) {
 }
 
 function normalizeWhitespace(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // ─── Helpers ───

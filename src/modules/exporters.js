@@ -9,7 +9,10 @@ export function exportConversation(conversation, format = 'markdown') {
   }
 
   if (format === 'html') {
-    downloadBlob(new Blob([buildConversationHtml(conversation)], { type: 'text/html;charset=utf-8' }), `${safeFileName(conversation.title)}.html`);
+    downloadBlob(
+      new Blob([buildConversationHtml(conversation)], { type: 'text/html;charset=utf-8' }),
+      `${safeFileName(conversation.title)}.html`
+    );
     showToast('对话已导出为 HTML');
     return;
   }
@@ -25,21 +28,30 @@ export function exportConversation(conversation, format = 'markdown') {
       showToast('当前对话没有收藏回答');
       return;
     }
-    downloadBlob(new Blob([markdown], { type: 'text/markdown;charset=utf-8' }), `${safeFileName(conversation.title)}-favorites.md`);
+    downloadBlob(
+      new Blob([markdown], { type: 'text/markdown;charset=utf-8' }),
+      `${safeFileName(conversation.title)}-favorites.md`
+    );
     showToast('已导出收藏回答');
     return;
   }
 
   if (format === 'tool-evidence') {
     const evidence = buildToolEvidence(conversation);
-    downloadBlob(new Blob([JSON.stringify(evidence, null, 2)], { type: 'application/json;charset=utf-8' }), `${safeFileName(conversation.title)}-tool-evidence.json`);
+    downloadBlob(
+      new Blob([JSON.stringify(evidence, null, 2)], { type: 'application/json;charset=utf-8' }),
+      `${safeFileName(conversation.title)}-tool-evidence.json`
+    );
     showToast('已导出工具证据 JSON');
     return;
   }
 
   if (format === 'assets') {
     const html = buildAssetManifestHtml(conversation);
-    downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${safeFileName(conversation.title)}-assets.html`);
+    downloadBlob(
+      new Blob([html], { type: 'text/html;charset=utf-8' }),
+      `${safeFileName(conversation.title)}-assets.html`
+    );
     showToast('已导出资源索引 HTML');
     return;
   }
@@ -82,9 +94,7 @@ function buildMessageAuditMarkdown(message = {}) {
   if (runs?.length) {
     markdown += `#### 工具调用\n\n`;
     for (const tool of runs) {
-      const evidence = tool.evidence?.type === 'deepchat.toolEvidence'
-        ? tool.evidence
-        : buildToolEvidencePayload(tool);
+      const evidence = tool.evidence?.type === 'deepchat.toolEvidence' ? tool.evidence : buildToolEvidencePayload(tool);
       const citationStatus = buildEvidenceCitationStatus(evidence, message.content || '');
       markdown += `- ${evidence.name || 'unknown'}：${getToolStatusText(evidence.status)} · 证据${formatCitationStatusText(citationStatus)}\n`;
       if (evidence.query) markdown += `  - query: ${evidence.query}\n`;
@@ -113,7 +123,9 @@ function buildMessageUsageMarkdown(message = {}) {
     parts.push(`总计 ${usage.total}`);
     if (usage.reasoning) parts.push(`思考 ${usage.reasoning}`);
     if (usage.cacheHit || usage.cacheMiss) parts.push(`cache ${Math.round((usage.cacheHitRate || 0) * 100)}%`);
-    parts.push(usage.source === 'provider' ? '服务商真实 usage' : (usage.source === 'mixed' ? '真实/估算混合' : '本地估算'));
+    parts.push(
+      usage.source === 'provider' ? '服务商真实 usage' : usage.source === 'mixed' ? '真实/估算混合' : '本地估算'
+    );
   }
   if (message.contextBudget?.prefixFingerprint) parts.push(`prefix ${message.contextBudget.prefixFingerprint}`);
   if (message.contextBudget?.trimmed) parts.push(`裁剪 ${message.contextBudget.droppedCount || 0} 条历史`);
@@ -122,12 +134,14 @@ function buildMessageUsageMarkdown(message = {}) {
 }
 
 export function buildConversationHtml(conversation) {
-  const body = conversation.messages.map((message) => {
-    const role = message.role === 'user' ? '你' : 'DeepChat';
-    const audit = buildMessageAuditMarkdown(message);
-    const auditHtml = audit ? `<aside class="audit">${renderMarkdown(audit)}</aside>` : '';
-    return `<section class="msg ${message.role}"><h2>${escapeHtml(role)} · ${escapeHtml(formatTime(message.timestamp))}</h2><div>${renderMarkdown(message.content || '')}</div>${auditHtml}</section>`;
-  }).join('\n');
+  const body = conversation.messages
+    .map((message) => {
+      const role = message.role === 'user' ? '你' : 'DeepChat';
+      const audit = buildMessageAuditMarkdown(message);
+      const auditHtml = audit ? `<aside class="audit">${renderMarkdown(audit)}</aside>` : '';
+      return `<section class="msg ${message.role}"><h2>${escapeHtml(role)} · ${escapeHtml(formatTime(message.timestamp))}</h2><div>${renderMarkdown(message.content || '')}</div>${auditHtml}</section>`;
+    })
+    .join('\n');
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(conversation.title)}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;line-height:1.7;max-width:860px;margin:40px auto;padding:0 24px;color:#111827}.msg{border-top:1px solid #e5e7eb;padding:20px 0}.msg h2{font-size:14px;color:#6b7280}pre{overflow:auto;background:#111827;color:#f9fafb;padding:14px;border-radius:8px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #d1d5db;padding:8px}.asset{max-width:100%;border:1px solid #e5e7eb;border-radius:8px}.audit{margin-top:16px;padding:12px 14px;border:1px solid #d1d5db;border-radius:8px;background:#f8fafc}.audit h4{margin:0 0 8px;font-size:13px;color:#374151}.audit ul{margin:8px 0 0 20px}</style></head><body><h1>${escapeHtml(conversation.title)}</h1>${body}</body></html>`;
 }
 
@@ -136,9 +150,7 @@ export function buildToolEvidence(conversation) {
   const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
   for (const [messageIndex, message] of (conversation.messages || []).entries()) {
     for (const run of getMessageToolEvidenceRuns(message)) {
-      const evidence = run.evidence?.type === 'deepchat.toolEvidence'
-        ? run.evidence
-        : buildToolEvidencePayload(run);
+      const evidence = run.evidence?.type === 'deepchat.toolEvidence' ? run.evidence : buildToolEvidencePayload(run);
       toolRuns.push({
         messageIndex,
         messageRole: message.role || '',
@@ -184,9 +196,15 @@ function buildCacheEvidence(messages = []) {
         tokens,
         cacheProfile: {
           ...(message.cacheProfile || {}),
-          prefixFingerprint: message.cacheProfile?.prefixFingerprint || message.contextBudget?.prefixFingerprint || tokens.prefixFingerprint || '',
-          prefixTokens: message.cacheProfile?.prefixTokens || message.contextBudget?.prefixTokens || tokens.prefixTokens || 0,
-          prefixBytes: message.cacheProfile?.prefixBytes || message.contextBudget?.prefixBytes || tokens.prefixBytes || 0,
+          prefixFingerprint:
+            message.cacheProfile?.prefixFingerprint ||
+            message.contextBudget?.prefixFingerprint ||
+            tokens.prefixFingerprint ||
+            '',
+          prefixTokens:
+            message.cacheProfile?.prefixTokens || message.contextBudget?.prefixTokens || tokens.prefixTokens || 0,
+          prefixBytes:
+            message.cacheProfile?.prefixBytes || message.contextBudget?.prefixBytes || tokens.prefixBytes || 0,
         },
         contextBudget: message.contextBudget || null,
       };
@@ -203,7 +221,7 @@ function buildEvidenceCitationStatus(evidence = {}, content = '') {
   const cited = checked.filter((ref) => ref.cited).length;
   const total = checked.length;
   return {
-    state: total === 0 ? 'no-evidence' : (cited === total ? 'is-cited' : (cited > 0 ? 'partially-cited' : 'uncited')),
+    state: total === 0 ? 'no-evidence' : cited === total ? 'is-cited' : cited > 0 ? 'partially-cited' : 'uncited',
     cited,
     total,
     refs: checked,
@@ -267,7 +285,8 @@ function isEvidenceRefMentioned(content = '', ref = {}) {
     start ? `${basename}:${start}` : '',
     start && end ? `${file}:${start}-${end}` : '',
     start && end ? `${basename}:${start}-${end}` : '',
-  ].filter(Boolean)
+  ]
+    .filter(Boolean)
     .map((item) => String(item).replace(/\\/g, '/'))
     .some((label) => text.includes(label));
 }
@@ -285,32 +304,39 @@ function dedupeEvidenceRefs(refs = []) {
 }
 
 function aggregateMessageUsage(messages = []) {
-  return messages.reduce((acc, message) => {
-    const usage = normalizeExportUsage(message?.tokens || null);
-    acc.input += usage.input;
-    acc.output += usage.output;
-    acc.total += usage.total;
-    acc.reasoning += usage.reasoning;
-    acc.cacheHit += usage.cacheHit;
-    acc.cacheMiss += usage.cacheMiss;
-    if (usage.source) acc.sources.add(usage.source);
-    return acc;
-  }, {
-    input: 0,
-    output: 0,
-    total: 0,
-    reasoning: 0,
-    cacheHit: 0,
-    cacheMiss: 0,
-    sources: new Set(),
-  });
+  return messages.reduce(
+    (acc, message) => {
+      const usage = normalizeExportUsage(message?.tokens || null);
+      acc.input += usage.input;
+      acc.output += usage.output;
+      acc.total += usage.total;
+      acc.reasoning += usage.reasoning;
+      acc.cacheHit += usage.cacheHit;
+      acc.cacheMiss += usage.cacheMiss;
+      if (usage.source) acc.sources.add(usage.source);
+      return acc;
+    },
+    {
+      input: 0,
+      output: 0,
+      total: 0,
+      reasoning: 0,
+      cacheHit: 0,
+      cacheMiss: 0,
+      sources: new Set(),
+    }
+  );
 }
 
 function normalizeExportUsage(usage = null) {
   const sourceSet = usage?.sources instanceof Set ? usage.sources : null;
   const source = sourceSet
-    ? (sourceSet.size === 0 ? 'estimated' : (sourceSet.size === 1 ? [...sourceSet][0] : 'mixed'))
-    : (usage?.source || 'estimated');
+    ? sourceSet.size === 0
+      ? 'estimated'
+      : sourceSet.size === 1
+        ? [...sourceSet][0]
+        : 'mixed'
+    : usage?.source || 'estimated';
   const input = toSafeNumber(usage?.input);
   const output = toSafeNumber(usage?.output);
   const total = toSafeNumber(usage?.total) || input + output;
@@ -323,7 +349,7 @@ function normalizeExportUsage(usage = null) {
     reasoning: toSafeNumber(usage?.reasoning),
     cacheHit,
     cacheMiss,
-    cacheHitRate: input > 0 ? cacheHit / input : (cacheHit + cacheMiss > 0 ? cacheHit / (cacheHit + cacheMiss) : 0),
+    cacheHitRate: input > 0 ? cacheHit / input : cacheHit + cacheMiss > 0 ? cacheHit / (cacheHit + cacheMiss) : 0,
     source,
     rounds: toSafeNumber(usage?.rounds),
     prefixFingerprint: usage?.prefixFingerprint || '',
@@ -339,14 +365,17 @@ function toSafeNumber(value) {
 
 export function buildAssetManifestHtml(conversation) {
   const assets = collectAssets(conversation);
-  const sections = assets.length === 0
-    ? '<p>当前对话没有可导出的图片或 Mermaid 资源。</p>'
-    : assets.map((asset, index) => {
-      if (asset.type === 'image') {
-        return `<section><h2>${index + 1}. ${escapeHtml(asset.name)}</h2><p>${escapeHtml(asset.mimeType || '')} ${escapeHtml(asset.size || '')}</p><img class="asset" src="${escapeHtml(asset.src)}" alt="${escapeHtml(asset.name)}"></section>`;
-      }
-      return `<section><h2>${index + 1}. Mermaid 图示</h2><pre><code>${escapeHtml(asset.code)}</code></pre></section>`;
-    }).join('\n');
+  const sections =
+    assets.length === 0
+      ? '<p>当前对话没有可导出的图片或 Mermaid 资源。</p>'
+      : assets
+          .map((asset, index) => {
+            if (asset.type === 'image') {
+              return `<section><h2>${index + 1}. ${escapeHtml(asset.name)}</h2><p>${escapeHtml(asset.mimeType || '')} ${escapeHtml(asset.size || '')}</p><img class="asset" src="${escapeHtml(asset.src)}" alt="${escapeHtml(asset.name)}"></section>`;
+            }
+            return `<section><h2>${index + 1}. Mermaid 图示</h2><pre><code>${escapeHtml(asset.code)}</code></pre></section>`;
+          })
+          .join('\n');
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>${escapeHtml(conversation.title)} 资源</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;max-width:900px;margin:40px auto;padding:0 24px;line-height:1.7;color:#111827}section{border-top:1px solid #e5e7eb;padding:20px 0}.asset{max-width:100%;border:1px solid #d1d5db;border-radius:8px}pre{white-space:pre-wrap;background:#f8fafc;padding:16px;border-radius:8px;border:1px solid #e5e7eb}</style></head><body><h1>${escapeHtml(conversation.title)} 资源索引</h1>${sections}</body></html>`;
 }
 

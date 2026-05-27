@@ -64,7 +64,7 @@ export function applyToolResult(toolCalls = [], event = {}, now = new Date()) {
   if (event.contextCompacted !== undefined) tool.contextCompacted = event.contextCompacted;
   if (event.expiresAt) tool.expiresAt = event.expiresAt;
   if (event.risk) tool.risk = event.risk;
-  tool.status = event.ok ? 'completed' : (tool.status === 'denied' ? 'denied' : 'failed');
+  tool.status = event.ok ? 'completed' : tool.status === 'denied' ? 'denied' : 'failed';
   tool.output = event.output;
   tool.ok = event.ok;
   tool.completedAt = event.completedAt || now.toISOString();
@@ -170,7 +170,10 @@ export function formatToolArgs(tool) {
 export function getToolQuery(tool) {
   const args = getToolArgs(tool);
   if (Array.isArray(args?.queries)) {
-    return args.queries.map((item) => String(item || '').trim()).filter(Boolean).join(' / ');
+    return args.queries
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+      .join(' / ');
   }
   return String(args?.query || '').trim();
 }
@@ -248,7 +251,9 @@ function getSearchRuns(message) {
 
 function getLocalFileRuns(message) {
   const runs = message.toolRuns?.length ? message.toolRuns : buildToolRuns(message.toolCalls || []);
-  return runs.filter((run) => ['search_workspace', 'read_symbol', 'read_file'].includes(run.name) && run.status === 'completed');
+  return runs.filter(
+    (run) => ['search_workspace', 'read_symbol', 'read_file'].includes(run.name) && run.status === 'completed'
+  );
 }
 
 export function extractLocalCitations(outputText = '', toolName = '') {
@@ -292,10 +297,12 @@ export function extractWorkspaceSearchResults(outputText = '', toolName = '') {
       symbol: String(result.symbol || '').trim(),
       truncated: Boolean(result.truncated),
       snippet: Array.isArray(result.snippet)
-        ? result.snippet.map((item) => ({
-          line: normalizeNumber(item.line),
-          text: String(item.text || ''),
-        })).filter((item) => item.line > 0 || item.text)
+        ? result.snippet
+            .map((item) => ({
+              line: normalizeNumber(item.line),
+              text: String(item.text || ''),
+            }))
+            .filter((item) => item.line > 0 || item.text)
         : [],
     }))
     .filter((result) => result.file);
@@ -313,13 +320,16 @@ export function extractWorkspaceSymbolResult(outputText = '', toolName = '') {
     root: String(payload.root || '').trim(),
     directory: String(payload.directory || '').trim(),
     pattern: String(payload.pattern || '').trim(),
-    index: payload.index && typeof payload.index === 'object' ? {
-      cache: String(payload.index.cache || '').trim(),
-      fileCount: normalizeNumber(payload.index.fileCount),
-      chunkCount: normalizeNumber(payload.index.chunkCount),
-      snapshotHash: String(payload.index.snapshotHash || '').trim(),
-      hash: String(payload.index.hash || '').trim(),
-    } : null,
+    index:
+      payload.index && typeof payload.index === 'object'
+        ? {
+            cache: String(payload.index.cache || '').trim(),
+            fileCount: normalizeNumber(payload.index.fileCount),
+            chunkCount: normalizeNumber(payload.index.chunkCount),
+            snapshotHash: String(payload.index.snapshotHash || '').trim(),
+            hash: String(payload.index.hash || '').trim(),
+          }
+        : null,
     result,
     alternatives: Array.isArray(payload.alternatives)
       ? payload.alternatives.map(normalizeWorkspaceSymbolHit).filter(Boolean)
@@ -363,10 +373,12 @@ function normalizeWorkspaceSymbolHit(hit) {
     signature: String(hit.signature || '').trim(),
     truncated: Boolean(hit.truncated),
     snippet: Array.isArray(hit.snippet)
-      ? hit.snippet.map((item) => ({
-        line: normalizeNumber(item.line),
-        text: String(item.text || ''),
-      })).filter((item) => item.line > 0 || item.text)
+      ? hit.snippet
+          .map((item) => ({
+            line: normalizeNumber(item.line),
+            text: String(item.text || ''),
+          }))
+          .filter((item) => item.line > 0 || item.text)
       : [],
   };
 }
@@ -457,7 +469,9 @@ function isLocalCitationMentioned(content, citation) {
     lineStart ? `${basename}:${lineStart}` : '',
     lineStart && lineEnd ? `${file}:${lineStart}-${lineEnd}` : '',
     lineStart && lineEnd ? `${basename}:${lineStart}-${lineEnd}` : '',
-  ].filter(Boolean).map((item) => String(item).replace(/\\/g, '/'));
+  ]
+    .filter(Boolean)
+    .map((item) => String(item).replace(/\\/g, '/'));
   return labels.some((label) => text.includes(label));
 }
 

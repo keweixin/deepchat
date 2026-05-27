@@ -1,6 +1,6 @@
 /**
  * DeepChat — Main Entry Point
- * 
+ *
  * Keyboard shortcuts:
  * - Enter: send message (default)
  * - Shift+Enter: new line
@@ -23,10 +23,26 @@ import './styles/animations.css';
 import './styles/agent-crew.css';
 
 // Modules
-import { initApiSettings, estimateTokens, extractContextMentions, getSettings, isSkillRunnable, supportsVisionModel, getModelCapabilities } from './modules/api.js';
+import {
+  initApiSettings,
+  estimateTokens,
+  extractContextMentions,
+  getSettings,
+  isSkillRunnable,
+  supportsVisionModel,
+  getModelCapabilities,
+} from './modules/api.js';
 import { initTheme, toggleTheme } from './modules/theme.js';
 import { initSettings } from './modules/settings.js';
-import { initChat, createConversation, sendMessage, stopStreaming, clearCurrentChat, updateModelDisplay, exportCurrentChat } from './modules/chat.js';
+import {
+  initChat,
+  createConversation,
+  sendMessage,
+  stopStreaming,
+  clearCurrentChat,
+  updateModelDisplay,
+  exportCurrentChat,
+} from './modules/chat.js';
 import { renderMarkdown } from './modules/renderer.js';
 import { onMenuNewChat, onMenuOpenSettings } from './modules/client-store.js';
 import { initReadingNavigator } from './modules/reading-navigator.js';
@@ -37,7 +53,14 @@ import {
   getComposerMode,
   getComposerModeOverrides,
 } from './modules/composer-modes.js';
-import { buildComposerContextPreview, buildComposerIntentPreview, buildComposerToolEntries, getComposerToolApprovalSummary, getComposerToolModeLabel, resolveActiveSkillForExplicitDirectives } from './modules/composer-tools.js';
+import {
+  buildComposerContextPreview,
+  buildComposerIntentPreview,
+  buildComposerToolEntries,
+  getComposerToolApprovalSummary,
+  getComposerToolModeLabel,
+  resolveActiveSkillForExplicitDirectives,
+} from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
 import { applyPromptTemplate, getPromptTemplateEntries } from './modules/prompt-templates.js';
 import {
@@ -210,10 +233,11 @@ function bindEvents() {
 
   // Close mobile sidebar when clicking outside
   document.addEventListener('click', (e) => {
-    if ($sidebar.classList.contains('mobile-open') &&
-        !$sidebar.contains(e.target) &&
-        (!$mobileSidebarToggle || (e.target !== $mobileSidebarToggle &&
-        !$mobileSidebarToggle.contains(e.target)))) {
+    if (
+      $sidebar.classList.contains('mobile-open') &&
+      !$sidebar.contains(e.target) &&
+      (!$mobileSidebarToggle || (e.target !== $mobileSidebarToggle && !$mobileSidebarToggle.contains(e.target)))
+    ) {
       $sidebar.classList.remove('mobile-open');
       syncSidebarToggleState();
     }
@@ -280,7 +304,7 @@ function bindEvents() {
   });
 
   // Suggestion cards
-  document.querySelectorAll('.suggestion-card').forEach(card => {
+  document.querySelectorAll('.suggestion-card').forEach((card) => {
     card.addEventListener('click', () => {
       const prompt = card.dataset.prompt;
       if (prompt) {
@@ -321,7 +345,7 @@ async function handleSend() {
   const content = $input.value.trim();
   if (!content && pendingAttachments.length === 0) return;
 
-  const hasImages = pendingAttachments.some(item => String(item.mimeType || '').startsWith('image/'));
+  const hasImages = pendingAttachments.some((item) => String(item.mimeType || '').startsWith('image/'));
   if (hasImages && !supportsVisionModel(getSettings())) {
     showToast(`当前模型 ${getSettings().model} 未标记为支持图片输入，请切换 vision 模型后再发送。`, 3200);
     return;
@@ -331,9 +355,11 @@ async function handleSend() {
   const overrides = getComposerOverrides();
 
   let finalModelContent = applyComposerModeToPrompt(content, composerModeId);
-  const textAttachments = pendingAttachments.filter(item => !String(item.mimeType || '').startsWith('image/'));
+  const textAttachments = pendingAttachments.filter((item) => !String(item.mimeType || '').startsWith('image/'));
   if (textAttachments.length > 0) {
-    const textContext = textAttachments.map(item => `[附件文件: ${item.name}]\n\`\`\`\n${item.dataUrl}\n\`\`\``).join('\n\n');
+    const textContext = textAttachments
+      .map((item) => `[附件文件: ${item.name}]\n\`\`\`\n${item.dataUrl}\n\`\`\``)
+      .join('\n\n');
     finalModelContent = `${finalModelContent}\n\n<uploaded_attachments>\n${textContext}\n</uploaded_attachments>`;
   }
 
@@ -432,8 +458,17 @@ function initComposerOptions(openSettings) {
     $enhanceToggleLabel?.classList.toggle('is-disabled', composerOverrides.enhance === false);
     updateComposerToolButton($toolDrawerBtn, $toolStatus, { ...settings, activeSkill });
     const composedSettings = { ...settings, ...composerOverrides, mcpStatuses: latestMcpStatuses };
-    updateComposerRunStatus($runStatus, composedSettings, $thinking.value, document.getElementById('message-input')?.value || '');
-    renderComposerContextPreview($contextPreview, document.getElementById('message-input')?.value || '', composedSettings);
+    updateComposerRunStatus(
+      $runStatus,
+      composedSettings,
+      $thinking.value,
+      document.getElementById('message-input')?.value || ''
+    );
+    renderComposerContextPreview(
+      $contextPreview,
+      document.getElementById('message-input')?.value || '',
+      composedSettings
+    );
     syncing = false;
   }
 
@@ -520,17 +555,19 @@ function initComposerOptions(openSettings) {
   }
 
   if ($templateBtn) {
-    $templateBtn.addEventListener('click', () => togglePromptTemplateMenu($templateBtn, (template) => {
-      const modeId = getComposerMode(template.recommendedModeId || 'daily').id;
-      const settings = getSettings();
-      composerModeId = modeId;
-      composerOverrides = {
-        ...composerOverrides,
-        ...getComposerModeOverrides(composerModeId, settings),
-      };
-      applySettingsToComposer(settings);
-      showToast(`已套用模板：${template.title} · ${getComposerMode(composerModeId).label}模式`, 1600);
-    }));
+    $templateBtn.addEventListener('click', () =>
+      togglePromptTemplateMenu($templateBtn, (template) => {
+        const modeId = getComposerMode(template.recommendedModeId || 'daily').id;
+        const settings = getSettings();
+        composerModeId = modeId;
+        composerOverrides = {
+          ...composerOverrides,
+          ...getComposerModeOverrides(composerModeId, settings),
+        };
+        applySettingsToComposer(settings);
+        showToast(`已套用模板：${template.title} · ${getComposerMode(composerModeId).label}模式`, 1600);
+      })
+    );
   }
 
   if ($advancedToggle && $toolbar) {
@@ -542,9 +579,15 @@ function initComposerOptions(openSettings) {
   }
 
   if ($toolDrawerBtn) {
-    $toolDrawerBtn.addEventListener('click', () => toggleComposerToolMenu($toolDrawerBtn, () => {
-      applySettingsToComposer(getSettings());
-    }, openSettings));
+    $toolDrawerBtn.addEventListener('click', () =>
+      toggleComposerToolMenu(
+        $toolDrawerBtn,
+        () => {
+          applySettingsToComposer(getSettings());
+        },
+        openSettings
+      )
+    );
   }
 
   if ($contextBtn) {
@@ -572,9 +615,7 @@ function initComposerOptions(openSettings) {
   });
 
   window.addEventListener('deepchat:mcp-status-changed', (event) => {
-    latestMcpStatuses = Array.isArray(event.detail?.statuses) && !event.detail?.stale
-      ? event.detail.statuses
-      : [];
+    latestMcpStatuses = Array.isArray(event.detail?.statuses) && !event.detail?.stale ? event.detail.statuses : [];
     applySettingsToComposer(getSettings());
   });
 
@@ -659,7 +700,10 @@ function buildPromptTemplateTitle(template = {}) {
     template.intent ? `上下文/工具：${template.intent}` : '',
     '',
     template.text,
-  ].filter((line) => line !== undefined && line !== null).join('\n').trim();
+  ]
+    .filter((line) => line !== undefined && line !== null)
+    .join('\n')
+    .trim();
 }
 
 function toggleComposerToolMenu(anchor, onChange, openSettings) {
@@ -853,7 +897,7 @@ function getComposerOverrides() {
     ...modeOverrides,
     thinkingBudget: composerOverrides?.thinkingBudget ?? settings.thinkingBudget,
     activeSkill,
-    enhance: composerOverrides?.enhance ?? modeOverrides.enhance ?? (settings.enhance !== false),
+    enhance: composerOverrides?.enhance ?? modeOverrides.enhance ?? settings.enhance !== false,
   };
 }
 
@@ -1039,20 +1083,24 @@ function toggleChatSearch() {
   function doSearch() {
     clearHighlights();
     const query = input.value.trim();
-    if (!query) { countEl.textContent = ''; return; }
+    if (!query) {
+      countEl.textContent = '';
+      return;
+    }
 
     searchIndex = buildChatSearchIndex(document);
     const matchedMessages = findChatSearchMatches(searchIndex, query, { limit: 50 });
     matches = highlightChatSearchMatches(matchedMessages, query, { markLimit: 300 });
-    countEl.textContent = matches.length > 0
-      ? `${matches.length} 个结果${matchedMessages.length >= 50 ? '（前 50 条消息）' : ''}`
-      : '无结果';
+    countEl.textContent =
+      matches.length > 0
+        ? `${matches.length} 个结果${matchedMessages.length >= 50 ? '（前 50 条消息）' : ''}`
+        : '无结果';
     if (matches.length > 0) jumpTo(0);
   }
 
   function jumpTo(idx) {
     if (matches.length === 0) return;
-    matches.forEach(m => m.classList.remove('search-highlight-active'));
+    matches.forEach((m) => m.classList.remove('search-highlight-active'));
     currentMatch = ((idx % matches.length) + matches.length) % matches.length;
     const target = matches[currentMatch];
     target.classList.add('search-highlight-active');
@@ -1069,7 +1117,7 @@ function toggleChatSearch() {
     if (e.key === 'Escape') closeChatSearch();
   });
 
-  bar.querySelectorAll('.chat-search-nav').forEach(btn => {
+  bar.querySelectorAll('.chat-search-nav').forEach((btn) => {
     btn.addEventListener('click', () => {
       jumpTo(currentMatch + parseInt(btn.dataset.dir));
     });
@@ -1117,7 +1165,10 @@ function toggleMarkdownPreview(text) {
   body.innerHTML = renderMarkdown(text);
 
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) { overlay.remove(); previewOverlayEl = null; }
+    if (e.target === overlay) {
+      overlay.remove();
+      previewOverlayEl = null;
+    }
   });
   overlay.querySelector('.markdown-preview-close').addEventListener('click', () => {
     overlay.remove();
@@ -1144,7 +1195,7 @@ function handleDroppedFiles(files, $input) {
     showToast(`最多保留 ${MAX_IMAGE_ATTACHMENTS} 个附件，多余的文件已忽略。`, 2400);
   }
 
-  acceptedFiles.forEach(file => {
+  acceptedFiles.forEach((file) => {
     const isImage = file.type.startsWith('image/');
     const reader = new FileReader();
 

@@ -77,7 +77,8 @@ describe('chat search index', () => {
 
     expect(document.querySelector('mark.search-highlight')).toBeNull();
     expect(document.querySelector('.chat-search-match')).toBeNull();
-    expect(document.querySelector('[data-message-index="1"] .message-content').textContent)
-      .toContain('DeepSeek cache hit depends on stable prefix.');
+    expect(document.querySelector('[data-message-index="1"] .message-content').textContent).toContain(
+      'DeepSeek cache hit depends on stable prefix.'
+    );
   });
 });

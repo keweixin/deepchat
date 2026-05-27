@@ -327,8 +327,11 @@ function isUsableCandidate(node) {
 }
 
 function selectTopLevelHeadings(root) {
-  const headings = [...root.querySelectorAll('.message.assistant .message-content h1, .message.assistant .message-content h2, .message.assistant .message-content h3, .message.assistant .message-content h4, .message.assistant .message-content h5, .message.assistant .message-content h6, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6')]
-    .filter(isUsableCandidate);
+  const headings = [
+    ...root.querySelectorAll(
+      '.message.assistant .message-content h1, .message.assistant .message-content h2, .message.assistant .message-content h3, .message.assistant .message-content h4, .message.assistant .message-content h5, .message.assistant .message-content h6, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6'
+    ),
+  ].filter(isUsableCandidate);
   if (headings.length === 0) return [];
 
   const minLevel = Math.min(...headings.map((node) => Number(node.tagName.slice(1))));
@@ -342,7 +345,9 @@ function getTopWithinScroll(node, scrollContainer) {
 }
 
 function cleanText(value) {
-  return String(value || '').replace(/\s+/g, ' ').trim();
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function truncateLabel(text, maxLength) {

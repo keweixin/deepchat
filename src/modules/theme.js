@@ -5,7 +5,7 @@
 export function initTheme() {
   const saved = localStorage.getItem('dc_theme') || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
-  
+
   // Update mermaid theme when loaded
   updateMermaidTheme(saved);
 }
@@ -24,7 +24,7 @@ function updateMermaidTheme(theme) {
     try {
       window.mermaid.initialize({
         startOnLoad: false,
-        theme: theme === 'dark' ? 'dark' : 'default'
+        theme: theme === 'dark' ? 'dark' : 'default',
       });
     } catch (_) {}
   }

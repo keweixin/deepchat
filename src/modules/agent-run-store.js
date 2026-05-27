@@ -47,10 +47,28 @@ export function getCrewRoleForTool(toolName = '') {
     return 'researcher';
   }
   // Fallback map science skills and other tools
-  if (name.includes('search') || name.includes('fetch') || name.includes('query') || name.includes('database') || name.includes('literature') || name.includes('pubmed') || name.includes('arxiv') || name.includes('biorxiv') || name.includes('europepmc') || name.includes('openalex')) {
+  if (
+    name.includes('search') ||
+    name.includes('fetch') ||
+    name.includes('query') ||
+    name.includes('database') ||
+    name.includes('literature') ||
+    name.includes('pubmed') ||
+    name.includes('arxiv') ||
+    name.includes('biorxiv') ||
+    name.includes('europepmc') ||
+    name.includes('openalex')
+  ) {
     return 'researcher';
   }
-  if (name.includes('read') || name.includes('file') || name.includes('sequence') || name.includes('align') || name.includes('msa') || name.includes('pymol')) {
+  if (
+    name.includes('read') ||
+    name.includes('file') ||
+    name.includes('sequence') ||
+    name.includes('align') ||
+    name.includes('msa') ||
+    name.includes('pymol')
+  ) {
     return 'reader';
   }
   return 'planner';
@@ -106,7 +124,7 @@ export function applyCrewToolResult(agentRun, event = {}, toolCalls = []) {
   } else if (status === 'completed' || ok === true) {
     member.status = 'done';
     member.currentAction = `${toolName} 执行完毕`;
-    
+
     // Create an intelligent summary
     if (toolName === 'web_search') {
       const sourceCount = event.sources?.length || tool.sources?.length || 0;
@@ -192,15 +210,37 @@ export function markCrewMemberDone(agentRun, roleId, action = '已完成') {
   }
 }
 
-export function finalizeCrewRun(agentRun, isAborted = false, errorMsg = '') {
+export function finalizeCrewRun(agentRun, isAborted = false, errorMsg = '', opts = {}) {
   if (!agentRun || !agentRun.crew) return;
 
   // 1. If error occurred
   if (errorMsg) {
     agentRun.status = 'error';
     agentRun.finishedAt = new Date().toISOString();
-    
-    // Mark any running agent as error
+
+    if (opts.source === 'model_stream') {
+      // Model/API/stream errors belong to Writer or Planner, not arbitrary running tool roles
+      const writer = agentRun.crew.find((m) => m.id === 'writer');
+      const planner = agentRun.crew.find((m) => m.id === 'planner');
+      const target = writer && (writer.status === 'running' || writer.status === 'idle') ? writer : planner;
+      if (target) {
+        target.status = 'error';
+        target.currentAction = '模型输出或网络流中断';
+        target.outputSummary = errorMsg;
+        target.finishedAt = new Date().toISOString();
+      }
+      // Mark other running/waiting members as skipped (not error) since the fault isn't theirs
+      agentRun.crew.forEach((member) => {
+        if (member.status === 'running' || member.status === 'waiting') {
+          member.status = 'skipped';
+          member.currentAction = '因模型流错误被跳过';
+          member.finishedAt = new Date().toISOString();
+        }
+      });
+      return;
+    }
+
+    // Default: mark any running/waiting agent as error (tool-level failure)
     agentRun.crew.forEach((member) => {
       if (member.status === 'running' || member.status === 'waiting') {
         member.status = 'error';

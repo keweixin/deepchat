@@ -9,11 +9,15 @@
   overflow: hidden;
   border: 1px solid var(--msg-ai-border);
   background: var(--code-bg);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
   transition: box-shadow var(--transition-base);
 }
 .code-block-wrapper:hover {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .code-block-header {
@@ -34,7 +38,7 @@
   display: inline-flex;
   width: 44px;
   height: 10px;
-  background: 
+  background:
     radial-gradient(circle at 5px 5px, #ff5f57 3.5px, transparent 3.5px),
     radial-gradient(circle at 19px 5px, #febc2e 3.5px, transparent 3.5px),
     radial-gradient(circle at 33px 5px, #28c840 3.5px, transparent 3.5px);
@@ -66,7 +70,9 @@
   color: var(--text-muted);
   font-family: var(--font-sans);
   font-size: var(--font-size-xs);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 .code-copy-btn:hover {
   background: var(--glass-bg-hover);
@@ -95,7 +101,9 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 .code-run-btn:hover:not(:disabled) {
   background: rgba(34, 197, 94, 0.12);
@@ -277,36 +285,54 @@
 }
 
 /* ─── Light theme overrides ─── */
-[data-theme="light"] .code-block-wrapper {
+[data-theme='light'] .code-block-wrapper {
   background: #f6f8fa;
   border-color: rgba(15, 23, 42, 0.1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
-[data-theme="light"] .code-block-header {
+[data-theme='light'] .code-block-header {
   background: rgba(15, 23, 42, 0.035);
   border-color: rgba(15, 23, 42, 0.08);
 }
-[data-theme="light"] .code-block-header::before {
+[data-theme='light'] .code-block-header::before {
   opacity: 0.35;
 }
-[data-theme="light"] .hljs {
+[data-theme='light'] .hljs {
   color: #24292f !important;
 }
-[data-theme="light"] .hljs-keyword,
-[data-theme="light"] .hljs-selector-tag,
-[data-theme="light"] .hljs-literal { color: #cf222e !important; }
-[data-theme="light"] .hljs-string,
-[data-theme="light"] .hljs-addition { color: #0a3069 !important; }
-[data-theme="light"] .hljs-comment,
-[data-theme="light"] .hljs-quote { color: #6e7781 !important; }
-[data-theme="light"] .hljs-number,
-[data-theme="light"] .hljs-regexp { color: #0550ae !important; }
-[data-theme="light"] .hljs-title,
-[data-theme="light"] .hljs-section,
-[data-theme="light"] .hljs-built_in { color: #8250df !important; }
-[data-theme="light"] .hljs-attr,
-[data-theme="light"] .hljs-attribute { color: #0550ae !important; }
-[data-theme="light"] .hljs-name,
-[data-theme="light"] .hljs-tag { color: #116329 !important; }
-[data-theme="light"] .hljs-variable,
-[data-theme="light"] .hljs-template-variable { color: #953800 !important; }
+[data-theme='light'] .hljs-keyword,
+[data-theme='light'] .hljs-selector-tag,
+[data-theme='light'] .hljs-literal {
+  color: #cf222e !important;
+}
+[data-theme='light'] .hljs-string,
+[data-theme='light'] .hljs-addition {
+  color: #0a3069 !important;
+}
+[data-theme='light'] .hljs-comment,
+[data-theme='light'] .hljs-quote {
+  color: #6e7781 !important;
+}
+[data-theme='light'] .hljs-number,
+[data-theme='light'] .hljs-regexp {
+  color: #0550ae !important;
+}
+[data-theme='light'] .hljs-title,
+[data-theme='light'] .hljs-section,
+[data-theme='light'] .hljs-built_in {
+  color: #8250df !important;
+}
+[data-theme='light'] .hljs-attr,
+[data-theme='light'] .hljs-attribute {
+  color: #0550ae !important;
+}
+[data-theme='light'] .hljs-name,
+[data-theme='light'] .hljs-tag {
+  color: #116329 !important;
+}
+[data-theme='light'] .hljs-variable,
+[data-theme='light'] .hljs-template-variable {
+  color: #953800 !important;
+}

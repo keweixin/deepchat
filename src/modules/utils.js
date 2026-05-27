@@ -25,14 +25,14 @@ export function formatTime(date) {
   const m = d.getMinutes().toString().padStart(2, '0');
   const time = `${h}:${m}`;
 
-  const isToday = d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
+  const isToday =
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
   if (isToday) return time;
 
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = d.getFullYear() === yesterday.getFullYear() &&
+  const isYesterday =
+    d.getFullYear() === yesterday.getFullYear() &&
     d.getMonth() === yesterday.getMonth() &&
     d.getDate() === yesterday.getDate();
   if (isYesterday) return `昨天 ${time}`;
@@ -89,8 +89,14 @@ export async function copyToClipboard(text) {
     ta.style.cssText = 'position:fixed;left:-9999px';
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); return true; } catch { return false; }
-    finally { ta.remove(); }
+    try {
+      document.execCommand('copy');
+      return true;
+    } catch {
+      return false;
+    } finally {
+      ta.remove();
+    }
   }
 }
 
@@ -119,7 +125,7 @@ export function showToast(message, duration = 2000) {
 export function scrollToBottom(el, smooth = true) {
   el.scrollTo({
     top: el.scrollHeight,
-    behavior: smooth ? 'smooth' : 'instant'
+    behavior: smooth ? 'smooth' : 'instant',
   });
 }
 
@@ -135,9 +141,5 @@ export function truncate(str, len = 30) {
  * Escape HTML special characters
  */
 export function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

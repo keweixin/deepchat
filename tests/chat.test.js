@@ -87,16 +87,18 @@ describe('chat regeneration', () => {
 
   it('carries compact evidence into answer follow-up prompts', () => {
     const message = {
-      toolRuns: [{
-        name: 'search_workspace',
-        status: 'completed',
-        query: 'agent timeline',
-        durationMs: 42,
-        localCitations: [{ label: 'src/modules/chat.js:100-120', file: 'src/modules/chat.js' }],
-        contextCompacted: true,
-        rawOutputTokens: 1200,
-        contextOutputTokens: 320,
-      }],
+      toolRuns: [
+        {
+          name: 'search_workspace',
+          status: 'completed',
+          query: 'agent timeline',
+          durationMs: 42,
+          localCitations: [{ label: 'src/modules/chat.js:100-120', file: 'src/modules/chat.js' }],
+          contextCompacted: true,
+          rawOutputTokens: 1200,
+          contextOutputTokens: 320,
+        },
+      ],
       tokens: {
         input: 1000,
         output: 200,
@@ -131,7 +133,7 @@ describe('chat regeneration', () => {
   it('builds portable HTML exports for polished assistant answers', () => {
     const html = buildAssistantHtmlExport(
       '<h2>核心结论</h2><div class="answer-component answer-component-summary">可以离线查看。</div>',
-      { title: 'DeepChat 回答 #1', generatedAt: '2026-05-27T09:30:00.000Z' },
+      { title: 'DeepChat 回答 #1', generatedAt: '2026-05-27T09:30:00.000Z' }
     );
 
     expect(html).toContain('<!doctype html>');
@@ -209,9 +211,7 @@ describe('chat regeneration', () => {
       { role: 'assistant', content: 'second answer' },
     ];
 
-    expect(trimMessagesForRegeneration(messages, 1)).toEqual([
-      { role: 'user', content: 'one' },
-    ]);
+    expect(trimMessagesForRegeneration(messages, 1)).toEqual([{ role: 'user', content: 'one' }]);
   });
 
   it('does not truncate when the selected message is not an assistant response', () => {
@@ -225,11 +225,13 @@ describe('chat regeneration', () => {
 
   it('flags searched answers that do not cite returned source urls', () => {
     const message = {
-      toolRuns: [{
-        name: 'web_search',
-        status: 'completed',
-        sources: [{ title: 'Source', url: 'https://example.com/news' }],
-      }],
+      toolRuns: [
+        {
+          name: 'web_search',
+          status: 'completed',
+          sources: [{ title: 'Source', url: 'https://example.com/news' }],
+        },
+      ],
     };
 
     expect(hasSearchWithoutCitedSource(message, '根据搜索结果，新闻如下。')).toBe(true);
@@ -238,11 +240,13 @@ describe('chat regeneration', () => {
 
   it('flags local file answers that do not cite file line evidence', () => {
     const message = {
-      toolRuns: [{
-        name: 'search_workspace',
-        status: 'completed',
-        localCitations: [{ file: 'src/agent.md', lineStart: 2, lineEnd: 3, label: 'src/agent.md:2-3' }],
-      }],
+      toolRuns: [
+        {
+          name: 'search_workspace',
+          status: 'completed',
+          localCitations: [{ file: 'src/agent.md', lineStart: 2, lineEnd: 3, label: 'src/agent.md:2-3' }],
+        },
+      ],
     };
 
     expect(hasLocalFilesWithoutCitedSource(message, '根据本地文件，缓存命中需要固定前缀。')).toBe(true);
@@ -253,11 +257,13 @@ describe('chat regeneration', () => {
     const container = document.createElement('div');
     const message = {
       content: '根据本地文件，缓存命中需要固定前缀。',
-      toolRuns: [{
-        name: 'search_workspace',
-        status: 'completed',
-        localCitations: [{ file: 'src/agent.md', lineStart: 2, lineEnd: 3, label: 'src/agent.md:2-3' }],
-      }],
+      toolRuns: [
+        {
+          name: 'search_workspace',
+          status: 'completed',
+          localCitations: [{ file: 'src/agent.md', lineStart: 2, lineEnd: 3, label: 'src/agent.md:2-3' }],
+        },
+      ],
     };
 
     renderAssistantEvidence(container, message);
@@ -352,16 +358,18 @@ describe('chat regeneration', () => {
     const container = document.createElement('div');
     const message = {
       content: '最终回答只引用 https://example.com/used。',
-      toolRuns: [{
-        id: 'web1',
-        name: 'web_search',
-        status: 'completed',
-        ok: true,
-        sources: [
-          { title: 'Used Source', url: 'https://example.com/used' },
-          { title: 'Missed Source', url: 'https://example.com/missed' },
-        ],
-      }],
+      toolRuns: [
+        {
+          id: 'web1',
+          name: 'web_search',
+          status: 'completed',
+          ok: true,
+          sources: [
+            { title: 'Used Source', url: 'https://example.com/used' },
+            { title: 'Missed Source', url: 'https://example.com/missed' },
+          ],
+        },
+      ],
     };
 
     renderAssistantEvidence(container, message);
@@ -373,21 +381,23 @@ describe('chat regeneration', () => {
 
   it('renders local workspace citations in tool result cards', () => {
     const container = document.createElement('div');
-    renderToolCalls(container, [{
-      id: 'tool-search',
-      name: 'search_workspace',
-      status: 'completed',
-      ok: true,
-      args: { query: 'cache telemetry' },
-      output: [
-        '工作区搜索：cache telemetry',
-        '结果数：1',
-        '',
-        '1. src/agent.md:2-3',
-        '   摘录:',
-        '   2: DeepSeek cache telemetry should explain hit and miss tokens.',
-      ].join('\n'),
-    }]);
+    renderToolCalls(container, [
+      {
+        id: 'tool-search',
+        name: 'search_workspace',
+        status: 'completed',
+        ok: true,
+        args: { query: 'cache telemetry' },
+        output: [
+          '工作区搜索：cache telemetry',
+          '结果数：1',
+          '',
+          '1. src/agent.md:2-3',
+          '   摘录:',
+          '   2: DeepSeek cache telemetry should explain hit and miss tokens.',
+        ].join('\n'),
+      },
+    ]);
 
     expect(container.hidden).toBe(false);
     expect(container.textContent).toContain('本地引用 (1)');
@@ -414,13 +424,15 @@ describe('chat regeneration', () => {
     });
 
     const container = document.createElement('div');
-    renderToolCalls(container, [{
-      id: 'tool-code',
-      name: 'run_code',
-      status: 'pending',
-      args: { language: 'javascript', code: 'console.log("ok")' },
-      risk: '即将在轻沙箱中运行代码。',
-    }]);
+    renderToolCalls(container, [
+      {
+        id: 'tool-code',
+        name: 'run_code',
+        status: 'pending',
+        args: { language: 'javascript', code: 'console.log("ok")' },
+        risk: '即将在轻沙箱中运行代码。',
+      },
+    ]);
 
     const badge = container.querySelector('.tool-risk-badge');
     expect(badge).not.toBeNull();
@@ -434,15 +446,17 @@ describe('chat regeneration', () => {
     input.id = 'message-input';
     document.body.appendChild(input);
     const container = document.createElement('div');
-    renderToolCalls(container, [{
-      id: 'tool-fail',
-      name: 'web_search',
-      status: 'failed',
-      ok: false,
-      args: { query: 'DeepChat' },
-      output: 'Tavily 搜索失败',
-      nextAction: '检查 Tavily Key 后重试。',
-    }]);
+    renderToolCalls(container, [
+      {
+        id: 'tool-fail',
+        name: 'web_search',
+        status: 'failed',
+        ok: false,
+        args: { query: 'DeepChat' },
+        output: 'Tavily 搜索失败',
+        nextAction: '检查 Tavily Key 后重试。',
+      },
+    ]);
 
     expect(container.textContent).toContain('下一步');
     expect(container.textContent).toContain('检查 Tavily Key 后重试');
@@ -478,7 +492,10 @@ describe('chat regeneration', () => {
         droppedCount: 2,
         prefixFingerprint: 'abc123',
       },
-      agentStages: [{ stage: 'plan', round: 0 }, { stage: 'tool_result', round: 2 }],
+      agentStages: [
+        { stage: 'plan', round: 0 },
+        { stage: 'tool_result', round: 2 },
+      ],
       toolRuns: [
         { name: 'read_file', status: 'completed', ok: true },
         { name: 'web_search', status: 'failed', ok: false },
@@ -566,41 +583,43 @@ describe('chat regeneration', () => {
       value: { writeText },
     });
 
-    renderToolCalls(container, [{
-      id: 'tool-code',
-      name: 'run_code',
-      status: 'completed',
-      ok: true,
-      args: { language: 'javascript', code: 'console.log("测试完成")' },
-      requestedAt: '2026-05-27T12:00:00.000Z',
-      completedAt: '2026-05-27T12:00:01.000Z',
-      output: [
-        '退出码：0',
-        '耗时：8ms',
-        'Structured Run:',
-        JSON.stringify({
-          type: 'deepchat.runCodeResult',
-          version: 1,
-          language: 'javascript',
-          codeLength: 24,
-          stdinBytes: 0,
-          durationMs: 8,
-          exitCode: 0,
-          timedOut: false,
-          ok: true,
-          stdoutBytes: 12,
-          stderrBytes: 0,
-          stdoutPreview: '测试完成',
-          stderrPreview: '',
-          failureHint: '',
-        }),
-        'stdout:',
-        '测试完成',
-        '```js',
-        'const secret = "long code";',
-        '```',
-      ].join('\n'),
-    }]);
+    renderToolCalls(container, [
+      {
+        id: 'tool-code',
+        name: 'run_code',
+        status: 'completed',
+        ok: true,
+        args: { language: 'javascript', code: 'console.log("测试完成")' },
+        requestedAt: '2026-05-27T12:00:00.000Z',
+        completedAt: '2026-05-27T12:00:01.000Z',
+        output: [
+          '退出码：0',
+          '耗时：8ms',
+          'Structured Run:',
+          JSON.stringify({
+            type: 'deepchat.runCodeResult',
+            version: 1,
+            language: 'javascript',
+            codeLength: 24,
+            stdinBytes: 0,
+            durationMs: 8,
+            exitCode: 0,
+            timedOut: false,
+            ok: true,
+            stdoutBytes: 12,
+            stderrBytes: 0,
+            stdoutPreview: '测试完成',
+            stderrPreview: '',
+            failureHint: '',
+          }),
+          'stdout:',
+          '测试完成',
+          '```js',
+          'const secret = "long code";',
+          '```',
+        ].join('\n'),
+      },
+    ]);
 
     expect(container.textContent).toContain('输出摘要');
     expect(container.textContent).toContain('代码实验');
@@ -774,17 +793,19 @@ describe('chat regeneration', () => {
     const container = document.createElement('div');
 
     renderAgentTimeline(container, {
-      agentStages: [{
-        stage: 'plan',
-        round: 0,
-        planSummary: {
-          mode: 'web_search',
-          maxRounds: 3,
-          steps: ['搜索资料', '整理答案'],
-          selectedTools: ['web_search'],
-          missingPrerequisites: ['Tavily Key'],
+      agentStages: [
+        {
+          stage: 'plan',
+          round: 0,
+          planSummary: {
+            mode: 'web_search',
+            maxRounds: 3,
+            steps: ['搜索资料', '整理答案'],
+            selectedTools: ['web_search'],
+            missingPrerequisites: ['Tavily Key'],
+          },
         },
-      }],
+      ],
     });
 
     const executeAll = container.querySelector('.agent-plan-action-btn.action-execute_all');
@@ -802,17 +823,19 @@ describe('chat regeneration', () => {
   it('renders auto-readonly approval boundaries in agent plan summaries', () => {
     const container = document.createElement('div');
     renderAgentTimeline(container, {
-      agentStages: [{
-        stage: 'plan',
-        round: 0,
-        planSummary: {
-          mode: 'multi_tool',
-          maxRounds: 3,
-          selectedTools: ['search_workspace', 'read_file', 'run_code'],
-          approvalPolicy: ['低风险读取/搜索类工具会自动执行并保留证据；运行代码、MCP 和写入类操作仍必须确认。'],
-          steps: ['搜索工作区证据', '运行小段代码验证'],
+      agentStages: [
+        {
+          stage: 'plan',
+          round: 0,
+          planSummary: {
+            mode: 'multi_tool',
+            maxRounds: 3,
+            selectedTools: ['search_workspace', 'read_file', 'run_code'],
+            approvalPolicy: ['低风险读取/搜索类工具会自动执行并保留证据；运行代码、MCP 和写入类操作仍必须确认。'],
+            steps: ['搜索工作区证据', '运行小段代码验证'],
+          },
         },
-      }],
+      ],
     });
 
     expect(container.textContent).toContain('风险：只读自动 · 高风险确认');
@@ -827,16 +850,18 @@ describe('chat regeneration', () => {
     const container = document.createElement('div');
 
     renderAgentTimeline(container, {
-      agentStages: [{
-        stage: 'plan',
-        round: 0,
-        planSummary: {
-          mode: 'multi_tool',
-          maxRounds: 3,
-          steps: ['读取文件', '整理证据'],
-          selectedTools: ['read_file'],
+      agentStages: [
+        {
+          stage: 'plan',
+          round: 0,
+          planSummary: {
+            mode: 'multi_tool',
+            maxRounds: 3,
+            steps: ['读取文件', '整理证据'],
+            selectedTools: ['read_file'],
+          },
         },
-      }],
+      ],
     });
     container.querySelector('.agent-plan-action-btn.action-revise').click();
 
@@ -896,25 +921,27 @@ describe('chat regeneration', () => {
         },
         cacheStabilityWarnings: ['下一轮缓存可能下降'],
       },
-      messages: [{
-        role: 'assistant',
-        tokens: {
-          input: 1000,
-          output: 250,
-          total: 1250,
-          cacheHit: 700,
-          cacheMiss: 300,
-          source: 'provider',
-          byPurpose: { main: 1250 },
-          cost: {
-            estimatedCostUsd: 0.0002,
-            estimatedSavingsUsd: 0.00009,
-            inputCacheHitCostUsd: 0.00001,
-            inputCacheMissCostUsd: 0.00004,
-            outputCostUsd: 0.00007,
+      messages: [
+        {
+          role: 'assistant',
+          tokens: {
+            input: 1000,
+            output: 250,
+            total: 1250,
+            cacheHit: 700,
+            cacheMiss: 300,
+            source: 'provider',
+            byPurpose: { main: 1250 },
+            cost: {
+              estimatedCostUsd: 0.0002,
+              estimatedSavingsUsd: 0.00009,
+              inputCacheHitCostUsd: 0.00001,
+              inputCacheMissCostUsd: 0.00004,
+              outputCostUsd: 0.00007,
+            },
           },
         },
-      }],
+      ],
     });
 
     expect(details.sourceLabel).toBe('服务商真实 usage');
@@ -936,20 +963,22 @@ describe('chat regeneration', () => {
         toolsHash: 'tools1',
         cacheStabilityReasons: ['workspace_or_mcp_changed'],
       },
-      messages: [{
-        role: 'assistant',
-        tokens: {
-          input: 1000,
-          output: 200,
-          total: 1200,
-          cacheHit: 800,
-          cacheMiss: 200,
-          cost: {
-            estimatedCostUsd: 0.0002,
-            estimatedSavingsUsd: 0.0001,
+      messages: [
+        {
+          role: 'assistant',
+          tokens: {
+            input: 1000,
+            output: 200,
+            total: 1200,
+            cacheHit: 800,
+            cacheMiss: 200,
+            cost: {
+              estimatedCostUsd: 0.0002,
+              estimatedSavingsUsd: 0.0001,
+            },
           },
         },
-      }],
+      ],
     });
 
     expect(container.hidden).toBe(false);
@@ -979,15 +1008,19 @@ describe('chat regeneration', () => {
           content: '根据 src/modules/chat.js:10-12 可知。',
           tokens: { input: 900, output: 100, total: 1000, cacheHit: 600, cacheMiss: 300 },
           agentStages: [{ stage: 'plan', round: 0, intent: { toolMode: 'multi_tool' } }],
-          toolRuns: [{
-            id: 'read1',
-            name: 'read_file',
-            status: 'completed',
-            ok: true,
-            args: { path: 'src/modules/chat.js' },
-            localCitations: [{ file: 'src/modules/chat.js', lineStart: 10, lineEnd: 12, label: 'src/modules/chat.js:10-12' }],
-            outputPreview: '读取聊天模块',
-          }],
+          toolRuns: [
+            {
+              id: 'read1',
+              name: 'read_file',
+              status: 'completed',
+              ok: true,
+              args: { path: 'src/modules/chat.js' },
+              localCitations: [
+                { file: 'src/modules/chat.js', lineStart: 10, lineEnd: 12, label: 'src/modules/chat.js:10-12' },
+              ],
+              outputPreview: '读取聊天模块',
+            },
+          ],
         },
       ],
     });
@@ -1029,20 +1062,19 @@ describe('chat regeneration', () => {
     expect(shouldCompactHistoricalMessage(100, 20, longMessage, 60)).toBe(true);
     expect(shouldCompactHistoricalMessage(100, 50, longMessage, 60)).toBe(false);
     expect(shouldCompactHistoricalMessage(100, 20, { role: 'user', content: longMessage.content }, 60)).toBe(false);
-    expect(shouldCompactHistoricalMessage(100, 20, { ...longMessage, toolRuns: [{ name: 'web_search' }] }, 60)).toBe(false);
-    expect(shouldCompactHistoricalMessage(100, 20, { ...longMessage, agentStages: [{ stage: 'plan' }] }, 60)).toBe(false);
+    expect(shouldCompactHistoricalMessage(100, 20, { ...longMessage, toolRuns: [{ name: 'web_search' }] }, 60)).toBe(
+      false
+    );
+    expect(shouldCompactHistoricalMessage(100, 20, { ...longMessage, agentStages: [{ stage: 'plan' }] }, 60)).toBe(
+      false
+    );
   });
 
   it('normalizes compact previews without exposing full code blocks', () => {
-    const preview = getCompactMessagePreview([
-      '# 标题',
-      '',
-      '正文内容',
-      '```js',
-      'const secret = "long code";',
-      '```',
-      '结尾',
-    ].join('\n'), 80);
+    const preview = getCompactMessagePreview(
+      ['# 标题', '', '正文内容', '```js', 'const secret = "long code";', '```', '结尾'].join('\n'),
+      80
+    );
 
     expect(preview).toContain('标题');
     expect(preview).toContain('[代码片段]');

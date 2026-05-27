@@ -10,12 +10,7 @@
  * only JSON and renders a small allow-list of local components.
  */
 
-const WIDGET_TYPES = new Set([
-  'mortgage-calculator',
-  'bar-chart',
-  'line-chart',
-  'projectile-demo',
-]);
+const WIDGET_TYPES = new Set(['mortgage-calculator', 'bar-chart', 'line-chart', 'projectile-demo']);
 
 export function renderWidgets(container) {
   container.querySelectorAll('.widget-placeholder:not([data-rendered])').forEach((placeholder) => {
@@ -52,7 +47,9 @@ function parseWidgetConfig(encoded) {
 }
 
 function normalizeType(type) {
-  const value = String(type || '').trim().toLowerCase();
+  const value = String(type || '')
+    .trim()
+    .toLowerCase();
   const aliases = {
     mortgage: 'mortgage-calculator',
     loan: 'mortgage-calculator',
@@ -105,20 +102,21 @@ function createMortgageCalculator(config) {
     const termYears = clampNumber(yearsInput.input.value, 1, 40, years);
     const months = termYears * 12;
     const monthlyRate = annualRate / 100 / 12;
-    const monthlyPayment = monthlyRate === 0
-      ? p / months
-      : p * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
+    const monthlyPayment =
+      monthlyRate === 0
+        ? p / months
+        : (p * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
     const totalPayment = monthlyPayment * months;
     const totalInterest = totalPayment - p;
 
     results.replaceChildren(
       createMetric('月供', formatCurrency(monthlyPayment)),
       createMetric('总利息', formatCurrency(totalInterest)),
-      createMetric('还款总额', formatCurrency(totalPayment)),
+      createMetric('还款总额', formatCurrency(totalPayment))
     );
   }
 
-  [principalInput.input, rateInput.input, yearsInput.input].forEach(input => {
+  [principalInput.input, rateInput.input, yearsInput.input].forEach((input) => {
     input.addEventListener('input', update);
   });
   update();
@@ -127,7 +125,10 @@ function createMortgageCalculator(config) {
 
 function createChartWidget(config, mode) {
   const items = normalizeChartData(config.data);
-  const shell = createShell(config.title || (mode === 'bar' ? '数据柱状图' : '数据折线图'), '支持模型输出 JSON 数据后在当前回答中直接可视化。');
+  const shell = createShell(
+    config.title || (mode === 'bar' ? '数据柱状图' : '数据折线图'),
+    '支持模型输出 JSON 数据后在当前回答中直接可视化。'
+  );
   const chart = el('div', 'dc-widget-chart');
   const svg = svgEl('svg');
   svg.setAttribute('viewBox', '0 0 640 300');
@@ -170,19 +171,19 @@ function createProjectileDemo(config) {
     angle.value.textContent = `${deg}°`;
 
     const g = 9.8;
-    const rad = deg * Math.PI / 180;
-    const flight = 2 * v * Math.sin(rad) / g;
+    const rad = (deg * Math.PI) / 180;
+    const flight = (2 * v * Math.sin(rad)) / g;
     const range = v * Math.cos(rad) * flight;
     const maxHeight = Math.pow(v * Math.sin(rad), 2) / (2 * g);
     drawProjectile(svg, v, rad, flight, range);
     results.replaceChildren(
       createMetric('飞行时间', `${flight.toFixed(2)} s`),
       createMetric('最大高度', `${maxHeight.toFixed(2)} m`),
-      createMetric('水平距离', `${range.toFixed(2)} m`),
+      createMetric('水平距离', `${range.toFixed(2)} m`)
     );
   }
 
-  [velocity.input, angle.input].forEach(input => input.addEventListener('input', update));
+  [velocity.input, angle.input].forEach((input) => input.addEventListener('input', update));
   update();
   return shell;
 }
@@ -235,7 +236,7 @@ function normalizeChartData(data) {
         value: Number(item.value ?? item.y ?? item.amount),
       };
     })
-    .filter(item => item && Number.isFinite(item.value))
+    .filter((item) => item && Number.isFinite(item.value))
     .slice(0, 16);
 }
 
@@ -244,7 +245,7 @@ function drawBarChart(svg, items) {
   const width = 640;
   const height = 300;
   const pad = 42;
-  const values = items.map(item => item.value);
+  const values = items.map((item) => item.value);
   const min = Math.min(...values, 0);
   const max = Math.max(...values, 0);
   const span = max - min || 1;
@@ -275,7 +276,7 @@ function drawLineChart(svg, items) {
   const width = 640;
   const height = 300;
   const pad = 42;
-  const values = items.map(item => item.value);
+  const values = items.map((item) => item.value);
   const min = Math.min(...values, 0);
   const max = Math.max(...values, 1);
   const span = max - min || 1;
@@ -288,7 +289,7 @@ function drawLineChart(svg, items) {
   });
 
   const path = svgEl('polyline');
-  path.setAttribute('points', points.map(point => `${point.x},${point.y}`).join(' '));
+  path.setAttribute('points', points.map((point) => `${point.x},${point.y}`).join(' '));
   path.setAttribute('class', 'dc-chart-line');
   path.setAttribute('fill', 'none');
   svg.append(path);
@@ -312,17 +313,19 @@ function drawProjectile(svg, velocity, angle, flight, range) {
   const g = 9.8;
   const points = [];
   for (let i = 0; i <= 64; i++) {
-    const t = flight * i / 64;
+    const t = (flight * i) / 64;
     const x = velocity * Math.cos(angle) * t;
     const y = velocity * Math.sin(angle) * t - 0.5 * g * t * t;
     points.push({ x, y });
   }
-  const maxY = Math.max(...points.map(point => point.y), 1);
-  const pathPoints = points.map(point => {
-    const x = pad + (point.x / Math.max(range, 1)) * (width - pad * 2);
-    const y = height - pad - (point.y / maxY) * (height - pad * 2);
-    return `${x},${y}`;
-  }).join(' ');
+  const maxY = Math.max(...points.map((point) => point.y), 1);
+  const pathPoints = points
+    .map((point) => {
+      const x = pad + (point.x / Math.max(range, 1)) * (width - pad * 2);
+      const y = height - pad - (point.y / maxY) * (height - pad * 2);
+      return `${x},${y}`;
+    })
+    .join(' ');
 
   drawAxes(svg, width, height, pad);
   const path = svgEl('polyline');

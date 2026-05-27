@@ -11,8 +11,12 @@
   animation: fadeOverlay 0.25s ease;
 }
 @keyframes fadeOverlay {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .settings-panel {
@@ -31,7 +35,9 @@
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
 }
-.settings-panel:not(.hidden) { transform: translateX(0); }
+.settings-panel:not(.hidden) {
+  transform: translateX(0);
+}
 
 .settings-header {
   display: flex;
@@ -74,7 +80,10 @@
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-weight: 600;
-  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .settings-tab.active {
@@ -261,22 +270,28 @@
   color: var(--text-primary);
   border-color: color-mix(in srgb, var(--accent-primary), transparent 70%);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .inline-status {
   color: var(--text-muted);
   font-size: var(--font-size-xs);
 }
-.inline-status.ok { color: var(--accent-primary); }
-.inline-status.error { color: #f87171; }
+.inline-status.ok {
+  color: var(--accent-primary);
+}
+.inline-status.error {
+  color: #f87171;
+}
 
 .password-input-wrap {
   position: relative;
   display: flex;
   align-items: center;
 }
-.password-input-wrap .form-input { padding-right: 40px; }
+.password-input-wrap .form-input {
+  padding-right: 40px;
+}
 .password-input-wrap .icon-btn-sm {
   position: absolute;
   right: var(--space-2);
@@ -305,7 +320,9 @@
   cursor: pointer;
   transition: transform var(--transition-fast);
 }
-.form-range::-webkit-slider-thumb:hover { transform: scale(1.15); }
+.form-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
 
 .range-labels {
   display: flex;
@@ -368,7 +385,7 @@
   color: var(--accent-primary);
   font-weight: 600;
 }
-[data-theme="light"] .provider-btn.active {
+[data-theme='light'] .provider-btn.active {
   background: var(--accent-soft);
 }
 
@@ -562,7 +579,11 @@
   font-weight: 500;
   color: var(--text-primary);
   margin-bottom: 0;
-  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
 }
 .toggle-label:hover {
   background: var(--surface-card-strong);
@@ -570,11 +591,17 @@
   transform: translateY(-1px);
 }
 .toggle-label:has(input:checked) {
-  background: linear-gradient(135deg, var(--surface-card-strong), color-mix(in srgb, var(--accent-primary), transparent 88%));
+  background: linear-gradient(
+    135deg,
+    var(--surface-card-strong),
+    color-mix(in srgb, var(--accent-primary), transparent 88%)
+  );
   border-color: color-mix(in srgb, var(--accent-primary), transparent 32%);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-primary), transparent 72%), 0 12px 30px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-primary), transparent 72%),
+    0 12px 30px rgba(0, 0, 0, 0.08);
 }
-.toggle-label input[type="checkbox"] {
+.toggle-label input[type='checkbox'] {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -634,7 +661,10 @@
   border-radius: 50%;
   background: var(--text-secondary);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16);
-  transition: transform var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 .toggle-label input:focus-visible ~ .toggle-slider {
   box-shadow: 0 0 0 4px var(--accent-glow);
@@ -707,7 +737,7 @@
   color: var(--text-secondary);
   transform: none;
 }
-[data-theme="light"] .skill-card.active {
+[data-theme='light'] .skill-card.active {
   background: var(--accent-soft);
 }
 .skill-icon {

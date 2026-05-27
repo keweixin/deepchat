@@ -49,14 +49,16 @@ class McpManager {
       const checkedAt = new Date().toISOString();
       const startedAt = Date.now();
       if (server.enabled === false) {
-        result.push(makeStatusPayload(server, {
-          enabled: false,
-          ok: false,
-          tools: [],
-          error: '未启用',
-          checkedAt,
-          cacheCreatedAt,
-        }));
+        result.push(
+          makeStatusPayload(server, {
+            enabled: false,
+            ok: false,
+            tools: [],
+            error: '未启用',
+            checkedAt,
+            cacheCreatedAt,
+          })
+        );
         continue;
       }
       try {
@@ -64,25 +66,29 @@ class McpManager {
         for (const tool of tools) {
           cachedDefinitions.push(toOpenAiTool(server, tool));
         }
-        result.push(makeStatusPayload(server, {
-          enabled: true,
-          ok: true,
-          tools: tools.map(summarizeTool),
-          schemaHash: hashMcpTools(server, tools),
-          checkedAt,
-          durationMs: Date.now() - startedAt,
-          cacheCreatedAt,
-        }));
+        result.push(
+          makeStatusPayload(server, {
+            enabled: true,
+            ok: true,
+            tools: tools.map(summarizeTool),
+            schemaHash: hashMcpTools(server, tools),
+            checkedAt,
+            durationMs: Date.now() - startedAt,
+            cacheCreatedAt,
+          })
+        );
       } catch (error) {
-        result.push(makeStatusPayload(server, {
-          enabled: true,
-          ok: false,
-          tools: [],
-          error: normalizeError(error),
-          checkedAt,
-          durationMs: Date.now() - startedAt,
-          cacheCreatedAt,
-        }));
+        result.push(
+          makeStatusPayload(server, {
+            enabled: true,
+            ok: false,
+            tools: [],
+            error: normalizeError(error),
+            checkedAt,
+            durationMs: Date.now() - startedAt,
+            cacheCreatedAt,
+          })
+        );
       }
     }
     cachedDefinitions.sort((a, b) => String(a.function?.name || '').localeCompare(String(b.function?.name || '')));
@@ -112,7 +118,11 @@ class McpManager {
 
   async listTools(server) {
     const session = await this.getSession(server);
-    const result = await withTimeout(session.client.listTools(), CONNECT_TIMEOUT_MS, `MCP Server ${server.name} 列出工具超时`);
+    const result = await withTimeout(
+      session.client.listTools(),
+      CONNECT_TIMEOUT_MS,
+      `MCP Server ${server.name} 列出工具超时`
+    );
     return Array.isArray(result.tools) ? result.tools : [];
   }
 
@@ -147,8 +157,9 @@ class McpManager {
 }
 
 function getEnabledServers(settings) {
-  return (Array.isArray(settings.mcpServers) ? settings.mcpServers : [])
-    .filter((server) => server && server.enabled !== false && server.command && server.id);
+  return (Array.isArray(settings.mcpServers) ? settings.mcpServers : []).filter(
+    (server) => server && server.enabled !== false && server.command && server.id
+  );
 }
 
 function compareServers(a, b) {
@@ -190,7 +201,11 @@ function makeOpenAiToolName(server, toolName) {
 }
 
 function sanitizeName(value) {
-  return String(value || 'tool').replace(/[^A-Za-z0-9_-]/g, '_').replace(/_+/g, '_') || 'tool';
+  return (
+    String(value || 'tool')
+      .replace(/[^A-Za-z0-9_-]/g, '_')
+      .replace(/_+/g, '_') || 'tool'
+  );
 }
 
 function normalizeInputSchema(schema) {
@@ -206,7 +221,10 @@ function normalizeInputSchema(schema) {
 }
 
 function shouldFlattenInputSchema(schema) {
-  return countSchemaLeaves(schema) > TOOL_SCHEMA_FLATTEN_LEAF_LIMIT || maxSchemaDepth(schema) > TOOL_SCHEMA_FLATTEN_DEPTH_LIMIT;
+  return (
+    countSchemaLeaves(schema) > TOOL_SCHEMA_FLATTEN_LEAF_LIMIT ||
+    maxSchemaDepth(schema) > TOOL_SCHEMA_FLATTEN_DEPTH_LIMIT
+  );
 }
 
 function countSchemaLeaves(schema) {
@@ -227,11 +245,13 @@ function maxSchemaDepth(schema, depth = 0) {
   const properties = schema.properties && typeof schema.properties === 'object' ? schema.properties : {};
   const entries = Object.values(properties);
   if (entries.length === 0) return depth;
-  return Math.max(...entries.map((property) => (
-    property?.type === 'object' && property.properties && typeof property.properties === 'object'
-      ? maxSchemaDepth(property, depth + 1)
-      : depth + 1
-  )));
+  return Math.max(
+    ...entries.map((property) =>
+      property?.type === 'object' && property.properties && typeof property.properties === 'object'
+        ? maxSchemaDepth(property, depth + 1)
+        : depth + 1
+    )
+  );
 }
 
 function flattenInputSchema(schema) {
@@ -241,7 +261,9 @@ function flattenInputSchema(schema) {
   const description = [
     '复杂 MCP 参数已压平：使用 dot-path 字段名，例如 "filters.status"；DeepChat 会在执行前还原成嵌套 JSON。',
     schema.description || '',
-  ].filter(Boolean).join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
   return {
     type: 'object',
     description,
@@ -257,7 +279,14 @@ function collectFlattenedProperties(schema, pathParts, requiredSet, ancestorsReq
     const nextPath = [...pathParts, key];
     const isRequired = requiredSet.has(key);
     if (property?.type === 'object' && property.properties && typeof property.properties === 'object') {
-      collectFlattenedProperties(property, nextPath, new Set(property.required || []), ancestorsRequired && isRequired, out, requiredOut);
+      collectFlattenedProperties(
+        property,
+        nextPath,
+        new Set(property.required || []),
+        ancestorsRequired && isRequired,
+        out,
+        requiredOut
+      );
       continue;
     }
     const flatKey = nextPath.join('.');
@@ -284,7 +313,10 @@ function restoreFlattenedArgs(args) {
       out[key] = value;
       continue;
     }
-    const parts = String(key).split('.').map((part) => part.trim()).filter(Boolean);
+    const parts = String(key)
+      .split('.')
+      .map((part) => part.trim())
+      .filter(Boolean);
     if (parts.length <= 1) {
       out[key] = value;
       continue;

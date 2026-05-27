@@ -16,25 +16,26 @@ describe('settings MCP rendering', () => {
       value: { writeText },
     });
 
-    renderMcpServerList(container, [
-      { id: 'local', name: 'Local MCP', command: 'node', args: ['server.js'], enabled: true },
-    ], vi.fn(), [
-      {
-        id: 'local',
-        name: 'Local MCP',
-        enabled: true,
-        ok: true,
-        tools: [
-          { name: 'read_file', description: 'Read workspace file' },
-        ],
-        toolCount: 1,
-        schemaHash: '1234567890abcdef',
-        cacheTtlMs: 300000,
-        cacheExpiresAt: '2026-05-27T12:00:00.000Z',
-        checkedAt: '2026-05-27T11:55:00.000Z',
-        durationMs: 12,
-      },
-    ]);
+    renderMcpServerList(
+      container,
+      [{ id: 'local', name: 'Local MCP', command: 'node', args: ['server.js'], enabled: true }],
+      vi.fn(),
+      [
+        {
+          id: 'local',
+          name: 'Local MCP',
+          enabled: true,
+          ok: true,
+          tools: [{ name: 'read_file', description: 'Read workspace file' }],
+          toolCount: 1,
+          schemaHash: '1234567890abcdef',
+          cacheTtlMs: 300000,
+          cacheExpiresAt: '2026-05-27T12:00:00.000Z',
+          checkedAt: '2026-05-27T11:55:00.000Z',
+          durationMs: 12,
+        },
+      ]
+    );
 
     expect(container.textContent).toContain('schema 12345678');
     expect(container.textContent).toContain('缓存 TTL 5m');

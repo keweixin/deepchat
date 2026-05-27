@@ -10,15 +10,17 @@ describe('prompt templates', () => {
     const entries = getPromptTemplateEntries();
     const titles = entries.map((entry) => entry.title);
 
-    expect(titles).toEqual(expect.arrayContaining([
-      '分析当前项目',
-      '优化当前文件',
-      '研究一个主题',
-      '生成漂亮文档',
-      'Agent 执行任务',
-      '排障',
-      '代码审查',
-    ]));
+    expect(titles).toEqual(
+      expect.arrayContaining([
+        '分析当前项目',
+        '优化当前文件',
+        '研究一个主题',
+        '生成漂亮文档',
+        'Agent 执行任务',
+        '排障',
+        '代码审查',
+      ])
+    );
     expect(entries.find((entry) => entry.id === 'project-audit').text).toContain('@changed');
     expect(entries.find((entry) => entry.id === 'project-audit').text).toContain('file:line');
     expect(entries.find((entry) => entry.id === 'project-audit').text).toContain(':::todo');

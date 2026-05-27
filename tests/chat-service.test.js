@@ -46,7 +46,7 @@ describe('electron chat service token usage and agent loop', () => {
       [{ role: 'user', content: 'hi' }],
       baseSettings(),
       [],
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -89,7 +89,7 @@ describe('electron chat service token usage and agent loop', () => {
     await service.runWithSettings(
       { requestId: 'req-2', messages: [{ role: 'user', content: 'search' }] },
       baseSettings({ agentMaxRounds: 1 }),
-      new AbortController(),
+      new AbortController()
     );
 
     const tokenEvent = events.find((event) => event.type === 'tokenCount');
@@ -109,15 +109,20 @@ describe('electron chat service token usage and agent loop', () => {
       content: '',
       thinking: '',
       usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }),
-      toolCalls: [{ id: `tool-${service.streamOnce.mock.calls.length}`, function: { name: 'web_search', arguments: '{}' } }],
+      toolCalls: [
+        { id: `tool-${service.streamOnce.mock.calls.length}`, function: { name: 'web_search', arguments: '{}' } },
+      ],
     }));
     service.handleToolCall = vi.fn(async () => 'tool output');
 
-    await expect(service.runWithSettings(
+    await service.runWithSettings(
       { requestId: 'req-3', messages: [{ role: 'user', content: 'loop' }] },
       baseSettings({ agentMaxRounds: 1 }),
-      new AbortController(),
-    )).rejects.toThrow('工具调用超过 1 轮');
+      new AbortController()
+    );
+
+    const doneEvent = events.find((event) => event.type === 'done');
+    expect(doneEvent).toMatchObject({ aborted: false, stopReason: expect.stringContaining('工具调用超过 1 轮') });
 
     const tokenEvent = events.find((event) => event.type === 'tokenCount');
     expect(tokenEvent).toMatchObject({
@@ -142,21 +147,32 @@ describe('electron chat service token usage and agent loop', () => {
     await service.runWithSettings(
       { requestId: 'req-single-step', messages: [{ role: 'user', content: '先查一步' }] },
       baseSettings({ agentMaxRounds: 3, agentExecutionMode: 'single_step', tavilyApiKey: 'tvly-test' }),
-      new AbortController(),
+      new AbortController()
     );
 
     expect(service.streamOnce).toHaveBeenCalledTimes(1);
     expect(service.handleToolCall).toHaveBeenCalledTimes(1);
-    expect(events.some((event) => event.type === 'token' && String(event.token).includes('已完成单步执行：web_search'))).toBe(true);
-    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'stop' && String(event.stopReason).includes('已暂停后续工具轮次'))).toBe(true);
+    expect(
+      events.some((event) => event.type === 'token' && String(event.token).includes('已完成单步执行：web_search'))
+    ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'agentStage' &&
+          event.stage === 'stop' &&
+          String(event.stopReason).includes('已暂停后续工具轮次')
+      )
+    ).toBe(true);
     expect(events.find((event) => event.type === 'done')).toMatchObject({ stopReason: 'single_step' });
   });
 
   it('merges usage through the electron helper too', () => {
-    expect(mergeTokenUsage([
-      { input: 10, output: 1, total: 11, cacheHit: 5, cacheMiss: 5, source: 'provider' },
-      { input: 5, output: 4, total: 9, cacheHit: 0, cacheMiss: 5, source: 'estimated' },
-    ])).toMatchObject({
+    expect(
+      mergeTokenUsage([
+        { input: 10, output: 1, total: 11, cacheHit: 5, cacheMiss: 5, source: 'provider' },
+        { input: 5, output: 4, total: 9, cacheHit: 0, cacheMiss: 5, source: 'estimated' },
+      ])
+    ).toMatchObject({
       input: 15,
       output: 5,
       total: 20,
@@ -169,7 +185,8 @@ describe('electron chat service token usage and agent loop', () => {
 
   it('retries once without stream_options when a compatible provider rejects usage streaming', async () => {
     const service = new ChatService(() => fakeWindow());
-    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce({
         ok: false,
         status: 400,
@@ -177,13 +194,16 @@ describe('electron chat service token usage and agent loop', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        body: streamFromText([
-          sse({ choices: [{ delta: { content: 'ok' } }] }),
-          'data: [DONE]\n\n',
-        ].join('')),
+        body: streamFromText([sse({ choices: [{ delta: { content: 'ok' } }] }), 'data: [DONE]\n\n'].join('')),
       });
 
-    const result = await service.streamOnce('req-fallback', [{ role: 'user', content: 'hi' }], baseSettings(), [], new AbortController().signal);
+    const result = await service.streamOnce(
+      'req-fallback',
+      [{ role: 'user', content: 'hi' }],
+      baseSettings(),
+      [],
+      new AbortController().signal
+    );
     const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body);
 
@@ -198,10 +218,16 @@ describe('electron chat service token usage and agent loop', () => {
     const service = new ChatService(() => fakeWindow(events));
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
-      body: streamFromText([
-        sse({ choices: [{ delta: { content: '```json\n{"tool":"web_search","arguments":{"query":"DeepSeek cache hit"}}\n```' } }] }),
-        'data: [DONE]\n\n',
-      ].join('')),
+      body: streamFromText(
+        [
+          sse({
+            choices: [
+              { delta: { content: '```json\n{"tool":"web_search","arguments":{"query":"DeepSeek cache hit"}}\n```' } },
+            ],
+          }),
+          'data: [DONE]\n\n',
+        ].join('')
+      ),
     });
 
     const result = await service.streamOnce(
@@ -209,7 +235,7 @@ describe('electron chat service token usage and agent loop', () => {
       [{ role: 'user', content: '搜索 DeepSeek cache hit' }],
       baseSettings({ tavilyApiKey: 'tvly-test' }),
       [{ type: 'function', function: { name: 'web_search', parameters: {} } }],
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     expect(result.toolCalls).toHaveLength(1);
@@ -226,17 +252,37 @@ describe('electron chat service token usage and agent loop', () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce({
         ok: true,
-        body: streamFromText([
-          sse({ choices: [{ delta: { reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>' } }] }),
-          'data: [DONE]\n\n',
-        ].join('')),
+        body: streamFromText(
+          [
+            sse({
+              choices: [
+                {
+                  delta: {
+                    reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>',
+                  },
+                },
+              ],
+            }),
+            'data: [DONE]\n\n',
+          ].join('')
+        ),
       })
       .mockResolvedValueOnce({
         ok: true,
-        body: streamFromText([
-          sse({ choices: [{ delta: { reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>' } }] }),
-          'data: [DONE]\n\n',
-        ].join('')),
+        body: streamFromText(
+          [
+            sse({
+              choices: [
+                {
+                  delta: {
+                    reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>',
+                  },
+                },
+              ],
+            }),
+            'data: [DONE]\n\n',
+          ].join('')
+        ),
       });
 
     const blocked = await service.streamOnce(
@@ -244,14 +290,14 @@ describe('electron chat service token usage and agent loop', () => {
       [{ role: 'user', content: '读 README' }],
       baseSettings({ workspaceRoots: ['E:\\demo'] }),
       [{ type: 'function', function: { name: 'web_search', parameters: {} } }],
-      new AbortController().signal,
+      new AbortController().signal
     );
     const repaired = await service.streamOnce(
       'req-repair-thinking-allowed',
       [{ role: 'user', content: '读 README' }],
       baseSettings({ workspaceRoots: ['E:\\demo'] }),
       [{ type: 'function', function: { name: 'read_file', parameters: {} } }],
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     expect(blocked.toolCalls).toEqual([]);
@@ -307,7 +353,9 @@ describe('electron chat service token usage and agent loop', () => {
     expect(generic.toolMode).toBe('none');
     expect(generic.selectedTools).not.toContain('read_file');
     expect(localProject.toolMode).toBe('file_reader');
-    expect(localProject.selectedTools).toEqual(expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file']));
+    expect(localProject.selectedTools).toEqual(
+      expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file'])
+    );
     expect(pathTarget.toolMode).toBe('file_reader');
     expect(pathTarget.selectedTools).toContain('read_file');
   });
@@ -323,7 +371,9 @@ describe('electron chat service token usage and agent loop', () => {
 
     expect(intent.toolMode).toBe('multi_tool');
     expect(intent.explicitDirectives).toEqual(expect.arrayContaining(['web', 'changed']));
-    expect(intent.selectedTools).toEqual(expect.arrayContaining(['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_file']));
+    expect(intent.selectedTools).toEqual(
+      expect.arrayContaining(['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_file'])
+    );
     expect(intent.reason).toContain('explicit_web');
     expect(intent.reason).toContain('explicit_changed_context');
   });
@@ -336,12 +386,18 @@ describe('electron chat service token usage and agent loop', () => {
       runCodeEnabled: true,
     });
     const intent = detectAgentIntent('@web @changed 检查项目并运行验证', settings);
-    const plan = buildAgentPlanSummary(intent, [
-      { type: 'function', function: { name: 'web_search' } },
-      { type: 'function', function: { name: 'index_workspace' } },
-      { type: 'function', function: { name: 'read_file' } },
-      { type: 'function', function: { name: 'run_code' } },
-    ], settings, 4, '@web @changed 检查项目并运行验证');
+    const plan = buildAgentPlanSummary(
+      intent,
+      [
+        { type: 'function', function: { name: 'web_search' } },
+        { type: 'function', function: { name: 'index_workspace' } },
+        { type: 'function', function: { name: 'read_file' } },
+        { type: 'function', function: { name: 'run_code' } },
+      ],
+      settings,
+      4,
+      '@web @changed 检查项目并运行验证'
+    );
 
     expect(plan).toMatchObject({
       type: 'deepchat.agentPlan',
@@ -354,7 +410,9 @@ describe('electron chat service token usage and agent loop', () => {
     expect(plan.steps.join('\n')).toContain('最近 7 天修改');
     expect(plan.steps.join('\n')).toContain('关键变更文件');
     expect(plan.steps.join('\n')).toContain('运行小段代码');
-    expect(plan.selectedTools).toEqual(expect.arrayContaining(['web_search', 'index_workspace', 'read_file', 'run_code']));
+    expect(plan.selectedTools).toEqual(
+      expect.arrayContaining(['web_search', 'index_workspace', 'read_file', 'run_code'])
+    );
     expect(plan.availableToolNames).toEqual(['index_workspace', 'read_file', 'run_code', 'web_search']);
     expect(plan.searchPlan.map((item) => item.purpose)).toContain('官方资料');
     expect(plan.approvalPolicy.join('\n')).toContain('代码运行必须确认');
@@ -362,13 +420,19 @@ describe('electron chat service token usage and agent loop', () => {
   });
 
   it('builds multi-query research search plans for web agent tasks', () => {
-    const plan = buildResearchSearchPlan('请联网研究 DeepSeek Reasonix cache 命中优化方案和 GitHub 实现', {
-      selectedTools: ['web_search'],
-      candidateTools: ['web_search'],
-    }, baseSettings({ tavilyApiKey: 'tvly-test' }));
+    const plan = buildResearchSearchPlan(
+      '请联网研究 DeepSeek Reasonix cache 命中优化方案和 GitHub 实现',
+      {
+        selectedTools: ['web_search'],
+        candidateTools: ['web_search'],
+      },
+      baseSettings({ tavilyApiKey: 'tvly-test' })
+    );
 
     expect(plan.length).toBeGreaterThanOrEqual(3);
-    expect(plan.map((item) => item.purpose)).toEqual(expect.arrayContaining(['官方资料', 'GitHub / Issue', '对比资料']));
+    expect(plan.map((item) => item.purpose)).toEqual(
+      expect.arrayContaining(['官方资料', 'GitHub / Issue', '对比资料'])
+    );
     expect(plan[0].query).toContain('official documentation');
     expect(plan.some((item) => item.query.includes('GitHub issues'))).toBe(true);
   });
@@ -386,7 +450,7 @@ describe('electron chat service token usage and agent loop', () => {
     await service.runWithSettings(
       { requestId: 'req-plan-summary', messages: [{ role: 'user', content: '@changed 检查当前项目' }] },
       baseSettings({ activeSkill: 'agent_auto', workspaceRoots: ['E:\\demo'] }),
-      new AbortController(),
+      new AbortController()
     );
 
     const planEvent = events.find((event) => event.type === 'agentStage' && event.stage === 'plan');
@@ -416,9 +480,12 @@ describe('electron chat service token usage and agent loop', () => {
     });
 
     await service.runWithSettings(
-      { requestId: 'req-search-plan-tail', messages: [{ role: 'user', content: '@web 研究 DeepSeek Reasonix cache 命中优化' }] },
+      {
+        requestId: 'req-search-plan-tail',
+        messages: [{ role: 'user', content: '@web 研究 DeepSeek Reasonix cache 命中优化' }],
+      },
       baseSettings({ activeSkill: 'agent_auto', tavilyApiKey: 'tvly-test' }),
-      new AbortController(),
+      new AbortController()
     );
 
     expect(sentMessages.at(-1).content).toContain('DeepChat 本轮联网搜索计划');
@@ -459,15 +526,30 @@ describe('electron chat service token usage and agent loop', () => {
         system: messages[0].content,
         tools: tools.map((tool) => tool.function.name),
       });
-      return { content: 'ok', thinking: '', usage: normalizeTokenUsage(null, { input: 1, output: 1, model: settings.model }), toolCalls: [] };
+      return {
+        content: 'ok',
+        thinking: '',
+        usage: normalizeTokenUsage(null, { input: 1, output: 1, model: settings.model }),
+        toolCalls: [],
+      };
     });
 
-    await service.runWithSettings({ requestId: 'req-cache-a', messages: [{ role: 'user', content: '搜索今天新闻' }] }, settings, new AbortController());
-    await service.runWithSettings({ requestId: 'req-cache-b', messages: [{ role: 'user', content: '检查 E:\\demo\\package.json 并运行测试' }] }, settings, new AbortController());
+    await service.runWithSettings(
+      { requestId: 'req-cache-a', messages: [{ role: 'user', content: '搜索今天新闻' }] },
+      settings,
+      new AbortController()
+    );
+    await service.runWithSettings(
+      { requestId: 'req-cache-b', messages: [{ role: 'user', content: '检查 E:\\demo\\package.json 并运行测试' }] },
+      settings,
+      new AbortController()
+    );
 
     expect(seen[0].system).toBe(seen[1].system);
     expect(seen[0].tools).toEqual(seen[1].tools);
-    expect(seen[0].tools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'search_workspace', 'read_file', 'run_code']));
+    expect(seen[0].tools).toEqual(
+      expect.arrayContaining(['web_search', 'list_files', 'search_workspace', 'read_file', 'run_code'])
+    );
   });
 
   it('disables tool schemas up front for providers that do not support tool calls', async () => {
@@ -490,12 +572,17 @@ describe('electron chat service token usage and agent loop', () => {
         activeSkill: 'agent_auto',
         runCodeEnabled: true,
       }),
-      new AbortController(),
+      new AbortController()
     );
 
     expect(sentTools).toEqual([]);
     expect(sentSystem).not.toContain('代码运行工具');
-    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'warning' && event.stopReason === 'provider_tools_unsupported')).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'agentStage' && event.stage === 'warning' && event.stopReason === 'provider_tools_unsupported'
+      )
+    ).toBe(true);
     expect(events.find((event) => event.type === 'tokenCount').warnings.join('\n')).toContain('tool_calls');
   });
 
@@ -510,7 +597,7 @@ describe('electron chat service token usage and agent loop', () => {
     await service.runWithSettings(
       { requestId: 'req-scratch', messages: [{ role: 'user', content: '搜索今天新闻' }] },
       baseSettings({ activeSkill: 'agent_auto', tavilyApiKey: 'tvly-test' }),
-      new AbortController(),
+      new AbortController()
     );
 
     expect(sentMessages[0].role).toBe('system');
@@ -529,7 +616,7 @@ describe('electron chat service token usage and agent loop', () => {
     await service.runWithSettings(
       { requestId: 'req-missing-tail', messages: [{ role: 'user', content: '搜索今天新闻' }] },
       baseSettings({ activeSkill: 'agent_auto', tavilyApiKey: '' }),
-      new AbortController(),
+      new AbortController()
     );
 
     expect(sentMessages[0].role).toBe('system');
@@ -545,7 +632,10 @@ describe('electron chat service token usage and agent loop', () => {
     service.streamOnce = vi.fn(async () => ({
       content: 'ok',
       thinking: '',
-      usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1, prompt_cache_hit_tokens: 8, prompt_cache_miss_tokens: 2 }, { model: 'deepseek-v4-flash' }),
+      usage: normalizeTokenUsage(
+        { prompt_tokens: 10, completion_tokens: 1, prompt_cache_hit_tokens: 8, prompt_cache_miss_tokens: 2 },
+        { model: 'deepseek-v4-flash' }
+      ),
       toolCalls: [],
     }));
 
@@ -561,36 +651,41 @@ describe('electron chat service token usage and agent loop', () => {
         },
       },
       baseSettings({ activeSkill: 'agent_auto', tavilyApiKey: 'tvly-test', workspaceRoots: ['E:\\demo'] }),
-      new AbortController(),
+      new AbortController()
     );
 
     const tokenCount = events.find((event) => event.type === 'tokenCount');
     expect(tokenCount.cacheProfile.prefixFingerprint).toBeTruthy();
     expect(tokenCount.cacheProfile.toolNames).toContain('web_search');
-    expect(tokenCount.cacheProfile.cacheStabilityReasons).toEqual(expect.arrayContaining([
-      'model_changed',
-      'tool_schema_changed',
-      'workspace_or_mcp_changed',
-    ]));
+    expect(tokenCount.cacheProfile.cacheStabilityReasons).toEqual(
+      expect.arrayContaining(['model_changed', 'tool_schema_changed', 'workspace_or_mcp_changed'])
+    );
     expect(tokenCount.cacheProfile.cacheStabilityDetails.prefixFingerprint.current).toBeTruthy();
     expect(tokenCount.warnings.join('\n')).toContain('prefix');
-    expect(events.some((event) => event.type === 'contextBudget' && event.cacheStabilityReasons?.includes('tool_schema_changed'))).toBe(true);
+    expect(
+      events.some(
+        (event) => event.type === 'contextBudget' && event.cacheStabilityReasons?.includes('tool_schema_changed')
+      )
+    ).toBe(true);
   });
 
   it('attributes cache prefix drift to concrete change reasons', () => {
-    const diagnostics = buildCacheStabilityDiagnostics({
-      prefixFingerprint: 'p1',
-      systemHash: 's1',
-      toolsHash: 't1',
-      workspaceSignature: 'w1',
-      model: 'deepseek-chat',
-    }, {
-      prefixFingerprint: 'p2',
-      systemHash: 's2',
-      toolsHash: 't2',
-      workspaceSignature: 'w2',
-      model: 'deepseek-v4-flash',
-    });
+    const diagnostics = buildCacheStabilityDiagnostics(
+      {
+        prefixFingerprint: 'p1',
+        systemHash: 's1',
+        toolsHash: 't1',
+        workspaceSignature: 'w1',
+        model: 'deepseek-chat',
+      },
+      {
+        prefixFingerprint: 'p2',
+        systemHash: 's2',
+        toolsHash: 't2',
+        workspaceSignature: 'w2',
+        model: 'deepseek-v4-flash',
+      }
+    );
 
     expect(diagnostics.cacheStabilityReasons).toEqual([
       'model_changed',
@@ -622,14 +717,14 @@ describe('electron chat service token usage and agent loop', () => {
       baseSettings(),
       contextBundle,
       0,
-      new AbortController().signal,
+      new AbortController().signal
     );
     const second = await service.maybeBuildContextSummary(
       { requestId: 'req-summary', contextSummary: first.summary, contextSummaryMeta: first.meta },
       baseSettings(),
       contextBundle,
       0,
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     expect(service.summarizeContext).toHaveBeenCalledTimes(1);
@@ -657,7 +752,7 @@ describe('electron chat service token usage and agent loop', () => {
       baseSettings({ providerId: 'deepseek', model: 'deepseek-v4-pro' }),
       contextBundle,
       0,
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -669,7 +764,12 @@ describe('electron chat service token usage and agent loop', () => {
     });
     expect(result.usage.byPurpose.summary).toBeGreaterThan(0);
     expect(result.usage.cost.model).toBe('deepseek-v4-flash');
-    expect(events.some((event) => event.type === 'agentStage' && event.stage === 'summary' && event.warning.includes('deepseek-v4-flash'))).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'agentStage' && event.stage === 'summary' && event.warning.includes('deepseek-v4-flash')
+      )
+    ).toBe(true);
   });
 
   it('surfaces malformed tool arguments instead of silently running with empty args', async () => {
@@ -679,7 +779,7 @@ describe('electron chat service token usage and agent loop', () => {
       'req-parse',
       { id: 'tool-bad', function: { name: 'run_code', arguments: '{"language":"javascript",' } },
       baseSettings(),
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     expect(result).toContain('参数 JSON 解析失败');
@@ -698,7 +798,7 @@ describe('electron chat service token usage and agent loop', () => {
       'req-arg-repair',
       { id: 'tool-repair-args', function: { name: 'web_search', arguments: '{"query":"DeepSeek cache hit' } },
       baseSettings({ tavilyApiKey: 'tvly-test' }),
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     const toolRequest = events.find((event) => event.type === 'toolRequest');
@@ -717,7 +817,7 @@ describe('electron chat service token usage and agent loop', () => {
       'req-timeout',
       { id: 'tool-timeout', function: { name: 'web_search', arguments: '{"query":"DeepChat"}' } },
       baseSettings({ toolApprovalTimeoutMs: 5000, tavilyApiKey: 'tvly-test' }),
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     await vi.advanceTimersByTimeAsync(5000);
@@ -731,7 +831,8 @@ describe('electron chat service token usage and agent loop', () => {
   it('suppresses duplicate tool calls in the same agent run', async () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
-    service.streamOnce = vi.fn()
+    service.streamOnce = vi
+      .fn()
       .mockResolvedValueOnce({
         content: '',
         thinking: '',
@@ -752,11 +853,13 @@ describe('electron chat service token usage and agent loop', () => {
     await service.runWithSettings(
       { requestId: 'req-dupe', messages: [{ role: 'user', content: '搜索 same' }] },
       baseSettings({ agentMaxRounds: 2, tavilyApiKey: 'tvly-test' }),
-      new AbortController(),
+      new AbortController()
     );
 
     expect(service.handleToolCall).toHaveBeenCalledTimes(1);
-    expect(events.some((event) => String(event.output || event.warning || '').includes('重复工具调用已抑制'))).toBe(true);
+    expect(events.some((event) => String(event.output || event.warning || '').includes('重复工具调用已抑制'))).toBe(
+      true
+    );
   });
 
   it('runs parallel-safe read-only tool calls together and appends results in declared order', async () => {
@@ -794,7 +897,7 @@ describe('electron chat service token usage and agent loop', () => {
     const runPromise = service.runWithSettings(
       { requestId: 'req-parallel-tools', messages: [{ role: 'user', content: '检查 src 并搜索 cache' }] },
       baseSettings({ activeSkill: 'agent_auto', workspaceRoots: ['E:\\demo'] }),
-      new AbortController(),
+      new AbortController()
     );
 
     await waitForCondition(() => starts.length === 2);
@@ -842,7 +945,7 @@ describe('electron chat service token usage and agent loop', () => {
     const runPromise = service.runWithSettings(
       { requestId: 'req-serial-barrier', messages: [{ role: 'user', content: '列文件、运行代码、再搜索' }] },
       baseSettings({ activeSkill: 'agent_auto', workspaceRoots: ['E:\\demo'] }),
-      new AbortController(),
+      new AbortController()
     );
 
     await waitForCondition(() => starts.length === 1);
@@ -858,13 +961,7 @@ describe('electron chat service token usage and agent loop', () => {
   });
 
   it('compacts tool output by tool type', () => {
-    const output = [
-      '文件：E:\\demo\\README.md',
-      '大小：20000 bytes',
-      '行范围：20-40',
-      '',
-      'A'.repeat(9000),
-    ].join('\n');
+    const output = ['文件：E:\\demo\\README.md', '大小：20000 bytes', '行范围：20-40', '', 'A'.repeat(9000)].join('\n');
 
     const compacted = compactToolOutputForContext('read_file', { path: 'README.md' }, output);
 
@@ -873,17 +970,21 @@ describe('electron chat service token usage and agent loop', () => {
     expect(compacted).toContain('开头片段');
     expect(compacted.length).toBeLessThan(output.length);
 
-    const workspaceOutput = compactToolOutputForContext('search_workspace', { symbol: 'buildContextBudgetBundle' }, [
-      '工作区搜索：buildContextBudgetBundle',
-      '符号：buildContextBudgetBundle',
-      '工作区：E:\\repo',
-      '目录：src',
-      '结果数：1',
-      '',
-      '1. src/modules/api.js:811-812',
-      '   摘录:',
-      '   811: export function buildContextBudgetBundle(messages, options = {}) {',
-    ].join('\n'));
+    const workspaceOutput = compactToolOutputForContext(
+      'search_workspace',
+      { symbol: 'buildContextBudgetBundle' },
+      [
+        '工作区搜索：buildContextBudgetBundle',
+        '符号：buildContextBudgetBundle',
+        '工作区：E:\\repo',
+        '目录：src',
+        '结果数：1',
+        '',
+        '1. src/modules/api.js:811-812',
+        '   摘录:',
+        '   811: export function buildContextBudgetBundle(messages, options = {}) {',
+      ].join('\n')
+    );
     expect(workspaceOutput).toContain('符号：buildContextBudgetBundle');
     expect(workspaceOutput).toContain('src/modules/api.js:811-812');
   });
@@ -894,13 +995,15 @@ describe('electron chat service token usage and agent loop', () => {
     service.waitForApproval = vi.fn(async () => ({ approved: true }));
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
-      json: async () => ({ results: [{ title: 'DeepSeek Cache', url: 'https://example.com/cache', content: 'cache details' }] }),
+      json: async () => ({
+        results: [{ title: 'DeepSeek Cache', url: 'https://example.com/cache', content: 'cache details' }],
+      }),
     });
     const output = await service.handleToolCall(
       'req-context-output',
       { id: 'tool-context', function: { name: 'web_search', arguments: '{"query":"DeepSeek cache"}' } },
       baseSettings({ tavilyApiKey: 'tvly-test' }),
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     expect(output).toContain('DeepSeek Cache');
@@ -925,7 +1028,7 @@ describe('electron chat service token usage and agent loop', () => {
       'req-auto-approve',
       { id: 'tool-auto', function: { name: 'web_search', arguments: '{"query":"DeepChat agent"}' } },
       baseSettings({ tavilyApiKey: 'tvly-test', toolApprovalPolicy: 'auto_readonly' }),
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     expect(output).toContain('DeepChat');
@@ -945,9 +1048,12 @@ describe('electron chat service token usage and agent loop', () => {
 
     const output = await service.handleToolCall(
       'req-auto-deny-run',
-      { id: 'tool-run', function: { name: 'run_code', arguments: '{"language":"javascript","code":"console.log(1)"}' } },
+      {
+        id: 'tool-run',
+        function: { name: 'run_code', arguments: '{"language":"javascript","code":"console.log(1)"}' },
+      },
       baseSettings({ toolApprovalPolicy: 'auto_readonly', runCodeEnabled: true }),
-      new AbortController().signal,
+      new AbortController().signal
     );
 
     expect(output).toContain('用户拒绝执行工具 run_code');
