@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
   ChatService,
   buildAgentPlanSummary,
+  buildResearchSearchPlan,
   compactToolOutputForContext,
   buildCacheStabilityDiagnostics,
   detectAgentIntent,
@@ -314,7 +315,7 @@ describe('electron chat service token usage and agent loop', () => {
       { type: 'function', function: { name: 'web_search' } },
       { type: 'function', function: { name: 'read_file' } },
       { type: 'function', function: { name: 'run_code' } },
-    ], settings, 4);
+    ], settings, 4, '@web @changed 检查项目并运行验证');
 
     expect(plan).toMatchObject({
       type: 'deepchat.agentPlan',
@@ -327,7 +328,20 @@ describe('electron chat service token usage and agent loop', () => {
     expect(plan.steps.join('\n')).toContain('运行小段代码');
     expect(plan.selectedTools).toEqual(expect.arrayContaining(['web_search', 'read_file', 'run_code']));
     expect(plan.availableToolNames).toEqual(['read_file', 'run_code', 'web_search']);
+    expect(plan.searchPlan.map((item) => item.purpose)).toContain('官方资料');
     expect(plan.approvalPolicy.join('\n')).toContain('代码运行必须确认');
+  });
+
+  it('builds multi-query research search plans for web agent tasks', () => {
+    const plan = buildResearchSearchPlan('请联网研究 DeepSeek Reasonix cache 命中优化方案和 GitHub 实现', {
+      selectedTools: ['web_search'],
+      candidateTools: ['web_search'],
+    }, baseSettings({ tavilyApiKey: 'tvly-test' }));
+
+    expect(plan.length).toBeGreaterThanOrEqual(3);
+    expect(plan.map((item) => item.purpose)).toEqual(expect.arrayContaining(['官方资料', 'GitHub / Issue', '对比资料']));
+    expect(plan[0].query).toContain('official documentation');
+    expect(plan.some((item) => item.query.includes('GitHub issues'))).toBe(true);
   });
 
   it('emits agent plan summaries before model streaming', async () => {
@@ -354,6 +368,30 @@ describe('electron chat service token usage and agent loop', () => {
     });
     expect(planEvent.planSummary.steps.join('\n')).toContain('工作区文件');
     expect(planEvent.planSummary.approvalPolicy.join('\n')).toContain('读取/搜索类工具');
+  });
+
+  it('injects smart-agent search plans into volatile turn metadata', async () => {
+    const service = new ChatService(() => fakeWindow());
+    let sentMessages = [];
+    service.streamOnce = vi.fn(async (_requestId, messages) => {
+      sentMessages = messages;
+      return {
+        content: 'done',
+        thinking: '',
+        usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 2 }),
+        toolCalls: [],
+      };
+    });
+
+    await service.runWithSettings(
+      { requestId: 'req-search-plan-tail', messages: [{ role: 'user', content: '@web 研究 DeepSeek Reasonix cache 命中优化' }] },
+      baseSettings({ activeSkill: 'agent_auto', tavilyApiKey: 'tvly-test' }),
+      new AbortController(),
+    );
+
+    expect(sentMessages.at(-1).content).toContain('DeepChat 本轮联网搜索计划');
+    expect(sentMessages.at(-1).content).toContain('official documentation');
+    expect(sentMessages.at(-1).content).toContain('web_search');
   });
 
   it('requires MCP task intent instead of routing bare product mentions', () => {

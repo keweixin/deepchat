@@ -1321,10 +1321,38 @@ function createAgentPlanCard(plan = null) {
 
   appendAgentPlanChips(card, '预计工具', plan.selectedTools);
   appendAgentPlanChips(card, '候选工具', plan.candidateTools);
+  appendAgentSearchPlan(card, plan.searchPlan);
   appendAgentPlanChips(card, '缺少配置', plan.missingPrerequisites, 'is-warning');
   appendAgentPlanChips(card, '审批策略', plan.approvalPolicy);
   appendAgentPlanChips(card, '提示', plan.warnings, 'is-warning');
   return card;
+}
+
+function appendAgentSearchPlan(card, searchPlan = []) {
+  const items = Array.isArray(searchPlan) ? searchPlan.filter((item) => item?.query) : [];
+  if (!items.length) return;
+  const section = document.createElement('div');
+  section.className = 'agent-search-plan';
+  const title = document.createElement('div');
+  title.className = 'agent-search-plan-title';
+  title.textContent = '搜索计划';
+  const list = document.createElement('ol');
+  for (const item of items.slice(0, 4)) {
+    const row = document.createElement('li');
+    const purpose = document.createElement('strong');
+    purpose.textContent = item.purpose || '搜索';
+    const query = document.createElement('code');
+    query.textContent = item.query;
+    row.append(purpose, query);
+    if (item.reason) {
+      const reason = document.createElement('span');
+      reason.textContent = item.reason;
+      row.appendChild(reason);
+    }
+    list.appendChild(row);
+  }
+  section.append(title, list);
+  card.appendChild(section);
 }
 
 function appendAgentPlanChips(card, labelText, values = [], extraClass = '') {

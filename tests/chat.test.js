@@ -317,6 +317,18 @@ describe('chat regeneration', () => {
             maxRounds: 3,
             steps: ['理解用户目标', '检索外部资料', '整理回答并说明来源'],
             selectedTools: ['web_search'],
+            searchPlan: [
+              {
+                purpose: '官方资料',
+                query: 'DeepSeek cache official documentation',
+                reason: '先确认官方定义。',
+              },
+              {
+                purpose: 'GitHub / Issue',
+                query: 'DeepSeek cache GitHub issues implementation',
+                reason: '查真实实现。',
+              },
+            ],
             approvalPolicy: ['读取/搜索类工具会先展示审批卡，确认后执行并保留证据。'],
           },
         },
@@ -330,6 +342,8 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('规划工具：web_search');
     expect(container.textContent).toContain('任务计划');
     expect(container.textContent).toContain('检索外部资料');
+    expect(container.textContent).toContain('搜索计划');
+    expect(container.textContent).toContain('DeepSeek cache official documentation');
     expect(container.textContent).toContain('预计工具');
     expect(container.textContent).toContain('审批策略');
     expect(container.textContent).toContain('prefix abc123');

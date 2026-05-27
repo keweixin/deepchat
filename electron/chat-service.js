@@ -111,7 +111,8 @@ class ChatService {
     let workingMessages = [
       { role: 'system', content: systemPrompt },
     ];
-    const planSummary = buildAgentPlanSummary(intent, tools, settings, maxToolRounds);
+    const latestUserText = getLastUserText(messages);
+    const planSummary = buildAgentPlanSummary(intent, tools, settings, maxToolRounds, latestUserText);
 
     this.emit(requestId, 'agentStage', {
       stage: 'plan',
@@ -168,7 +169,7 @@ class ChatService {
       }
     }
 
-    workingMessages.push(...appendTurnTailMetadata(apiMessages, buildTurnTailMetadata(intent, settings)));
+    workingMessages.push(...appendTurnTailMetadata(apiMessages, buildTurnTailMetadata(intent, settings, planSummary)));
     this.emit(requestId, 'contextBudget', contextBundle.meta);
 
     for (let round = 0; round <= maxToolRounds; round++) {
@@ -727,7 +728,7 @@ function filterStableBuiltInTools(tools, settings = {}) {
   });
 }
 
-function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds = DEFAULT_AGENT_MAX_ROUNDS) {
+function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds = DEFAULT_AGENT_MAX_ROUNDS, userText = '') {
   const selectedTools = Array.isArray(intent.selectedTools) ? intent.selectedTools : [];
   const candidateTools = Array.isArray(intent.candidateTools) ? intent.candidateTools : [];
   const missingPrerequisites = Array.isArray(intent.missingPrerequisites) ? intent.missingPrerequisites : [];
@@ -757,6 +758,7 @@ function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds
   steps.push('整理回答并说明使用过的工具、来源和限制。');
 
   const approvalPolicy = buildPlanApprovalPolicy(selectedTools);
+  const searchPlan = buildResearchSearchPlan(userText, intent, settings);
   const warnings = [];
   if (missingPrerequisites.length) {
     warnings.push(`缺少配置：${missingPrerequisites.join('、')}`);
@@ -776,10 +778,76 @@ function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds
     selectedTools,
     candidateTools,
     availableToolNames,
+    searchPlan,
     missingPrerequisites,
     approvalPolicy,
     warnings,
   };
+}
+
+function buildResearchSearchPlan(userText = '', intent = {}, settings = {}) {
+  const selectedTools = Array.isArray(intent.selectedTools) ? intent.selectedTools : [];
+  const candidateTools = Array.isArray(intent.candidateTools) ? intent.candidateTools : [];
+  const needsWeb = selectedTools.includes('web_search') || candidateTools.includes('web_search');
+  if (!needsWeb) return [];
+  const topic = normalizeResearchTopic(userText);
+  if (!topic) return [];
+  const wantsLatest = /最新|最近|今日|今天|本周|新闻|发布|版本|价格|current|latest|recent|today|news|release|pricing/i.test(userText);
+  const wantsCode = /github|issue|源码|开源|库|框架|实现|bug|报错|兼容|sdk|api|mcp|agent|cache|缓存/i.test(userText);
+  const wantsCompare = /对比|比较|方案|竞品|替代|差异|优劣|benchmark|compare|versus|vs/i.test(userText);
+  const plan = [
+    {
+      purpose: '官方资料',
+      query: `${topic} official documentation`,
+      reason: '先确认官方定义、参数、限制和推荐用法。',
+    },
+  ];
+  if (wantsCode) {
+    plan.push({
+      purpose: 'GitHub / Issue',
+      query: `${topic} GitHub issues implementation`,
+      reason: '查找真实实现、已知问题和社区修复记录。',
+    });
+  }
+  if (wantsLatest) {
+    plan.push({
+      purpose: '近期资料',
+      query: `${topic} latest 2026 release news`,
+      reason: '确认最近变化，避免依赖过期信息。',
+    });
+  }
+  if (wantsCompare || plan.length < 3) {
+    plan.push({
+      purpose: '对比资料',
+      query: `${topic} comparison best practices`,
+      reason: '找可借鉴方案并对比取舍。',
+    });
+  }
+  return dedupeSearchPlan(plan).slice(0, 4);
+}
+
+function normalizeResearchTopic(text = '') {
+  const stripped = stripVolatileContextBlocks(String(text || ''))
+    .replace(DIRECTIVE_TEXT_PATTERN, ' ')
+    .replace(/@[a-zA-Z_:-]+/g, ' ')
+    .replace(/[，。！？?]/g, ' ')
+    .replace(/请|帮我|麻烦|一下|搜索|查询|查找|研究|调研|看看|给我|根据|优化|分析|总结/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!stripped) return '';
+  return stripped.slice(0, 96);
+}
+
+function dedupeSearchPlan(plan = []) {
+  const seen = new Set();
+  const next = [];
+  for (const item of plan) {
+    const query = String(item.query || '').trim();
+    if (!query || seen.has(query.toLowerCase())) continue;
+    seen.add(query.toLowerCase());
+    next.push({ ...item, query });
+  }
+  return next;
 }
 
 function buildPlanApprovalPolicy(selectedTools = []) {
@@ -905,10 +973,18 @@ function buildCacheStabilityDiagnostics(previousProfile, currentProfile) {
   };
 }
 
-function buildTurnTailMetadata(intent = {}, settings = {}) {
+function buildTurnTailMetadata(intent = {}, settings = {}, planSummary = null) {
   const lines = [];
   const missing = Array.isArray(intent.missingPrerequisites) ? intent.missingPrerequisites : [];
   const explicitDirectives = Array.isArray(intent.explicitDirectives) ? intent.explicitDirectives : [];
+  const searchPlan = Array.isArray(planSummary?.searchPlan) ? planSummary.searchPlan : [];
+  if (settings.activeSkill === 'agent_auto' && searchPlan.length > 0) {
+    lines.push('DeepChat 本轮联网搜索计划：');
+    searchPlan.forEach((item, index) => {
+      lines.push(`${index + 1}. ${item.purpose || '搜索'}：${item.query}`);
+    });
+    lines.push('如需要联网，请优先按上述 query 顺序调用 web_search；最终回答要合并去重并引用来源。');
+  }
   if (settings.activeSkill === 'agent_auto' && explicitDirectives.length > 0) {
     lines.push('DeepChat 本轮显式工具指令：');
     lines.push(`用户使用了：${explicitDirectives.map(formatDirectiveName).join('、')}`);
@@ -2093,6 +2169,7 @@ module.exports = {
   buildContextWithBudget,
   buildContextBudgetBundle,
   buildAgentPlanSummary,
+  buildResearchSearchPlan,
   compactToolOutputForContext,
   detectAgentIntent,
   mergeTokenUsage,
