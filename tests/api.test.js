@@ -383,7 +383,7 @@ describe('browser settings fallback', () => {
     expect(generic.toolMode).toBe('none');
     expect(generic.selectedTools).not.toContain('read_file');
     expect(localProject.toolMode).toBe('file_reader');
-    expect(localProject.selectedTools).toEqual(expect.arrayContaining(['list_files', 'search_workspace', 'read_file']));
+    expect(localProject.selectedTools).toEqual(expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file']));
     expect(pathTarget.toolMode).toBe('file_reader');
     expect(pathTarget.selectedTools).toContain('read_file');
   });
@@ -401,7 +401,7 @@ describe('browser settings fallback', () => {
     expect(run.selectedTools).toContain('run_code');
     expect(run.explicitDirectives).toContain('code');
     expect(changed.toolMode).toBe('file_reader');
-    expect(changed.selectedTools).toEqual(expect.arrayContaining(['list_files', 'search_workspace', 'read_file']));
+    expect(changed.selectedTools).toEqual(expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file']));
     expect(changed.reason).toContain('explicit_changed_context');
   });
 

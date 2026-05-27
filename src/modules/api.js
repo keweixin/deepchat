@@ -746,6 +746,7 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     else selected.add('run_code');
   }
   if (directives.changed) {
+    candidates.add('index_workspace');
     candidates.add('list_files');
     candidates.add('search_workspace');
     candidates.add('read_symbol');
@@ -753,6 +754,7 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     reasons.push('explicit_changed_context');
     score += 0.65;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('index_workspace');
       selected.add('list_files');
       selected.add('search_workspace');
       selected.add('read_symbol');
@@ -777,6 +779,7 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     else missing.add('Tavily API Key');
   }
   if (!candidates.has('list_files') && needsFiles(text, lower)) {
+    candidates.add('index_workspace');
     candidates.add('list_files');
     candidates.add('search_workspace');
     candidates.add('read_symbol');
@@ -784,6 +787,7 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
     reasons.push('local_files');
     score += 0.35;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('index_workspace');
       selected.add('list_files');
       selected.add('search_workspace');
       selected.add('read_symbol');
@@ -813,7 +817,7 @@ export function detectAgentIntent(messagesOrText, settings = getSettings()) {
   if (hasBuiltin && hasMcp) toolMode = 'multi_tool';
   else if (hasMcp) toolMode = 'mcp_tool';
   else if (selected.has('web_search') && selected.size === 1) toolMode = 'web_search';
-  else if ((selected.has('list_files') || selected.has('search_workspace') || selected.has('read_symbol') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
+  else if ((selected.has('index_workspace') || selected.has('list_files') || selected.has('search_workspace') || selected.has('read_symbol') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
   else if (selected.has('run_code') && selected.size === 1) toolMode = 'code_runner';
   else if (hasBuiltin) toolMode = 'multi_tool';
 

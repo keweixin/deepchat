@@ -268,6 +268,7 @@ describe('electron chat service token usage and agent loop', () => {
     });
 
     expect(intent.toolMode).toBe('multi_tool');
+    expect(intent.selectedTools).toContain('index_workspace');
     expect(intent.selectedTools).toContain('read_file');
     expect(intent.selectedTools).toContain('read_symbol');
     expect(intent.selectedTools).toContain('search_workspace');
@@ -306,7 +307,7 @@ describe('electron chat service token usage and agent loop', () => {
     expect(generic.toolMode).toBe('none');
     expect(generic.selectedTools).not.toContain('read_file');
     expect(localProject.toolMode).toBe('file_reader');
-    expect(localProject.selectedTools).toEqual(expect.arrayContaining(['list_files', 'search_workspace', 'read_file']));
+    expect(localProject.selectedTools).toEqual(expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file']));
     expect(pathTarget.toolMode).toBe('file_reader');
     expect(pathTarget.selectedTools).toContain('read_file');
   });
@@ -322,7 +323,7 @@ describe('electron chat service token usage and agent loop', () => {
 
     expect(intent.toolMode).toBe('multi_tool');
     expect(intent.explicitDirectives).toEqual(expect.arrayContaining(['web', 'changed']));
-    expect(intent.selectedTools).toEqual(expect.arrayContaining(['web_search', 'list_files', 'search_workspace', 'read_file']));
+    expect(intent.selectedTools).toEqual(expect.arrayContaining(['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_file']));
     expect(intent.reason).toContain('explicit_web');
     expect(intent.reason).toContain('explicit_changed_context');
   });
@@ -337,6 +338,7 @@ describe('electron chat service token usage and agent loop', () => {
     const intent = detectAgentIntent('@web @changed 检查项目并运行验证', settings);
     const plan = buildAgentPlanSummary(intent, [
       { type: 'function', function: { name: 'web_search' } },
+      { type: 'function', function: { name: 'index_workspace' } },
       { type: 'function', function: { name: 'read_file' } },
       { type: 'function', function: { name: 'run_code' } },
     ], settings, 4, '@web @changed 检查项目并运行验证');
@@ -348,11 +350,12 @@ describe('electron chat service token usage and agent loop', () => {
       maxRounds: 4,
     });
     expect(plan.steps.join('\n')).toContain('检索外部资料');
+    expect(plan.steps.join('\n')).toContain('轻量索引');
     expect(plan.steps.join('\n')).toContain('最近 7 天修改');
     expect(plan.steps.join('\n')).toContain('关键变更文件');
     expect(plan.steps.join('\n')).toContain('运行小段代码');
-    expect(plan.selectedTools).toEqual(expect.arrayContaining(['web_search', 'read_file', 'run_code']));
-    expect(plan.availableToolNames).toEqual(['read_file', 'run_code', 'web_search']);
+    expect(plan.selectedTools).toEqual(expect.arrayContaining(['web_search', 'index_workspace', 'read_file', 'run_code']));
+    expect(plan.availableToolNames).toEqual(['index_workspace', 'read_file', 'run_code', 'web_search']);
     expect(plan.searchPlan.map((item) => item.purpose)).toContain('官方资料');
     expect(plan.approvalPolicy.join('\n')).toContain('代码运行必须确认');
     expect(plan.warnings.join('\n')).toContain('只按文件修改时间判断');
@@ -390,8 +393,9 @@ describe('electron chat service token usage and agent loop', () => {
     expect(planEvent.planSummary).toMatchObject({
       type: 'deepchat.agentPlan',
       mode: 'file_reader',
-      selectedTools: expect.arrayContaining(['list_files', 'search_workspace', 'read_file']),
+      selectedTools: expect.arrayContaining(['index_workspace', 'list_files', 'search_workspace', 'read_file']),
     });
+    expect(planEvent.planSummary.steps.join('\n')).toContain('轻量索引');
     expect(planEvent.planSummary.steps.join('\n')).toContain('最近 7 天修改');
     expect(planEvent.planSummary.steps.join('\n')).toContain('关键变更文件');
     expect(planEvent.planSummary.approvalPolicy.join('\n')).toContain('读取/搜索类工具');

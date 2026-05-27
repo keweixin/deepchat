@@ -785,6 +785,11 @@ function buildAgentPlanSummary(intent = {}, tools = [], settings = {}, maxRounds
   if (selectedTools.includes('web_search')) {
     steps.push('检索外部资料，优先保留可引用来源。');
   }
+  if (selectedTools.includes('index_workspace')) {
+    steps.push(wantsChangedContext
+      ? '建立或刷新工作区轻量索引，后续变更搜索可复用稳定 file:line 证据。'
+      : '建立或刷新工作区轻量索引，保证后续搜索能返回稳定 file:line 证据。');
+  }
   if (wantsChangedContext && selectedTools.includes('list_files')) {
     steps.push('先列出最近 7 天修改的工作区文件，按修改时间筛出候选变更。');
   }
@@ -902,7 +907,7 @@ function dedupeSearchPlan(plan = []) {
 
 function buildPlanApprovalPolicy(selectedTools = [], settings = {}) {
   const policy = [];
-  const hasReadOnly = selectedTools.some((name) => ['web_search', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name));
+  const hasReadOnly = selectedTools.some((name) => ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name));
   if (hasReadOnly) {
     policy.push(normalizeToolApprovalPolicy(settings.toolApprovalPolicy) === 'auto_readonly'
       ? '低风险读取/搜索类工具会自动执行并保留证据；运行代码、MCP 和写入类操作仍必须确认。'
@@ -1042,7 +1047,7 @@ function buildTurnTailMetadata(intent = {}, settings = {}, planSummary = null) {
     lines.push(`用户使用了：${explicitDirectives.map(formatDirectiveName).join('、')}`);
     lines.push('显式指令优先于关键词猜测；如果对应工具可用，应优先按该方向规划。');
     if (explicitDirectives.includes('changed')) {
-      lines.push('用户要求最近变更上下文时，优先调用 list_files({ "sort_by": "modified", "recent_days": 7 }) 查看候选文件，再按需 read_file。');
+      lines.push('用户要求最近变更上下文时，优先调用 index_workspace 建立或刷新轻量索引，再调用 list_files({ "sort_by": "modified", "recent_days": 7 }) 查看候选文件，并按需 search_workspace/read_file。');
     }
   }
   if (settings.activeSkill === 'agent_auto' && missing.length > 0) {
@@ -1345,6 +1350,7 @@ function detectAgentIntent(messagesOrText, settings = {}) {
     else selected.add('run_code');
   }
   if (directives.changed) {
+    candidates.add('index_workspace');
     candidates.add('list_files');
     candidates.add('search_workspace');
     candidates.add('read_symbol');
@@ -1352,6 +1358,7 @@ function detectAgentIntent(messagesOrText, settings = {}) {
     reasons.push('explicit_changed_context');
     score += 0.65;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('index_workspace');
       selected.add('list_files');
       selected.add('search_workspace');
       selected.add('read_symbol');
@@ -1379,6 +1386,7 @@ function detectAgentIntent(messagesOrText, settings = {}) {
     else missing.add('Tavily API Key');
   }
   if (!candidates.has('list_files') && needsFiles(text, lower)) {
+    candidates.add('index_workspace');
     candidates.add('list_files');
     candidates.add('search_workspace');
     candidates.add('read_symbol');
@@ -1386,6 +1394,7 @@ function detectAgentIntent(messagesOrText, settings = {}) {
     reasons.push('local_files');
     score += 0.35;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('index_workspace');
       selected.add('list_files');
       selected.add('search_workspace');
       selected.add('read_symbol');
@@ -1418,7 +1427,7 @@ function detectAgentIntent(messagesOrText, settings = {}) {
   if (hasBuiltin && hasMcp) toolMode = 'multi_tool';
   else if (hasMcp) toolMode = 'mcp_tool';
   else if (selected.has('web_search') && selected.size === 1) toolMode = 'web_search';
-  else if ((selected.has('list_files') || selected.has('search_workspace') || selected.has('read_symbol') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
+  else if ((selected.has('index_workspace') || selected.has('list_files') || selected.has('search_workspace') || selected.has('read_symbol') || selected.has('read_file')) && !selected.has('web_search') && !selected.has('run_code')) toolMode = 'file_reader';
   else if (selected.has('run_code') && selected.size === 1) toolMode = 'code_runner';
   else if (hasBuiltin) toolMode = 'multi_tool';
 
