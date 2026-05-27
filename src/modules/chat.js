@@ -127,11 +127,16 @@ export async function initChat() {
   }
 
   // Smart scroll: detect when user scrolls up during streaming
+  let scrollRaf = 0;
   $messages.addEventListener('scroll', () => {
     if (!isStreaming) return;
-    const threshold = 80;
-    const atBottom = $messages.scrollHeight - $messages.scrollTop - $messages.clientHeight < threshold;
-    userScrolledUp = !atBottom;
+    if (scrollRaf) return;
+    scrollRaf = requestAnimationFrame(() => {
+      scrollRaf = 0;
+      const threshold = 80;
+      const atBottom = $messages.scrollHeight - $messages.scrollTop - $messages.clientHeight < threshold;
+      userScrolledUp = !atBottom;
+    });
   });
 
   // Search
