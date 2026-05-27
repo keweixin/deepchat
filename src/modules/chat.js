@@ -156,7 +156,7 @@ export async function initChat() {
   });
 }
 
-export async function reloadConversations() {
+async function reloadConversations() {
   conversations = await loadConversations();
   if (conversations.length > 0) {
     const stillExists = conversations.some((conv) => conv.id === activeConvId);
@@ -196,7 +196,7 @@ export function createConversation() {
   return conv;
 }
 
-export function switchConversation(id) {
+function switchConversation(id) {
   activeConvId = id;
   userScrolledUp = false;
   resetReadingNavigator();
@@ -226,7 +226,7 @@ export function setActiveConversationComposerMode(modeId) {
   persist();
 }
 
-export async function deleteConversation(id) {
+async function deleteConversation(id) {
   const conv = conversations.find((c) => c.id === id);
   const title = conv ? conv.title : '此对话';
   const ok = await confirmAction({
@@ -342,7 +342,7 @@ export async function sendMessage(content, options = {}) {
  * Edit a user message at a given index and regenerate from that point.
  * Removes all messages after the edit point.
  */
-export async function editMessageAt(msgIndex, newContent) {
+async function editMessageAt(msgIndex, newContent) {
   if (isStreaming) return;
   const conv = getActiveConversation();
   if (!conv) return;
@@ -358,7 +358,7 @@ export async function editMessageAt(msgIndex, newContent) {
   await doStream(conv);
 }
 
-export async function regenerateLastResponse() {
+async function regenerateLastResponse() {
   if (isStreaming) return;
   const conv = getActiveConversation();
   if (!conv || conv.messages.length === 0) return;
@@ -367,7 +367,7 @@ export async function regenerateLastResponse() {
   if (idx >= 0) await regenerateResponseAt(idx);
 }
 
-export async function regenerateResponseAt(msgIndex) {
+async function regenerateResponseAt(msgIndex) {
   if (isStreaming) return;
   const conv = getActiveConversation();
   if (!conv || conv.messages[msgIndex]?.role !== 'assistant') return;
@@ -757,7 +757,9 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         const partialHtml = renderMarkdown(fullContent);
         contentEl.innerHTML = partialHtml;
         primeMarkdownRenderCache(fullContent, partialHtml);
-        postProcess(contentEl).then(refreshReadingNavigator);
+        postProcess(contentEl)
+          .then(refreshReadingNavigator)
+          .catch(() => {});
         const errorHost = document.createElement('div');
         contentEl.appendChild(errorHost);
         renderErrorContent(errorHost, err.message, () => msgEl.remove(), renderRetry);
@@ -927,10 +929,12 @@ function renderMessages() {
       if (msg.error) {
         if (msg.content) {
           contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-          postProcess(contentEl).then(() => {
-            renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
-            refreshReadingNavigator();
-          });
+          postProcess(contentEl)
+            .then(() => {
+              renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
+              refreshReadingNavigator();
+            })
+            .catch(() => {});
           const errorWrap = document.createElement('div');
           renderErrorContent(errorWrap, msg.error);
           contentEl.appendChild(errorWrap.firstElementChild);
@@ -941,10 +945,12 @@ function renderMessages() {
         renderCompactAssistantMessage(contentEl, msg, idx);
       } else {
         contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-        postProcess(contentEl).then(() => {
-          renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
-          refreshReadingNavigator();
-        });
+        postProcess(contentEl)
+          .then(() => {
+            renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
+            refreshReadingNavigator();
+          })
+          .catch(() => {});
       }
       renderAssistantAnswerHeader(el.querySelector('.answer-header-container'), msg);
       addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);

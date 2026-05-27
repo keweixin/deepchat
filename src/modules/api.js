@@ -1524,6 +1524,10 @@ async function streamBrowserChat(messages, opts = {}) {
       return;
     }
 
+    if (!response.body) {
+      opts.onError?.(new Error('Response body is unavailable (network or proxy issue)'));
+      return;
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';

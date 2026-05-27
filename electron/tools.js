@@ -1672,9 +1672,19 @@ async function resolveAllowedPath(inputPath, workspaceRoots) {
   const candidates = path.isAbsolute(raw) ? [path.resolve(raw)] : roots.map((root) => path.resolve(root, raw));
 
   for (const candidate of candidates) {
-    const realCandidate = await fs.realpath(candidate).catch(() => candidate);
+    let realCandidate;
+    try {
+      realCandidate = await fs.realpath(candidate);
+    } catch {
+      continue;
+    }
     for (const root of roots) {
-      const realRoot = await fs.realpath(root).catch(() => root);
+      let realRoot;
+      try {
+        realRoot = await fs.realpath(root);
+      } catch {
+        continue;
+      }
       if (isPathInsideRoot(realCandidate, realRoot)) return realCandidate;
     }
   }

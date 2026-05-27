@@ -43,7 +43,6 @@ import {
   clearCurrentChat,
   updateModelDisplay,
   exportCurrentChat,
-  getActiveConversationComposerMode,
   setActiveConversationComposerMode,
 } from './modules/chat.js';
 import { renderMarkdown } from './modules/renderer.js';
