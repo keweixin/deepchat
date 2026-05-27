@@ -21,6 +21,7 @@ import {
   saveSettings,
   supportsVisionModel,
 } from '../src/modules/api.js';
+import { sanitizeSettingsForBackup } from '../src/modules/client-store.js';
 
 describe('browser settings fallback', () => {
   beforeEach(async () => {
@@ -41,6 +42,41 @@ describe('browser settings fallback', () => {
     expect(localStorage.getItem('dc_apiKey')).toBeNull();
     expect(localStorage.getItem('dc_tavilyApiKey')).toBeNull();
     expect(localStorage.getItem('dc_model')).toBe('demo-model');
+  });
+
+  it('exports browser backups without API keys or MCP env secrets', () => {
+    const sanitized = sanitizeSettingsForBackup({
+      apiKey: 'sk-local-secret',
+      tavilyApiKey: 'tvly-local-secret',
+      model: 'demo-model',
+      storageStatus: { mode: 'browser' },
+      mcpServers: [{
+        id: 'github',
+        name: 'GitHub MCP',
+        command: 'node',
+        args: ['server.js', '--token', 'ghp_should_not_leak', '--project=demo', '--api-key=sk-inline-secret'],
+        env: { GITHUB_TOKEN: 'ghp_env_should_not_leak' },
+        enabled: true,
+      }],
+    });
+
+    expect(sanitized.apiKey).toBeUndefined();
+    expect(sanitized.tavilyApiKey).toBeUndefined();
+    expect(sanitized.storageStatus).toBeUndefined();
+    expect(sanitized.mcpServers[0]).toMatchObject({
+      id: 'github',
+      name: 'GitHub MCP',
+      command: 'node',
+      enabled: true,
+    });
+    expect(sanitized.mcpServers[0].env).toBeUndefined();
+    expect(sanitized.mcpServers[0].args).toEqual([
+      'server.js',
+      '--token',
+      '[REDACTED]',
+      '--project=demo',
+      '--api-key=[REDACTED]',
+    ]);
   });
 
   it('does not advertise search tools in browser preview mode without a Tavily key', async () => {

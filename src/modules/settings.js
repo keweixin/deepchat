@@ -581,9 +581,9 @@ function renderStorageStatus(container, settings) {
   if (!container) return;
   const status = settings.storageStatus || { mode: 'browser' };
   if (status.mode === 'electron') {
-    container.textContent = `桌面安全存储：${status.encryptionAvailable ? '加密可用' : '加密不可用'} · ${status.dataDir || ''}`;
+    container.textContent = `桌面安全存储：${status.encryptionAvailable ? '加密可用' : '加密不可用'} · 备份不包含 API Key/Tavily Key/MCP env · ${status.dataDir || ''}`;
   } else {
-    container.textContent = '浏览器预览模式：非敏感设置和对话保存在 localStorage；密钥仅当前页面会话保留。';
+    container.textContent = '浏览器预览模式：非敏感设置和对话保存在 localStorage；密钥仅当前页面会话保留，备份不包含 API Key/Tavily Key/MCP env。';
   }
 }
 

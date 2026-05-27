@@ -47,6 +47,12 @@ const DEFAULT_SETTINGS = {
 
 const SECRET_KEYS = new Set(['apiKey', 'tavilyApiKey']);
 const SECRET_JSON_KEYS = new Set(['mcpServers']);
+const BACKUP_SECRETS_EXCLUDED = [
+  'settings.apiKey',
+  'settings.tavilyApiKey',
+  'settings.mcpServers[].env',
+  'settings.mcpServers[].args secret-like values',
+];
 
 function getDataDir() {
   return path.join(app.getPath('userData'), 'data');
@@ -355,7 +361,8 @@ async function exportBackup(parentWindow) {
   const backup = {
     version: DATA_VERSION,
     exportedAt: new Date().toISOString(),
-    settings: stripSecrets(settings),
+    secretsExcluded: BACKUP_SECRETS_EXCLUDED,
+    settings: sanitizeSettingsForBackup(settings),
     conversations,
   };
 
@@ -379,17 +386,56 @@ async function importBackup(parentWindow) {
   const raw = await fs.readFile(result.filePaths[0], 'utf8');
   const parsed = JSON.parse(raw);
   if (!parsed || typeof parsed !== 'object') throw new Error('备份文件格式不正确。');
-  if (parsed.settings && typeof parsed.settings === 'object') await setSettings(stripSecrets(parsed.settings));
+  if (parsed.settings && typeof parsed.settings === 'object') await setSettings(sanitizeSettingsForBackup(parsed.settings));
   if (Array.isArray(parsed.conversations)) await saveConversations(parsed.conversations);
   return { canceled: false, path: result.filePaths[0] };
 }
 
-function stripSecrets(settings) {
+function sanitizeSettingsForBackup(settings) {
   const copy = { ...(settings || {}) };
   for (const key of SECRET_KEYS) delete copy[key];
-  for (const key of SECRET_JSON_KEYS) delete copy[key];
+  if (Array.isArray(copy.mcpServers)) {
+    copy.mcpServers = copy.mcpServers
+      .filter((server) => server && typeof server === 'object')
+      .map((server) => ({
+        id: String(server.id || ''),
+        name: String(server.name || ''),
+        command: String(server.command || ''),
+        args: sanitizeMcpArgs(server.args),
+        enabled: server.enabled !== false,
+      }))
+      .filter((server) => server.command);
+  }
   delete copy.storageStatus;
   return copy;
+}
+
+function sanitizeMcpArgs(args) {
+  const values = Array.isArray(args) ? args.map(String) : [];
+  return values.map((arg, index) => sanitizeMcpArg(arg, values[index - 1]));
+}
+
+function sanitizeMcpArg(arg, previousArg = '') {
+  const value = String(arg || '');
+  const previous = String(previousArg || '');
+  if (isSecretLikeArg(previous)) return '[REDACTED]';
+  if (/^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)$/i.test(value)) return value;
+  if (/^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)[=:]/i.test(value)) {
+    return value.replace(/([=:]).*$/, '$1[REDACTED]');
+  }
+  if (looksLikeSecretValue(value)) return '[REDACTED]';
+  return value;
+}
+
+function isSecretLikeArg(value) {
+  return /^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)$/i.test(String(value || ''));
+}
+
+function looksLikeSecretValue(value) {
+  const text = String(value || '');
+  return /\b(sk-|tvly-|ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{6,}/i.test(text) ||
+    /\bBearer\s+[A-Za-z0-9._-]{8,}/i.test(text) ||
+    /\b[A-Z0-9_]*(API[-_]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z0-9_]*\s*=\s*[^;\s]{4,}/i.test(text);
 }
 
 function getStorageStatus() {
@@ -415,4 +461,5 @@ module.exports = {
   importBackup,
   getStorageStatus,
   normalizeWorkspaceRoots,
+  sanitizeSettingsForBackup,
 };

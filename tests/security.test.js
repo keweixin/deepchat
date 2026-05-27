@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 const require = createRequire(import.meta.url);
 const { validate, schemas } = require('../electron/ipc-validation');
 const { executeTool, isSensitivePath, redactSensitiveText, buildSandboxEnv } = require('../electron/tools');
+const { sanitizeSettingsForBackup } = require('../electron/storage');
 
 describe('ipc validation schemas', () => {
   it('rejects unknown settings fields and invalid manual tool names', () => {
@@ -95,5 +96,34 @@ describe('tool security boundaries', () => {
       language: 'javascript',
       code: 'console.log(1)',
     }, { runCodeEnabled: false })).rejects.toThrow('已在设置中关闭');
+  });
+});
+
+describe('backup secret handling', () => {
+  it('keeps MCP server shape while stripping backup secrets', () => {
+    const sanitized = sanitizeSettingsForBackup({
+      apiKey: 'sk-electron-secret',
+      tavilyApiKey: 'tvly-electron-secret',
+      storageStatus: { mode: 'electron' },
+      mcpServers: [{
+        id: 'local',
+        name: 'Local MCP',
+        command: 'node',
+        args: ['server.js', '--auth', 'Bearer abcdef1234567890', '--repo=demo'],
+        env: { API_KEY: 'sk-env-secret' },
+        enabled: false,
+      }],
+    });
+
+    expect(sanitized.apiKey).toBeUndefined();
+    expect(sanitized.tavilyApiKey).toBeUndefined();
+    expect(sanitized.storageStatus).toBeUndefined();
+    expect(sanitized.mcpServers).toEqual([{
+      id: 'local',
+      name: 'Local MCP',
+      command: 'node',
+      args: ['server.js', '--auth', '[REDACTED]', '--repo=demo'],
+      enabled: false,
+    }]);
   });
 });

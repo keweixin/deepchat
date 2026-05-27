@@ -1,6 +1,12 @@
 import { hasNativeBridge, getSettings, saveSettings } from './api.js';
 
 const CONVERSATIONS_KEY = 'dc_conversations';
+const BACKUP_SECRETS_EXCLUDED = [
+  'settings.apiKey',
+  'settings.tavilyApiKey',
+  'settings.mcpServers[].env',
+  'settings.mcpServers[].args secret-like values',
+];
 
 export async function loadConversations() {
   if (hasNativeBridge()) return window.deepchat.conversations.load();
@@ -28,7 +34,8 @@ export async function exportBackup() {
   const backup = {
     version: 1,
     exportedAt: new Date().toISOString(),
-    settings: stripSecrets(getSettings()),
+    secretsExcluded: BACKUP_SECRETS_EXCLUDED,
+    settings: sanitizeSettingsForBackup(getSettings()),
     conversations: await loadConversations(),
   };
   downloadJson(backup, `deepchat-backup-${new Date().toISOString().slice(0, 10)}.json`);
@@ -49,7 +56,7 @@ export async function importBackup() {
       }
       try {
         const parsed = JSON.parse(await file.text());
-        if (parsed.settings) await saveSettings(stripSecrets(parsed.settings));
+        if (parsed.settings) await saveSettings(sanitizeSettingsForBackup(parsed.settings));
         if (Array.isArray(parsed.conversations)) await saveConversations(parsed.conversations);
         resolve({ canceled: false });
       } catch (error) {
@@ -120,13 +127,52 @@ export function onMenuNewChat(callback) {
   return window.deepchat.menu.onNewChat(callback);
 }
 
-function stripSecrets(settings) {
+export function sanitizeSettingsForBackup(settings) {
   const copy = { ...(settings || {}) };
   delete copy.apiKey;
   delete copy.tavilyApiKey;
-  delete copy.mcpServers;
+  if (Array.isArray(copy.mcpServers)) {
+    copy.mcpServers = copy.mcpServers
+      .filter((server) => server && typeof server === 'object')
+      .map((server) => ({
+        id: String(server.id || ''),
+        name: String(server.name || ''),
+        command: String(server.command || ''),
+        args: sanitizeMcpArgs(server.args),
+        enabled: server.enabled !== false,
+      }))
+      .filter((server) => server.command);
+  }
   delete copy.storageStatus;
   return copy;
+}
+
+function sanitizeMcpArgs(args) {
+  const values = Array.isArray(args) ? args.map(String) : [];
+  return values.map((arg, index) => sanitizeMcpArg(arg, values[index - 1]));
+}
+
+function sanitizeMcpArg(arg, previousArg = '') {
+  const value = String(arg || '');
+  const previous = String(previousArg || '');
+  if (isSecretLikeArg(previous)) return '[REDACTED]';
+  if (/^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)$/i.test(value)) return value;
+  if (/^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)[=:]/i.test(value)) {
+    return value.replace(/([=:]).*$/, '$1[REDACTED]');
+  }
+  if (looksLikeSecretValue(value)) return '[REDACTED]';
+  return value;
+}
+
+function isSecretLikeArg(value) {
+  return /^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)$/i.test(String(value || ''));
+}
+
+function looksLikeSecretValue(value) {
+  const text = String(value || '');
+  return /\b(sk-|tvly-|ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{6,}/i.test(text) ||
+    /\bBearer\s+[A-Za-z0-9._-]{8,}/i.test(text) ||
+    /\b[A-Z0-9_]*(API[-_]?KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z0-9_]*\s*=\s*[^;\s]{4,}/i.test(text);
 }
 
 function downloadJson(value, fileName) {
