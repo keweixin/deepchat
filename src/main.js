@@ -38,6 +38,7 @@ import {
 } from './modules/composer-modes.js';
 import { buildComposerIntentPreview, buildComposerToolEntries, getComposerToolModeLabel } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
+import { applyPromptTemplate, getPromptTemplateEntries } from './modules/prompt-templates.js';
 import {
   buildChatSearchIndex,
   clearChatSearchHighlights,
@@ -556,13 +557,6 @@ function syncComposerModeSelect(select, activeModeId, settings = {}) {
   select.value = getComposerMode(activeModeId).id;
 }
 
-const PROMPT_TEMPLATES = [
-  { title: '排障', text: '请帮我排查这个问题：\n\n现象：\n报错：\n我已经尝试：\n\n请按「最可能原因 -> 如何验证 -> 修复步骤 -> 风险」回答。' },
-  { title: '对比选型', text: '请对比以下方案：A / B / C。\n\n请用表格列出关键维度、适用场景、风险，最后给推荐结论。' },
-  { title: '代码审查', text: '请审查下面代码，重点看 bug、边界条件、安全风险、性能问题和缺少的测试：\n\n```语言\n\n```' },
-  { title: '学习讲解', text: '请用初学者能理解的方式讲解：\n\n要求：先直观解释，再给例子，最后给练习题。' },
-];
-
 let promptTemplateMenu = null;
 let exportMenu = null;
 let composerToolMenu = null;
@@ -576,13 +570,14 @@ function togglePromptTemplateMenu(anchor) {
   }
   const menu = document.createElement('div');
   menu.className = 'prompt-template-menu';
-  for (const template of PROMPT_TEMPLATES) {
+  for (const template of getPromptTemplateEntries()) {
     const item = document.createElement('button');
     item.type = 'button';
     item.textContent = template.title;
+    item.title = template.text;
     item.addEventListener('click', () => {
       const input = document.getElementById('message-input');
-      input.value = input.value ? `${input.value}\n\n${template.text}` : template.text;
+      input.value = applyPromptTemplate(input.value, template.text);
       autoResize(input);
       document.getElementById('send-btn').disabled = false;
       input.dispatchEvent(new Event('input', { bubbles: true }));
