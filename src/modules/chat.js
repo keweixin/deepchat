@@ -67,8 +67,9 @@ let selectedConversationIds = new Set();
 let conversationMenuEl = null;
 let conversationMenuCleanup = null;
 let usageTelemetryPanelEl = null;
+let evidenceDrawerEl = null;
 
-let $messages, $welcome, $convList, $chatTitle, $modelName, $chatUsageBadge;
+let $messages, $welcome, $convList, $chatTitle, $modelName, $chatUsageBadge, $evidencePanelBtn;
 
 const MARKDOWN_RENDER_CACHE_LIMIT = 240;
 const HISTORICAL_FULL_RENDER_LIMIT = 60;
@@ -83,7 +84,9 @@ export async function initChat() {
   $chatTitle = document.getElementById('chat-title');
   $modelName = document.getElementById('model-name');
   $chatUsageBadge = document.getElementById('chat-usage-badge');
+  $evidencePanelBtn = document.getElementById('evidence-panel-btn');
   bindUsageTelemetryPanel();
+  bindEvidenceDrawer();
 
   conversations = normalizeConversations(await loadConversations());
 
@@ -2271,6 +2274,91 @@ export function renderConversationUsageTelemetryPanel(container, conversation) {
   return details;
 }
 
+export function renderLatestEvidenceDrawer(container, conversation) {
+  if (!container) return null;
+  const evidence = getLatestEvidenceMessage(conversation);
+  container.replaceChildren();
+  container.classList.add('evidence-drawer-panel');
+  if (!evidence) {
+    container.hidden = true;
+    return null;
+  }
+  container.hidden = false;
+
+  const { message, index } = evidence;
+  const runs = Array.isArray(message.toolRuns) ? message.toolRuns.filter(Boolean) : [];
+  const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
+
+  const header = document.createElement('div');
+  header.className = 'evidence-drawer-header';
+  const titleGroup = document.createElement('div');
+  const title = document.createElement('h2');
+  title.className = 'evidence-drawer-title';
+  title.textContent = '证据面板';
+  const subtitle = document.createElement('p');
+  subtitle.className = 'evidence-drawer-subtitle';
+  subtitle.textContent = [
+    conversation?.title || '当前对话',
+    `消息 #${index + 1}`,
+    runs.length ? `${runs.length} 个工具` : '',
+    usage ? `${formatCompactTokenCount(usage.total)} tok` : '',
+  ].filter(Boolean).join(' · ');
+  titleGroup.append(title, subtitle);
+
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'evidence-drawer-close';
+  close.textContent = '关闭';
+  close.addEventListener('click', closeEvidenceDrawer);
+  header.append(titleGroup, close);
+  container.appendChild(header);
+
+  if (Array.isArray(message.agentStages) && message.agentStages.length) {
+    const stages = document.createElement('section');
+    stages.className = 'evidence-drawer-section';
+    const stageTitle = document.createElement('h3');
+    stageTitle.textContent = 'Agent 过程';
+    const stageList = document.createElement('ol');
+    stageList.className = 'evidence-drawer-stage-list';
+    for (const stage of message.agentStages.slice(-8)) {
+      const item = document.createElement('li');
+      item.textContent = formatAgentStageBrief(stage);
+      stageList.appendChild(item);
+    }
+    stages.append(stageTitle, stageList);
+    container.appendChild(stages);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'evidence-drawer-grid';
+  for (const run of runs) {
+    grid.appendChild(createToolEvidenceRunCard(run));
+  }
+  const cacheCard = createCacheEvidenceCard(message);
+  if (cacheCard) grid.appendChild(cacheCard);
+  if (grid.children.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'tool-evidence-empty';
+    empty.textContent = '最近回答没有工具证据。';
+    grid.appendChild(empty);
+  }
+  container.appendChild(grid);
+
+  const actions = document.createElement('div');
+  actions.className = 'evidence-drawer-actions';
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'tool-copy-btn';
+  copy.textContent = '复制证据 JSON';
+  copy.addEventListener('click', async () => {
+    await copyToClipboard(JSON.stringify(buildMessageEvidencePayload(message), null, 2));
+    showToast('最近工具证据已复制');
+  });
+  actions.appendChild(copy);
+  container.appendChild(actions);
+  return container;
+}
+
 function createUsageMetric(label, value) {
   const item = document.createElement('div');
   item.className = 'usage-panel-metric';
@@ -2966,6 +3054,7 @@ function updateHeader() {
   $modelName.textContent = settings.model;
   $modelName.title = settings.model;
   updateHeaderUsageBadge(conv);
+  updateEvidenceButton(conv);
 }
 
 export function updateModelDisplay(model) {
@@ -3050,6 +3139,83 @@ function positionUsageTelemetryPanel() {
   const top = Math.min(window.innerHeight - margin, rect.bottom + 8);
   usageTelemetryPanelEl.style.top = `${top}px`;
   usageTelemetryPanelEl.style.right = `${right}px`;
+}
+
+function bindEvidenceDrawer() {
+  if (!$evidencePanelBtn || $evidencePanelBtn.dataset.drawerBound === 'true') return;
+  $evidencePanelBtn.dataset.drawerBound = 'true';
+  $evidencePanelBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleEvidenceDrawer();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeEvidenceDrawer();
+  });
+}
+
+function updateEvidenceButton(conversation) {
+  if (!$evidencePanelBtn) return;
+  const evidence = getLatestEvidenceMessage(conversation);
+  if (!evidence) {
+    $evidencePanelBtn.classList.add('hidden');
+    $evidencePanelBtn.title = '暂无工具证据';
+    closeEvidenceDrawer();
+    return;
+  }
+  const runCount = Array.isArray(evidence.message.toolRuns) ? evidence.message.toolRuns.length : 0;
+  $evidencePanelBtn.classList.remove('hidden');
+  $evidencePanelBtn.title = runCount
+    ? `查看最近工具证据：${runCount} 个工具`
+    : '查看最近 Token / Cache 证据';
+  if (evidenceDrawerEl) renderLatestEvidenceDrawer(evidenceDrawerEl, conversation);
+}
+
+function toggleEvidenceDrawer() {
+  if (evidenceDrawerEl) {
+    closeEvidenceDrawer();
+    return;
+  }
+  const conv = getActiveConversation();
+  if (!getLatestEvidenceMessage(conv)) return;
+  closeUsageTelemetryPanel();
+  evidenceDrawerEl = document.createElement('aside');
+  evidenceDrawerEl.className = 'evidence-drawer-panel';
+  evidenceDrawerEl.setAttribute('role', 'dialog');
+  evidenceDrawerEl.setAttribute('aria-label', '最近工具证据');
+  document.body.appendChild(evidenceDrawerEl);
+  renderLatestEvidenceDrawer(evidenceDrawerEl, conv);
+}
+
+function closeEvidenceDrawer() {
+  if (!evidenceDrawerEl) return;
+  evidenceDrawerEl.remove();
+  evidenceDrawerEl = null;
+}
+
+function getLatestEvidenceMessage(conversation) {
+  const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== 'assistant') continue;
+    const hasRuns = Array.isArray(message.toolRuns) && message.toolRuns.length > 0;
+    const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
+    const hasUsage = Boolean(usage && usage.total > 0);
+    const hasCacheProfile = Boolean(message.cacheProfile?.prefixFingerprint);
+    if (hasRuns || hasUsage || hasCacheProfile) return { message, index };
+  }
+  return null;
+}
+
+function formatAgentStageBrief(stage = {}) {
+  const round = stage.round !== undefined ? `R${stage.round} ` : '';
+  const name = stage.stage || 'stage';
+  const detail = [
+    stage.toolName,
+    stage.intent?.toolMode,
+    stage.warning,
+    stage.stopReason,
+  ].filter(Boolean).join(' · ');
+  return `${round}${name}${detail ? `：${detail}` : ''}`;
 }
 
 function toggleStreamingUI(streaming) {

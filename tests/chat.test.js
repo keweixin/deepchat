@@ -11,6 +11,7 @@ import {
   renderAssistantEvidence,
   renderContextMentionStrip,
   renderConversationUsageTelemetryPanel,
+  renderLatestEvidenceDrawer,
   renderToolCalls,
   shouldCompactHistoricalMessage,
   trimMessagesForRegeneration,
@@ -434,6 +435,57 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('Prefix hash');
     expect(container.textContent).toContain('abc123');
     expect(container.textContent).toContain('工作区/MCP 变化');
+  });
+
+  it('renders the latest assistant evidence in a drawer payload', async () => {
+    const container = document.createElement('aside');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    renderLatestEvidenceDrawer(container, {
+      title: 'Agent 优化',
+      messages: [
+        { role: 'assistant', content: '旧回答', toolRuns: [{ name: 'web_search', status: 'completed' }] },
+        { role: 'user', content: '继续' },
+        {
+          role: 'assistant',
+          content: '根据 src/modules/chat.js:10-12 可知。',
+          tokens: { input: 900, output: 100, total: 1000, cacheHit: 600, cacheMiss: 300 },
+          agentStages: [{ stage: 'plan', round: 0, intent: { toolMode: 'multi_tool' } }],
+          toolRuns: [{
+            id: 'read1',
+            name: 'read_file',
+            status: 'completed',
+            ok: true,
+            args: { path: 'src/modules/chat.js' },
+            localCitations: [{ file: 'src/modules/chat.js', lineStart: 10, lineEnd: 12, label: 'src/modules/chat.js:10-12' }],
+            outputPreview: '读取聊天模块',
+          }],
+        },
+      ],
+    });
+
+    expect(container.hidden).toBe(false);
+    expect(container.textContent).toContain('证据面板');
+    expect(container.textContent).toContain('Agent 优化');
+    expect(container.textContent).toContain('消息 #3');
+    expect(container.textContent).toContain('Agent 过程');
+    expect(container.textContent).toContain('multi_tool');
+    expect(container.textContent).toContain('read_file');
+    expect(container.textContent).toContain('src/modules/chat.js:10-12');
+    expect(container.textContent).toContain('Token / Cache');
+    expect(container.textContent).toContain('hit 600');
+
+    container.querySelector('.evidence-drawer-actions .tool-copy-btn').click();
+    await Promise.resolve();
+
+    const payload = JSON.parse(writeText.mock.calls[0][0]);
+    expect(payload.type).toBe('deepchat.messageEvidence');
+    expect(payload.toolRuns[0].name).toBe('read_file');
+    expect(payload.tokens.cacheHit).toBe(600);
   });
 
   it('hides conversation usage telemetry when there is no token usage', () => {
