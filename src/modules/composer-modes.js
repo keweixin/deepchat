@@ -12,7 +12,13 @@ export const COMPOSER_MODES = Object.freeze({
     description: '先给结论，保持简洁，默认不强行用工具',
     activeSkill: 'none',
     enhance: true,
-    instruction: '',
+    instruction: [
+      '你正在以日常模式回答。',
+      '先给结论，默认保持简洁；除非问题复杂，不要展开成报告。',
+      '建议控制在 3 条以内；如果只是短问题，直接回答即可。',
+      '默认不强行调用工具；只有问题明显需要最新事实、本地文件或代码验证时，才说明需要对应工具或配置。',
+      '不确定的信息要标注“不确定”或“需要验证”。',
+    ].join('\n'),
   },
   analysis: {
     id: 'analysis',
@@ -65,7 +71,8 @@ export const COMPOSER_MODES = Object.freeze({
     instruction: [
       '你正在以研究模式回答。',
       '先给搜索/验证计划；需要外部事实时使用联网搜索。',
-      '区分事实、观点和推测；最终回答必须列出来源或说明无法验证。',
+      '至少交叉验证 2-3 个来源；优先包含官方文档、GitHub/Issue 或独立资料。',
+      '区分事实、观点和推测；最终回答必须列出来源、可信度判断，或说明无法验证。',
       COMPONENT_OUTPUT_GUIDE,
       '如果缺少联网配置，明确提示需要 Tavily Key，不要编造来源。',
     ].join('\n'),
@@ -78,9 +85,10 @@ export const COMPOSER_MODES = Object.freeze({
     enhance: true,
     instruction: [
       '你正在以代码模式回答。',
-      '先说明代码职责或问题边界，再给 bug、安全、性能、可维护性和测试建议。',
+      '先说明代码职责或问题边界，再按 bug、安全、性能、可维护性和测试缺口审查。',
       '用户给出函数/类名时优先使用 read_symbol；需要上下文再读取精确行范围。',
-      '涉及修改时给最小可验证方案，并说明如何验证。',
+      '每个问题尽量给文件位置、原因、修改建议和验证方式。',
+      '涉及修改时给最小可验证方案；信息不足时先列缺口，不要编造 API 或依赖。',
     ].join('\n'),
   },
   writing: {

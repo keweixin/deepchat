@@ -43,6 +43,7 @@ describe('composer modes', () => {
     const analysis = applyComposerModeToPrompt('评估方案', 'analysis');
     const agent = applyComposerModeToPrompt('检查项目并给证据', 'agent');
     const polish = applyComposerModeToPrompt('整理这段回答', 'polish');
+    const code = applyComposerModeToPrompt('审查 @symbol:renderMarkdown', 'code');
     const daily = applyComposerModeToPrompt('普通问题', 'daily');
     const duplicate = applyComposerModeToPrompt('已有\n<response_mode>\n模式：项目\n</response_mode>', 'project');
 
@@ -68,7 +69,14 @@ describe('composer modes', () => {
     expect(polish).toContain(':::todo');
     expect(polish).toContain(':::next');
     expect(polish).toContain('不要输出原始 HTML');
-    expect(daily).toBe('普通问题');
+    expect(code).toContain('模式：代码');
+    expect(code).toContain('bug、安全、性能、可维护性和测试缺口');
+    expect(code).toContain('read_symbol');
+    expect(code).toContain('不要编造 API');
+    expect(daily).toContain('模式：日常');
+    expect(daily).toContain('先给结论');
+    expect(daily).toContain('建议控制在 3 条以内');
+    expect(daily).toContain('默认不强行调用工具');
     expect(duplicate.match(/<response_mode>/g)).toHaveLength(1);
   });
 });
