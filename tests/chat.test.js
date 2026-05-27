@@ -244,6 +244,9 @@ describe('chat regeneration', () => {
   });
 
   it('renders tool recovery suggestions in tool result cards', () => {
+    const input = document.createElement('textarea');
+    input.id = 'message-input';
+    document.body.appendChild(input);
     const container = document.createElement('div');
     renderToolCalls(container, [{
       id: 'tool-fail',
@@ -257,6 +260,17 @@ describe('chat regeneration', () => {
 
     expect(container.textContent).toContain('下一步');
     expect(container.textContent).toContain('检查 Tavily Key 后重试');
+    expect(container.textContent).toContain('生成修复提示');
+
+    container.querySelector('.tool-repair-btn').click();
+
+    expect(input.value).toContain('请基于下面这次工具调用失败信息');
+    expect(input.value).toContain('<failed_tool>');
+    expect(input.value).toContain('工具：web_search');
+    expect(input.value).toContain('Tavily 搜索失败');
+    expect(input.value).toContain('等待我确认');
+
+    input.remove();
   });
 
   it('renders assistant answer header with model, tools, usage, and cache', () => {

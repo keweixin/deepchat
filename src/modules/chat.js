@@ -941,6 +941,8 @@ export function renderToolCalls(container, toolCalls = [], options = {}) {
     if (security) block.appendChild(security);
     const nextAction = createToolNextAction(tool);
     if (nextAction) block.appendChild(nextAction);
+    const repairAction = createToolRepairAction(tool);
+    if (repairAction) block.appendChild(repairAction);
     if (tool.parseError) {
       const parse = document.createElement('div');
       parse.className = 'tool-parse-error';
@@ -1090,6 +1092,56 @@ function createToolNextAction(tool) {
   text.textContent = tool.nextAction;
   next.append(label, text);
   return next;
+}
+
+function createToolRepairAction(tool) {
+  if (!shouldOfferToolRepair(tool)) return null;
+  const row = document.createElement('div');
+  row.className = 'tool-repair-action';
+  const hint = document.createElement('span');
+  hint.className = 'tool-repair-hint';
+  hint.textContent = '可让 Agent 基于失败信息生成修复方案，再由你确认是否重试工具。';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'tool-copy-btn tool-repair-btn';
+  button.textContent = '生成修复提示';
+  button.addEventListener('click', () => {
+    fillComposerPrompt(buildToolRepairPrompt(tool));
+    showToast('已填入工具修复提示');
+  });
+  row.append(hint, button);
+  return row;
+}
+
+function shouldOfferToolRepair(tool = {}) {
+  return Boolean(
+    tool.parseError ||
+    tool.status === 'failed' ||
+    tool.status === 'denied' ||
+    tool.ok === false
+  );
+}
+
+function buildToolRepairPrompt(tool = {}) {
+  const name = getToolName(tool);
+  const status = tool.status || (tool.ok === false ? 'failed' : 'unknown');
+  const args = truncate(formatToolArgs(tool), 1600);
+  const output = truncate(String(tool.output || tool.error || tool.outputPreview || ''), 1600);
+  const next = String(tool.nextAction || '').trim();
+  return [
+    '请基于下面这次工具调用失败信息，先判断失败原因，再给出最小修复方案。',
+    '不要直接重新调用高风险工具；如果需要重试，请先说明将使用的工具、参数变化和风险边界，等待我确认。',
+    '',
+    '<failed_tool>',
+    `工具：${name}`,
+    `状态：${status}`,
+    tool.parseError ? `参数解析错误：${tool.parseError}` : '',
+    next ? `已有下一步建议：${next}` : '',
+    '参数：',
+    args,
+    output ? ['输出/错误：', output].join('\n') : '',
+    '</failed_tool>',
+  ].filter(Boolean).join('\n');
 }
 
 function createToolOutputSummary(outputText, tool = {}) {
