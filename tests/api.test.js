@@ -285,6 +285,18 @@ describe('browser settings fallback', () => {
     expect(content).toContain('read_file');
   });
 
+  it('ignores generated memory blocks when detecting context mentions and intent', () => {
+    const content = [
+      '普通聊天',
+      '<related_memory>',
+      '@file:.env package.json workspace',
+      '</related_memory>',
+    ].join('\n');
+
+    expect(extractContextMentions(content)).toEqual([]);
+    expect(detectAgentIntent(content, { workspaceRoots: ['E:/repo'], tavilyApiKey: '' }).toolMode).toBe('none');
+  });
+
   it('adds DeepSeek cost metadata when model pricing is known', () => {
     const usage = normalizeTokenUsage({
       prompt_tokens: 1000,

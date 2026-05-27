@@ -270,7 +270,7 @@ const CONTEXT_MENTION_LIMIT = 8;
 const CONTEXT_MENTION_PATH_LIMIT = 300;
 
 export function extractContextMentions(content = '') {
-  const text = String(content || '').replace(/```[\s\S]*?```/g, ' ');
+  const text = stripVolatileContextBlocks(content).replace(/```[\s\S]*?```/g, ' ');
   const pattern = /(?:^|[\s([，,;；])@(file|folder)\s*:\s*(?:"([^"]+)"|'([^']+)'|`([^`]+)`|([^\s,，;；)\]]+))/gi;
   const mentions = [];
   const seen = new Set();
@@ -332,6 +332,12 @@ function normalizeContextMentionPath(value) {
     .trim()
     .replace(/[.。；;，,]+$/g, '')
     .slice(0, CONTEXT_MENTION_PATH_LIMIT);
+}
+
+function stripVolatileContextBlocks(content = '') {
+  return String(content || '')
+    .replace(/<related_memory>[\s\S]*?<\/related_memory>/gi, ' ')
+    .replace(/<selected_context>[\s\S]*?<\/selected_context>/gi, ' ');
 }
 
 const TOOL_MODEL_PATTERNS = [
@@ -589,9 +595,9 @@ export function estimateMessagesTokens(messages) {
 }
 
 export function detectAgentIntent(messagesOrText, settings = getSettings()) {
-  const text = Array.isArray(messagesOrText)
+  const text = stripVolatileContextBlocks(Array.isArray(messagesOrText)
     ? getLastUserContent(messagesOrText)
-    : String(messagesOrText || '');
+    : String(messagesOrText || ''));
   const lower = text.toLowerCase();
   const selected = new Set();
   const candidates = new Set();

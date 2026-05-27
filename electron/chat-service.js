@@ -843,9 +843,9 @@ function createContextBudgetMeta({ maxMessages, maxInputTokens, prefixTokens, bu
 }
 
 function detectAgentIntent(messagesOrText, settings = {}) {
-  const text = Array.isArray(messagesOrText)
+  const text = stripVolatileContextBlocks(Array.isArray(messagesOrText)
     ? getLastUserText(messagesOrText)
-    : String(messagesOrText || '');
+    : String(messagesOrText || ''));
   const lower = text.toLowerCase();
   const selected = new Set();
   const candidates = new Set();
@@ -936,6 +936,12 @@ function needsCode(text, lower) {
 
 function needsMcp(text, lower) {
   return /mcp|notion|github|jira|linear|slack|数据库|外部系统|server 工具/i.test(lower);
+}
+
+function stripVolatileContextBlocks(content = '') {
+  return String(content || '')
+    .replace(/<related_memory>[\s\S]*?<\/related_memory>/gi, ' ')
+    .replace(/<selected_context>[\s\S]*?<\/selected_context>/gi, ' ');
 }
 
 function mergeToolCalls(target, incoming) {

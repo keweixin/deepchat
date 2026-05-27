@@ -56,6 +56,7 @@ describe('chat regeneration', () => {
       },
       agentStages: [
         { stage: 'plan', intent: { toolMode: 'web_search' }, round: 0 },
+        { stage: 'memory', warning: '检索到 2 条相关历史', round: 0 },
         { stage: 'tool_pending', toolName: 'web_search', round: 1 },
         { stage: 'final', round: 2 },
       ],
@@ -65,6 +66,7 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('规划工具：web_search');
     expect(container.textContent).toContain('prefix abc123');
     expect(container.textContent).toContain('裁剪 3 条');
+    expect(container.textContent).toContain('检索历史');
     expect(container.textContent).toContain('等待确认');
   });
 

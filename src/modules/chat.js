@@ -19,6 +19,7 @@ import {
   SIDEBAR_FILTERS,
   filterConversations,
   getConversationGroup,
+  buildRelevantMemoryContext,
   normalizeConversation,
   normalizeConversations,
   normalizeFolderName,
@@ -398,6 +399,16 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         apiMessages[lastIdx] = { ...apiMessages[lastIdx], content: enhanced };
       }
     }
+  }
+
+  const memoryContext = maybeAppendRelevantMemory(apiMessages, conv);
+  if (memoryContext?.hits?.length) {
+    assistantMsg.agentStages.push({
+      stage: 'memory',
+      round: 0,
+      warning: `检索到 ${memoryContext.hits.length} 条相关历史`,
+    });
+    renderAgentTimeline(agentContainer, assistantMsg);
   }
 
   await streamChat(apiMessages, {
@@ -1096,6 +1107,7 @@ function collapseAgentStages(stages) {
 function formatAgentStageLabel(stage = {}) {
   const labels = {
     plan: '规划工具',
+    memory: '检索历史',
     summary: '压缩记忆',
     warning: '配置提示',
     model: '模型思考',
@@ -1117,6 +1129,31 @@ function formatAgentStageLabel(stage = {}) {
 
 function syncToolRuns(message) {
   message.toolRuns = buildToolRuns(message.toolCalls || []);
+}
+
+function maybeAppendRelevantMemory(apiMessages, conversation) {
+  const settings = getSettings();
+  if (settings.autoContextSummary === false) return null;
+  const lastIndex = findLastUserMessageIndex(apiMessages);
+  if (lastIndex < 0) return null;
+  const latestContent = String(apiMessages[lastIndex].content || '');
+  const memoryContext = buildRelevantMemoryContext(conversations, conversation?.id, latestContent, {
+    maxHits: 3,
+    maxChars: 1200,
+  });
+  if (!memoryContext.text) return null;
+  apiMessages[lastIndex] = {
+    ...apiMessages[lastIndex],
+    content: `${latestContent.trim()}\n\n${memoryContext.text}`.trim(),
+  };
+  return memoryContext;
+}
+
+function findLastUserMessageIndex(messages = []) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') return index;
+  }
+  return -1;
 }
 
 function formatToolTime(value) {

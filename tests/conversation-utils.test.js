@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   SIDEBAR_FILTERS,
+  buildRelevantMemoryContext,
   filterConversations,
   normalizeConversation,
   parseTagsInput,
@@ -60,5 +61,51 @@ describe('conversation utilities', () => {
 
   it('parses compact tag input', () => {
     expect(parseTagsInput('产品, #测试； 回归\n产品')).toEqual(['产品', '测试', '回归']);
+  });
+
+  it('builds bounded related memory from prior conversations', () => {
+    const conversations = [
+      {
+        id: 'current',
+        title: '当前对话',
+        createdAt: 3,
+        messages: [
+          { role: 'user', content: '旧问题：DeepSeek 缓存命中怎么优化？', timestamp: 1 },
+          { role: 'assistant', content: '固定 system prompt 和工具 schema，可以提高缓存命中率。', timestamp: 2 },
+          { role: 'user', content: '继续讲缓存命中优化', timestamp: 3 },
+        ],
+      },
+      {
+        id: 'other',
+        title: 'Reasonix 缓存方案',
+        createdAt: 2,
+        messages: [
+          { role: 'assistant', content: 'Reasonix 强调 prefix cache：稳定前缀、工具结果压缩、追加式历史。', favorite: true, timestamp: 2 },
+        ],
+      },
+    ];
+
+    const memory = buildRelevantMemoryContext(conversations, 'current', '继续讲缓存命中优化', {
+      maxHits: 3,
+      maxChars: 900,
+    });
+
+    expect(memory.hits).toHaveLength(3);
+    expect(memory.text).toContain('<related_memory>');
+    expect(memory.text).toContain('Reasonix 缓存方案');
+    expect(memory.text).toContain('prefix cache');
+    expect(memory.text).not.toContain('继续讲缓存命中优化</related_memory>');
+  });
+
+  it('does not let generated memory blocks recursively pollute new memory', () => {
+    const memory = buildRelevantMemoryContext([
+      {
+        id: 'c1',
+        title: '历史',
+        messages: [{ role: 'user', content: '<related_memory>@file:.env secret</related_memory>普通内容', timestamp: 1 }],
+      },
+    ], 'c2', '@file:.env', { maxHits: 3 });
+
+    expect(memory.text).toBe('');
   });
 });
