@@ -1141,8 +1141,12 @@ function dropLeadingAssistant(messages) {
 }
 
 function needsSearch(text, lower) {
-  return /最新|新闻|今日|今天|实时|刚刚|本周|价格|版本|政策|法规|官网|资料|搜索|查询|查一下|联网|来源|引用|current|latest|today|news|price|version|release|search|source/i.test(text)
-    || /20\d{2}/.test(lower);
+  return /最新|新闻|今日|今天|今年|实时|刚刚|本周|价格|版本|政策|法规|官网|资料|搜索|查询|查一下|联网|来源|引用|current|latest|today|news|price|version|release|search|source/i.test(text)
+    || (/20\d{2}/.test(lower) && needsYearScopedExternalLookup(text));
+}
+
+function needsYearScopedExternalLookup(text) {
+  return /价格|版本|政策|法规|官网|资料|数据|统计|趋势|报告|来源|引用|发布|名单|榜单|排名|current|latest|news|price|version|release|source|data|report|trend|ranking|schedule|score/i.test(text);
 }
 
 function needsFiles(text, lower) {

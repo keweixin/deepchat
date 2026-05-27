@@ -342,6 +342,24 @@ describe('browser settings fallback', () => {
     expect(intent.missingPrerequisites).toContain('Tavily API Key');
   });
 
+  it('does not trigger web search only because a plain explanation mentions a year', () => {
+    const plain = detectAgentIntent('解释 2024 年 JavaScript 闭包这个概念', {
+      tavilyApiKey: 'tvly-test',
+      workspaceRoots: [],
+      mcpServers: [],
+    });
+    const externalFacts = detectAgentIntent('查询 2024 年 DeepSeek 版本发布资料和来源', {
+      tavilyApiKey: 'tvly-test',
+      workspaceRoots: [],
+      mcpServers: [],
+    });
+
+    expect(plain.toolMode).toBe('none');
+    expect(plain.selectedTools).not.toContain('web_search');
+    expect(externalFacts.toolMode).toBe('web_search');
+    expect(externalFacts.selectedTools).toContain('web_search');
+  });
+
   it('honors explicit @web, @run, and @changed directives before keyword guessing', () => {
     const web = detectAgentIntent('@web:"release notes"', { tavilyApiKey: 'tvly-test', workspaceRoots: [] });
     const run = detectAgentIntent('@run 验证这段逻辑', { runCodeEnabled: true, workspaceRoots: [] });

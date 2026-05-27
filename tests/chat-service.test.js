@@ -247,6 +247,24 @@ describe('electron chat service token usage and agent loop', () => {
     expect(intent.selectedTools).toContain('run_code');
   });
 
+  it('keeps year-only explanation prompts in plain chat while searching year-scoped facts', () => {
+    const plain = detectAgentIntent('解释 2024 年 JavaScript 闭包这个概念', {
+      tavilyApiKey: 'tvly-test',
+      workspaceRoots: [],
+      mcpServers: [],
+    });
+    const externalFacts = detectAgentIntent('查询 2024 年 DeepSeek 版本发布资料和来源', {
+      tavilyApiKey: 'tvly-test',
+      workspaceRoots: [],
+      mcpServers: [],
+    });
+
+    expect(plain.toolMode).toBe('none');
+    expect(plain.selectedTools).not.toContain('web_search');
+    expect(externalFacts.toolMode).toBe('web_search');
+    expect(externalFacts.selectedTools).toContain('web_search');
+  });
+
   it('honors explicit tool directives in native agent intent', () => {
     const intent = detectAgentIntent('@changed 看最近修改并 @web 查最新资料', {
       activeSkill: 'agent_auto',
