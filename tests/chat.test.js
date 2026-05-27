@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildAgentPlanActionPrompt,
+  buildAnswerActionMenuGroups,
   buildAssistantHtmlExport,
   buildAnswerActionPrompt,
   getCompactMessagePreview,
@@ -25,6 +26,15 @@ import {
 } from '../src/modules/chat.js';
 
 describe('chat regeneration', () => {
+  it('groups secondary answer actions into compact menus', () => {
+    const groups = buildAnswerActionMenuGroups();
+
+    expect(groups.rewrite.map((item) => item.action)).toEqual(['table', 'polish', 'code', 'todo', 'report']);
+    expect(groups.rewrite.map((item) => item.label)).toEqual(['转表格', '精排', '转代码', 'TODO', '报告']);
+    expect(groups.export.map((item) => item.action)).toEqual(['markdown', 'html']);
+    expect(groups.export.map((item) => item.label)).toEqual(['Markdown', 'HTML']);
+  });
+
   it('builds bounded follow-up prompts for answer action buttons', () => {
     const shorter = buildAnswerActionPrompt('shorter', '结论：先做组件化回答。\n\n原因：提升阅读体验。');
     const deeper = buildAnswerActionPrompt('deeper', '结论：先做组件化回答。');

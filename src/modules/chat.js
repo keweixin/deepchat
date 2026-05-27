@@ -2761,33 +2761,24 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
   actions.appendChild(continueBtn);
 
   if (String(content || '').trim()) {
+    const groups = buildAnswerActionMenuGroups();
     actions.appendChild(createAnswerActionButton('更短', '生成一个更短版本', () => {
       sendAnswerAction('shorter', content);
     }));
     actions.appendChild(createAnswerActionButton('详细', '生成一个更详细版本', () => {
       sendAnswerAction('deeper', content);
     }));
-    actions.appendChild(createAnswerActionButton('转表格', '把这条回答整理成表格', () => {
-      sendAnswerAction('table', content);
-    }));
-    actions.appendChild(createAnswerActionButton('精排', '把这条回答改写成组件化精排版', () => {
-      sendAnswerAction('polish', content);
-    }));
-    actions.appendChild(createAnswerActionButton('转代码', '把这条回答整理成可复制的代码或 patch', () => {
-      sendAnswerAction('code', content);
-    }));
-    actions.appendChild(createAnswerActionButton('TODO', '把这条回答转成可执行 TODO 清单', () => {
-      sendAnswerAction('todo', content);
-    }));
-    actions.appendChild(createAnswerActionButton('报告', '把这条回答整理成报告版', () => {
-      sendAnswerAction('report', content);
-    }));
-    actions.appendChild(createAnswerActionButton('导出', '导出这条回答为 Markdown', () => {
-      exportAssistantMarkdown(content, msgIndex);
-    }));
-    actions.appendChild(createAnswerActionButton('导HTML', '导出这条回答为可离线查看的 HTML', () => {
-      exportAssistantHtml(msgEl, content, msgIndex);
-    }));
+    actions.appendChild(createAnswerActionMenu('改写', '把回答转成表格、精排、代码、TODO 或报告', groups.rewrite.map((item) => ({
+      ...item,
+      onClick: () => sendAnswerAction(item.action, content),
+    }))));
+    actions.appendChild(createAnswerActionMenu('导出', '导出当前回答', groups.export.map((item) => ({
+      ...item,
+      onClick: () => {
+        if (item.action === 'markdown') exportAssistantMarkdown(content, msgIndex);
+        if (item.action === 'html') exportAssistantHtml(msgEl, content, msgIndex);
+      },
+    }))));
   }
 
   const favoriteBtn = document.createElement('button');
@@ -2861,6 +2852,50 @@ function createAnswerActionButton(label, title, onClick) {
   button.title = title;
   button.addEventListener('click', onClick);
   return button;
+}
+
+function createAnswerActionMenu(label, title, items = []) {
+  const details = document.createElement('details');
+  details.className = 'answer-action-menu';
+  details.title = title;
+
+  const summary = document.createElement('summary');
+  summary.className = 'msg-action-btn answer-action-menu-trigger';
+  summary.textContent = label;
+  details.appendChild(summary);
+
+  const menu = document.createElement('div');
+  menu.className = 'answer-action-menu-list';
+  for (const item of items) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'answer-action-menu-item';
+    button.textContent = item.label;
+    button.title = item.title || item.label;
+    button.addEventListener('click', () => {
+      details.removeAttribute('open');
+      item.onClick?.();
+    });
+    menu.appendChild(button);
+  }
+  details.appendChild(menu);
+  return details;
+}
+
+export function buildAnswerActionMenuGroups() {
+  return {
+    rewrite: [
+      { action: 'table', label: '转表格', title: '把这条回答整理成表格' },
+      { action: 'polish', label: '精排', title: '把这条回答改写成组件化精排版' },
+      { action: 'code', label: '转代码', title: '把这条回答整理成可复制的代码或 patch' },
+      { action: 'todo', label: 'TODO', title: '把这条回答转成可执行 TODO 清单' },
+      { action: 'report', label: '报告', title: '把这条回答整理成报告版' },
+    ],
+    export: [
+      { action: 'markdown', label: 'Markdown', title: '导出这条回答为 Markdown' },
+      { action: 'html', label: 'HTML', title: '导出这条回答为可离线查看的 HTML' },
+    ],
+  };
 }
 
 function sendAnswerAction(action, content) {

@@ -441,6 +441,7 @@
 .message-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: var(--space-2);
   opacity: 0.62;
@@ -482,6 +483,57 @@
 .answer-action-btn:hover {
   border-color: color-mix(in srgb, var(--accent-primary), transparent 58%);
   background: color-mix(in srgb, var(--accent-primary), transparent 88%);
+  color: var(--text-primary);
+}
+
+.answer-action-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.answer-action-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.answer-action-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.answer-action-menu-trigger::after {
+  content: '▾';
+  margin-left: 2px;
+  font-size: 9px;
+  opacity: 0.72;
+}
+
+.answer-action-menu-list {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  bottom: calc(100% + 6px);
+  display: grid;
+  min-width: 132px;
+  padding: 6px;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card-strong), #000 4%);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.24);
+}
+
+.answer-action-menu-item {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.answer-action-menu-item:hover {
+  background: var(--glass-bg-hover);
   color: var(--text-primary);
 }
 
