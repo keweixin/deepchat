@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  buildComposerContextPreview,
   buildComposerIntentPreview,
   buildComposerToolEntries,
   getComposerToolModeLabel,
@@ -66,6 +67,55 @@ describe('composer tool drawer helpers', () => {
     expect(generic).toMatchObject({ state: 'chat', text: '预判：普通聊天' });
     expect(localProject.state).toBe('tool');
     expect(localProject.text).toContain('工作区文件');
+  });
+
+  it('builds a send-time context preview with explicit context and tool policy chips', () => {
+    window.deepchat = {};
+    const preview = buildComposerContextPreview('请检查 @file:src/main.js @symbol:sendMessage，并 @run 一个小实验', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: 'tvly-test',
+      runCodeEnabled: true,
+      toolApprovalPolicy: 'auto_readonly',
+      mcpServers: [{ name: 'github', command: 'node', enabled: true }],
+    });
+
+    expect(preview.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '工作区 1 个', tone: 'ready' }),
+      expect.objectContaining({ label: '文件 src/main.js', kind: 'file' }),
+      expect.objectContaining({ label: '符号 sendMessage', kind: 'symbol' }),
+      expect.objectContaining({ label: '工具 智能 Agent' }),
+      expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
+      expect.objectContaining({ label: '只读工具可自动通过' }),
+    ]));
+    expect(preview.title).toContain('@file');
+  });
+
+  it('warns in the context preview when explicit local context lacks a workspace', () => {
+    const preview = buildComposerContextPreview('读取 @file:README.md', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+
+    expect(preview.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '未选工作区', tone: 'muted' }),
+      expect.objectContaining({ label: '文件 README.md', tone: 'warning' }),
+    ]));
+  });
+
+  it('does not show missing workspace noise for ordinary chat', () => {
+    const preview = buildComposerContextPreview('帮我解释一下 token cache', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: [],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+
+    expect(preview.items.some((item) => item.label === '未选工作区')).toBe(false);
   });
 
   it('keeps composer intent preview quiet outside smart agent mode', () => {

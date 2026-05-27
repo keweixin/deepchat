@@ -1,4 +1,4 @@
-import { SKILLS, detectAgentIntent, hasNativeBridge, isSkillRunnable } from './api.js';
+import { SKILLS, detectAgentIntent, extractContextMentions, hasNativeBridge, isSkillRunnable } from './api.js';
 
 export const COMPOSER_TOOL_IDS = Object.freeze([
   'agent_auto',
@@ -86,6 +86,90 @@ export function buildComposerIntentPreview(inputText = '', settings = {}) {
   };
 }
 
+export function buildComposerContextPreview(inputText = '', settings = {}) {
+  const items = [];
+  const mentions = extractContextMentions(inputText);
+  const roots = Array.isArray(settings.workspaceRoots) ? settings.workspaceRoots : [];
+  const activeSkill = settings.activeSkill || 'agent_auto';
+  const hasWebDirective = /(?:^|[\s([，,;；])@(?:web|search)\b/i.test(String(inputText || ''));
+  const hasRunDirective = /(?:^|[\s([，,;；])@(?:run|code)\b/i.test(String(inputText || ''));
+  const hasMcpDirective = /(?:^|[\s([，,;；])@mcp\b/i.test(String(inputText || ''));
+  const intent = buildComposerIntentPreview(inputText, settings);
+  const needsWorkspace = roots.length
+    || mentions.length > 0
+    || activeSkill === 'file_reader'
+    || activeSkill === 'multi_tool'
+    || (intent.state === 'warning' && /工作区/.test(intent.text || intent.title || ''));
+
+  if (roots.length) {
+    items.push({ kind: 'workspace', label: roots.length === 1 ? '工作区 1 个' : `工作区 ${roots.length} 个`, tone: 'ready' });
+  } else if (needsWorkspace) {
+    items.push({ kind: 'workspace', label: '未选工作区', tone: 'muted', title: '需要本地文件工具时，请先在设置中添加工作区。' });
+  }
+
+  for (const mention of mentions.slice(0, 6)) {
+    items.push({
+      kind: mention.type,
+      label: mention.label,
+      tone: roots.length ? 'ready' : 'warning',
+      title: roots.length ? '将作为显式上下文提示，工具执行前仍会确认。' : '缺少工作区，模型会被提示先让你配置。',
+    });
+  }
+
+  const toolLabel = getComposerToolModeLabel(activeSkill);
+  items.push({
+    kind: 'tool',
+    label: `工具 ${toolLabel}`,
+    tone: activeSkill === 'none' ? 'muted' : 'ready',
+  });
+
+  if (intent.text) {
+    items.push({
+      kind: 'intent',
+      label: intent.text.replace(/^预判：/, ''),
+      tone: intent.state === 'warning' ? 'warning' : (intent.state === 'tool' ? 'ready' : 'muted'),
+      title: intent.title,
+    });
+  }
+
+  if (activeSkill === 'web_search' || activeSkill === 'multi_tool' || hasWebDirective) {
+    items.push({
+      kind: 'web',
+      label: settings.tavilyApiKey ? '联网可用' : '联网缺 Tavily Key',
+      tone: settings.tavilyApiKey ? 'ready' : 'warning',
+    });
+  }
+
+  if (activeSkill === 'code_runner' || activeSkill === 'multi_tool' || hasRunDirective) {
+    items.push({
+      kind: 'run',
+      label: settings.runCodeEnabled === false ? '代码运行关闭' : '代码运行需确认',
+      tone: settings.runCodeEnabled === false ? 'warning' : 'danger',
+      title: '运行代码、写入和外部操作不会隐藏执行。',
+    });
+  }
+
+  if (activeSkill === 'mcp_tool' || hasMcpDirective) {
+    const count = (settings.mcpServers || []).filter((server) => server?.enabled !== false && server?.command).length;
+    items.push({
+      kind: 'mcp',
+      label: count ? `MCP ${count} 个` : 'MCP 未配置',
+      tone: count ? 'ready' : 'warning',
+    });
+  }
+
+  items.push({
+    kind: 'approval',
+    label: settings.toolApprovalPolicy === 'auto_readonly' ? '只读工具可自动通过' : '工具调用需确认',
+    tone: settings.toolApprovalPolicy === 'auto_readonly' ? 'ready' : 'muted',
+  });
+
+  return {
+    items: dedupePreviewItems(items).slice(0, 10),
+    title: '本轮将使用的上下文和工具。显式 @file/@folder/@symbol 会优先影响工具选择。',
+  };
+}
+
 function hasEnabledMcpServer(settings = {}) {
   return (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
 }
@@ -121,4 +205,18 @@ function getComposerToolRisk(id) {
   if (id === 'web_search' || id === 'file_reader') return '需确认';
   if (id === 'code_runner' || id === 'mcp_tool' || id === 'multi_tool') return '高风险确认';
   return '需确认';
+}
+
+function dedupePreviewItems(items = []) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    const label = String(item?.label || '').trim();
+    if (!label) continue;
+    const key = `${item.kind}:${label}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...item, label });
+  }
+  return out;
 }

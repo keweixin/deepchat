@@ -36,7 +36,7 @@ import {
   getComposerMode,
   getComposerModeOverrides,
 } from './modules/composer-modes.js';
-import { buildComposerIntentPreview, buildComposerToolEntries, getComposerToolModeLabel } from './modules/composer-tools.js';
+import { buildComposerContextPreview, buildComposerIntentPreview, buildComposerToolEntries, getComposerToolModeLabel } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
 import { applyPromptTemplate, getPromptTemplateEntries } from './modules/prompt-templates.js';
 import {
@@ -381,6 +381,7 @@ function initComposerOptions(openSettings) {
   const $toolStatus = document.getElementById('composer-tool-status');
   const $contextBtn = document.getElementById('composer-context-btn');
   const $runStatus = document.getElementById('composer-run-status');
+  const $contextPreview = document.getElementById('composer-context-preview');
   const $templateBtn = document.getElementById('composer-template-btn');
   const $settingsShortcut = document.getElementById('composer-settings-shortcut');
   const $webToggleLabel = $webToggle?.closest('.composer-search-toggle');
@@ -419,6 +420,7 @@ function initComposerOptions(openSettings) {
     $enhanceToggleLabel?.classList.toggle('is-disabled', composerOverrides.enhance === false);
     updateComposerToolButton($toolDrawerBtn, $toolStatus, { ...settings, activeSkill });
     updateComposerRunStatus($runStatus, { ...settings, ...composerOverrides }, $thinking.value, document.getElementById('message-input')?.value || '');
+    renderComposerContextPreview($contextPreview, document.getElementById('message-input')?.value || '', { ...settings, ...composerOverrides });
     syncing = false;
   }
 
@@ -539,7 +541,10 @@ function initComposerOptions(openSettings) {
   });
 
   document.getElementById('message-input')?.addEventListener('input', () => {
-    updateComposerRunStatus($runStatus, { ...getSettings(), ...composerOverrides }, $thinking.value, document.getElementById('message-input')?.value || '');
+    const settings = { ...getSettings(), ...composerOverrides };
+    const inputText = document.getElementById('message-input')?.value || '';
+    updateComposerRunStatus($runStatus, settings, $thinking.value, inputText);
+    renderComposerContextPreview($contextPreview, inputText, settings);
   });
 
   applySettingsToComposer();
@@ -824,6 +829,20 @@ function updateComposerRunStatus(target, settings, thinkingValue, inputText = ''
   target.textContent = preview.text ? `${base} · ${preview.text}` : base;
   target.title = preview.title || '根据当前设置展示本轮模型、工具和输入意图预判。';
   target.dataset.intentState = preview.state || 'idle';
+}
+
+function renderComposerContextPreview(target, inputText = '', settings = {}) {
+  if (!target) return;
+  const preview = buildComposerContextPreview(inputText, settings);
+  target.innerHTML = '';
+  target.title = preview.title || '';
+  for (const item of preview.items) {
+    const chip = document.createElement('span');
+    chip.className = `composer-context-preview-chip tone-${item.tone || 'muted'} kind-${item.kind || 'item'}`;
+    chip.textContent = item.label;
+    if (item.title) chip.title = item.title;
+    target.appendChild(chip);
+  }
 }
 
 function updateComposerToolButton(button, status, settings) {
