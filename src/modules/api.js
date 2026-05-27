@@ -6,12 +6,7 @@
  */
 
 import { uid } from './utils.js';
-import {
-  buildTavilySearchRequest,
-  normalizeSearchQuery,
-  deriveSearchMaxResults,
-  getFreshnessWindow,
-} from '../../electron/search-utils.mjs';
+import { buildTavilySearchRequest } from '../../electron/search-utils.mjs';
 
 export const DEFAULT_SYSTEM_PROMPT = `你是一位专业、严谨且善于深度思考的AI助手。
 
