@@ -5,6 +5,7 @@ import {
   buildAnswerActionPrompt,
   getCompactMessagePreview,
   buildConversationUsageTelemetryDetails,
+  buildRunCodeExplainPrompt,
   formatConversationUsageTelemetry,
   hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
@@ -414,7 +415,7 @@ describe('chat regeneration', () => {
       name: 'run_code',
       status: 'completed',
       ok: true,
-      args: { language: 'javascript' },
+      args: { language: 'javascript', code: 'console.log("测试完成")' },
       requestedAt: '2026-05-27T12:00:00.000Z',
       completedAt: '2026-05-27T12:00:01.000Z',
       output: [
@@ -450,8 +451,11 @@ describe('chat regeneration', () => {
     expect(container.textContent).toContain('语言 javascript');
     expect(container.textContent).toContain('STDOUT · 12 bytes');
     expect(container.textContent).toContain('退出码：0');
+    expect(container.textContent).toContain('复制代码');
+    expect(container.textContent).toContain('重新运行');
+    expect(container.textContent).not.toContain('解释错误');
 
-    container.querySelector('.tool-copy-btn').click();
+    container.querySelector('.tool-copy-row .tool-copy-btn').click();
     await Promise.resolve();
 
     const payload = JSON.parse(writeText.mock.calls[0][0]);
@@ -466,6 +470,41 @@ describe('chat regeneration', () => {
       runResult: { language: 'javascript', exitCode: 0, durationMs: 8 },
     });
     expect(payload.outputPreview).toContain('测试完成');
+
+    container.querySelector('.action-copy-code').click();
+    await Promise.resolve();
+    expect(writeText.mock.calls.at(-1)[0]).toBe('console.log("测试完成")');
+
+    const input = document.createElement('textarea');
+    input.id = 'message-input';
+    document.body.appendChild(input);
+    container.querySelector('.action-rerun').click();
+    expect(input.value).toContain('请重新运行下面这段代码');
+    expect(input.value).toContain('运行前仍需我确认 run_code 工具调用');
+    expect(input.value).toContain('console.log("测试完成")');
+    input.remove();
+  });
+
+  it('builds run_code failure explanation prompts with bounded evidence', () => {
+    const prompt = buildRunCodeExplainPrompt(
+      { args: { language: 'python', code: 'raise RuntimeError("boom")' } },
+      {
+        language: 'python',
+        ok: false,
+        exitCode: 1,
+        durationMs: 18,
+        failureHint: '检查异常堆栈',
+        stderrPreview: 'Traceback\nRuntimeError: boom',
+        stdoutPreview: 'before crash',
+      }
+    );
+
+    expect(prompt).toContain('为什么失败');
+    expect(prompt).toContain('退出码：1');
+    expect(prompt).toContain('检查异常堆栈');
+    expect(prompt).toContain('Traceback');
+    expect(prompt).toContain('raise RuntimeError');
+    expect(prompt).toContain('不要自动执行工具');
   });
 
   it('labels selected symbol context as a symbol chip', () => {

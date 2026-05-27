@@ -1293,7 +1293,97 @@ function createRunCodeExperimentCard(tool = {}) {
   if (result.stdoutPreview) outputs.appendChild(createRunOutputBlock('STDOUT', result.stdoutPreview, result.stdoutBytes));
   if (result.stderrPreview) outputs.appendChild(createRunOutputBlock('STDERR', result.stderrPreview, result.stderrBytes));
   if (outputs.children.length) card.appendChild(outputs);
+  appendRunExperimentActions(card, tool, result);
   return card;
+}
+
+function appendRunExperimentActions(card, tool, result) {
+  const code = getRunCodeSourceCode(tool);
+  const row = document.createElement('div');
+  row.className = 'run-experiment-actions';
+
+  if (code) {
+    const copy = createRunExperimentActionButton('复制代码', 'copy-code');
+    copy.addEventListener('click', async () => {
+      await copyToClipboard(code);
+      showToast('代码已复制');
+    });
+    row.appendChild(copy);
+  }
+
+  const rerun = createRunExperimentActionButton('重新运行', 'rerun');
+  rerun.addEventListener('click', () => {
+    fillComposerPrompt(buildRunCodeRerunPrompt(tool, result));
+    showToast('已填入重新运行提示');
+  });
+  row.appendChild(rerun);
+
+  if (!result.ok || result.stderrPreview || result.failureHint) {
+    const explain = createRunExperimentActionButton('解释错误', 'explain-error');
+    explain.addEventListener('click', () => {
+      fillComposerPrompt(buildRunCodeExplainPrompt(tool, result));
+      showToast('已填入错误解释提示');
+    });
+    row.appendChild(explain);
+  }
+
+  if (row.children.length) card.appendChild(row);
+}
+
+function createRunExperimentActionButton(label, action) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `run-experiment-action-btn action-${action}`;
+  button.textContent = label;
+  return button;
+}
+
+function getRunCodeSourceCode(tool = {}) {
+  const code = tool.args?.code ?? tool.args?.source ?? '';
+  return String(code || '').trim();
+}
+
+function formatCodeFenceLanguage(language) {
+  return String(language || 'text').replace(/[^\w#+.-]/g, '').slice(0, 32) || 'text';
+}
+
+function getBoundedRunCodeForPrompt(tool = {}) {
+  const code = getRunCodeSourceCode(tool);
+  return truncate(code, 6000);
+}
+
+export function buildRunCodeRerunPrompt(tool = {}, result = {}) {
+  const language = result.language || tool.args?.language || 'text';
+  const code = getBoundedRunCodeForPrompt(tool);
+  const lines = [
+    '请重新运行下面这段代码，并解释运行结果。运行前仍需我确认 run_code 工具调用。',
+    '',
+    `语言：${language}`,
+  ];
+  if (code) {
+    lines.push('', `\`\`\`${formatCodeFenceLanguage(language)}`, code, '```');
+  } else {
+    lines.push('', '原始工具记录里没有可复用的代码，请先说明无法直接重新运行的原因，并让我补充代码。');
+  }
+  return lines.join('\n').trim();
+}
+
+export function buildRunCodeExplainPrompt(tool = {}, result = {}) {
+  const language = result.language || tool.args?.language || 'text';
+  const code = getBoundedRunCodeForPrompt(tool);
+  const lines = [
+    '请解释这次 run_code 代码实验为什么失败，指出最可能的根因，并给出可确认后重试的修复版本。',
+    '',
+    `语言：${language}`,
+    `退出码：${result.exitCode ?? 'unknown'}`,
+    `耗时：${result.durationMs ?? 'unknown'}ms`,
+  ];
+  if (result.failureHint) lines.push(`失败提示：${result.failureHint}`);
+  if (result.stderrPreview) lines.push('', 'STDERR：', truncate(result.stderrPreview, 2000));
+  if (result.stdoutPreview) lines.push('', 'STDOUT：', truncate(result.stdoutPreview, 1200));
+  if (code) lines.push('', '原始代码：', `\`\`\`${formatCodeFenceLanguage(language)}`, code, '```');
+  lines.push('', '不要自动执行工具；如果需要重试，请先给出将要运行的代码和理由，等待我确认。');
+  return lines.join('\n').trim();
 }
 
 function createRunOutputBlock(label, text, bytes) {
