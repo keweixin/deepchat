@@ -106,11 +106,13 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
   const items = [];
   const mentions = extractContextMentions(inputText);
   const roots = Array.isArray(settings.workspaceRoots) ? settings.workspaceRoots : [];
-  const activeSkill = settings.activeSkill || 'agent_auto';
+  const configuredActiveSkill = settings.activeSkill || 'agent_auto';
+  const activeSkill = resolveActiveSkillForExplicitDirectives(inputText, settings, configuredActiveSkill);
+  const effectiveSettings = { ...settings, activeSkill };
   const hasWebDirective = /(?:^|[\s([，,;；])@(?:web|search)\b/i.test(String(inputText || ''));
   const hasRunDirective = /(?:^|[\s([，,;；])@(?:run|code)\b/i.test(String(inputText || ''));
   const hasMcpDirective = /(?:^|[\s([，,;；])@mcp\b/i.test(String(inputText || ''));
-  const intent = buildComposerIntentPreview(inputText, settings);
+  const intent = buildComposerIntentPreview(inputText, effectiveSettings);
   const needsWorkspace = roots.length
     || mentions.length > 0
     || activeSkill === 'file_reader'
@@ -148,7 +150,7 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     });
   }
 
-  if (activeSkill === 'web_search' || activeSkill === 'multi_tool' || hasWebDirective) {
+  if (configuredActiveSkill === 'web_search' || configuredActiveSkill === 'multi_tool' || hasWebDirective) {
     items.push({
       kind: 'web',
       label: settings.tavilyApiKey ? '联网可用' : '联网缺 Tavily Key',
@@ -156,7 +158,7 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     });
   }
 
-  if (activeSkill === 'code_runner' || activeSkill === 'multi_tool' || hasRunDirective) {
+  if (configuredActiveSkill === 'code_runner' || configuredActiveSkill === 'multi_tool' || hasRunDirective) {
     items.push({
       kind: 'run',
       label: settings.runCodeEnabled === false ? '代码运行关闭' : '代码运行需确认',
@@ -165,7 +167,7 @@ export function buildComposerContextPreview(inputText = '', settings = {}) {
     });
   }
 
-  if (activeSkill === 'mcp_tool' || activeSkill === 'multi_tool' || hasMcpDirective) {
+  if (configuredActiveSkill === 'mcp_tool' || configuredActiveSkill === 'multi_tool' || hasMcpDirective) {
     const servers = getMcpServerPreviewItems(settings);
     const configuredCount = servers.filter((server) => server.configured).length;
     const readyCount = servers.filter((server) => server.ready).length;

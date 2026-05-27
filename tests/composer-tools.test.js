@@ -140,7 +140,7 @@ describe('composer tool drawer helpers', () => {
       expect.objectContaining({ label: '工作区 1 个', tone: 'ready' }),
       expect.objectContaining({ label: '文件 src/main.js', kind: 'file' }),
       expect.objectContaining({ label: '符号 sendMessage', kind: 'symbol' }),
-      expect.objectContaining({ label: '工具 智能 Agent' }),
+      expect.objectContaining({ label: '工具 全工具' }),
       expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
       expect.objectContaining({ label: '只读工具可自动通过' }),
       expect.objectContaining({ label: '输入预算 24k', tone: 'ready' }),
@@ -150,6 +150,34 @@ describe('composer tool drawer helpers', () => {
     ]));
     expect(preview.title).toContain('@file');
     expect(preview.title).toContain('token 预算');
+  });
+
+  it('shows the effective tool mode from explicit directives in the context preview', () => {
+    window.deepchat = {};
+    const web = buildComposerContextPreview('@web 查资料', {
+      activeSkill: 'none',
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: 'tvly-test',
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+    const localAndRun = buildComposerContextPreview('@file:src/main.js @run 验证', {
+      activeSkill: 'none',
+      workspaceRoots: ['E:/repo'],
+      tavilyApiKey: '',
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+
+    expect(web.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '工具 联网检索', tone: 'ready' }),
+      expect.objectContaining({ label: '联网可用', tone: 'ready' }),
+    ]));
+    expect(localAndRun.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: '工具 全工具', tone: 'ready' }),
+      expect.objectContaining({ label: '文件 src/main.js' }),
+      expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
+    ]));
   });
 
   it('shows MCP server status lights in the send-time context preview', () => {
