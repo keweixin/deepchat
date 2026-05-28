@@ -21,6 +21,12 @@ const SECURITY_PATTERNS = [
       'src/modules/chat.js',
       'src/modules/reading-navigator.js',
       'src/modules/settings.js',
+      'src/modules/agent-theatre.js',
+      'src/modules/agent-trace-inspector.js',
+      'src/modules/inspector-panel.js',
+      'src/modules/streaming-renderer.js',
+      'src/modules/tool-card.js',
+      'src/modules/workspace-index-report.js',
     ],
   },
   {

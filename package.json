@@ -1,7 +1,7 @@
 {
   "name": "deepchat",
   "private": true,
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Local-first desktop AI Agent client with auditable tools and DeepSeek cache telemetry",
   "author": "DeepChat",
   "main": "electron.js",
@@ -12,6 +12,7 @@
     "lint": "node scripts/check-source.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "syntax": "node --check electron.js && node --check preload.js",
     "verify": "npm run format:check && npm run lint && npm test && npm run build",
     "preview": "vite preview",
     "electron:dev": "vite build && electron .",

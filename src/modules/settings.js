@@ -181,6 +181,7 @@ export function initSettings(onModelChange) {
     agentMaxRounds: document.getElementById('agent-max-rounds-input'),
     autoContextSummary: document.getElementById('auto-context-summary-toggle'),
     cacheOptimization: document.getElementById('cache-optimization-toggle'),
+    privacyMode: document.getElementById('privacy-mode-toggle'),
     clearWorkspaceIndexCacheBtn: document.getElementById('clear-workspace-index-cache-btn'),
     workspaceIndexCacheStatus: document.getElementById('workspace-index-cache-status'),
     toolApprovalTimeout: document.getElementById('tool-approval-timeout-input'),
@@ -233,6 +234,7 @@ export function initSettings(onModelChange) {
   if (els.agentMaxRounds) els.agentMaxRounds.value = settings.agentMaxRounds;
   if (els.autoContextSummary) els.autoContextSummary.checked = settings.autoContextSummary !== false;
   if (els.cacheOptimization) els.cacheOptimization.checked = settings.cacheOptimization !== false;
+  if (els.privacyMode) els.privacyMode.checked = settings.privacyMode === true;
   if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = settings.toolApprovalTimeoutMs;
   if (els.toolApprovalPolicy) els.toolApprovalPolicy.value = settings.toolApprovalPolicy || 'confirm_all';
   if (els.crewDisplayMode) els.crewDisplayMode.value = settings.crewDisplayMode || 'auto';
@@ -482,6 +484,9 @@ export function initSettings(onModelChange) {
     els.cacheOptimization.addEventListener('change', () =>
       saveSettings({ cacheOptimization: els.cacheOptimization.checked })
     );
+  }
+  if (els.privacyMode) {
+    els.privacyMode.addEventListener('change', () => saveSettings({ privacyMode: els.privacyMode.checked }));
   }
   if (els.clearWorkspaceIndexCacheBtn) {
     els.clearWorkspaceIndexCacheBtn.addEventListener('click', () =>

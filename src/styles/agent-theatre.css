@@ -1,0 +1,310 @@
+/**
+ * Agent Theatre Styles — CSS/SVG animations for agent crew visualization
+ */
+
+/* ─── Wrapper ─────────────────────────────────────────────────────────────── */
+
+.agent-theatre-wrapper {
+  margin: 0.75rem 0;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface-color, #ffffff);
+  overflow: hidden;
+}
+
+.agent-theatre-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-hover, #f9fafb);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.theatre-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-primary, #3b82f6);
+  animation: theatre-pulse 2s ease-in-out infinite;
+}
+
+@keyframes theatre-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.85);
+  }
+}
+
+.agent-theatre-title {
+  flex: 1;
+}
+
+.agent-theatre-badge {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-hover, #e5e7eb);
+  color: var(--text-secondary, #6b7280);
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* ─── Stage ───────────────────────────────────────────────────────────────── */
+
+.agent-theatre-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.75rem;
+  padding: 1rem;
+  min-height: 120px;
+}
+
+@media (max-width: 768px) {
+  .agent-theatre-stage {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ─── SVG Flow Layer ──────────────────────────────────────────────────────── */
+
+.agent-theatre-flow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.theatre-flow-path {
+  fill: none;
+  stroke: var(--border-color, #e5e7eb);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.4;
+  transition:
+    stroke 0.3s,
+    opacity 0.3s;
+}
+
+.theatre-flow-path.is-active {
+  stroke: var(--accent-primary, #3b82f6);
+  stroke-dasharray: none;
+  opacity: 0.7;
+  animation: theatre-flow-dash 1s linear infinite;
+}
+
+@keyframes theatre-flow-dash {
+  to {
+    stroke-dashoffset: -8;
+  }
+}
+
+/* ─── Actor Cards ─────────────────────────────────────────────────────────── */
+
+.theatre-actor {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: 10px;
+  background: var(--surface-color, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s,
+    border-color 0.2s;
+  cursor: pointer;
+}
+
+.theatre-actor:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.theatre-actor-icon {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 0.375rem;
+}
+
+.theatre-actor-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.theatre-actor-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary, #111827);
+  margin-bottom: 0.25rem;
+}
+
+.theatre-actor-status {
+  font-size: 0.6875rem;
+  color: var(--text-secondary, #6b7280);
+  min-height: 1.2em;
+}
+
+.theatre-actor-summary {
+  font-size: 0.625rem;
+  color: var(--text-tertiary, #9ca3af);
+  margin-top: 0.25rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Status Animations ───────────────────────────────────────────────────── */
+
+/* thinking — breathing glow */
+.theatre-actor--thinking {
+  border-color: var(--accent-primary, #3b82f6);
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  animation: theatre-thinking-glow 2s ease-in-out infinite;
+}
+
+@keyframes theatre-thinking-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+}
+
+/* running_tool — rotating gear on icon */
+.theatre-actor--running .theatre-actor-icon {
+  animation: theatre-spin 2s linear infinite;
+}
+
+@keyframes theatre-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* waiting_approval — blink pause */
+.theatre-actor--waiting {
+  border-color: #f59e0b;
+  animation: theatre-waiting-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes theatre-waiting-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* done — green check fade */
+.theatre-actor--done {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.theatre-actor--done .theatre-actor-icon {
+  animation: theatre-done-pop 0.4s ease-out;
+}
+
+@keyframes theatre-done-pop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* error — red shake */
+.theatre-actor--error {
+  border-color: #ef4444;
+  animation: theatre-error-shake 0.5s ease-in-out;
+}
+
+@keyframes theatre-error-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+/* observing — subtle pulse */
+.theatre-actor--observing {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+/* blocked — dimmed */
+.theatre-actor--blocked {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  .agent-theatre-wrapper {
+    background: var(--surface-color, #1f2937);
+    border-color: var(--border-color, #374151);
+  }
+
+  .agent-theatre-header {
+    background: var(--surface-hover, #111827);
+    border-color: var(--border-color, #374151);
+  }
+
+  .theatre-actor {
+    background: var(--surface-color, #1f2937);
+    border-color: var(--border-color, #374151);
+  }
+
+  .theatre-actor-name {
+    color: var(--text-primary, #f3f4f6);
+  }
+
+  .theatre-actor-status {
+    color: var(--text-secondary, #9ca3af);
+  }
+
+  .theatre-actor-summary {
+    color: var(--text-tertiary, #6b7280);
+  }
+}

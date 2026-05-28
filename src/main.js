@@ -21,6 +21,10 @@ import './styles/settings.css';
 import './styles/reading-navigator.css';
 import './styles/animations.css';
 import './styles/agent-crew.css';
+import './styles/agent-theatre.css';
+import './styles/inspector-panel.css';
+import './styles/tool-card.css';
+import './styles/agent-trace.css';
 
 // Modules
 import {

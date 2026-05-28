@@ -85,7 +85,22 @@ import {
   finalizeCrewRun,
 } from './agent-run-store.js';
 import { renderAgentCrew } from './agent-crew.js';
+import { renderAgentTheatre } from './agent-theatre.js';
 import { renderEvidencePanel } from './evidence-panel.js';
+
+function renderCrewOrTheatre(container, agentRun) {
+  if (!container) return;
+  const mode = getSettings().crewDisplayMode || 'auto';
+  if (mode === 'theatre') {
+    renderAgentTheatre(container, agentRun);
+  } else {
+    renderCrewOrTheatre(container, agentRun);
+  }
+}
+import { renderStreamingMarkdown, containsBlockMarkdown } from './streaming-renderer.js';
+import { TraceRecorder, migrateLegacyAgentRun } from './agent-trace.js';
+import { openTraceInspector } from './agent-trace-inspector.js';
+import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
 
 let conversations = [];
 let activeConvId = null;
@@ -166,6 +181,25 @@ export async function initChat() {
   };
   window.addEventListener('deepchat:reload-conversations', reloadHandler);
   _chatCleanupFns.push(() => window.removeEventListener('deepchat:reload-conversations', reloadHandler));
+
+  // Global shortcut: Ctrl+Shift+T opens trace for the latest assistant message
+  const traceKeyHandler = (event) => {
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 't') {
+      event.preventDefault();
+      const conv = getActiveConversation();
+      if (!conv) return;
+      const lastAssistant = [...conv.messages].reverse().find((m) => m.role === 'assistant');
+      if (lastAssistant?.traceRecorder) {
+        openTraceInspector(lastAssistant.traceRecorder, { conversationTitle: conv.title });
+      } else if (lastAssistant?.agentRun) {
+        // Legacy: migrate old agentRun to trace and open
+        const recorder = migrateLegacyAgentRun(lastAssistant.agentRun);
+        if (recorder) openTraceInspector(recorder, { conversationTitle: conv.title });
+      }
+    }
+  };
+  document.addEventListener('keydown', traceKeyHandler);
+  _chatCleanupFns.push(() => document.removeEventListener('keydown', traceKeyHandler));
 }
 
 export function destroyChat() {
@@ -490,13 +524,28 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
     return assistantMsg.agentRun;
   }
 
+  // Initialize TraceRecorder for this run
+  const traceRecorder = new TraceRecorder({
+    runId: assistantMsg.id || `msg_${assistantMsg.timestamp}`,
+    mode: composerOverrides?.activeSkill || getSettings().activeSkill || 'auto',
+    model: getSettings().model || '',
+  });
+  assistantMsg.traceRecorder = traceRecorder;
+
   if (shouldShowAgentCrewEarly()) {
     ensureAgentRun();
-    renderAgentCrew(crewContainer, assistantMsg.agentRun);
+    renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
   }
   crewContainer.addEventListener('deepchat:crew-role-click', (e) => {
     const roleId = e.detail?.roleId;
     if (!roleId) return;
+
+    // Shift+click opens Trace Inspector
+    if (e.shiftKey && assistantMsg.traceRecorder) {
+      openTraceInspector(assistantMsg.traceRecorder, { conversationTitle: conv.title });
+      return;
+    }
+
     const toolNameMap = {
       reader: ['read_file', 'search_workspace', 'read_symbol'],
       researcher: ['web_search'],
@@ -549,7 +598,12 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       }
       lastRenderLen = fullContent.length;
 
-      contentEl.innerHTML = renderMarkdown(fullContent);
+      // Use lightweight inline markdown during streaming; fall back to full parser for block content
+      if (containsBlockMarkdown(fullContent)) {
+        contentEl.innerHTML = renderMarkdown(fullContent);
+      } else {
+        contentEl.innerHTML = renderStreamingMarkdown(fullContent);
+      }
       contentEl.classList.add('streaming-cursor');
       attachCopyHandlersOnly(contentEl);
 
@@ -631,14 +685,29 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       assistantMsg.toolCalls.push(tool);
       syncToolRuns(assistantMsg);
       applyCrewToolRequest(ensureAgentRun(), tool);
-      renderAgentCrew(crewContainer, assistantMsg.agentRun);
+      renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
+      traceRecorder.recordToolRequest({
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        args: event.args,
+        risk: event.risk,
+        approvalPolicy: event.approvalPolicy,
+        autoApproved: event.autoApproved,
+        inputSummary: event.args ? JSON.stringify(event.args).slice(0, 200) : '',
+      });
       renderToolCalls(toolContainer, assistantMsg.toolCalls, {
         requestId: event.requestId,
         onDecision(toolCallId, approved) {
           applyToolDecision(tool, approved);
           syncToolRuns(assistantMsg);
           applyCrewToolResult(ensureAgentRun(), tool, assistantMsg.toolCalls);
-          renderAgentCrew(crewContainer, assistantMsg.agentRun);
+          renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
+          traceRecorder.recordApproval({
+            toolCallId,
+            approved,
+            decision: approved ? 'approved' : 'denied',
+            reason: approved ? '用户确认' : '用户拒绝',
+          });
           approveToolRequest(event.requestId, toolCallId, approved);
           renderToolCalls(toolContainer, assistantMsg.toolCalls);
           renderEvidencePanel(evidenceContainer, assistantMsg.toolCalls);
@@ -652,17 +721,29 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       renderToolCalls(toolContainer, assistantMsg.toolCalls);
       renderEvidencePanel(evidenceContainer, assistantMsg.toolCalls);
       applyCrewToolResult(ensureAgentRun(), event, assistantMsg.toolCalls);
-      renderAgentCrew(crewContainer, assistantMsg.agentRun);
+      renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
+      traceRecorder.recordToolResult({
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        ok: event.ok,
+        output: event.output,
+        outputSummary: event.outputSummary || '',
+        error: event.error,
+        durationMs: event.durationMs,
+        outputBytes: event.output ? String(event.output).length : 0,
+        evidenceIds: event.evidenceIds,
+      });
     },
     onAgentStage(event) {
       assistantMsg.agentStages.push({
         ...event,
         at: new Date().toISOString(),
       });
+      traceRecorder.recordStage(event);
       renderAgentTimeline(agentContainer, assistantMsg);
       if (shouldCreateCrewFromStage(event)) {
         handleCrewAgentStage(ensureAgentRun(), event);
-        renderAgentCrew(crewContainer, assistantMsg.agentRun);
+        renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
       }
     },
     onContextBudget(event) {
@@ -673,13 +754,26 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       conv.contextSummary = event.summary || conv.contextSummary || '';
       conv.contextSummaryUpdatedAt = event.updatedAt || new Date().toISOString();
       conv.contextSummaryMeta = event.meta || conv.contextSummaryMeta || null;
+      traceRecorder.recordContextCompaction({
+        messageCount: event.meta?.messageCount,
+        tokenCount: event.meta?.tokenCount,
+        summaryTokens: event.meta?.summaryTokens,
+        trigger: event.meta?.trigger || 'auto',
+      });
       renderAgentTimeline(agentContainer, assistantMsg);
     },
     async onDone(doneEvent = {}) {
       clearTimeout(renderTimer);
       if (assistantMsg.agentRun) {
         finalizeCrewRun(assistantMsg.agentRun, { aborted: Boolean(doneEvent.aborted) });
-        renderAgentCrew(crewContainer, assistantMsg.agentRun);
+        renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
+      }
+      traceRecorder.recordRunEnd({
+        status: doneEvent.aborted ? 'cancelled' : 'done',
+        finalContentLength: fullContent.length,
+      });
+      if (isTraceRecordingEnabled(getSettings())) {
+        saveTrace(traceRecorder, conv.id).catch(() => {});
       }
       renderEvidencePanel(evidenceContainer, assistantMsg.toolCalls);
 
@@ -752,9 +846,15 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
         return;
       }
 
+      traceRecorder.recordError({ source: 'model_stream', message: err.message });
+      traceRecorder.recordRunEnd({ status: 'error', errorMessage: err.message });
+      if (isTraceRecordingEnabled(getSettings())) {
+        saveTrace(traceRecorder, conv.id).catch(() => {});
+      }
+
       if (assistantMsg.agentRun) {
         finalizeCrewRun(assistantMsg.agentRun, { error: err.message, source: 'model_stream' });
-        renderAgentCrew(crewContainer, assistantMsg.agentRun);
+        renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
       }
       renderEvidencePanel(evidenceContainer, assistantMsg.toolCalls);
 
@@ -1012,7 +1112,7 @@ function renderMessages() {
         msg.agentRun = agentRun;
       }
       const historyCrewContainer = el.querySelector('.agent-crew-container');
-      renderAgentCrew(historyCrewContainer, agentRun);
+      renderCrewOrTheatre(historyCrewContainer, agentRun);
       if (historyCrewContainer && !historyCrewContainer.__crewClickBound) {
         historyCrewContainer.__crewClickBound = true;
         historyCrewContainer.addEventListener('deepchat:crew-role-click', (e) => {
@@ -1042,6 +1142,16 @@ function renderMessages() {
           const historyContentEl = el.querySelector('.message-content');
           if (historyContentEl) {
             historyContentEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+        // Ctrl+Click on historical crew opens Trace Inspector
+        historyCrewContainer.addEventListener('click', (e) => {
+          if (!e.ctrlKey && !e.metaKey) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const historyTraceRecorder = agentRun ? migrateLegacyAgentRun(agentRun) : null;
+          if (historyTraceRecorder) {
+            openTraceInspector(historyTraceRecorder, { readOnly: true });
           }
         });
       }
