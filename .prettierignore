@@ -1,0 +1,4 @@
+.gitnexus/
+dist/
+node_modules/
+release/

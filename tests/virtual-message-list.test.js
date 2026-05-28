@@ -75,8 +75,8 @@ describe('calculateVisibleRange', () => {
     const heights = [100, 100, 100, 100, 100, 100, 100, 100, 100, 100];
     const range = calculateVisibleRange(container, heights);
     // scrollTop=200, viewport=300 -> visible from ~200 to ~500
-    expect(range.start).toBeGreaterThanOrEqual(1);
-    expect(range.end).toBeGreaterThanOrEqual(range.start);
+    expect(range.start).toBe(2);
+    expect(range.end).toBe(4);
   });
 
   it('returns full range when all fits in viewport', () => {
@@ -85,6 +85,40 @@ describe('calculateVisibleRange', () => {
     Object.defineProperty(container, 'clientHeight', { value: 1000, configurable: true });
 
     const heights = [50, 50, 50];
+    const range = calculateVisibleRange(container, heights);
+    expect(range.start).toBe(0);
+    expect(range.end).toBe(2);
+  });
+
+  it('returns full range when viewport is zero height (degenerate)', () => {
+    const container = document.createElement('div');
+    container.scrollTop = 0;
+    Object.defineProperty(container, 'clientHeight', { value: 0, configurable: true });
+
+    const heights = [100, 100, 100];
+    const range = calculateVisibleRange(container, heights);
+    // Zero-height viewport is degenerate; all items are considered visible
+    expect(range.start).toBe(0);
+    expect(range.end).toBe(2);
+  });
+
+  it('returns last item when scrolled to bottom', () => {
+    const container = document.createElement('div');
+    container.scrollTop = 250;
+    Object.defineProperty(container, 'clientHeight', { value: 50, configurable: true });
+
+    const heights = [100, 100, 100];
+    const range = calculateVisibleRange(container, heights);
+    expect(range.start).toBe(2);
+    expect(range.end).toBe(2);
+  });
+
+  it('returns full range when scrolled past all items', () => {
+    const container = document.createElement('div');
+    container.scrollTop = 500;
+    Object.defineProperty(container, 'clientHeight', { value: 100, configurable: true });
+
+    const heights = [100, 100, 100];
     const range = calculateVisibleRange(container, heights);
     expect(range.start).toBe(0);
     expect(range.end).toBe(2);
@@ -161,5 +195,85 @@ describe('createVirtualList', () => {
 
     list.refresh();
     expect(container.querySelectorAll('.message').length).toBe(10);
+  });
+
+  it('virtualizes when message count is at threshold', () => {
+    const container = document.createElement('div');
+    container.scrollTop = 0;
+    Object.defineProperty(container, 'clientHeight', { value: 300, configurable: true });
+
+    const renderItem = vi.fn((i) => {
+      const el = document.createElement('div');
+      el.className = 'message';
+      el.dataset.messageIndex = String(i);
+      el.style.height = '100px';
+      return el;
+    });
+
+    const list = createVirtualList({
+      container,
+      renderItem,
+      getCount: () => 35,
+      settings: { virtualScrollEnabled: true },
+    });
+
+    list.enable();
+    // With viewport 300px and messages 100px each, only ~3-9 messages should be rendered (with buffer)
+    const rendered = container.querySelectorAll('.message');
+    expect(rendered.length).toBeLessThan(35);
+    expect(rendered.length).toBeGreaterThan(0);
+  });
+
+  it('destroys and full-renders all messages on disable', () => {
+    const container = document.createElement('div');
+    container.scrollTop = 0;
+    Object.defineProperty(container, 'clientHeight', { value: 300, configurable: true });
+
+    const renderItem = vi.fn((i) => {
+      const el = document.createElement('div');
+      el.className = 'message';
+      el.dataset.messageIndex = String(i);
+      el.style.height = '100px';
+      return el;
+    });
+
+    const list = createVirtualList({
+      container,
+      renderItem,
+      getCount: () => 35,
+      settings: { virtualScrollEnabled: true },
+    });
+
+    list.enable();
+    expect(container.querySelectorAll('.message').length).toBeLessThan(35);
+
+    list.disable();
+    expect(container.querySelectorAll('.message').length).toBe(35);
+    expect(container.querySelectorAll('.message-placeholder').length).toBe(0);
+  });
+
+  it('cleans up placeholders on destroy', () => {
+    const container = document.createElement('div');
+    container.scrollTop = 0;
+    Object.defineProperty(container, 'clientHeight', { value: 300, configurable: true });
+
+    const renderItem = vi.fn((i) => {
+      const el = document.createElement('div');
+      el.className = 'message';
+      el.dataset.messageIndex = String(i);
+      el.style.height = '100px';
+      return el;
+    });
+
+    const list = createVirtualList({
+      container,
+      renderItem,
+      getCount: () => 35,
+      settings: { virtualScrollEnabled: true },
+    });
+
+    list.enable();
+    list.destroy();
+    expect(container.querySelectorAll('.message-placeholder').length).toBe(0);
   });
 });

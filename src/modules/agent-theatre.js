@@ -136,6 +136,18 @@ export function renderAgentTheatre(container, agentRun, opts = {}) {
     requestAnimationFrame(() => {
       _drawFlowPaths(svgLayer, actorMap, agentRun);
     });
+
+    // ResizeObserver: redraw paths when stage size changes
+    if (typeof ResizeObserver !== 'undefined' && !wrapper.__theatreResizeObserver) {
+      const ro = new ResizeObserver(() => {
+        const currentActors = wrapper.querySelectorAll('.theatre-actor');
+        const currentMap = new Map();
+        for (const actor of currentActors) currentMap.set(actor.dataset.roleId, actor);
+        _drawFlowPaths(svgLayer, currentMap, agentRun);
+      });
+      ro.observe(stage);
+      wrapper.__theatreResizeObserver = ro;
+    }
   }
 
   // Click: dispatch role-click event (same contract as agent-crew)
@@ -172,7 +184,7 @@ function _updateTheatreActors(wrapper, agentRun) {
     const statusEl = actorEl.querySelector('.theatre-actor-status');
     if (statusEl) statusEl.textContent = member?.currentAction || _statusLabel(status);
 
-    // Update summary
+    // Update summary (use textContent to avoid DOM churn)
     let summaryEl = actorEl.querySelector('.theatre-actor-summary');
     if (member?.outputSummary) {
       if (!summaryEl) {
@@ -180,7 +192,9 @@ function _updateTheatreActors(wrapper, agentRun) {
         summaryEl.className = 'theatre-actor-summary';
         actorEl.appendChild(summaryEl);
       }
-      summaryEl.textContent = member.outputSummary;
+      if (summaryEl.textContent !== member.outputSummary) {
+        summaryEl.textContent = member.outputSummary;
+      }
     } else if (summaryEl) {
       summaryEl.remove();
     }
@@ -237,7 +251,9 @@ function _drawFlowPaths(svg, actorMap, agentRun) {
 function _buildFingerprint(agentRun) {
   if (!agentRun) return 'null';
   const crew = agentRun.crew || [];
-  return crew.map((m) => `${m.id}:${m.status}:${m.currentAction || ''}`).join('|');
+  // Structural fingerprint only: role IDs and their ordering.
+  // Status/action/summary changes MUST NOT trigger full rebuild.
+  return crew.map((m) => m.id).join('|');
 }
 
 function _statusLabel(status) {
@@ -272,7 +288,13 @@ export function setCrewDisplayMode(container, mode, agentRun) {
   if (!container) return;
   container.dataset.displayMode = mode;
   const wrapper = container.querySelector('.agent-theatre-wrapper, .agent-crew-wrapper');
-  if (wrapper) wrapper.remove();
+  if (wrapper) {
+    if (wrapper.__theatreResizeObserver) {
+      wrapper.__theatreResizeObserver.disconnect();
+      wrapper.__theatreResizeObserver = null;
+    }
+    wrapper.remove();
+  }
   if (mode === 'theatre') {
     renderAgentTheatre(container, agentRun);
   }

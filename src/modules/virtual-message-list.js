@@ -63,23 +63,24 @@ export function calculateVisibleRange(container, heights) {
   const viewportHeight = container.clientHeight;
 
   let accumulated = 0;
-  let start = 0;
-  let end = 0;
+  let start = -1;
+  let end = -1;
 
   for (let i = 0; i < heights.length; i++) {
     const h = heights[i];
-    if (accumulated + h > scrollTop && start === 0 && scrollTop > 0) {
+    // Item i is visible if its bottom is below scrollTop and its top is above viewport bottom
+    if (start === -1 && accumulated + h > scrollTop) {
       start = i;
     }
-    if (accumulated > scrollTop + viewportHeight) {
+    if (accumulated >= scrollTop + viewportHeight) {
       end = i - 1;
       break;
     }
     accumulated += h;
   }
 
-  if (end === 0) end = heights.length - 1;
-  if (start === 0 && heights.length > 0) start = 0;
+  if (start === -1) start = 0;
+  if (end === -1) end = heights.length - 1;
 
   return { start, end };
 }
@@ -108,7 +109,7 @@ export function createPlaceholder(height) {
  */
 export function createVirtualList(opts) {
   const { container, renderItem, getCount, settings = {} } = opts;
-  let enabled = settings.virtualScrollEnabled === true;
+  let enabled = settings.virtualScrollEnabled !== false; // default enabled
   let heights = [];
   let renderedIndices = new Set();
   let rafId = null;
@@ -137,7 +138,7 @@ export function createVirtualList(opts) {
     // Remove items that are no longer visible
     for (const idx of renderedIndices) {
       if (!visible.has(idx)) {
-        const el = container.querySelector(`[data-message-index="${idx}"]`);
+        const el = container.querySelector(`.message[data-message-index="${idx}"]`);
         if (el) {
           const h = el.getBoundingClientRect().height || heights[idx] || 120;
           heights[idx] = h;
@@ -166,6 +167,8 @@ export function createVirtualList(opts) {
 
   function _fullRender() {
     const count = getCount();
+    // Clear all placeholders before rendering
+    container.querySelectorAll('.message-placeholder').forEach((el) => el.remove());
     // Ensure all messages are rendered
     for (let i = 0; i < count; i++) {
       if (!renderedIndices.has(i)) {
@@ -173,8 +176,6 @@ export function createVirtualList(opts) {
         if (item) container.appendChild(item);
       }
     }
-    // Remove placeholders
-    container.querySelectorAll('.message-placeholder').forEach((el) => el.remove());
     renderedIndices = new Set(Array.from({ length: count }, (_, i) => i));
   }
 

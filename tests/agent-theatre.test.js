@@ -5,6 +5,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderAgentTheatre, setCrewDisplayMode, shouldShowTheatre } from '../src/modules/agent-theatre.js';
 
+// Mock ResizeObserver for jsdom
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  disconnect() {}
+};
+
 describe('agent-theatre', () => {
   let container;
 
@@ -91,9 +97,13 @@ describe('agent-theatre', () => {
     expect(container.querySelector('.agent-theatre-wrapper')).toBe(wrapper);
   });
 
-  it('updates status on fingerprint change', () => {
+  it('does not full-rebuild when only status changes', () => {
     const run = makeAgentRun();
     renderAgentTheatre(container, run);
+    const wrapper = container.querySelector('.agent-theatre-wrapper');
+    const actorsBefore = wrapper.querySelectorAll('.theatre-actor');
+
+    // Same crew IDs, different statuses — must NOT trigger innerHTML rebuild
     const run2 = makeAgentRun({
       crew: [
         { id: 'planner', status: 'done', currentAction: 'Done', icon: '🧭', label: '规划师' },
@@ -105,9 +115,36 @@ describe('agent-theatre', () => {
       ],
     });
     renderAgentTheatre(container, run2);
-    const planner = container.querySelector('.theatre-actor[data-role-id="planner"]');
+
+    // Wrapper should be the same DOM node
+    expect(container.querySelector('.agent-theatre-wrapper')).toBe(wrapper);
+    // Actor nodes should be reused
+    const actorsAfter = wrapper.querySelectorAll('.theatre-actor');
+    expect(actorsAfter.length).toBe(actorsBefore.length);
+    for (let i = 0; i < actorsBefore.length; i++) {
+      expect(actorsAfter[i]).toBe(actorsBefore[i]);
+    }
+    // Status should still be updated
+    const planner = wrapper.querySelector('.theatre-actor[data-role-id="planner"]');
     expect(planner.classList.contains('theatre-actor--done')).toBe(true);
     expect(planner.classList.contains('theatre-actor--thinking')).toBe(false);
+  });
+
+  it('attaches ResizeObserver when showFlow is true', () => {
+    const run = makeAgentRun();
+    renderAgentTheatre(container, run, { showFlow: true });
+    const wrapper = container.querySelector('.agent-theatre-wrapper');
+    expect(wrapper.__theatreResizeObserver).toBeInstanceOf(ResizeObserver);
+  });
+
+  it('disconnects ResizeObserver on mode switch', () => {
+    const run = makeAgentRun();
+    renderAgentTheatre(container, run, { showFlow: true });
+    const wrapper = container.querySelector('.agent-theatre-wrapper');
+    expect(wrapper.__theatreResizeObserver).toBeInstanceOf(ResizeObserver);
+    // Switch to a non-theatre mode — wrapper should be removed and RO disconnected
+    setCrewDisplayMode(container, 'off', run);
+    expect(container.querySelector('.agent-theatre-wrapper')).toBeFalsy();
   });
 
   it('dispatches deepchat:crew-role-click on actor click', () => {

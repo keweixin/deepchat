@@ -94,13 +94,14 @@ function renderCrewOrTheatre(container, agentRun) {
   if (mode === 'theatre') {
     renderAgentTheatre(container, agentRun);
   } else {
-    renderCrewOrTheatre(container, agentRun);
+    renderAgentCrew(container, agentRun);
   }
 }
-import { renderStreamingMarkdown, containsBlockMarkdown } from './streaming-renderer.js';
+import { renderStreamingMarkdown } from './streaming-renderer.js';
 import { TraceRecorder, migrateLegacyAgentRun } from './agent-trace.js';
 import { openTraceInspector } from './agent-trace-inspector.js';
 import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
+import { createVirtualList } from './virtual-message-list.js';
 
 let conversations = [];
 let activeConvId = null;
@@ -114,6 +115,7 @@ let conversationMenuEl = null;
 let conversationMenuCleanup = null;
 let usageTelemetryPanelEl = null;
 let evidenceDrawerEl = null;
+let _virtualList = null;
 
 let $messages, $welcome, $convList, $chatTitle, $modelName, $chatUsageBadge, $evidencePanelBtn;
 
@@ -598,12 +600,8 @@ async function doStream(conv, retryCount = 0, inheritVersions = null, composerOv
       }
       lastRenderLen = fullContent.length;
 
-      // Use lightweight inline markdown during streaming; fall back to full parser for block content
-      if (containsBlockMarkdown(fullContent)) {
-        contentEl.innerHTML = renderMarkdown(fullContent);
-      } else {
-        contentEl.innerHTML = renderStreamingMarkdown(fullContent);
-      }
+      // Use lightweight inline markdown during streaming (never call heavy renderMarkdown)
+      contentEl.innerHTML = renderStreamingMarkdown(fullContent);
       contentEl.classList.add('streaming-cursor');
       attachCopyHandlersOnly(contentEl);
 
@@ -931,6 +929,10 @@ export function stopStreaming() {
 function showWelcome() {
   resetReadingNavigator();
   if ($welcome) $welcome.style.display = '';
+  if (_virtualList) {
+    _virtualList.destroy();
+    _virtualList = null;
+  }
   $messages.querySelectorAll('.message').forEach((m) => m.remove());
   refreshReadingNavigator();
 }
@@ -1030,142 +1032,7 @@ function renderCompactAssistantMessage(contentEl, msg, idx) {
   contentEl.appendChild(card);
 }
 
-function renderMessages() {
-  const conv = getActiveConversation();
-  resetReadingNavigator();
-  $messages.querySelectorAll('.message').forEach((m) => m.remove());
-
-  if (!conv || conv.messages.length === 0) {
-    if ($welcome) $welcome.style.display = '';
-    refreshReadingNavigator();
-    return;
-  }
-
-  if ($welcome) $welcome.style.display = 'none';
-
-  conv.messages.forEach((msg, idx) => {
-    const el = appendMessageDOM(msg);
-    el.dataset.messageIndex = String(idx);
-    if (msg.role === 'user') {
-      addUserMessageActions(el, msg, idx);
-    }
-    if (msg.role === 'assistant') {
-      const contentEl = el.querySelector('.message-content');
-      if (msg.error) {
-        if (msg.content) {
-          contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-          postProcess(contentEl)
-            .then(() => {
-              renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
-              refreshReadingNavigator();
-            })
-            .catch(() => {});
-          const errorWrap = document.createElement('div');
-          renderErrorContent(errorWrap, msg.error);
-          contentEl.appendChild(errorWrap.firstElementChild);
-        } else {
-          renderErrorContent(contentEl, msg.error);
-        }
-      } else if (shouldCompactHistoricalMessage(conv.messages.length, idx, msg)) {
-        renderCompactAssistantMessage(contentEl, msg, idx);
-      } else {
-        contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-        postProcess(contentEl)
-          .then(() => {
-            renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
-            refreshReadingNavigator();
-          })
-          .catch(() => {});
-      }
-      renderAssistantAnswerHeader(el.querySelector('.answer-header-container'), msg);
-      addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
-      if (msg.stopped) renderStoppedNotice(el.querySelector('.message-body'), idx);
-
-      if (msg.thinking) {
-        const thinkingBlock = el.querySelector('.thinking-block');
-        const thinkingContentEl = el.querySelector('.thinking-content');
-        if (thinkingBlock && thinkingContentEl) {
-          thinkingBlock.hidden = false;
-          thinkingContentEl.textContent = msg.thinking;
-        }
-      }
-      renderToolCalls(el.querySelector('.tool-calls-container'), msg.toolCalls || []);
-      renderEvidencePanel(el.querySelector('.evidence-panel'), msg.toolCalls || []);
-      renderAgentTimeline(el.querySelector('.agent-timeline-container'), msg);
-
-      let agentRun = msg.agentRun;
-      if (
-        !agentRun &&
-        ((msg.toolCalls && msg.toolCalls.length > 0) || (msg.agentStages && msg.agentStages.length > 0))
-      ) {
-        agentRun = createAgentRun(msg.composerOverrides?.activeSkill || 'auto');
-        if (msg.agentStages && msg.agentStages.length > 0) {
-          msg.agentStages.forEach((stage) => handleCrewAgentStage(agentRun, stage));
-        }
-        if (msg.toolCalls && msg.toolCalls.length > 0) {
-          msg.toolCalls.forEach((tool) => {
-            applyCrewToolRequest(agentRun, tool);
-            applyCrewToolResult(agentRun, tool, msg.toolCalls);
-          });
-        }
-        finalizeCrewRun(agentRun, { aborted: msg.stopped, error: msg.error });
-        msg.agentRun = agentRun;
-      }
-      const historyCrewContainer = el.querySelector('.agent-crew-container');
-      renderCrewOrTheatre(historyCrewContainer, agentRun);
-      if (historyCrewContainer && !historyCrewContainer.__crewClickBound) {
-        historyCrewContainer.__crewClickBound = true;
-        historyCrewContainer.addEventListener('deepchat:crew-role-click', (e) => {
-          const roleId = e.detail?.roleId;
-          if (!roleId) return;
-          const toolNameMap = {
-            reader: ['read_file', 'search_workspace', 'read_symbol'],
-            researcher: ['web_search'],
-            coder: ['run_code'],
-          };
-          const targetTools = toolNameMap[roleId];
-          const historyToolContainer = el.querySelector('.tool-calls-container');
-          if (targetTools && historyToolContainer) {
-            const blocks = historyToolContainer.querySelectorAll('.tool-call-block');
-            for (const block of blocks) {
-              const nameEl = block.querySelector('.tool-call-header strong');
-              if (nameEl && targetTools.some((t) => nameEl.textContent.includes(t))) {
-                block.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                block.style.outline = '2px solid var(--accent-primary)';
-                setTimeout(() => {
-                  block.style.outline = '';
-                }, 2000);
-                return;
-              }
-            }
-          }
-          const historyContentEl = el.querySelector('.message-content');
-          if (historyContentEl) {
-            historyContentEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        });
-        // Ctrl+Click on historical crew opens Trace Inspector
-        historyCrewContainer.addEventListener('click', (e) => {
-          if (!e.ctrlKey && !e.metaKey) return;
-          e.preventDefault();
-          e.stopPropagation();
-          const historyTraceRecorder = agentRun ? migrateLegacyAgentRun(agentRun) : null;
-          if (historyTraceRecorder) {
-            openTraceInspector(historyTraceRecorder, { readOnly: true });
-          }
-        });
-      }
-
-      renderAssistantArtifacts(el.querySelector('.artifact-container'), msg);
-      renderAssistantEvidence(el.querySelector('.message-body'), msg);
-    }
-  });
-
-  scrollToBottom($messages, false);
-  refreshReadingNavigator();
-}
-
-function appendMessageDOM(msg, streaming = false) {
+function _createMessageElement(msg, streaming = false) {
   const el = document.createElement('div');
   el.className = `message ${msg.role}`;
 
@@ -1227,12 +1094,183 @@ function appendMessageDOM(msg, streaming = false) {
     });
   }
 
+  return el;
+}
+
+function _setupMessageElement(el, msg, idx, totalMessageCount) {
+  el.dataset.messageIndex = String(idx);
+  if (msg.role === 'user') {
+    addUserMessageActions(el, msg, idx);
+  }
+  if (msg.role === 'assistant') {
+    const contentEl = el.querySelector('.message-content');
+    if (msg.error) {
+      if (msg.content) {
+        contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
+        postProcess(contentEl)
+          .then(() => {
+            renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
+            refreshReadingNavigator();
+          })
+          .catch(() => {});
+        const errorWrap = document.createElement('div');
+        renderErrorContent(errorWrap, msg.error);
+        contentEl.appendChild(errorWrap.firstElementChild);
+      } else {
+        renderErrorContent(contentEl, msg.error);
+      }
+    } else if (shouldCompactHistoricalMessage(totalMessageCount, idx, msg)) {
+      renderCompactAssistantMessage(contentEl, msg, idx);
+    } else {
+      contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
+      postProcess(contentEl)
+        .then(() => {
+          renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
+          refreshReadingNavigator();
+        })
+        .catch(() => {});
+    }
+    renderAssistantAnswerHeader(el.querySelector('.answer-header-container'), msg);
+    addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
+    if (msg.stopped) renderStoppedNotice(el.querySelector('.message-body'), idx);
+
+    if (msg.thinking) {
+      const thinkingBlock = el.querySelector('.thinking-block');
+      const thinkingContentEl = el.querySelector('.thinking-content');
+      if (thinkingBlock && thinkingContentEl) {
+        thinkingBlock.hidden = false;
+        thinkingContentEl.textContent = msg.thinking;
+      }
+    }
+    renderToolCalls(el.querySelector('.tool-calls-container'), msg.toolCalls || []);
+    renderEvidencePanel(el.querySelector('.evidence-panel'), msg.toolCalls || []);
+    renderAgentTimeline(el.querySelector('.agent-timeline-container'), msg);
+
+    let agentRun = msg.agentRun;
+    if (!agentRun && ((msg.toolCalls && msg.toolCalls.length > 0) || (msg.agentStages && msg.agentStages.length > 0))) {
+      agentRun = createAgentRun(msg.composerOverrides?.activeSkill || 'auto');
+      if (msg.agentStages && msg.agentStages.length > 0) {
+        msg.agentStages.forEach((stage) => handleCrewAgentStage(agentRun, stage));
+      }
+      if (msg.toolCalls && msg.toolCalls.length > 0) {
+        msg.toolCalls.forEach((tool) => {
+          applyCrewToolRequest(agentRun, tool);
+          applyCrewToolResult(agentRun, tool, msg.toolCalls);
+        });
+      }
+      finalizeCrewRun(agentRun, { aborted: msg.stopped, error: msg.error });
+      msg.agentRun = agentRun;
+    }
+    const historyCrewContainer = el.querySelector('.agent-crew-container');
+    renderCrewOrTheatre(historyCrewContainer, agentRun);
+    if (historyCrewContainer && !historyCrewContainer.__crewClickBound) {
+      historyCrewContainer.__crewClickBound = true;
+      historyCrewContainer.addEventListener('deepchat:crew-role-click', (e) => {
+        const roleId = e.detail?.roleId;
+        if (!roleId) return;
+        const toolNameMap = {
+          reader: ['read_file', 'search_workspace', 'read_symbol'],
+          researcher: ['web_search'],
+          coder: ['run_code'],
+        };
+        const targetTools = toolNameMap[roleId];
+        const historyToolContainer = el.querySelector('.tool-calls-container');
+        if (targetTools && historyToolContainer) {
+          const blocks = historyToolContainer.querySelectorAll('.tool-call-block');
+          for (const block of blocks) {
+            const nameEl = block.querySelector('.tool-call-header strong');
+            if (nameEl && targetTools.some((t) => nameEl.textContent.includes(t))) {
+              block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              block.style.outline = '2px solid var(--accent-primary)';
+              setTimeout(() => {
+                block.style.outline = '';
+              }, 2000);
+              return;
+            }
+          }
+        }
+        const historyContentEl = el.querySelector('.message-content');
+        if (historyContentEl) {
+          historyContentEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+      // Ctrl+Click on historical crew opens Trace Inspector
+      historyCrewContainer.addEventListener('click', (e) => {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const historyTraceRecorder = agentRun ? migrateLegacyAgentRun(agentRun) : null;
+        if (historyTraceRecorder) {
+          openTraceInspector(historyTraceRecorder, { readOnly: true });
+        }
+      });
+    }
+
+    renderAssistantArtifacts(el.querySelector('.artifact-container'), msg);
+    renderAssistantEvidence(el.querySelector('.message-body'), msg);
+  }
+}
+
+function renderMessages() {
+  const conv = getActiveConversation();
+  resetReadingNavigator();
+
+  if (_virtualList) {
+    _virtualList.destroy();
+    _virtualList = null;
+  }
+
+  $messages.querySelectorAll('.message').forEach((m) => m.remove());
+
+  if (!conv || conv.messages.length === 0) {
+    if ($welcome) $welcome.style.display = '';
+    refreshReadingNavigator();
+    return;
+  }
+
+  if ($welcome) $welcome.style.display = 'none';
+
+  // Use virtual list for long conversations
+  if (conv.messages.length >= 30 && !isStreaming) {
+    _virtualList = createVirtualList({
+      container: $messages,
+      getCount: () => conv.messages.length,
+      renderItem: (index) => {
+        const msg = conv.messages[index];
+        const el = _createMessageElement(msg);
+        _setupMessageElement(el, msg, index, conv.messages.length);
+        return el;
+      },
+      settings: { virtualScrollEnabled: true },
+    });
+    _virtualList.enable();
+  } else {
+    conv.messages.forEach((msg, idx) => {
+      const el = _createMessageElement(msg);
+      _setupMessageElement(el, msg, idx, conv.messages.length);
+      if ($welcome && $welcome.parentNode === $messages) {
+        $messages.insertBefore(el, $welcome);
+      } else {
+        $messages.appendChild(el);
+      }
+    });
+  }
+
+  scrollToBottom($messages, false);
+  refreshReadingNavigator();
+}
+
+function appendMessageDOM(msg, streaming = false) {
+  if (_virtualList) {
+    _virtualList.destroy();
+    _virtualList = null;
+  }
+  const el = _createMessageElement(msg, streaming);
   if ($welcome && $welcome.parentNode === $messages) {
     $messages.insertBefore(el, $welcome);
   } else {
     $messages.appendChild(el);
   }
-
   return el;
 }
 

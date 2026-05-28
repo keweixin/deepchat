@@ -80,9 +80,23 @@ npm run electron:build:portable
 
 ## 路线
 
-1. Provider registry 和 cache telemetry 继续产品化。
-2. 工具证据卡片统一结构，支持复制 JSON 和原始输出引用。
-3. Workspace Knowledge：从当前 lightweight line citation 搜索演进到 SQLite FTS5、文件 chunk、增量索引。
-4. `@file` / `@folder` / `@symbol` 显式上下文选择。
-5. Artifact panel：Markdown、Mermaid、Table、JSON、HTML sandbox preview。
-6. MCP 工具抽屉、server status 和 per-workspace tool policy。
+**已交付 (Shipped)**
+
+1. ✅ Provider Registry：模型/Provider 能力矩阵、兼容性报告、预设配置。
+2. ✅ Tool Cards：统一工具卡组件，风险范围推断（读/写/执行/网络），审批状态，证据摘要。
+3. ✅ Agent Trace & Actor System：TraceRecorder、Agent Theatre、Trace Inspector、Legacy Migration。
+4. ✅ Virtual Message List：30+ 消息自动虚拟滚动，placeholder 高度保留。
+5. ✅ Streaming Render 优化：streaming 阶段仅使用轻量 inline markdown，禁止调用 `renderMarkdown`。
+
+**进行中 (In Progress)**
+
+6. 🔄 ChatService 拆分：将 96KB God Object 拆分为 agent-runtime、agent-planner、tool-executor、approval-manager、context-manager、provider-adapters、usage-meter。
+7. 🔄 Tool Repair 透明化：区分原生调用 / 文本修复 / 手动触发，修复出的 tool call 默认不自动执行。
+8. 🔄 Inspector Panel 产品化：从 foundation 升级为右侧核心工作区。
+
+**计划 (Planned)**
+
+9. Workspace Knowledge：从 lightweight line citation 演进到 SQLite FTS5、文件 chunk、增量索引。
+10. `@file` / `@folder` / `@symbol` 显式上下文选择。
+11. Artifact Panel：Markdown、Mermaid、Table、JSON、HTML sandbox preview。
+12. MCP 工具抽屉增强：server status、per-workspace tool policy、失败率统计。
