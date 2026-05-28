@@ -3,6 +3,52 @@ const { getToolDefinitions, describeToolRisk, executeTool } = require('./tools')
 const { McpManager, isMcpToolName } = require('./mcp-manager');
 const crypto = require('crypto');
 
+const {
+  DEEPSEEK_PRICING,
+  MIMO_PRICING,
+  estimateTokens,
+  estimateMessagesTokens,
+  normalizeTokenUsage,
+  mergeTokenUsage,
+  finalizeTokenUsage,
+  normalizePurposeUsage,
+  mergePurposeUsage,
+  mergeUsageCost,
+  estimateUsageCost,
+  pricingForModel,
+  roundCost,
+  toTokenNumber,
+  clampNumber,
+} = require('./usage-meter');
+
+const {
+  testApiConnection,
+  buildHeaders,
+  fetchChatCompletionWithFallback,
+  normalizeBaseUrl,
+  getProviderToolSupport,
+  shouldWarnAboutToolSupport,
+  filterStableBuiltInTools,
+  inferProviderIdFromBase,
+  parseApiError,
+  isUnsupportedParameterError,
+  isToolParameterError,
+  normalizeError,
+} = require('./provider-adapters');
+
+const {
+  DEFAULT_MAX_INPUT_TOKENS: CM_DEFAULT_MAX_INPUT_TOKENS,
+  buildContextWithBudget,
+  buildContextBudgetBundle,
+  trimContext,
+  formatMessagesForSummary,
+  hashMessages,
+  findLatestUserIndex,
+  trimByRecentBudget,
+  dropLeadingAssistant,
+  createContextBudgetMeta,
+} = require('./context-manager');
+
 const DEFAULT_AGENT_MAX_ROUNDS = 3;
 const DEFAULT_MAX_INPUT_TOKENS = 24000;
 const MAX_TOOL_CONTEXT_TOKENS = 3500;
@@ -17,18 +63,6 @@ const TOOL_REPAIR_SCAN_LIMIT = 24000;
 const TOOL_REPAIR_MAX_CALLS = 4;
 const TOOL_ARG_REPAIR_LIMIT = 12000;
 const AGENT_EXECUTION_MODES = new Set(['execute_all', 'single_step']);
-
-const DEEPSEEK_PRICING = {
-  'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
-  'deepseek-v4-pro': { inputCacheHit: 0.003625, inputCacheMiss: 0.435, output: 0.87 },
-  'deepseek-chat': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
-  'deepseek-reasoner': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
-};
-
-const MIMO_PRICING = {
-  'mimo-v2.5': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
-  'mimo-v2.5-pro': { inputCacheHit: 0.0036, inputCacheMiss: 0.435, output: 0.87 },
-};
 
 const MODE_PROMPTS = {
   none: '',
@@ -765,84 +799,6 @@ class ChatService {
   }
 }
 
-async function testApiConnection() {
-  const settings = await getSettings();
-  const response = await fetch(`${normalizeBaseUrl(settings.apiBase)}/chat/completions`, {
-    method: 'POST',
-    headers: buildHeaders(settings.apiKey),
-    body: JSON.stringify({
-      model: settings.model,
-      messages: [
-        { role: 'system', content: 'Reply with OK.' },
-        { role: 'user', content: 'ping' },
-      ],
-      stream: false,
-      max_tokens: 8,
-      temperature: 0,
-    }),
-  });
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(parseApiError(response.status, errorText));
-  }
-  return { ok: true };
-}
-
-function buildHeaders(apiKey) {
-  const headers = {
-    'Content-Type': 'application/json',
-    Accept: 'text/event-stream',
-  };
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-  return headers;
-}
-
-async function fetchChatCompletionWithFallback(settings, body, signal) {
-  const warnings = [];
-  let currentBody = { ...body };
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const response = await fetch(`${normalizeBaseUrl(settings.apiBase)}/chat/completions`, {
-      method: 'POST',
-      headers: buildHeaders(settings.apiKey),
-      body: JSON.stringify(currentBody),
-      signal,
-    });
-    if (response.ok) return { response, warnings };
-
-    const errorText = await response.text().catch(() => '');
-    const message = parseApiError(response.status, errorText);
-    if (
-      response.status === 400 &&
-      currentBody.stream_options &&
-      isUnsupportedParameterError(errorText, 'stream_options')
-    ) {
-      currentBody = { ...currentBody };
-      delete currentBody.stream_options;
-      warnings.push('当前服务商不支持 stream_options.include_usage，已自动重试并使用本地估算 token。');
-      continue;
-    }
-    if (response.status === 400 && currentBody.thinking && isUnsupportedParameterError(errorText, 'thinking')) {
-      currentBody = { ...currentBody };
-      delete currentBody.thinking;
-      warnings.push('当前服务商不支持 thinking 参数，已自动关闭思考预算后重试。');
-      continue;
-    }
-    if (response.status === 400 && (currentBody.tools || currentBody.tool_choice) && isToolParameterError(errorText)) {
-      throw new Error(
-        `当前模型或服务商不支持工具调用参数，请切换支持工具调用的模型，或把回答模式改为“标准”。原始错误：${message}`
-      );
-    }
-    throw new Error(message);
-  }
-  throw new Error('API 请求参数降级后仍然失败。');
-}
-
-function normalizeBaseUrl(apiBase) {
-  let baseUrl = String(apiBase || 'https://api.deepseek.com').replace(/\/+$/, '');
-  if (!baseUrl.endsWith('/v1') && !baseUrl.includes('/v1/')) baseUrl += '/v1';
-  return baseUrl;
-}
-
 function getStableAgentToolMode(settings = {}) {
   const hasMcp = (settings.mcpServers || []).some((server) => server?.enabled !== false && server?.command);
   const hasWeb = Boolean(settings.tavilyApiKey);
@@ -856,55 +812,6 @@ function getStableAgentToolMode(settings = {}) {
   if (hasFiles) return 'file_reader';
   if (hasCode) return 'code_runner';
   return 'none';
-}
-
-function getProviderToolSupport(settings = {}) {
-  const model = String(settings.model || '').trim();
-  const lowerModel = model.toLowerCase();
-  const provider = String(settings.providerId || inferProviderIdFromBase(settings.apiBase)).toLowerCase();
-  const unsupportedProvider = provider === 'ollama' || provider === 'lmstudio';
-  const unsupportedModel = provider === 'deepseek' && lowerModel === 'deepseek-reasoner';
-
-  if (unsupportedProvider) {
-    return {
-      supported: false,
-      reason: provider,
-      warning: `当前服务商/模型（${provider || 'custom'} / ${model || 'unknown'}）未标记为支持 tool_calls，已禁用本轮工具 schema；请切换到支持工具调用的模型，或使用标准模式。`,
-    };
-  }
-
-  if (unsupportedModel) {
-    return {
-      supported: false,
-      reason: 'model_without_tools',
-      warning: `当前模型 ${model} 未标记为支持 tool_calls，已禁用本轮工具 schema；需要工具型 Agent 时请切换到 deepseek-chat 或 DeepSeek v4 模型。`,
-    };
-  }
-
-  return { supported: true, reason: 'supported', warning: '' };
-}
-
-function shouldWarnAboutToolSupport(settings = {}, intent = {}) {
-  const activeSkill = String(settings.activeSkill || 'none');
-  if (activeSkill && activeSkill !== 'none') return true;
-  return Boolean((intent.selectedTools || []).length || (intent.candidateTools || []).length);
-}
-
-function filterStableBuiltInTools(tools, settings = {}) {
-  return (tools || []).filter((tool) => {
-    const name = tool?.function?.name;
-    if (name === 'web_search') return Boolean(settings.tavilyApiKey);
-    if (
-      name === 'index_workspace' ||
-      name === 'list_files' ||
-      name === 'search_workspace' ||
-      name === 'read_symbol' ||
-      name === 'read_file'
-    )
-      return Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
-    if (name === 'run_code') return settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false';
-    return true;
-  });
 }
 
 function buildAgentPlanSummary(
@@ -1426,129 +1333,6 @@ function isImageAttachment(attachment) {
   return Boolean((attachment?.dataUrl || attachment?.url) && mime.startsWith('image/'));
 }
 
-function trimContext(messages, maxMessages = 20) {
-  return buildContextWithBudget(messages, {
-    maxMessages,
-    maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
-  });
-}
-
-function buildContextWithBudget(messages, options = {}) {
-  return buildContextBudgetBundle(messages, options).messages;
-}
-
-function buildContextBudgetBundle(messages, options = {}) {
-  const maxMessages = Math.round(clampNumber(options.maxMessages, 1, 100, 20));
-  const maxInputTokens = Math.round(clampNumber(options.maxInputTokens, 1, 262144, DEFAULT_MAX_INPUT_TOKENS));
-  const prefixTokens = Math.max(0, toTokenNumber(options.prefixTokens));
-  const budget = Math.max(1, maxInputTokens - prefixTokens);
-  const clean = (Array.isArray(messages) ? messages : []).filter(
-    (message) => message && ['system', 'user', 'assistant', 'tool'].includes(message.role)
-  );
-  if (clean.length === 0) {
-    return {
-      messages: [],
-      meta: createContextBudgetMeta({
-        maxMessages,
-        maxInputTokens,
-        prefixTokens,
-        budget,
-        clean,
-        capped: [],
-        retained: [],
-        used: 0,
-        prefix: options.prefix,
-      }),
-    };
-  }
-
-  const capped = clean.slice(-maxMessages);
-  const anchorIndex = findLatestUserIndex(capped);
-  if (anchorIndex < 0) {
-    const retained = dropLeadingAssistant(trimByRecentBudget(capped, budget));
-    return {
-      messages: retained,
-      meta: createContextBudgetMeta({
-        maxMessages,
-        maxInputTokens,
-        prefixTokens,
-        budget,
-        clean,
-        capped,
-        retained,
-        used: estimateMessagesTokens(retained),
-        prefix: options.prefix,
-      }),
-    };
-  }
-
-  const anchor = capped[anchorIndex];
-  const retained = [anchor];
-  let used = estimateMessagesTokens([anchor]);
-
-  for (let i = anchorIndex - 1; i >= 0; i--) {
-    const candidate = capped[i];
-    const cost = estimateMessagesTokens([candidate]);
-    if (used + cost > budget) continue;
-    retained.unshift(candidate);
-    used += cost;
-  }
-
-  const messagesOut = dropLeadingAssistant(retained);
-  return {
-    messages: messagesOut,
-    meta: createContextBudgetMeta({
-      maxMessages,
-      maxInputTokens,
-      prefixTokens,
-      budget,
-      clean,
-      capped,
-      retained: messagesOut,
-      used: estimateMessagesTokens(messagesOut),
-      prefix: options.prefix,
-    }),
-  };
-}
-
-function createContextBudgetMeta({
-  maxMessages,
-  maxInputTokens,
-  prefixTokens,
-  budget,
-  clean,
-  capped,
-  retained,
-  used,
-  prefix = {},
-}) {
-  const retainedSet = new Set(retained);
-  const droppedMessages = capped.filter((message) => !retainedSet.has(message));
-  const omittedByMessageLimit = Math.max(0, clean.length - capped.length);
-  const estimatedInputTokens = used + prefixTokens;
-  return {
-    maxMessages,
-    maxInputTokens,
-    prefixTokens,
-    availableHistoryTokens: budget,
-    estimatedHistoryTokens: used,
-    estimatedInputTokens,
-    budgetRatio: maxInputTokens > 0 ? estimatedInputTokens / maxInputTokens : 0,
-    originalMessages: clean.length,
-    consideredMessages: capped.length,
-    retainedMessages: retained.length,
-    droppedMessages,
-    droppedCount: droppedMessages.length + omittedByMessageLimit,
-    omittedByMessageLimit,
-    trimmed: droppedMessages.length > 0 || omittedByMessageLimit > 0,
-    prefixFingerprint: prefix.prefixFingerprint || '',
-    prefixBytes: prefix.prefixBytes || 0,
-    cacheStabilityWarnings: prefix.cacheStabilityWarnings || [],
-    cacheStabilityReasons: prefix.cacheStabilityReasons || [],
-    cacheStabilityDetails: prefix.cacheStabilityDetails || {},
-  };
-}
-
 function detectAgentIntent(messagesOrText, settings = {}) {
   const text = stripVolatileContextBlocks(
     Array.isArray(messagesOrText) ? getLastUserText(messagesOrText) : String(messagesOrText || '')
@@ -1998,23 +1782,6 @@ function resolveAuxiliaryModel(settings = {}) {
   return model;
 }
 
-function inferProviderIdFromBase(apiBase = '') {
-  const base = String(apiBase || '')
-    .trim()
-    .replace(/\/+$/, '')
-    .toLowerCase();
-  if (base.startsWith('https://api.deepseek.com')) return 'deepseek';
-  if (base.startsWith('https://api.openai.com/v1')) return 'openai';
-  if (base.startsWith('https://openrouter.ai/api/v1')) return 'openrouter';
-  if (base.startsWith('https://api.siliconflow.cn/v1')) return 'siliconflow';
-  if (base.startsWith('https://dashscope.aliyuncs.com/compatible-mode/v1')) return 'dashscope';
-  if (base.startsWith('https://token-plan-sgp.xiaomimimo.com')) return 'xiaomimimo';
-  if (base.startsWith('https://token-plan.xiaomimimo.com')) return 'xiaomimimo';
-  if (base.startsWith('http://localhost:11434/v1')) return 'ollama';
-  if (base.startsWith('http://localhost:1234/v1')) return 'lmstudio';
-  return 'custom';
-}
-
 function toolCallSignature(toolCall = {}) {
   const fn = toolCall.function || {};
   return `${fn.name || 'unknown'}:${canonicalJson(fn.arguments || '{}')}`;
@@ -2166,244 +1933,6 @@ function repairTruncatedJsonObject(raw) {
   return repaired;
 }
 
-function parseApiError(status, text) {
-  let message = `API 错误 (${status})`;
-  try {
-    const parsed = JSON.parse(text);
-    message = parsed.error?.message || parsed.message || message;
-  } catch {
-    if (text) message = `${message}: ${text.slice(0, 500)}`;
-  }
-  return message;
-}
-
-function isUnsupportedParameterError(text, parameter) {
-  const body = String(text || '').toLowerCase();
-  return (
-    body.includes(parameter.toLowerCase()) &&
-    /unsupported|unknown|unrecognized|invalid|not support|不支持|未知|无效/.test(body)
-  );
-}
-
-function isToolParameterError(text) {
-  const body = String(text || '').toLowerCase();
-  return (
-    /(tools|tool_choice|function_call|tool_calls)/.test(body) &&
-    /unsupported|unknown|unrecognized|invalid|not support|不支持|未知|无效/.test(body)
-  );
-}
-
-function normalizeError(error) {
-  if (!error) return '未知错误';
-  if (error.name === 'AbortError') return '请求已取消';
-  const full = String(error.message || error);
-  if (full.length > 1000) {
-    console.error('[normalizeError] Truncated error:', full);
-    return full.slice(0, 1000);
-  }
-  return full;
-}
-
-function estimateTokens(text) {
-  if (!text) return 0;
-  if (Array.isArray(text)) {
-    return text.reduce((total, part) => {
-      if (part?.type === 'text') return total + estimateTokens(part.text || '');
-      if (part?.type === 'image_url') return total + 300;
-      return total;
-    }, 0);
-  }
-  const cjk = (String(text).match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
-  const rest = String(text).length - cjk;
-  return Math.ceil(cjk * 1.5 + rest * 0.4);
-}
-
-function estimateMessagesTokens(messages) {
-  return messages.reduce((total, msg) => total + estimateTokens(msg.content || '') + 4, 0);
-}
-
-function normalizeTokenUsage(usage, fallback = {}) {
-  const inputFallback = toTokenNumber(fallback.input ?? fallback.fallbackInput);
-  const outputFallback = toTokenNumber(fallback.output ?? fallback.fallbackOutput);
-
-  if (!usage || typeof usage !== 'object') {
-    return finalizeTokenUsage({
-      input: inputFallback,
-      output: outputFallback,
-      reasoning: toTokenNumber(fallback.reasoning),
-      cacheHit: toTokenNumber(fallback.cacheHit),
-      cacheMiss: fallback.cacheMiss === undefined ? inputFallback : toTokenNumber(fallback.cacheMiss),
-      source: 'estimated',
-      warnings: fallback.warnings || [],
-      byPurpose: fallback.byPurpose,
-      model: fallback.model,
-      rounds: fallback.rounds,
-    });
-  }
-
-  const input = toTokenNumber(usage.prompt_tokens ?? usage.input_tokens ?? usage.input, inputFallback);
-  const output = toTokenNumber(usage.completion_tokens ?? usage.output_tokens ?? usage.output, outputFallback);
-  const total = toTokenNumber(usage.total_tokens ?? usage.total, input + output);
-  const reasoning = toTokenNumber(
-    usage.completion_tokens_details?.reasoning_tokens ?? usage.reasoning_tokens ?? usage.reasoning
-  );
-  const cacheHit = toTokenNumber(
-    usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? usage.cached_tokens ?? usage.cacheHit
-  );
-  const cacheMiss =
-    usage.prompt_cache_miss_tokens !== undefined
-      ? toTokenNumber(usage.prompt_cache_miss_tokens)
-      : toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
-  const hasProviderFields =
-    usage.prompt_tokens !== undefined ||
-    usage.completion_tokens !== undefined ||
-    usage.total_tokens !== undefined ||
-    usage.prompt_cache_hit_tokens !== undefined ||
-    usage.prompt_cache_miss_tokens !== undefined ||
-    usage.prompt_tokens_details !== undefined;
-  const source =
-    usage.source === 'provider' || usage.source === 'estimated' || usage.source === 'mixed'
-      ? usage.source
-      : hasProviderFields
-        ? 'provider'
-        : 'estimated';
-
-  return finalizeTokenUsage({
-    input,
-    output,
-    total,
-    reasoning,
-    cacheHit,
-    cacheMiss,
-    source,
-    warnings: usage.warnings || fallback.warnings || [],
-    byPurpose: usage.byPurpose || fallback.byPurpose,
-    cost: usage.cost || fallback.cost,
-    model: usage.model || fallback.model,
-    rounds: usage.rounds || fallback.rounds,
-  });
-}
-
-function mergeTokenUsage(usages = [], options = {}) {
-  const normalized = (Array.isArray(usages) ? usages : []).filter(Boolean).map((usage) => normalizeTokenUsage(usage));
-  const totals = normalized.reduce(
-    (acc, usage) => {
-      acc.input += usage.input;
-      acc.output += usage.output;
-      acc.total += usage.total;
-      acc.reasoning += usage.reasoning;
-      acc.cacheHit += usage.cacheHit;
-      acc.cacheMiss += usage.cacheMiss;
-      acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
-      acc.cost = mergeUsageCost(acc.cost, usage.cost);
-      return acc;
-    },
-    { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, byPurpose: {}, cost: null }
-  );
-  const sources = new Set(normalized.map((usage) => usage.source));
-  const source = sources.size === 0 ? 'estimated' : sources.size === 1 ? [...sources][0] : 'mixed';
-  return finalizeTokenUsage({ ...totals, source, rounds: normalized.length, warnings: options.warnings || [] });
-}
-
-function finalizeTokenUsage(usage) {
-  const input = toTokenNumber(usage.input);
-  const output = toTokenNumber(usage.output);
-  const total = toTokenNumber(usage.total, input + output);
-  const reasoning = toTokenNumber(usage.reasoning);
-  const cacheHit = toTokenNumber(usage.cacheHit);
-  const cacheMiss = toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
-  const byPurpose = normalizePurposeUsage(usage.byPurpose);
-  const cost = usage.cost || estimateUsageCost(usage.model, { input, output, cacheHit, cacheMiss });
-  return {
-    input,
-    output,
-    total,
-    reasoning,
-    cacheHit,
-    cacheMiss,
-    cacheHitRate: input > 0 ? cacheHit / input : 0,
-    source: usage.source || 'estimated',
-    rounds: usage.rounds,
-    warnings: Array.isArray(usage.warnings) ? usage.warnings : [],
-    byPurpose,
-    cost,
-  };
-}
-
-function normalizePurposeUsage(value) {
-  if (!value || typeof value !== 'object') return {};
-  const out = {};
-  for (const [key, amount] of Object.entries(value)) {
-    const safeKey = String(key || '')
-      .replace(/[^a-z0-9_-]/gi, '')
-      .slice(0, 40);
-    if (safeKey) out[safeKey] = toTokenNumber(amount);
-  }
-  return out;
-}
-
-function mergePurposeUsage(left = {}, right = {}) {
-  const out = { ...(left || {}) };
-  for (const [key, amount] of Object.entries(right || {})) {
-    out[key] = toTokenNumber(out[key]) + toTokenNumber(amount);
-  }
-  return out;
-}
-
-function mergeUsageCost(left, right) {
-  if (!left && !right) return null;
-  const out = {
-    model: right?.model || left?.model || '',
-    estimatedCostUsd: 0,
-    estimatedSavingsUsd: 0,
-    inputCacheHitCostUsd: 0,
-    inputCacheMissCostUsd: 0,
-    outputCostUsd: 0,
-  };
-  for (const source of [left, right]) {
-    if (!source) continue;
-    out.estimatedCostUsd += Number(source.estimatedCostUsd || 0);
-    out.estimatedSavingsUsd += Number(source.estimatedSavingsUsd || 0);
-    out.inputCacheHitCostUsd += Number(source.inputCacheHitCostUsd || 0);
-    out.inputCacheMissCostUsd += Number(source.inputCacheMissCostUsd || 0);
-    out.outputCostUsd += Number(source.outputCostUsd || 0);
-  }
-  return out;
-}
-
-function estimateUsageCost(model, usage) {
-  const pricing = pricingForModel(model);
-  if (!pricing) return null;
-  const inputCacheHitCostUsd = (usage.cacheHit * pricing.inputCacheHit) / 1000000;
-  const inputCacheMissCostUsd = (usage.cacheMiss * pricing.inputCacheMiss) / 1000000;
-  const outputCostUsd = (usage.output * pricing.output) / 1000000;
-  return {
-    model,
-    estimatedCostUsd: roundCost(inputCacheHitCostUsd + inputCacheMissCostUsd + outputCostUsd),
-    estimatedSavingsUsd: roundCost(
-      (usage.cacheHit * Math.max(0, pricing.inputCacheMiss - pricing.inputCacheHit)) / 1000000
-    ),
-    inputCacheHitCostUsd: roundCost(inputCacheHitCostUsd),
-    inputCacheMissCostUsd: roundCost(inputCacheMissCostUsd),
-    outputCostUsd: roundCost(outputCostUsd),
-  };
-}
-
-function pricingForModel(model) {
-  const id = String(model || '').trim();
-  if (DEEPSEEK_PRICING[id]) return DEEPSEEK_PRICING[id];
-  if (/deepseek-v4-flash|deepseek-chat|deepseek-reasoner/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-flash'];
-  if (/deepseek-v4-pro/i.test(id)) return DEEPSEEK_PRICING['deepseek-v4-pro'];
-  if (MIMO_PRICING[id]) return MIMO_PRICING[id];
-  if (/mimo-v2\.5-pro/i.test(id)) return MIMO_PRICING['mimo-v2.5-pro'];
-  if (/mimo-v2\.5/i.test(id)) return MIMO_PRICING['mimo-v2.5'];
-  return null;
-}
-
-function roundCost(value) {
-  return Math.round(Number(value || 0) * 1000000000) / 1000000000;
-}
-
 function compactToolOutputForContext(toolName, args, output) {
   const text = String(output || '');
   if (estimateTokens(text) <= MAX_TOOL_CONTEXT_TOKENS) return text;
@@ -2540,65 +2069,8 @@ function compactHeadTail(text, headLength, tailLength) {
   return `${value.slice(0, headLength)}\n...\n${value.slice(-tailLength)}`;
 }
 
-function formatMessagesForSummary(messages = []) {
-  return messages
-    .map((message) => {
-      const role = message.role === 'assistant' ? '助手' : '用户';
-      return `${role}: ${String(message.content || '').slice(0, 1200)}`;
-    })
-    .join('\n\n---\n\n')
-    .slice(0, 10000);
-}
-
-function hashMessages(messages = []) {
-  const stable = messages.map((message, index) => ({
-    index,
-    role: message.role,
-    content: String(message.content || ''),
-  }));
-  return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex').slice(0, 16);
-}
-
 function resolveAgentMaxRounds(settings = {}) {
   return Math.round(clampNumber(settings.agentMaxRounds, 1, 10, DEFAULT_AGENT_MAX_ROUNDS));
-}
-
-function findLatestUserIndex(messages) {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]?.role === 'user') return i;
-  }
-  return -1;
-}
-
-function trimByRecentBudget(messages, budget) {
-  const retained = [];
-  let used = 0;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const candidate = messages[i];
-    const cost = estimateMessagesTokens([candidate]);
-    if (retained.length > 0 && used + cost > budget) continue;
-    retained.unshift(candidate);
-    used += cost;
-  }
-  return retained;
-}
-
-function dropLeadingAssistant(messages) {
-  let next = [...messages];
-  while (next.length > 0 && next[0]?.role === 'assistant') next = next.slice(1);
-  return next;
-}
-
-function toTokenNumber(value, fallback = 0) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < 0) return Math.max(0, Math.round(Number(fallback) || 0));
-  return Math.round(number);
-}
-
-function clampNumber(value, min, max, fallback) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
-  return Math.min(Math.max(number, min), max);
 }
 
 module.exports = {
@@ -2615,4 +2087,32 @@ module.exports = {
   normalizeTokenUsage,
   buildCacheStabilityDiagnostics,
   trimContext,
+  // Re-exports from extracted modules (backward compatibility + new access)
+  estimateTokens,
+  estimateMessagesTokens,
+  finalizeTokenUsage,
+  normalizePurposeUsage,
+  mergePurposeUsage,
+  mergeUsageCost,
+  estimateUsageCost,
+  pricingForModel,
+  roundCost,
+  toTokenNumber,
+  clampNumber,
+  buildHeaders,
+  fetchChatCompletionWithFallback,
+  getProviderToolSupport,
+  shouldWarnAboutToolSupport,
+  filterStableBuiltInTools,
+  inferProviderIdFromBase,
+  parseApiError,
+  isUnsupportedParameterError,
+  isToolParameterError,
+  normalizeError,
+  formatMessagesForSummary,
+  hashMessages,
+  findLatestUserIndex,
+  trimByRecentBudget,
+  dropLeadingAssistant,
+  createContextBudgetMeta,
 };
