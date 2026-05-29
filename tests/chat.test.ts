@@ -14,10 +14,6 @@ import {
   hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
   renderAgentTimeline,
-  renderAssistantAnswerHeader,
-  renderAssistantArtifacts,
-  renderAssistantEvidence,
-  renderAssistantToc,
   renderContextMentionStrip,
   renderConversationUsageTelemetryPanel,
   renderLatestEvidenceDrawer,
@@ -30,6 +26,12 @@ import {
   buildRunCodeExplainPrompt,
   buildRunCodeArtifactMarkdown,
 } from '../src/modules/chat-tool-ui.ts';
+import {
+  renderAssistantAnswerHeader,
+  renderAssistantArtifacts,
+  renderAssistantEvidence,
+  renderAssistantToc,
+} from '../src/modules/chat-assistant-ui.ts';
 
 describe('chat regeneration', () => {
   it('groups secondary answer actions into compact menus', () => {
