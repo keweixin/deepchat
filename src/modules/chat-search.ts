@@ -67,7 +67,7 @@ export function highlightChatSearchMatches(matches: any[], query: string, option
   return highlighted;
 }
 
-function highlightElementText(root, query, remainingMarks) {
+function highlightElementText(root: Node, query: string, remainingMarks: number) {
   const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery || remainingMarks <= 0) return [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
@@ -95,7 +95,7 @@ function highlightElementText(root, query, remainingMarks) {
   return marks;
 }
 
-function createHighlightedFragment(text, query, remainingMarks) {
+function createHighlightedFragment(text: string, query: string, remainingMarks: number) {
   const lowerText = normalizeSearchText(text);
   const lowerQuery = normalizeSearchText(query);
   let start = 0;
@@ -126,7 +126,7 @@ function getMessageRole(messageEl: HTMLElement) {
   return '';
 }
 
-function shouldSkipTextNode(node) {
+function shouldSkipTextNode(node: Node) {
   let current = node.parentElement;
   while (current) {
     if (SKIPPED_TEXT_PARENTS.has(current.tagName)) return true;
@@ -136,11 +136,11 @@ function shouldSkipTextNode(node) {
   return false;
 }
 
-function normalizeSearchText(value) {
+function normalizeSearchText(value: unknown) {
   return String(value || '').toLocaleLowerCase();
 }
 
-function clampPositiveInt(value, fallback) {
+function clampPositiveInt(value: unknown, fallback: number) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return fallback;
   return Math.floor(number);

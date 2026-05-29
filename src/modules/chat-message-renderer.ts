@@ -18,10 +18,10 @@ export function createMarkdownCache() {
   return new Map();
 }
 
-export function getCachedRenderedMarkdown(cache, content = '') {
+export function getCachedRenderedMarkdown(cache: Map<string, string>, content = '') {
   const key = getMarkdownCacheKey(content);
   if (cache.has(key)) {
-    const html = cache.get(key);
+    const html = cache.get(key)!;
     cache.delete(key);
     cache.set(key, html);
     return html;
@@ -31,13 +31,13 @@ export function getCachedRenderedMarkdown(cache, content = '') {
   return html;
 }
 
-export function primeMarkdownRenderCache(cache, content = '', html = '') {
+export function primeMarkdownRenderCache(cache: Map<string, string>, content = '', html = '') {
   const key = getMarkdownCacheKey(content);
   if (cache.has(key)) cache.delete(key);
   cache.set(key, html);
   while (cache.size > MARKDOWN_RENDER_CACHE_LIMIT) {
     const oldestKey = cache.keys().next().value;
-    cache.delete(oldestKey);
+    if (oldestKey !== undefined) cache.delete(oldestKey);
   }
 }
 

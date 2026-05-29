@@ -35,11 +35,11 @@ export function createArtifactVersion(artifact: Record<string, any>, meta: Recor
 export function createArtifactVersionStore() {
   const versions = new Map(); // artifactKey -> version[]
 
-  function getKey(artifact) {
+  function getKey(artifact: Record<string, any>) {
     return artifact.title || artifact.id || 'default';
   }
 
-  function add(artifact, meta = {}) {
+  function add(artifact: Record<string, any>, meta: Record<string, any> = {}) {
     const key = getKey(artifact);
     const version = createArtifactVersion(artifact, meta);
     if (!versions.has(key)) versions.set(key, []);
@@ -47,29 +47,29 @@ export function createArtifactVersionStore() {
     return version;
   }
 
-  function getHistory(key) {
+  function getHistory(key: string) {
     return versions.get(key) || [];
   }
 
-  function getLatest(key) {
+  function getLatest(key: string) {
     const hist = versions.get(key);
     return hist ? hist[hist.length - 1] : null;
   }
 
-  function getVersion(key, versionId) {
+  function getVersion(key: string, versionId: string) {
     const hist = versions.get(key);
     if (!hist) return null;
-    return hist.find((v) => v.id === versionId) || null;
+    return hist.find((v: Record<string, any>) => v.id === versionId) || null;
   }
 
   function getAllKeys() {
     return [...versions.keys()];
   }
 
-  function remove(key, versionId) {
+  function remove(key: string, versionId: string) {
     const hist = versions.get(key);
     if (!hist) return false;
-    const idx = hist.findIndex((v) => v.id === versionId);
+    const idx = hist.findIndex((v: Record<string, any>) => v.id === versionId);
     if (idx >= 0) {
       hist.splice(idx, 1);
       if (hist.length === 0) versions.delete(key);
@@ -91,7 +91,7 @@ export function createArtifactVersionStore() {
  * @param {string} newContent
  * @returns {{added: number, removed: number, changed: boolean}}
  */
-export function diffArtifactVersions(oldContent, newContent) {
+export function diffArtifactVersions(oldContent: string, newContent: string) {
   const oldLines = String(oldContent || '').split('\n');
   const newLines = String(newContent || '').split('\n');
   const removed = Math.max(0, oldLines.length - newLines.length);
@@ -106,7 +106,7 @@ export function diffArtifactVersions(oldContent, newContent) {
  * @param {string} newContent
  * @returns {string}
  */
-export function autoChangeNote(oldContent, newContent) {
+export function autoChangeNote(oldContent: string, newContent: string) {
   const { added, removed, changed } = diffArtifactVersions(oldContent, newContent);
   if (!changed) return '无变更';
   const parts = [];
@@ -120,7 +120,7 @@ export function autoChangeNote(oldContent, newContent) {
  * @param {Object} version
  * @returns {Blob}
  */
-export function exportArtifactVersion(version) {
+export function exportArtifactVersion(version: Record<string, any>) {
   const typeMap = {
     markdown: 'text/markdown',
     code: 'text/plain',
@@ -131,7 +131,7 @@ export function exportArtifactVersion(version) {
     diff: 'text/plain',
     svg: 'image/svg+xml',
   };
-  const mime = typeMap[version.type] || 'text/plain';
+  const mime = typeMap[version.type as keyof typeof typeMap] || 'text/plain';
   return new Blob([version.content], { type: mime });
 }
 
@@ -141,7 +141,7 @@ export function exportArtifactVersion(version) {
  * @param {number} [index=0]
  * @returns {string}
  */
-export function buildVersionDownloadName(version, index = 0) {
+export function buildVersionDownloadName(version: Record<string, any>, index = 0) {
   const extMap = {
     markdown: 'md',
     code: 'txt',
@@ -152,7 +152,7 @@ export function buildVersionDownloadName(version, index = 0) {
     diff: 'diff',
     svg: 'svg',
   };
-  const ext = extMap[version.type] || 'txt';
+  const ext = extMap[version.type as keyof typeof extMap] || 'txt';
   const safeTitle = String(version.title || 'artifact').replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '_');
   return `${safeTitle}_v${index + 1}_${new Date(version.timestamp).toISOString().slice(0, 10)}.${ext}`;
 }

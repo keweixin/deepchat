@@ -90,7 +90,7 @@ export function getContextShortcutUnavailableReason(shortcutOrId: any, settings:
   return '';
 }
 
-export function formatContextMentionTitle(mentions = []) {
+export function formatContextMentionTitle(mentions: Array<{ type: string; path: string }> = []) {
   return (Array.isArray(mentions) ? mentions : [])
     .map((item) => {
       if (item.type === 'folder') return `目录：${item.path}`;

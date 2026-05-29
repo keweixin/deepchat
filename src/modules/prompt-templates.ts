@@ -143,5 +143,5 @@ export function applyPromptTemplate(currentValue = '', templateText = '') {
 
 export function getPromptTemplateRecommendedModeId(template: Record<string, any> = {}) {
   const mode = String(template.mode || '').trim();
-  return TEMPLATE_MODE_TO_COMPOSER_MODE[mode] || 'daily';
+  return (TEMPLATE_MODE_TO_COMPOSER_MODE as Record<string, string>)[mode] || 'daily';
 }

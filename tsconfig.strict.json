@@ -16,6 +16,24 @@
     "src/modules/zip-builder.ts",
     "src/modules/search-utils.ts",
     "src/modules/conversation-utils.ts",
-    "src/modules/renderer.ts"
+    "src/modules/renderer.ts",
+    "src/modules/theme.ts",
+    "src/modules/dialogs.ts",
+    "src/modules/composer-modes.ts",
+    "src/modules/prompt-templates.ts",
+    "src/modules/context-shortcuts.ts",
+    "src/modules/settings-core.ts",
+    "src/modules/settings-presets.ts",
+    "src/modules/chat-search.ts",
+    "src/modules/composer-tools.ts",
+    "src/modules/bridge.ts",
+    "src/modules/settings-workspace.ts",
+    "src/modules/settings-skills.ts",
+    "src/modules/search-client.ts",
+    "src/modules/artifact-versions.ts",
+    "src/modules/context-mentions.ts",
+    "src/modules/workspace-index-report.ts",
+    "src/modules/settings-prompts.ts",
+    "src/modules/chat-message-renderer.ts"
   ]
 }
