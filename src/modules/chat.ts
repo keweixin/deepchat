@@ -889,15 +889,40 @@ function renderMessages() {
     });
     _virtualList.enable();
   } else {
-    conv.messages.forEach((msg: Record<string, any>, idx: number) => {
+    // Incremental render: show last 15 immediately, fill the rest during idle
+    const total = conv.messages.length;
+    const immediateCount = Math.min(total, 15);
+    const startImmediate = Math.max(0, total - immediateCount);
+
+    for (let idx = startImmediate; idx < total; idx++) {
+      const msg = conv.messages[idx];
       const el = _createMessageElement(msg);
-      _setupMessageElement(el, msg, idx, conv.messages.length);
-      if ($welcome! && $welcome!.parentNode === $messages!) {
-        $messages!.insertBefore(el, $welcome!);
-      } else {
-        $messages!.appendChild(el);
-      }
-    });
+      _setupMessageElement(el, msg, idx, total);
+      $messages!.appendChild(el);
+    }
+
+    // Render earlier messages during idle time
+    if (startImmediate > 0) {
+      const schedule = typeof requestIdleCallback !== 'undefined' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 0);
+      let batchStart = startImmediate - 1;
+      const renderBatch = () => {
+        if (batchStart < 0) return;
+        const batchEnd = Math.max(0, batchStart - 4); // render 5 at a time
+        for (let idx = batchStart; idx >= batchEnd; idx--) {
+          const msg = conv.messages[idx];
+          const el = _createMessageElement(msg);
+          _setupMessageElement(el, msg, idx, total);
+          if ($messages!.firstChild) {
+            $messages!.insertBefore(el, $messages!.firstChild);
+          } else {
+            $messages!.appendChild(el);
+          }
+        }
+        batchStart = batchEnd - 1;
+        if (batchStart >= 0) schedule(renderBatch);
+      };
+      schedule(renderBatch);
+    }
   }
 
   scrollToBottom($messages!, false);
