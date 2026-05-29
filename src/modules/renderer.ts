@@ -799,6 +799,15 @@ function firstMeaningfulChild(container: HTMLElement) {
   return [...container.children].find((child) => normalizeWhitespace(child.textContent)) as HTMLElement | undefined;
 }
 
+/**
+ * Safely set HTML content on an element.
+ * Use for HTML that may contain user-controlled content.
+ * For renderMarkdown() output (already sanitized), direct innerHTML is acceptable.
+ */
+export function safeSetHTML(el: HTMLElement, html: string) {
+  el.innerHTML = DOMPurify.sanitize(html, purifyConfig);
+}
+
 function normalizeWhitespace(value: string | null) {
   return String(value || '')
     .replace(/\s+/g, ' ')
