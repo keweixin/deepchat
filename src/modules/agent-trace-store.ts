@@ -56,7 +56,7 @@ function getDB(): Promise<IDBDatabase | null> {
 // ─── Write Operations ───────────────────────────────────────────────────────
 
 /**
- * Save a complete trace (all events + run summary) to IndexedDB.
+ * Save a complete trace (all events + run summary) to IndexedDB in a single transaction.
  */
 export async function saveTrace(recorder: Record<string, any>, conversationId: string) {
   try {
@@ -64,7 +64,6 @@ export async function saveTrace(recorder: Record<string, any>, conversationId: s
     const db = await getDB();
     if (!db) return;
 
-    // Save run summary
     const runSummary = {
       ...recorder.toRunSummary(),
       runId: recorder.runId,
@@ -72,15 +71,6 @@ export async function saveTrace(recorder: Record<string, any>, conversationId: s
       savedAt: Date.now(),
     };
 
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([STORE_RUNS], 'readwrite');
-      const store = tx.objectStore(STORE_RUNS);
-      const req = store.put(runSummary);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
-
-    // Save all events
     const events = recorder.events.map((e: Record<string, any>) => ({
       ...e,
       runId: recorder.runId,
@@ -88,28 +78,35 @@ export async function saveTrace(recorder: Record<string, any>, conversationId: s
       savedAt: Date.now(),
     }));
 
-    if (events.length > 0) {
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([STORE_NAME], 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        let completed = 0;
-        let failed = false;
-        for (const event of events) {
-          const req = store.put(event);
-          req.onsuccess = () => {
-            completed++;
-            if (completed === events.length) resolve();
-          };
-          req.onerror = () => {
-            if (!failed) {
-              failed = true;
-              reject(req.error);
-            }
-          };
-        }
-        if (events.length === 0) resolve();
-      });
-    }
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([STORE_RUNS, STORE_NAME], 'readwrite');
+      const runStore = tx.objectStore(STORE_RUNS);
+      const eventStore = tx.objectStore(STORE_NAME);
+
+      runStore.put(runSummary);
+
+      if (events.length === 0) {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        return;
+      }
+
+      let completed = 0;
+      let failed = false;
+      for (const event of events) {
+        const req = eventStore.put(event);
+        req.onsuccess = () => {
+          completed++;
+          if (completed === events.length) resolve();
+        };
+        req.onerror = () => {
+          if (!failed) {
+            failed = true;
+            reject(req.error);
+          }
+        };
+      }
+    });
   } catch (error: any) {
     console.warn('[TraceStore] operation failed:', error.message);
   }
