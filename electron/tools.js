@@ -28,18 +28,26 @@ const WORKSPACE_INDEX_DISK_TTL_MS = 24 * 60 * 60 * 1000;
 const WORKSPACE_INDEX_DISK_MAX_BYTES = 8 * 1024 * 1024;
 const WORKSPACE_INDEX_DISK_VERSION = 1;
 const WORKSPACE_INDEX_CACHE_MAX = 8;
-const SENSITIVE_PATH_PARTS = new Set(['.ssh', '.aws', '.azure', '.gnupg']);
+const SENSITIVE_PATH_PARTS = new Set([
+  '.ssh', '.aws', '.azure', '.gnupg', '.kube', '.docker', '.config', '.vault',
+  '.password-store', 'secrets', 'tokens', '.env', '.env.local', '.env.production',
+]);
 const SENSITIVE_FILE_NAMES = new Set([
   '.npmrc',
   '.pypirc',
+  '.envrc',
   'credentials.json',
+  'secrets.json',
+  'tokens.json',
+  'cookie.json',
+  'session.json',
   'id_rsa',
   'id_rsa.pub',
   'id_ed25519',
   'id_ed25519.pub',
   'known_hosts',
 ]);
-const SENSITIVE_EXTENSIONS = new Set(['.pem', '.key', '.p12', '.pfx', '.crt']);
+const SENSITIVE_EXTENSIONS = new Set(['.pem', '.key', '.p12', '.pfx', '.crt', '.der', '.cer', '.jks', '.keystore']);
 
 const RUN_CODE_SECURITY_LIMITS = {
   maxOutputBytes: 1024 * 1024, // 1MB
