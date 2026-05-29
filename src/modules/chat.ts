@@ -2580,7 +2580,7 @@ function createCacheEvidenceCard(message: Record<string, any> = {}) {
     usage ? `rate ${Math.round((usage.cacheHitRate || 0) * 100)}%` : '',
     profile.prefixFingerprint ? `prefix ${profile.prefixFingerprint}` : '',
   ]);
-  if (usage?.cost?.estimatedSavingsUsd > 0 || profile.estimatedSavingsUsd > 0) {
+  if (Number(usage?.cost?.estimatedSavingsUsd || 0) > 0 || Number(profile.estimatedSavingsUsd || 0) > 0) {
     appendEvidenceChips(card, '成本', [
       `节省约 $${Number(usage?.cost?.estimatedSavingsUsd || profile.estimatedSavingsUsd || 0).toFixed(6)}`,
     ]);
@@ -3004,7 +3004,8 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
       const prefix = usage.source === 'provider' ? '实测' : usage.source === 'mixed' ? '混合' : '估算';
       parts.push(`${prefix} ${usage.total} tokens`);
       if (usage.cacheHit > 0) parts.push(`命中 ${Math.round(usage.cacheHitRate * 100)}%`);
-      if (usage.cost?.estimatedCostUsd > 0) parts.push(`$${usage.cost.estimatedCostUsd.toFixed(6)}`);
+      if (Number(usage.cost?.estimatedCostUsd || 0) > 0)
+        parts.push(`$${Number(usage.cost?.estimatedCostUsd || 0).toFixed(6)}`);
       if (usage.rounds > 1) parts.push(`${usage.rounds} 轮`);
     }
     if (speed) parts.push(`${speed} tok/s`);

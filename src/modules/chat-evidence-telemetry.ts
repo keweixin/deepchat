@@ -78,7 +78,8 @@ export function buildConversationUsageTelemetryDetails(conversation) {
   const warnings = [...new Set([...(usage.warnings || []), ...(profile.cacheStabilityWarnings || [])])];
   const textParts = [`${formatCompactTokenCount(usage.total)} tok`];
   if (hitRate !== null) textParts.push(`缓存 ${hitRate}%`);
-  if (usage.cost?.estimatedSavingsUsd > 0) textParts.push(`省 ${formatUsd(usage.cost.estimatedSavingsUsd)}`);
+  if (Number(usage.cost?.estimatedSavingsUsd || 0) > 0)
+    textParts.push(`省 ${formatUsd(usage.cost?.estimatedSavingsUsd || 0)}`);
   if (usage.rounds > 1) textParts.push(`${usage.rounds} 轮`);
 
   const titleLines = [

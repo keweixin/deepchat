@@ -50,7 +50,7 @@
 ### Engineering
 
 - Added `npm run verify` = `format:check && lint && test && build` for CI-ready quality gates.
-- **570 tests passing** across 37 test files (6 skipped due to IndexedDB environment limitations).
+- **692 tests passing** across 44 test files (6 skipped due to IndexedDB environment limitations).
 - No new large dependencies; pure CSS/SVG animations; no Canvas/WebGL.
 
 ### Fixes

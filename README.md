@@ -87,16 +87,22 @@ npm run electron:build:portable
 3. ✅ Agent Trace & Actor System：TraceRecorder、Agent Theatre、Trace Inspector、Legacy Migration。
 4. ✅ Virtual Message List：30+ 消息自动虚拟滚动，placeholder 高度保留。
 5. ✅ Streaming Render 优化：streaming 阶段仅使用轻量 inline markdown，禁止调用 `renderMarkdown`。
+6. ✅ Workspace Knowledge：SQLite FTS5 全文索引、文件 chunk、增量索引、三层记忆系统（工作记忆 → 短期记忆 → 长期记忆）。
+7. ✅ Inspector Panel：右侧核心工作区，支持模型信息、Trace 时间线、工具详情、Artifact 模式。
+8. ✅ Artifact Panel：Markdown、Mermaid、Table、JSON、HTML sandbox preview，支持版本管理和 diff。
+9. ✅ MCP Drawer：server status、tool scopes、call logs、usage statistics。
+10. ✅ 三层记忆系统：workspace-index（工作记忆）、memory-manager（短期记忆）、长期记忆检索。
 
 **进行中 (In Progress)**
 
-6. 🔄 ChatService 拆分：将 96KB God Object 拆分为 agent-runtime、agent-planner、tool-executor、approval-manager、context-manager、provider-adapters、usage-meter。
-7. 🔄 Tool Repair 透明化：区分原生调用 / 文本修复 / 手动触发，修复出的 tool call 默认不自动执行。
-8. 🔄 Inspector Panel 产品化：从 foundation 升级为右侧核心工作区。
+11. 🔄 ChatService 拆分：已将部分职责拆出为 `agent-planner.ts`、`approval-manager.ts`、`tool-executor.ts`、`stream-runner.ts`、`memory-manager.ts`、`workspace-index.ts`，剩余 `chat-service.js` 继续瘦身中。
+12. 🔄 Tool Repair 透明化：区分原生调用 / 文本修复 / 手动触发，修复出的 tool call 默认不自动执行。
+13. 🔄 TypeScript 严格模式：分批启用 `strict: true`，核心路径逐步消除 `@ts-nocheck`。
+14. 🔄 Electron 生产编译：从 tsx 运行时加载迁移为 `tsc` 预编译 `dist-electron/`。
 
 **计划 (Planned)**
 
-9. Workspace Knowledge：从 lightweight line citation 演进到 SQLite FTS5、文件 chunk、增量索引。
-10. `@file` / `@folder` / `@symbol` 显式上下文选择。
-11. Artifact Panel：Markdown、Mermaid、Table、JSON、HTML sandbox preview。
-12. MCP 工具抽屉增强：server status、per-workspace tool policy、失败率统计。
+15. `@file` / `@folder` / `@symbol` 显式上下文选择。
+16. Git 工具集成：`git_diff`、`git_status`、`git_blame` 等代码仓库工具。
+17. 多模态输入扩展：语音输入、截图标注、PDF 解析。
+18. 跨会话知识图谱：基于工具证据的关系抽取和可视化。

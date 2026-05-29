@@ -1,7 +1,7 @@
 {
   "name": "deepchat",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Local-first desktop AI Agent client with auditable tools and DeepSeek cache telemetry",
   "author": "DeepChat",
   "main": "electron.js",
@@ -15,7 +15,7 @@
     "syntax": "node --check electron.js && node --check preload.js",
     "typecheck": "tsc --noEmit",
     "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run typecheck:strict && npm test && npm run build",
     "preview": "vite preview",
     "electron:dev": "vite build && electron .",
     "electron:build": "vite build && electron-builder --win --x64",
