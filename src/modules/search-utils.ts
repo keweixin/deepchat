@@ -1,14 +1,14 @@
-function clampInt(value, min, max, fallback) {
-  const number = Number.parseInt(value, 10);
+function clampInt(value: unknown, min: number, max: number, fallback: number) {
+  const number = Number.parseInt(String(value), 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
 }
 
-function stripExplicitToolDirectives(text) {
+function stripExplicitToolDirectives(text: unknown) {
   return String(text || '').replace(/(^|[\s([，,;；])@(web|search|run|code|changed|recent|mcp)\s*:?\s*/gi, '$1');
 }
 
-export function normalizeSearchQuery(query) {
+export function normalizeSearchQuery(query: unknown) {
   const trimmed = String(query || '').trim();
   const compact = stripExplicitToolDirectives(trimmed)
     .replace(/[，。！？?]/g, ' ')
@@ -24,12 +24,12 @@ export function normalizeSearchQuery(query) {
   return compact || trimmed || 'latest news';
 }
 
-export function deriveSearchMaxResults(query, requested) {
+export function deriveSearchMaxResults(query: unknown, requested: unknown) {
   if (/一个|一条|一篇|\b1\b|one/i.test(String(query || ''))) return 1;
   return clampInt(requested, 1, 10, 5);
 }
 
-export function getFreshnessWindow(query) {
+export function getFreshnessWindow(query: unknown) {
   const text = String(query || '');
   if (!/最新|新闻|今日|今天|实时|刚刚|本周|recent|latest|news|today|current/i.test(text)) return null;
   if (/今日|今天|today|刚刚/i.test(text)) return { timeRange: 'day', days: 1 };

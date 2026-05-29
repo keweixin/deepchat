@@ -3,5 +3,18 @@
   "compilerOptions": {
     "strict": true
   },
-  "include": ["src/types", "src/modules/shared-utils.ts", "src/modules/utils.ts", "src/modules/token-budget.ts"]
+  "include": [
+    "src/types",
+    "src/modules/shared-utils.ts",
+    "src/modules/utils.ts",
+    "src/modules/token-budget.ts",
+    "src/modules/release-utils.ts",
+    "src/modules/security-utils.ts",
+    "src/modules/api-helpers.ts",
+    "src/modules/client-store.ts",
+    "src/modules/zip-builder.ts",
+    "src/modules/search-utils.ts",
+    "src/modules/conversation-utils.ts",
+    "src/modules/renderer.ts"
+  ]
 }

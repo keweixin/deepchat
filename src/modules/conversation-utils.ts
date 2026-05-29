@@ -175,23 +175,24 @@ export function buildTaskCheckpointContext(checkpoint: any, options: { maxChars?
   return `${text.slice(0, Math.max(0, maxChars - 24)).trim()}\n</task_checkpoint>`;
 }
 
-export function normalizeTaskCheckpoint(value) {
+export function normalizeTaskCheckpoint(value: unknown) {
   if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
   const checkpoint = {
-    objective: compactCheckpointText(value.objective, 360),
-    latestUserGoal: compactCheckpointText(value.latestUserGoal, 420),
-    lastAssistantSummary: compactCheckpointText(value.lastAssistantSummary, 520),
-    contextSummary: compactCheckpointText(value.contextSummary, 520),
-    openItems: normalizeStringList(value.openItems, 6, 320),
-    lastTools: normalizeStringList(value.lastTools, 8, 160),
-    completedSteps: normalizeStringList(value.completedSteps, 6, 280),
-    failedSteps: normalizeStringList(value.failedSteps, 6, 320),
-    pendingApprovals: normalizeStringList(value.pendingApprovals, 4, 260),
-    recoveryActions: normalizeStringList(value.recoveryActions, 5, 320),
-    agentStatus: normalizeAgentStatus(value.agentStatus),
-    sourceMessageCount: clampInt(value.sourceMessageCount, 0, 10000, 0),
-    updatedAt: compactCheckpointText(value.updatedAt, 80),
-    prefixFingerprint: compactCheckpointText(value.prefixFingerprint, 80),
+    objective: compactCheckpointText(v.objective, 360),
+    latestUserGoal: compactCheckpointText(v.latestUserGoal, 420),
+    lastAssistantSummary: compactCheckpointText(v.lastAssistantSummary, 520),
+    contextSummary: compactCheckpointText(v.contextSummary, 520),
+    openItems: normalizeStringList(v.openItems, 6, 320),
+    lastTools: normalizeStringList(v.lastTools, 8, 160),
+    completedSteps: normalizeStringList(v.completedSteps, 6, 280),
+    failedSteps: normalizeStringList(v.failedSteps, 6, 320),
+    pendingApprovals: normalizeStringList(v.pendingApprovals, 4, 260),
+    recoveryActions: normalizeStringList(v.recoveryActions, 5, 320),
+    agentStatus: normalizeAgentStatus(v.agentStatus),
+    sourceMessageCount: clampInt(v.sourceMessageCount, 0, 10000, 0),
+    updatedAt: compactCheckpointText(v.updatedAt, 80),
+    prefixFingerprint: compactCheckpointText(v.prefixFingerprint, 80),
   };
   const hasContent =
     checkpoint.objective ||
@@ -208,7 +209,7 @@ export function normalizeTaskCheckpoint(value) {
 }
 
 export function conversationHasFavorite(conversation: any) {
-  return (conversation?.messages || []).some((message) => Boolean(message?.favorite));
+  return (conversation?.messages || []).some((message: any) => Boolean(message?.favorite));
 }
 
 export function getConversationGroup(conversation: any) {
@@ -240,7 +241,7 @@ export function normalizeTags(tags: any) {
   return next;
 }
 
-export function normalizeFolderName(value) {
+export function normalizeFolderName(value: unknown) {
   return String(value || '')
     .trim()
     .slice(0, 40);
@@ -265,7 +266,7 @@ function matchesConversationSearch(conversation: any, query: string) {
     conversation.title,
     conversation.folderId,
     ...(conversation.tags || []),
-    ...(conversation.messages || []).map((message) => message?.content || ''),
+    ...(conversation.messages || []).map((message: any) => message?.content || ''),
   ]
     .join('\n')
     .toLowerCase();
@@ -446,7 +447,7 @@ function extractRecentToolNames(messages: any[]): string[] {
   return normalizeStringList(names, 8, 140);
 }
 
-function extractRecentToolSummaries(messages: any[], { statuses = [], maxItems = 6 } = {}): string[] {
+function extractRecentToolSummaries(messages: any[], { statuses = [] as string[], maxItems = 6 } = {}): string[] {
   const wanted = new Set(statuses.map((status) => normalizeToolStatus(status)).filter(Boolean));
   const items = [];
   for (let i = messages.length - 1; i >= 0 && items.length < maxItems; i -= 1) {
@@ -561,7 +562,7 @@ function formatAgentStatus(status: string): string {
     failed: '上一轮失败',
     completed: '已完成',
   };
-  return labels[status] || status;
+  return (labels as Record<string, string>)[status] || status;
 }
 
 function getDateGroup(timestamp: any): string {
