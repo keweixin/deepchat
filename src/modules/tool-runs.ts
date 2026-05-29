@@ -178,6 +178,198 @@ export function getToolQuery(tool: any): string {
   return String(args?.query || '').trim();
 }
 
+// ─── Product-oriented Special Summaries ────────────────────────────────────
+
+export interface ProjectMapSummary {
+  fileCount: number;
+  dirCount: number;
+  entryFiles: string[];
+  topModules: string[];
+}
+
+export function summarizeProjectMap(outputText = ''): ProjectMapSummary {
+  const text = String(outputText || '');
+  const lines = text.split('\n');
+  let fileCount = 0;
+  const dirs = new Set<string>();
+  const entryFiles: string[] = [];
+  const moduleSet = new Set<string>();
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('─')) continue;
+    // Tree-like entries with files have extensions or are leaf nodes
+    if (/[\│├└─]/.test(line) || line.startsWith('  ') || line.startsWith('\t')) {
+      const clean = trimmed.replace(/^[\│├└─\s]+/, '').replace(/\/$/, '');
+      if (clean.includes('.')) {
+        fileCount++;
+        if (/\.(ts|js|jsx|tsx|py|go|rs|java|kt|swift)$/i.test(clean)) {
+          const dir = clean.split(/[/\\]/).slice(0, -1).join('/');
+          if (dir) moduleSet.add(dir.split('/')[0] || dir);
+        }
+        if (/^(index|main|app|server|cli|entry)\./i.test(clean)) {
+          entryFiles.push(clean);
+        }
+      } else if (clean && !clean.includes(' ')) {
+        dirs.add(clean);
+      }
+    }
+  }
+
+  // Fallback: count lines that look like file paths
+  if (fileCount === 0) {
+    for (const line of lines) {
+      if (/\.\w{1,8}$/.test(line.trim()) && !line.includes('://')) fileCount++;
+    }
+  }
+
+  return {
+    fileCount,
+    dirCount: dirs.size,
+    entryFiles: entryFiles.slice(0, 5),
+    topModules: Array.from(moduleSet).slice(0, 5),
+  };
+}
+
+export interface GitDiffSummary {
+  changedFiles: number;
+  insertions: number;
+  deletions: number;
+  riskyFiles: string[];
+}
+
+export function summarizeGitDiff(outputText = ''): GitDiffSummary {
+  const text = String(outputText || '');
+  const changedFiles = (text.match(/^diff --git /gm) || []).length;
+  const insertions = (text.match(/^\+[^+]/gm) || []).length;
+  const deletions = (text.match(/^-[^-]/gm) || []).length;
+  const riskyFiles: string[] = [];
+
+  const fileMatches = text.matchAll(/^diff --git a\/(.+?) b\/(.+?)$/gm);
+  for (const m of fileMatches) {
+    const file = m[1] || '';
+    if (
+      /\.(key|pem|env|secret|token|password|credential)/i.test(file) ||
+      /(config|settings|auth)\.(json|yaml|yml|toml)/i.test(file) ||
+      /package-lock|yarn\.lock|pnpm-lock/i.test(file)
+    ) {
+      riskyFiles.push(file);
+    }
+  }
+
+  return { changedFiles, insertions, deletions, riskyFiles: riskyFiles.slice(0, 5) };
+}
+
+export interface GitStatusSummary {
+  branch: string;
+  staged: number;
+  unstaged: number;
+  untracked: number;
+}
+
+export function summarizeGitStatus(outputText = ''): GitStatusSummary {
+  const text = String(outputText || '');
+  const lines = text.split('\n');
+  let branch = 'unknown';
+  let staged = 0;
+  let unstaged = 0;
+  let untracked = 0;
+
+  for (const line of lines) {
+    if (line.startsWith('On branch ')) branch = line.replace('On branch ', '').trim();
+    if (line.startsWith('HEAD detached at ')) branch = line.trim();
+    if (line.startsWith('\tmodified:') || line.startsWith('\tdeleted:') || line.startsWith('\trenamed:')) {
+      if (text.indexOf(line) < text.indexOf('Changes not staged') + text.indexOf('Changes to be committed')) {
+        // Rough heuristic: if before "not staged" section
+      }
+    }
+  }
+
+  // Better heuristic: use section markers
+  const notStagedIndex = text.indexOf('Changes not staged for commit');
+  const toCommitIndex = text.indexOf('Changes to be committed');
+  const untrackedIndex = text.indexOf('Untracked files');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.startsWith('\t')) continue;
+    const pos = text.indexOf(line);
+    if (toCommitIndex >= 0 && pos > toCommitIndex && (notStagedIndex < 0 || pos < notStagedIndex)) staged++;
+    else if (notStagedIndex >= 0 && pos > notStagedIndex && (untrackedIndex < 0 || pos < untrackedIndex)) unstaged++;
+    else if (untrackedIndex >= 0 && pos > untrackedIndex) untracked++;
+  }
+
+  return { branch, staged, unstaged, untracked };
+}
+
+export interface GitLogSummary {
+  commitCount: number;
+  latestMessage: string;
+  authors: string[];
+  modules: string[];
+}
+
+export function summarizeGitLog(outputText = '', count = 10): GitLogSummary {
+  const text = String(outputText || '');
+  const commits = text.match(/^commit [a-f0-9]+/gm) || [];
+  const lines = text.split('\n');
+  let latestMessage = '';
+  const authorSet = new Set<string>();
+  const moduleSet = new Set<string>();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith('Author: ')) {
+      const author = line.replace('Author: ', '').trim().split('<')[0].trim();
+      if (author) authorSet.add(author);
+    }
+    if (line.startsWith('Date: ') && i + 2 < lines.length) {
+      const msg = lines[i + 2]?.trim();
+      if (msg && !latestMessage) latestMessage = msg;
+    }
+    // Detect module references like "src/module" or "feat(module)"
+    const moduleMatch = line.match(/(?:src|lib|app|tests|docs)\/([a-z0-9_-]+)/gi);
+    if (moduleMatch) {
+      for (const m of moduleMatch) moduleSet.add(m);
+    }
+    const scopeMatch = line.match(/\((\w+)\):/);
+    if (scopeMatch) moduleSet.add(scopeMatch[1]);
+  }
+
+  return {
+    commitCount: Math.min(commits.length, count),
+    latestMessage,
+    authors: Array.from(authorSet).slice(0, 5),
+    modules: Array.from(moduleSet).slice(0, 5),
+  };
+}
+
+export interface ReadManyFilesSummary {
+  totalFiles: number;
+  failedFiles: number;
+  successfulFiles: number;
+  hitSummaries: string[];
+}
+
+export function summarizeReadManyFiles(tool: any = {}): ReadManyFilesSummary {
+  const args = getToolArgs(tool);
+  const totalFiles = Array.isArray(args?.paths) ? args.paths.length : 0;
+  const outputText = String(tool.output || '');
+  const failedMatches = outputText.match(/(?:失败|error|not found|ENOENT|missing)\s*[:：]/gi) || [];
+  const failedFiles = Math.min(failedMatches.length, totalFiles);
+  const successfulFiles = Math.max(0, totalFiles - failedFiles);
+
+  // Extract file hit summaries from output headers
+  const hitSummaries: string[] = [];
+  const fileHeaders = outputText.matchAll(/(?:文件|File)\s*[:：]\s*(.+?)(?:\n|$)/gi);
+  for (const m of fileHeaders) {
+    const file = m[1]?.trim();
+    if (file && !hitSummaries.includes(file)) hitSummaries.push(file);
+  }
+
+  return { totalFiles, failedFiles, successfulFiles, hitSummaries: hitSummaries.slice(0, 8) };
+}
+
 export function getToolDurationMs(tool: any): number | null {
   if (!tool?.requestedAt || !tool?.completedAt) return null;
   const start = Date.parse(tool.requestedAt);
