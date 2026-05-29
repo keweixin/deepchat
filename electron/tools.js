@@ -29,8 +29,20 @@ const WORKSPACE_INDEX_DISK_MAX_BYTES = 8 * 1024 * 1024;
 const WORKSPACE_INDEX_DISK_VERSION = 1;
 const WORKSPACE_INDEX_CACHE_MAX = 8;
 const SENSITIVE_PATH_PARTS = new Set([
-  '.ssh', '.aws', '.azure', '.gnupg', '.kube', '.docker', '.config', '.vault',
-  '.password-store', 'secrets', 'tokens', '.env', '.env.local', '.env.production',
+  '.ssh',
+  '.aws',
+  '.azure',
+  '.gnupg',
+  '.kube',
+  '.docker',
+  '.config',
+  '.vault',
+  '.password-store',
+  'secrets',
+  'tokens',
+  '.env',
+  '.env.local',
+  '.env.production',
 ]);
 const SENSITIVE_FILE_NAMES = new Set([
   '.npmrc',

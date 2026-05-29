@@ -83,7 +83,8 @@ export function renderToolCard(
   // Collapsible raw JSON sections
   const details = document.createElement('div');
   details.className = 'tool-card-details';
-  if (showRaw || tool.expanded) details.classList.add('is-expanded');
+  const isExpert = document.documentElement.classList.contains('expert-mode');
+  if (showRaw || tool.expanded || isExpert) details.classList.add('is-expanded');
 
   const inputSection = document.createElement('div');
   inputSection.className = 'tool-card-section';

@@ -76,6 +76,29 @@
   text-decoration: underline;
 }
 
+.tool-card-actions {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  flex-wrap: wrap;
+}
+
+.tool-card-action-btn {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tool-card-action-btn:hover {
+  background: var(--glass-bg-hover);
+  color: var(--text-primary);
+}
+
 .tool-card-details {
   display: none;
   padding: 0.5rem 0.75rem;

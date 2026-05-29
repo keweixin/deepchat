@@ -1,6 +1,6 @@
 // @ts-nocheck
 const { getSettings } = require('./storage');
-const { getToolDefinitions, describeToolRisk, executeTool } = require('./tools');
+const { getToolDefinitions, describeToolRisk } = require('./tools');
 const { McpManager, isMcpToolName } = require('./mcp-manager');
 const crypto = require('crypto');
 const {
@@ -107,10 +107,19 @@ const {
   resolveAgentMaxRounds,
 } = require('./stream-runner.ts');
 
-const DEFAULT_MAX_INPUT_TOKENS = 24000;
-const SUMMARY_TRIGGER_RATIO = 0.8;
-const COMPACTION_SUMMARY_MARKER = '[CONVERSATION HISTORY SUMMARY — earlier turns folded for context efficiency]\n\n';
-const AGENT_EXECUTION_MODES = new Set(['execute_all', 'single_step']);
+const {
+  attachPrefixProfile,
+  applyRequestOverrides,
+  normalizeAgentExecutionMode,
+  buildSingleStepStopReason,
+  parseToolArgs,
+} = require('./chat-service-helpers');
+
+const { COMPACTION_SUMMARY_MARKER, maybeBuildContextSummary } = require('./context-summarizer');
+
+const { streamOnce } = require('./chat-streamer');
+
+const { handleToolCall, handleToolCallsForRound } = require('./tool-call-handler');
 
 class ChatService {
   constructor(getWindow) {
@@ -354,346 +363,33 @@ class ChatService {
   }
 
   async maybeBuildContextSummary(request, settings, contextBundle, prefixTokens, signal) {
-    const existingSummary = String(request.contextSummary || '').trim();
-    const droppedMessages = contextBundle.meta.droppedMessages || [];
-    const summarySourceMessages =
-      droppedMessages.length > 0
-        ? droppedMessages
-        : contextBundle.messages.slice(0, Math.max(0, contextBundle.messages.length - 1));
-    const shouldSummarize = droppedMessages.length > 0 || contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO;
-    if (!shouldSummarize) return existingSummary ? { summary: existingSummary, generated: false } : null;
-    if (summarySourceMessages.length === 0)
-      return existingSummary ? { summary: existingSummary, generated: false } : null;
-    const summaryHash = hashMessages(summarySourceMessages);
-    const priorMeta =
-      request.contextSummaryMeta && typeof request.contextSummaryMeta === 'object' ? request.contextSummaryMeta : {};
-    if (existingSummary && priorMeta.hash === summaryHash) {
-      return {
-        summary: existingSummary,
-        generated: false,
-        meta: { hash: summaryHash, sourceMessageCount: summarySourceMessages.length, cacheHit: true },
-      };
-    }
-
-    const summaryModel = resolveAuxiliaryModel(settings);
-    this.emit(request.requestId, 'agentStage', {
-      stage: 'summary',
-      round: 0,
-      maxRounds: resolveAgentMaxRounds(settings),
-      warning: summaryModel !== settings.model ? `摘要辅助调用使用 ${summaryModel} 以降低成本。` : undefined,
-    });
-    try {
-      const summary = await this.summarizeContext(
-        { ...settings, model: summaryModel },
-        existingSummary,
-        summarySourceMessages,
-        signal
-      );
-      const input =
-        estimateMessagesTokens([
-          { role: 'system', content: 'Summarize conversation context.' },
-          { role: 'user', content: `${existingSummary}\n${formatMessagesForSummary(summarySourceMessages)}` },
-        ]) + prefixTokens;
-      return {
-        summary,
-        generated: true,
-        meta: {
-          hash: summaryHash,
-          sourceMessageCount: summarySourceMessages.length,
-          cacheHit: false,
-          auxiliaryModel: summaryModel,
-          requestedModel: settings.model,
-        },
-        usage: normalizeTokenUsage(null, {
-          input,
-          output: estimateTokens(summary),
-          model: summaryModel,
-          byPurpose: { summary: input + estimateTokens(summary) },
-        }),
-      };
-    } catch (err) {
-      console.error('[ContextSummary] Failed:', normalizeError(err));
-      if (existingSummary)
-        return {
-          summary: existingSummary,
-          generated: false,
-          meta: {
-            hash: priorMeta.hash || summaryHash,
-            sourceMessageCount: priorMeta.sourceMessageCount || 0,
-            cacheHit: true,
-            stale: true,
-          },
-        };
-      return null;
-    }
+    return maybeBuildContextSummary(
+      request,
+      settings,
+      contextBundle,
+      prefixTokens,
+      signal,
+      this.emit.bind(this),
+      this.summarizeContext.bind(this)
+    );
   }
 
   async summarizeContext(settings, existingSummary, droppedMessages, signal) {
-    const prompt = [
-      '请把下面较早的对话压缩成 DeepChat 后续回答可用的短记忆。',
-      '保留用户目标、关键约束、已确认事实、文件/工具结果、未完成事项。',
-      '不要添加新事实。控制在 220 个中文字以内。',
-      existingSummary ? `已有记忆：\n${existingSummary}` : '',
-      '较早对话：',
-      formatMessagesForSummary(droppedMessages),
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-    const body = {
-      model: settings.model,
-      messages: [
-        { role: 'system', content: '你负责压缩对话记忆，只输出摘要正文。' },
-        { role: 'user', content: prompt },
-      ],
-      stream: false,
-      temperature: 0.2,
-      max_tokens: 500,
-    };
-    const response = await fetch(`${normalizeBaseUrl(settings.apiBase)}/chat/completions`, {
-      method: 'POST',
-      headers: buildHeaders(settings.apiKey),
-      body: JSON.stringify(body),
-      signal,
-    });
-    if (!response.ok) throw new Error('summary failed');
-    const json = await response.json();
-    const content = json.choices?.[0]?.message?.content || '';
-    return String(content).trim().slice(0, 1200);
+    const { summarizeContext } = require('./context-summarizer');
+    return summarizeContext(settings, existingSummary, droppedMessages, signal);
   }
 
   async streamOnce(requestId, messages, settings, tools, signal) {
-    const baseBody = {
-      model: settings.model,
-      messages,
-      stream: true,
-      stream_options: { include_usage: true },
-      temperature: settings.temperature,
-      max_tokens: settings.maxTokens,
-    };
-
-    const modelLower = String(settings.model || '').toLowerCase();
-    if (modelLower.includes('reasoner') || modelLower.includes('o1') || modelLower.includes('r1')) {
-      baseBody.thinking = { type: 'enabled' };
-      if (settings.thinkingBudget > 0) baseBody.thinking.budget_tokens = settings.thinkingBudget;
-    } else if (settings.thinkingBudget > 0) {
-      baseBody.thinking = { type: 'enabled', budget_tokens: settings.thinkingBudget };
-    }
-
-    if (tools.length > 0) {
-      baseBody.tools = tools;
-      baseBody.tool_choice = 'auto';
-    }
-
-    const { response, warnings } = await fetchChatCompletionWithFallback(settings, baseBody, signal);
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let content = '';
-    let thinking = '';
-    let usage = null;
-    const toolCalls = [];
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data:')) continue;
-          const data = trimmed.slice(5).trim();
-          if (data === '[DONE]') {
-            const nativeToolCalls = compactToolCalls(toolCalls);
-            const repaired =
-              nativeToolCalls.length === 0
-                ? repairToolCallsFromText(content, thinking, tools)
-                : { toolCalls: [], warning: '' };
-            if (repaired.toolCalls.length > 0) {
-              warnings.push(repaired.warning);
-              this.emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
-            }
-            return {
-              content,
-              thinking,
-              usage,
-              toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
-              warnings,
-            };
-          }
-
-          try {
-            const json = JSON.parse(data);
-            if (json.usage) usage = normalizeTokenUsage(json.usage, { model: settings.model });
-            const delta = json.choices?.[0]?.delta;
-            if (!delta) continue;
-            if (delta.content) {
-              content += delta.content;
-              this.emit(requestId, 'token', { token: delta.content });
-            }
-            if (delta.reasoning_content) {
-              thinking += delta.reasoning_content;
-              this.emit(requestId, 'thinking', { token: delta.reasoning_content });
-            }
-            if (delta.tool_calls) mergeToolCalls(toolCalls, delta.tool_calls);
-          } catch {
-            // Ignore malformed SSE fragments from non-standard providers.
-          }
-        }
-      }
-
-      const nativeToolCalls = compactToolCalls(toolCalls);
-      const repaired =
-        nativeToolCalls.length === 0
-          ? repairToolCallsFromText(content, thinking, tools)
-          : { toolCalls: [], warning: '' };
-      if (repaired.toolCalls.length > 0) {
-        warnings.push(repaired.warning);
-        this.emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
-      }
-      return {
-        content,
-        thinking,
-        usage,
-        toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
-        warnings,
-      };
-    } finally {
-      reader.releaseLock();
-    }
+    return streamOnce(requestId, messages, settings, tools, signal, this.emit.bind(this));
   }
 
   async handleToolCall(requestId, toolCall, settings, signal, round = 0, maxRounds = 0) {
-    const fn = toolCall.function || {};
-    const parsedArgs = parseToolArgsDetailed(fn.arguments);
-    const args = parsedArgs.args;
-    this.emit(requestId, 'agentStage', { stage: 'tool_pending', round, maxRounds, toolName: fn.name });
-    if (parsedArgs.repaired) {
-      this.emit(requestId, 'agentStage', {
-        stage: 'tool_repair',
-        round,
-        maxRounds,
-        toolName: fn.name,
-        warning: parsedArgs.warning,
-      });
-    }
-    const security = buildToolSecurity(fn.name, args, settings);
-    const approval = resolveToolApprovalDecision(fn.name, args, settings, security);
-    this.emit(requestId, 'toolRequest', {
-      toolCallId: toolCall.id,
-      name: fn.name,
-      args,
-      rawArguments: fn.arguments || '',
-      parseError: parsedArgs.error,
-      parseRepair: parsedArgs.repaired ? parsedArgs.warning : '',
-      risk: this.describeRisk(fn.name, args, settings),
-      security,
-      approvalPolicy: approval.policy,
-      autoApproved: approval.autoApproved,
-      expiresAt: new Date(Date.now() + resolveToolApprovalTimeout(settings)).toISOString(),
+    return handleToolCall(requestId, toolCall, settings, signal, round, maxRounds, {
+      emit: this.emit.bind(this),
+      waitForApproval: this.waitForApproval.bind(this),
+      describeRisk: this.describeRisk.bind(this),
+      mcpManager: this.mcpManager,
     });
-    if (parsedArgs.error) {
-      const message = `工具 ${fn.name || 'unknown_tool'} 参数 JSON 解析失败：${parsedArgs.error}`;
-      const nextAction = buildToolNextAction(fn.name, args, { parseError: parsedArgs.error, output: message });
-      this.emit(requestId, 'agentStage', {
-        stage: 'tool_failed',
-        round,
-        maxRounds,
-        toolName: fn.name,
-        warning: message,
-      });
-      const contextMeta = buildToolContextOutput(fn.name, args, message);
-      this.emit(requestId, 'toolResult', {
-        toolCallId: toolCall.id,
-        name: fn.name,
-        ok: false,
-        output: message,
-        nextAction,
-        ...contextMeta,
-        rawArguments: fn.arguments || '',
-        parseError: parsedArgs.error,
-      });
-      return message;
-    }
-
-    const decision = approval.autoApproved
-      ? { approved: true, autoApproved: true, reason: approval.reason }
-      : await this.waitForApproval(requestId, toolCall.id, signal, resolveToolApprovalTimeout(settings));
-    if (!decision.approved) {
-      const denied = decision.timedOut
-        ? `工具 ${fn.name} 等待确认超过 ${Math.round(resolveToolApprovalTimeout(settings) / 1000)} 秒，已自动拒绝。`
-        : `用户拒绝执行工具 ${fn.name}。`;
-      const nextAction = buildToolNextAction(fn.name, args, {
-        denied: true,
-        timedOut: decision.timedOut,
-        output: denied,
-      });
-      this.emit(requestId, 'agentStage', {
-        stage: 'tool_denied',
-        round,
-        maxRounds,
-        toolName: fn.name,
-        stopReason: denied,
-      });
-      this.emit(requestId, 'toolResult', {
-        toolCallId: toolCall.id,
-        name: fn.name,
-        ok: false,
-        output: denied,
-        nextAction,
-        ...buildToolContextOutput(fn.name, args, denied),
-      });
-      return denied;
-    }
-
-    try {
-      this.emit(requestId, 'agentStage', {
-        stage: decision.autoApproved ? 'tool_auto_approved' : 'tool_approved',
-        round,
-        maxRounds,
-        toolName: fn.name,
-        warning: decision.autoApproved ? decision.reason : undefined,
-      });
-      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-      const output = isMcpToolName(fn.name)
-        ? await this.mcpManager.callOpenAiTool(fn.name, args, settings, signal)
-        : await executeTool(fn.name, args, settings, signal);
-      this.emit(requestId, 'agentStage', { stage: 'tool_result', round, maxRounds, toolName: fn.name });
-      this.emit(requestId, 'toolResult', {
-        toolCallId: toolCall.id,
-        name: fn.name,
-        ok: true,
-        output,
-        ...buildToolContextOutput(fn.name, args, output),
-        security: buildToolSecurity(fn.name, args, settings),
-        autoApproved: decision.autoApproved === true,
-      });
-      return output;
-    } catch (error) {
-      const message = normalizeError(error);
-      const returned = `工具 ${fn.name} 执行失败：${message}`;
-      const nextAction = buildToolNextAction(fn.name, args, { failed: true, output: returned, error: message });
-      this.emit(requestId, 'agentStage', {
-        stage: 'tool_failed',
-        round,
-        maxRounds,
-        toolName: fn.name,
-        warning: message,
-      });
-      this.emit(requestId, 'toolResult', {
-        toolCallId: toolCall.id,
-        name: fn.name,
-        ok: false,
-        output: message,
-        nextAction,
-        ...buildToolContextOutput(fn.name, args, returned),
-        security: buildToolSecurity(fn.name, args, settings),
-      });
-      return returned;
-    }
   }
 
   async handleToolCallsForRound(
@@ -706,70 +402,10 @@ class ChatService {
     seenToolCalls = new Set(),
     warnings = []
   ) {
-    const results = new Array(toolCalls.length);
-    let parallelGroup = [];
-
-    const flushParallelGroup = async () => {
-      if (parallelGroup.length === 0) return;
-      const group = parallelGroup;
-      parallelGroup = [];
-      this.emit(requestId, 'agentStage', {
-        stage: 'tool_parallel',
-        round,
-        maxRounds,
-        selectedTools: group.map((item) => item.toolCall.function?.name || 'unknown_tool'),
-      });
-      const settled = await Promise.allSettled(
-        group.map((item) => this.handleToolCall(requestId, item.toolCall, settings, signal, round, maxRounds))
-      );
-      settled.forEach((result, offset) => {
-        const { index, toolCall } = group[offset];
-        results[index] = {
-          toolCall,
-          output:
-            result.status === 'fulfilled'
-              ? result.value
-              : `工具 ${toolCall.function?.name || 'unknown_tool'} 执行失败：${normalizeError(result.reason)}`,
-        };
-      });
-    };
-
-    for (let index = 0; index < toolCalls.length; index++) {
-      const toolCall = toolCalls[index];
-      const signature = toolCallSignature(toolCall);
-      if (seenToolCalls.has(signature)) {
-        await flushParallelGroup();
-        const blocked = `重复工具调用已抑制：${toolCall.function?.name || 'unknown_tool'}。请基于已有工具结果继续推理，或换用不同参数。`;
-        warnings.push(blocked);
-        this.emit(requestId, 'agentStage', {
-          stage: 'tool_failed',
-          round,
-          maxRounds,
-          toolName: toolCall.function?.name,
-          warning: blocked,
-        });
-        this.emit(requestId, 'toolResult', {
-          toolCallId: toolCall.id,
-          name: toolCall.function?.name,
-          ok: false,
-          output: blocked,
-        });
-        results[index] = { toolCall, output: blocked };
-        continue;
-      }
-      seenToolCalls.add(signature);
-      this.emit(requestId, 'agentStage', { stage: 'tool', round, maxRounds, toolName: toolCall.function?.name });
-      if (isParallelSafeToolCall(toolCall)) {
-        parallelGroup.push({ index, toolCall });
-        continue;
-      }
-      await flushParallelGroup();
-      const output = await this.handleToolCall(requestId, toolCall, settings, signal, round, maxRounds);
-      results[index] = { toolCall, output };
-    }
-
-    await flushParallelGroup();
-    return results.filter(Boolean);
+    return handleToolCallsForRound(requestId, toolCalls, settings, signal, round, maxRounds, seenToolCalls, warnings, {
+      emit: this.emit.bind(this),
+      handleToolCall: this.handleToolCall.bind(this),
+    });
   }
 
   waitForApproval(requestId, toolCallId, signal, timeoutMs = DEFAULT_TOOL_APPROVAL_TIMEOUT_MS) {
@@ -806,99 +442,6 @@ class ChatService {
 
 // buildAgentPlanSummary, buildResearchSearchPlan, normalizeResearchTopic,
 // dedupeSearchPlan, buildPlanApprovalPolicy — extracted to ./agent-planner.ts
-
-function attachPrefixProfile(usage, prefix, settings = {}) {
-  usage.prefixFingerprint = prefix.prefixFingerprint;
-  usage.prefixBytes = prefix.prefixBytes;
-  usage.prefixTokens = prefix.prefixTokens;
-  usage.cacheStabilityWarnings = prefix.cacheStabilityWarnings || [];
-  usage.cacheStabilityReasons = prefix.cacheStabilityReasons || [];
-  usage.cacheStabilityDetails = prefix.cacheStabilityDetails || {};
-  usage.cacheProfile = {
-    ...(prefix.profile || {}),
-    model: String(settings.model || prefix.profile?.model || ''),
-    cacheHit: usage.cacheHit,
-    cacheMiss: usage.cacheMiss,
-    cacheHitRate: usage.cacheHitRate,
-    estimatedCostUsd: usage.cost?.estimatedCostUsd || 0,
-    estimatedSavingsUsd: usage.cost?.estimatedSavingsUsd || 0,
-    cacheStabilityWarnings: prefix.cacheStabilityWarnings || [],
-    cacheStabilityReasons: prefix.cacheStabilityReasons || [],
-    cacheStabilityDetails: prefix.cacheStabilityDetails || {},
-  };
-  return usage;
-}
-
-function applyRequestOverrides(settings, overrides = {}) {
-  const next = { ...settings };
-  if (overrides.thinkingBudget !== undefined) next.thinkingBudget = Number.parseInt(overrides.thinkingBudget, 10) || 0;
-  if (overrides.activeSkill !== undefined) next.activeSkill = String(overrides.activeSkill || 'none');
-  if (overrides.enhance !== undefined) next.enhance = overrides.enhance !== false;
-  if (overrides.agentMaxRounds !== undefined)
-    next.agentMaxRounds = Number.parseInt(overrides.agentMaxRounds, 10) || DEFAULT_AGENT_MAX_ROUNDS;
-  if (overrides.maxInputTokens !== undefined)
-    next.maxInputTokens = Number.parseInt(overrides.maxInputTokens, 10) || DEFAULT_MAX_INPUT_TOKENS;
-  if (overrides.agentExecutionMode !== undefined)
-    next.agentExecutionMode = normalizeAgentExecutionMode(overrides.agentExecutionMode);
-  return next;
-}
-
-function normalizeAgentExecutionMode(value) {
-  const mode = String(value || 'execute_all');
-  return AGENT_EXECUTION_MODES.has(mode) ? mode : 'execute_all';
-}
-
-function buildSingleStepStopReason(toolResults = []) {
-  const names = (Array.isArray(toolResults) ? toolResults : [])
-    .map(({ toolCall }) => toolCall?.function?.name || 'unknown_tool')
-    .filter(Boolean);
-  const summary = names.length ? `已完成单步执行：${names.join(', ')}。` : '已完成单步执行。';
-  return `${summary}已暂停后续工具轮次；可继续点击“单步执行”推进下一步，或点击“执行全部”让 Agent 按计划继续。`;
-}
-
-function buildToolNextAction(name, args = {}, outcome = {}) {
-  const toolName = String(name || 'unknown_tool');
-  if (outcome.parseError) {
-    return '让模型重新发送合法 JSON 参数；不要执行空参数工具调用。';
-  }
-  if (outcome.denied) {
-    if (outcome.timedOut) {
-      return '确认超时后已停止该工具；可以重新点击执行，或改用“修改计划”减少本步工具调用。';
-    }
-    return '已按用户选择停止该工具；可以修改计划、换用低风险读取/搜索工具，或重新确认后继续。';
-  }
-  if (toolName === 'web_search') {
-    return '检查 Tavily Key、网络连接和 query；必要时缩小关键词或降低 max_results 后重试。';
-  }
-  if (['index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(toolName)) {
-    const target = String(args.path || args.directory || args.root || args.symbol || args.query || '').trim();
-    return target
-      ? `确认工作区授权、路径/符号是否存在：${target.slice(0, 160)}；必要时先 list_files 或 search_workspace 定位。`
-      : '确认工作区已授权；必要时先 list_files 或 search_workspace 定位目标文件。';
-  }
-  if (toolName === 'run_code') {
-    return '查看 stderr/stdout 和退出码；必要时缩小代码片段、补充依赖前置条件，或改为只生成代码不运行。';
-  }
-  if (isMcpToolName(toolName)) {
-    return '检查 MCP Server 是否在线、工具参数 schema 是否变化；可在设置中刷新 MCP 状态后重试。';
-  }
-  return '检查工具名称、参数和可用配置；必要时修改计划后重试。';
-}
-
-function parseToolArgs(raw) {
-  return parseToolArgsDetailed(raw).args;
-}
-
-function buildToolContextOutput(toolName, args, output) {
-  const raw = String(output || '');
-  const contextOutput = compactToolOutputForContext(toolName, args, raw);
-  return {
-    contextOutput,
-    rawOutputTokens: estimateTokens(raw),
-    contextOutputTokens: estimateTokens(contextOutput),
-    contextCompacted: contextOutput !== raw,
-  };
-}
 
 module.exports = {
   ChatService,
