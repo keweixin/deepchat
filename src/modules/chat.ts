@@ -43,6 +43,8 @@ import {
 } from './artifacts.js';
 import {
   applyToolResult,
+  applyToolDecision,
+  createToolRecord,
   buildToolRuns,
   hasSearchWithoutCitedSource as hasUncitedSearchSource,
   hasLocalFilesWithoutCitedSource as hasUncitedLocalSource,

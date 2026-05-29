@@ -34,6 +34,8 @@ const SECURITY_PATTERNS = [
       'src/modules/settings-mcp.ts',
       'src/modules/settings-skills.ts',
       'src/modules/settings-workspace.ts',
+      'src/modules/chat-assistant-ui.ts',
+      'src/modules/chat-tool-ui.ts',
     ],
   },
   {

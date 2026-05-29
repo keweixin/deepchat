@@ -1008,7 +1008,7 @@ function appendGroundingCard(
     container.appendChild(warning);
   }
 }
-function renderErrorContent(container: HTMLElement, message: string, onClose?: any, onRetry?: any) {
+export function renderErrorContent(container: HTMLElement, message: string, onClose?: any, onRetry?: any) {
   container.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'message-error';
