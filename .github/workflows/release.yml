@@ -10,8 +10,13 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  release:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x64
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

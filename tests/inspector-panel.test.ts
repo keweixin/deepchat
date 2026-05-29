@@ -180,13 +180,16 @@ describe('inspector-panel', () => {
       expect(empty).toBeTruthy();
     });
 
-    it('renders copy and download buttons for each artifact', () => {
+    it('renders copy, download, and download-all buttons', () => {
       openInspectorPanel('artifact', { msg: { content: codeContent }, index: 0 });
       const content = panel.querySelector('.inspector-panel-content');
-      const actions = content.querySelectorAll('.inspector-artifact-action');
-      expect(actions.length).toBe(2);
-      expect(actions[0].dataset.action).toBe('copy');
-      expect(actions[1].dataset.action).toBe('download');
+      const cardActions = content.querySelectorAll('.inspector-artifact-card .inspector-artifact-action');
+      expect(cardActions.length).toBe(2);
+      expect(cardActions[0].dataset.action).toBe('copy');
+      expect(cardActions[1].dataset.action).toBe('download');
+      // Download All button in the toolbar
+      const downloadAll = content.querySelector('[data-action="download-all"]');
+      expect(downloadAll).toBeTruthy();
     });
 
     it('renders multiple artifacts from multi-block content', () => {
@@ -214,6 +217,135 @@ describe('inspector-panel', () => {
       expect(toolbar).toBeTruthy();
       const activeBtn = toolbar.querySelector('.inspector-toolbar-btn.is-active');
       expect(activeBtn.dataset.mode).toBe('message');
+    });
+
+    it('renders search input for artifact filtering', () => {
+      openInspectorPanel('artifact', { msg: { content: codeContent }, index: 0 });
+      const content = panel.querySelector('.inspector-panel-content');
+      const searchInput = content.querySelector('.inspector-artifact-search-input');
+      expect(searchInput).toBeTruthy();
+      expect(searchInput.getAttribute('placeholder')).toContain('搜索');
+    });
+
+    it('filters artifacts by search query', () => {
+      const multiContent = ['```javascript', 'const a = 1;', '```', '', '```json', '{"key":"value"}', '```'].join('\n');
+      openInspectorPanel('artifact', { msg: { content: multiContent }, index: 0 });
+      const content = panel.querySelector('.inspector-panel-content');
+      const searchInput = content.querySelector('.inspector-artifact-search-input');
+      const cards = content.querySelectorAll('.inspector-artifact-card');
+      expect(cards.length).toBe(2);
+
+      // Type 'json' to filter
+      searchInput.value = 'json';
+      searchInput.dispatchEvent(new Event('input'));
+      expect(cards[0].style.display).toBe('none');
+      expect(cards[1].style.display).toBe('');
+    });
+
+    it('shows message index and timestamp in artifact metadata', () => {
+      const ts = 1700000000000;
+      openInspectorPanel('artifact', { msg: { content: codeContent, timestamp: ts }, index: 2 });
+      const content = panel.querySelector('.inspector-panel-content');
+      const meta = content.querySelector('.inspector-artifact-meta');
+      expect(meta.textContent).toContain('消息 #3');
+      expect(meta.textContent).toContain(new Date(ts).toLocaleString());
+    });
+
+    it('shows version badge when same artifact appears in multiple messages', () => {
+      const messages = [
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: codeContent, timestamp: 1000 },
+        { role: 'user', content: 'regenerate' },
+        { role: 'assistant', content: codeContent, timestamp: 2000 },
+      ];
+      openInspectorPanel('artifact', { msg: messages[1], index: 1, messages });
+      const content = panel.querySelector('.inspector-panel-content');
+      const badge = content.querySelector('.inspector-artifact-version-badge');
+      expect(badge).toBeTruthy();
+      expect(badge.textContent).toContain('2 版本');
+    });
+
+    it('shows diff button when multiple versions exist', () => {
+      const v1 = ['```javascript', 'function hello() { return "v1"; }', '```'].join('\n');
+      const v2 = ['```javascript', 'function hello() { return "v2"; }', '```'].join('\n');
+      const messages = [
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: v1, timestamp: 1000 },
+        { role: 'user', content: 'regenerate' },
+        { role: 'assistant', content: v2, timestamp: 2000 },
+      ];
+      openInspectorPanel('artifact', { msg: messages[1], index: 1, messages });
+      const content = panel.querySelector('.inspector-panel-content');
+      const diffBtn = content.querySelector('[data-action="diff"]');
+      expect(diffBtn).toBeTruthy();
+    });
+
+    it('opens diff view when diff button is clicked', () => {
+      const v1 = ['```javascript', 'function hello() { return "v1"; }', '```'].join('\n');
+      const v2 = ['```javascript', 'function hello() { return "v2"; }', '```'].join('\n');
+      const messages = [
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: v1, timestamp: 1000 },
+        { role: 'user', content: 'regenerate' },
+        { role: 'assistant', content: v2, timestamp: 2000 },
+      ];
+      openInspectorPanel('artifact', { msg: messages[1], index: 1, messages });
+      const content = panel.querySelector('.inspector-panel-content');
+      const diffBtn = content.querySelector('[data-action="diff"]');
+      diffBtn.click();
+
+      const diffContainer = content.querySelector('.inspector-artifact-diff-container');
+      expect(diffContainer.hidden).toBe(false);
+      const diffView = content.querySelector('.inspector-artifact-diff-view');
+      expect(diffView).toBeTruthy();
+      const diffLines = diffView.querySelectorAll('.diff-line');
+      expect(diffLines.length).toBeGreaterThan(0);
+    });
+
+    it('diff view shows version selectors', () => {
+      const v1 = ['```json', '{"v":1}', '```'].join('\n');
+      const v2 = ['```json', '{"v":2}', '```'].join('\n');
+      const messages = [
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: v1, timestamp: 1000 },
+        { role: 'user', content: 'regenerate' },
+        { role: 'assistant', content: v2, timestamp: 2000 },
+      ];
+      openInspectorPanel('artifact', { msg: messages[1], index: 1, messages });
+      const content = panel.querySelector('.inspector-panel-content');
+      content.querySelector('[data-action="diff"]').click();
+
+      const selectors = content.querySelectorAll('.inspector-artifact-diff-select');
+      expect(selectors.length).toBe(2);
+      expect(selectors[0].querySelectorAll('option').length).toBe(2);
+      expect(selectors[1].querySelectorAll('option').length).toBe(2);
+    });
+
+    it('diff view close button hides the diff container', () => {
+      const v1 = ['```json', '{"v":1}', '```'].join('\n');
+      const v2 = ['```json', '{"v":2}', '```'].join('\n');
+      const messages = [
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: v1, timestamp: 1000 },
+        { role: 'user', content: 'regenerate' },
+        { role: 'assistant', content: v2, timestamp: 2000 },
+      ];
+      openInspectorPanel('artifact', { msg: messages[1], index: 1, messages });
+      const content = panel.querySelector('.inspector-panel-content');
+      content.querySelector('[data-action="diff"]').click();
+
+      const closeBtn = content.querySelector('.inspector-artifact-diff-close');
+      closeBtn.click();
+
+      const diffContainer = content.querySelector('.inspector-artifact-diff-container');
+      expect(diffContainer.hidden).toBe(true);
+    });
+
+    it('no version badge or diff button when messages not provided', () => {
+      openInspectorPanel('artifact', { msg: { content: codeContent }, index: 0 });
+      const content = panel.querySelector('.inspector-panel-content');
+      expect(content.querySelector('.inspector-artifact-version-badge')).toBeNull();
+      expect(content.querySelector('[data-action="diff"]')).toBeNull();
     });
   });
 });

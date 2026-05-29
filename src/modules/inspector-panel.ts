@@ -21,7 +21,10 @@ import {
   buildArtifactDownloadName,
   getArtifactTypeLabel,
 } from './artifacts.js';
-import { escapeHtml } from './shared-utils.js';
+import type { Artifact } from './artifacts.js';
+import { diffArtifactVersions } from './artifact-versions.js';
+import { downloadZipArchive } from './zip-builder.js';
+import { escapeHtml, formatBytes } from './shared-utils.js';
 
 let _panelEl = null;
 let _contentEl = null;
@@ -269,10 +272,16 @@ function _renderModelInfo(data) {
 // ─── Artifact Renderer ──────────────────────────────────────────────────────
 
 function _renderArtifactInfo(data) {
-  const { msg } = data;
+  const { msg, messages, index: msgIndex } = data;
   if (!msg?.content) return _renderEmpty();
 
   const artifacts = extractArtifacts(msg.content);
+  // Stamp metadata onto artifacts
+  for (const art of artifacts) {
+    art.messageIndex = msgIndex;
+    art.createdAt = msg.timestamp || Date.now();
+  }
+
   if (artifacts.length === 0) {
     _contentEl.innerHTML = `
       <div class="inspector-empty">
@@ -282,9 +291,23 @@ function _renderArtifactInfo(data) {
     return;
   }
 
+  // Collect version groups across all messages for diff view
+  const versionGroups = _collectArtifactVersions(messages, msgIndex);
+
   let html = `
     <div class="inspector-section">
-      <h3>Artifacts (${artifacts.length})</h3>
+      <div class="inspector-artifact-toolbar">
+        <h3>Artifacts (${artifacts.length})</h3>
+        <div class="inspector-artifact-toolbar-actions">
+          <button type="button" class="inspector-artifact-action" data-action="download-all" title="打包下载全部">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            下载全部
+          </button>
+        </div>
+      </div>
+      <div class="inspector-artifact-search">
+        <input type="text" class="inspector-artifact-search-input" placeholder="搜索 artifact..." />
+      </div>
   `;
 
   for (const [i, artifact] of artifacts.entries()) {
@@ -293,11 +316,17 @@ function _renderArtifactInfo(data) {
     const metaParts = _buildArtifactMeta(artifact);
     const preview = _buildArtifactPreview(artifact);
 
+    // Check if this artifact has versions in other messages
+    const versionKey = _artifactVersionKey(artifact);
+    const versions = versionGroups.get(versionKey) || [];
+    const hasVersions = versions.length > 1;
+
     html += `
-      <div class="inspector-artifact-card" data-artifact-index="${i}">
+      <div class="inspector-artifact-card" data-artifact-index="${i}" data-artifact-search="${escapeHtml((artifact.title + ' ' + typeLabel + ' ' + (artifact.language || '')).toLowerCase())}">
         <div class="inspector-artifact-header">
           <span class="inspector-artifact-icon">${icon}</span>
           <span class="inspector-artifact-title">${escapeHtml(artifact.title || typeLabel)}</span>
+          ${hasVersions ? `<span class="inspector-artifact-version-badge" title="存在 ${versions.length} 个版本">${versions.length} 版本</span>` : ''}
         </div>
         <div class="inspector-artifact-meta">${escapeHtml(metaParts.join(' · '))}</div>
         ${preview}
@@ -310,29 +339,271 @@ function _renderArtifactInfo(data) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             下载
           </button>
+          ${
+            hasVersions
+              ? `
+          <button type="button" class="inspector-artifact-action" data-action="diff" data-artifact-idx="${i}" data-version-key="${escapeHtml(versionKey)}" title="版本对比">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="M5 12h14"/><rect x="2" y="3" width="8" height="6" rx="1"/><rect x="14" y="15" width="8" height="6" rx="1"/></svg>
+            对比
+          </button>`
+              : ''
+          }
         </div>
       </div>
     `;
   }
 
+  // Version diff container (hidden by default)
+  html += '<div class="inspector-artifact-diff-container" hidden></div>';
   html += '</div>';
   _contentEl.innerHTML = html;
 
-  // Attach event listeners for copy/download buttons
+  // Attach event listeners
   _contentEl.querySelectorAll('.inspector-artifact-action').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       const target = /** @type {HTMLElement} */ e.currentTarget;
       const action = target.dataset.action;
       const idx = Number(target.dataset.artifactIdx);
       const art = artifacts[idx];
+      if (action === 'download-all') {
+        _downloadAllArtifacts(artifacts);
+        return;
+      }
       if (!art) return;
       if (action === 'copy') {
         _copyArtifactSource(art);
       } else if (action === 'download') {
         _downloadArtifact(art, idx);
+      } else if (action === 'diff') {
+        const vkey = target.dataset.versionKey;
+        _showVersionDiff(vkey, versionGroups, artifacts, idx);
       }
     });
   });
+
+  // Search/filter handler
+  const searchInput = _contentEl.querySelector('.inspector-artifact-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const query = /** @type {HTMLInputElement} */ e.target.value.toLowerCase().trim();
+      _contentEl.querySelectorAll('.inspector-artifact-card').forEach((card) => {
+        const searchText = card.dataset.artifactSearch || '';
+        card.style.display = !query || searchText.includes(query) ? '' : 'none';
+      });
+    });
+  }
+}
+
+/**
+ * Normalize an artifact title into a stable key for version grouping.
+ * Strips trailing version numbers like " 2", " 3" etc.
+ */
+function _artifactVersionKey(artifact) {
+  return (artifact.title || '').replace(/\s+\d+$/, '').toLowerCase();
+}
+
+/**
+ * Collect all artifact versions across messages, grouped by normalized title.
+ */
+function _collectArtifactVersions(messages, _currentMsgIndex) {
+  const groups = new Map();
+  if (!Array.isArray(messages)) return groups;
+
+  for (let mi = 0; mi < messages.length; mi++) {
+    const m = messages[mi];
+    if (m?.role !== 'assistant' || !m.content) continue;
+    const arts = extractArtifacts(m.content);
+    for (const art of arts) {
+      const key = _artifactVersionKey(art);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push({
+        ...art,
+        messageIndex: mi,
+        createdAt: m.timestamp || Date.now(),
+      });
+    }
+  }
+  return groups;
+}
+
+/**
+ * Show inline diff view comparing two artifact versions.
+ */
+function _showVersionDiff(versionKey, versionGroups, currentArtifacts, currentIndex) {
+  const container = _contentEl.querySelector('.inspector-artifact-diff-container');
+  if (!container) return;
+
+  const versions = versionGroups.get(versionKey) || [];
+  if (versions.length < 2) return;
+
+  // Build selector for two versions
+  const buildOptions = (selectedIdx) =>
+    versions
+      .map(
+        (v, i) =>
+          `<option value="${i}" ${i === selectedIdx ? 'selected' : ''}>消息 #${(v.messageIndex ?? 0) + 1} — ${new Date(v.createdAt || Date.now()).toLocaleString()}</option>`
+      )
+      .join('');
+
+  const diffHtml = `
+    <div class="inspector-artifact-diff">
+      <div class="inspector-artifact-diff-header">
+        <h4>版本对比</h4>
+        <button type="button" class="inspector-artifact-diff-close" title="关闭对比">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="inspector-artifact-diff-selectors">
+        <label>旧版本: <select class="inspector-artifact-diff-select" data-side="old">${buildOptions(0)}</select></label>
+        <label>新版本: <select class="inspector-artifact-diff-select" data-side="new">${buildOptions(versions.length - 1)}</select></label>
+      </div>
+      <div class="inspector-artifact-diff-stats"></div>
+      <div class="inspector-artifact-diff-view"></div>
+    </div>
+  `;
+
+  container.innerHTML = diffHtml;
+  container.hidden = false;
+
+  // Initial diff render
+  _renderDiffContent(container, versions, 0, versions.length - 1);
+
+  // Selector change handlers
+  container.querySelectorAll('.inspector-artifact-diff-select').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const oldIdx = Number(container.querySelector('[data-side="old"]').value);
+      const newIdx = Number(container.querySelector('[data-side="new"]').value);
+      _renderDiffContent(container, versions, oldIdx, newIdx);
+    });
+  });
+
+  // Close button
+  const closeBtn = container.querySelector('.inspector-artifact-diff-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      container.hidden = true;
+      container.innerHTML = '';
+    });
+  }
+
+  // Scroll into view (not available in all environments like jsdom)
+  if (typeof container.scrollIntoView === 'function') {
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+/**
+ * Render diff lines into the diff view container.
+ */
+function _renderDiffContent(container, versions, oldIdx, newIdx) {
+  const statsEl = container.querySelector('.inspector-artifact-diff-stats');
+  const viewEl = container.querySelector('.inspector-artifact-diff-view');
+  if (!statsEl || !viewEl) return;
+
+  const oldVersion = versions[oldIdx];
+  const newVersion = versions[newIdx];
+  if (!oldVersion || !newVersion) return;
+
+  const diff = diffArtifactVersions(oldVersion.source, newVersion.source);
+  statsEl.innerHTML = `
+    <span class="diff-stat-add">+${diff.added} 行</span>
+    <span class="diff-stat-remove">-${diff.removed} 行</span>
+    <span class="diff-stat-total">共 ${diff.newLineCount} 行</span>
+  `;
+
+  // Compute line-level diff
+  const oldLines = String(oldVersion.source || '').split('\n');
+  const newLines = String(newVersion.source || '').split('\n');
+  const diffLines = _computeLineDiff(oldLines, newLines);
+
+  let linesHtml = '';
+  for (const line of diffLines) {
+    const escapedContent = escapeHtml(line.text);
+    if (line.type === 'add') {
+      linesHtml += `<div class="diff-line diff-line-add"><span class="diff-line-sign">+</span>${escapedContent}</div>`;
+    } else if (line.type === 'remove') {
+      linesHtml += `<div class="diff-line diff-line-remove"><span class="diff-line-sign">-</span>${escapedContent}</div>`;
+    } else {
+      linesHtml += `<div class="diff-line diff-line-ctx"><span class="diff-line-sign"> </span>${escapedContent}</div>`;
+    }
+  }
+
+  viewEl.innerHTML = `<pre class="diff-pre">${linesHtml || '<div class="diff-line diff-line-ctx">无差异</div>'}</pre>`;
+}
+
+/**
+ * Simple LCS-based line diff algorithm.
+ */
+function _computeLineDiff(oldLines, newLines) {
+  const m = oldLines.length;
+  const n = newLines.length;
+
+  // Build LCS table
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = oldLines[i - 1] === newLines[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+
+  // Backtrack to produce diff
+  const result = [];
+  let i = m,
+    j = n;
+  const temp = [];
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      temp.push({ type: 'ctx', text: oldLines[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      temp.push({ type: 'add', text: newLines[j - 1] });
+      j--;
+    } else {
+      temp.push({ type: 'remove', text: oldLines[i - 1] });
+      i--;
+    }
+  }
+  temp.reverse();
+
+  // Collapse long context sections (show max 3 context lines around changes)
+  const MAX_CONTEXT = 3;
+  let lastChangeIdx = -MAX_CONTEXT - 1;
+  for (let k = 0; k < temp.length; k++) {
+    if (temp[k].type !== 'ctx') {
+      lastChangeIdx = k;
+    }
+    if (temp[k].type === 'ctx') {
+      const distFromLastChange = k - lastChangeIdx;
+      const distToNextChange = _distToNextChange(temp, k);
+      if (distFromLastChange > MAX_CONTEXT && distToNextChange > MAX_CONTEXT) {
+        continue; // skip far-away context lines
+      }
+    }
+    result.push(temp[k]);
+  }
+
+  return result;
+}
+
+function _distToNextChange(lines, fromIdx) {
+  for (let k = fromIdx + 1; k < lines.length; k++) {
+    if (lines[k].type !== 'ctx') return k - fromIdx;
+  }
+  return lines.length - fromIdx;
+}
+
+/**
+ * Download all artifacts as a ZIP file.
+ */
+function _downloadAllArtifacts(artifacts) {
+  if (artifacts.length === 0) return;
+  const files = artifacts.map((art, i) => ({
+    name: buildArtifactDownloadName(art, i),
+    content: art.source,
+  }));
+  downloadZipArchive(files, `artifacts-${Date.now()}.zip`);
+  _showInspectorToast(`已打包 ${artifacts.length} 个 artifact`);
 }
 
 /**
@@ -344,7 +615,9 @@ function _buildArtifactMeta(artifact) {
   const parts = [getArtifactTypeLabel(artifact.type)];
   if (artifact.language) parts.push(artifact.language);
   if (artifact.format) parts.push(artifact.format.toUpperCase());
-  if (artifact.size) parts.push(_formatBytes(artifact.size));
+  if (artifact.size) parts.push(formatBytes(artifact.size));
+  if (artifact.messageIndex != null) parts.push(`消息 #${artifact.messageIndex + 1}`);
+  if (artifact.createdAt) parts.push(new Date(artifact.createdAt).toLocaleString());
   if (artifact.truncated) parts.push('已裁剪');
   return parts;
 }
@@ -547,18 +820,6 @@ function _showInspectorToast(message) {
   toast.textContent = message;
   _contentEl.appendChild(toast);
   setTimeout(() => toast.remove(), 1500);
-}
-
-/**
- * Format byte size to human-readable string.
- * @param {number} bytes
- * @returns {string}
- */
-function _formatBytes(bytes) {
-  if (bytes === 0) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ─── Toolbar ────────────────────────────────────────────────────────────────

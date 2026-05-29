@@ -20,6 +20,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    exclude: ['tests/_pending/**', 'node_modules', 'dist'],
+    exclude: ['tests/_pending/**', 'e2e/**', 'node_modules', 'dist'],
   },
 });

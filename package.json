@@ -19,7 +19,8 @@
     "preview": "vite preview",
     "electron:dev": "vite build && electron .",
     "electron:build": "vite build && electron-builder --win --x64",
-    "electron:build:portable": "vite build && electron-builder --win portable"
+    "electron:build:portable": "vite build && electron-builder --win portable",
+    "test:e2e": "npx playwright test"
   },
   "build": {
     "appId": "com.deepchat.app",
@@ -60,6 +61,7 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^25.9.1",
     "electron": "^42.1.0",
@@ -77,7 +79,7 @@
     "katex": "^0.16.47",
     "marked": "^18.0.3",
     "mermaid": "^11.15.0",
-    "zod": "^4.4.3",
-    "tsx": "^4.22.3"
+    "tsx": "^4.22.3",
+    "zod": "^4.4.3"
   }
 }

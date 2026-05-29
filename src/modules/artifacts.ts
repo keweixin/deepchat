@@ -86,6 +86,8 @@ export interface Artifact {
   format?: string;
   language?: string;
   ext?: string;
+  messageIndex?: number;
+  createdAt?: number;
 }
 
 export interface ExtractOptions {
