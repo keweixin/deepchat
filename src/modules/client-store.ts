@@ -1,8 +1,10 @@
 import { hasNativeBridge } from './bridge.ts';
 import { getSettings, saveSettings } from './settings-core.js';
 import { SAVE_DEBOUNCE_MS } from './constants.js';
+import { loadAllMessages, saveAllMessages, saveMessages } from './conversation-db.js';
 
 const CONVERSATIONS_KEY = 'dc_conversations';
+const META_VERSION_KEY = 'dc_conversations_meta_version';
 const BACKUP_SECRETS_EXCLUDED = [
   'settings.apiKey',
   'settings.tavilyApiKey',
@@ -16,22 +18,65 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
 export async function loadConversations(): Promise<any[]> {
   if (hasNativeBridge()) return (window as any).deepchat.conversations.load();
+
   const saved = localStorage.getItem(CONVERSATIONS_KEY);
   if (!saved) return [];
+
   try {
     const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? parsed : [];
+    const metadataList = Array.isArray(parsed) ? parsed : [];
+    if (metadataList.length === 0) return [];
+
+    // Detect legacy storage: metadata still embeds messages → migrate to IndexedDB
+    const hasLegacyMessages = metadataList.some((m: any) => Array.isArray(m.messages) && m.messages.length > 0);
+    if (hasLegacyMessages) {
+      await migrateLegacyStorage(metadataList);
+    }
+
+    // Load messages from IndexedDB and merge with metadata
+    const allMessages = await loadAllMessages();
+    return metadataList.map((meta: any) => ({
+      ...meta,
+      messages: allMessages[meta.id] || meta.messages || [],
+    }));
   } catch {
     return [];
   }
 }
 
+/** Migrate conversations that still embed messages in localStorage to IndexedDB */
+async function migrateLegacyStorage(metadataList: any[]): Promise<void> {
+  try {
+    const entries = metadataList
+      .filter((m) => Array.isArray(m.messages) && m.messages.length > 0)
+      .map((m) => ({ conversationId: m.id, messages: m.messages }));
+    if (entries.length > 0) {
+      await saveAllMessages(entries);
+      // Strip messages from localStorage copy
+      const stripped = metadataList.map((m) => {
+        const { messages: _messages, ...rest } = m;
+        return rest;
+      });
+      localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(stripped));
+      localStorage.setItem(META_VERSION_KEY, '1');
+    }
+  } catch (err) {
+    console.warn('[ClientStore] Legacy migration failed:', (err as Error).message);
+  }
+}
+
 export function saveConversations(conversations: any[]): Promise<void> {
   const safe = Array.isArray(conversations) ? conversations : [];
-  const serialized = JSON.stringify(safe);
 
-  // Skip if unchanged
-  if (serialized === lastSavedSnapshot) return Promise.resolve();
+  // Separate metadata (lightweight) from messages (heavy payload)
+  const metadata = safe.map((conv) => {
+    const { messages: _messages, ...rest } = conv;
+    return rest;
+  });
+  const serialized = JSON.stringify(metadata);
+
+  // Skip localStorage write if metadata unchanged, but always save messages to IndexedDB
+  const metadataUnchanged = serialized === lastSavedSnapshot;
 
   // Debounce: cancel pending save and schedule new one
   if (persistTimer) clearTimeout(persistTimer);
@@ -39,12 +84,19 @@ export function saveConversations(conversations: any[]): Promise<void> {
   return new Promise((resolve, reject) => {
     persistTimer = setTimeout(async () => {
       persistTimer = null;
-      lastSavedSnapshot = serialized;
       try {
         if (hasNativeBridge()) {
+          // Electron path: keep existing behavior for now
           await (window as any).deepchat.conversations.save(safe);
         } else {
-          localStorage.setItem(CONVERSATIONS_KEY, serialized);
+          // Browser path: metadata → localStorage, messages → IndexedDB
+          if (!metadataUnchanged) {
+            localStorage.setItem(CONVERSATIONS_KEY, serialized);
+            lastSavedSnapshot = serialized;
+          }
+          await saveAllMessages(
+            safe.map((c) => ({ conversationId: c.id, messages: c.messages || [] }))
+          );
         }
         resolve();
       } catch (err) {

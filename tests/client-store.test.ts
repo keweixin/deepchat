@@ -100,7 +100,8 @@ describe('loadConversations', () => {
     const convs = [{ id: '1', title: 'test' }];
     localStorage.setItem('dc_conversations', JSON.stringify(convs));
     const result = await loadConversations();
-    expect(result).toEqual(convs);
+    // IndexedDB is unavailable in jsdom, so messages default to []
+    expect(result).toEqual([{ id: '1', title: 'test', messages: [] }]);
   });
 
   it('returns empty array for invalid JSON', async () => {
