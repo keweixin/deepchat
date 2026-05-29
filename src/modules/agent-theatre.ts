@@ -9,6 +9,7 @@
  */
 
 import { escapeHtml } from './shared-utils.js';
+import { getActorRoleForTool, TraceRecorder } from './agent-trace.js';
 
 // ─── SVG Icons (inline, no external assets) ─────────────────────────────────
 
@@ -69,6 +70,7 @@ interface CrewMember {
   status: string;
   currentAction?: string;
   outputSummary?: string;
+  toolCount?: number;
 }
 
 interface AgentRun {
@@ -78,6 +80,7 @@ interface AgentRun {
 
 interface TheatreOpts {
   showFlow?: boolean;
+  traceRecorder?: TraceRecorder | null;
 }
 
 /**
@@ -86,6 +89,10 @@ interface TheatreOpts {
 export function renderAgentTheatre(container: HTMLElement | null, agentRun: AgentRun | null, opts: TheatreOpts = {}) {
   if (!container) return;
   const showFlow = opts.showFlow !== false;
+  const traceRecorder = opts.traceRecorder || null;
+
+  // Compute tool call counts per role from traceRecorder
+  const toolCountByRole = _computeToolCounts(traceRecorder);
 
   // Build or reuse wrapper
   let wrapper = container.querySelector('.agent-theatre-wrapper') as HTMLElement | null;
@@ -138,15 +145,25 @@ export function renderAgentTheatre(container: HTMLElement | null, agentRun: Agen
     const member = agentRun?.crew?.find((m) => m.id === role.id);
     const status = member?.status || 'idle';
     const animClass = STATUS_ANIMATION[status] || '';
+    const toolCount = toolCountByRole.get(role.id) || 0;
+    const statusText = member?.currentAction || _statusLabel(status);
+    const actionText = statusText !== _statusLabel('idle') ? statusText : '';
 
     const actorEl = document.createElement('div');
     actorEl.className = `theatre-actor ${animClass}`;
     actorEl.dataset.roleId = role.id;
+    actorEl.dataset.toolCount = String(toolCount);
     actorEl.innerHTML = `
       <div class="theatre-actor-icon" style="color:${role.color}">${role.iconSvg}</div>
       <div class="theatre-actor-name">${role.label}</div>
-      <div class="theatre-actor-status">${member?.currentAction || _statusLabel(status)}</div>
+      <div class="theatre-actor-status">${escapeHtml(statusText)}</div>
       ${member?.outputSummary ? `<div class="theatre-actor-summary">${escapeHtml(member.outputSummary)}</div>` : ''}
+      <div class="theatre-actor-tooltip" role="tooltip">
+        <div class="theatre-tooltip-header" style="color:${role.color}">${role.label}</div>
+        <div class="theatre-tooltip-status">${_statusLabel(status)}</div>
+        ${actionText ? `<div class="theatre-tooltip-action">${escapeHtml(actionText)}</div>` : ''}
+        ${toolCount > 0 ? `<div class="theatre-tooltip-meta">Tool calls: ${toolCount}</div>` : ''}
+      </div>
     `;
     stage.appendChild(actorEl);
     actorMap.set(role.id, actorEl);
@@ -172,16 +189,32 @@ export function renderAgentTheatre(container: HTMLElement | null, agentRun: Agen
     }
   }
 
-  // Click: dispatch role-click event (same contract as agent-crew)
+  // Click: dispatch role-click event (enhanced with traceRecorder)
   stage.addEventListener('click', (e) => {
     const actorEl = (e.target as HTMLElement).closest('.theatre-actor') as HTMLElement | null;
     if (!actorEl) return;
     const roleId = actorEl.dataset.roleId;
     if (!roleId) return;
+
+    // Highlight the clicked role
+    for (const el of stage.querySelectorAll('.theatre-actor')) {
+      el.classList.remove('theatre-actor--highlighted');
+    }
+    actorEl.classList.add('theatre-actor--highlighted');
+
+    // Gather tool calls for this role from traceRecorder
+    const roleToolCalls = _getToolCallsForRole(traceRecorder, roleId);
+
     stage.dispatchEvent(
       new CustomEvent('deepchat:crew-role-click', {
         bubbles: true,
-        detail: { roleId, shiftKey: (e as MouseEvent).shiftKey },
+        detail: {
+          roleId,
+          shiftKey: (e as MouseEvent).shiftKey,
+          traceRecorder,
+          toolCalls: roleToolCalls,
+          toolCount: roleToolCalls.length,
+        },
       })
     );
   });
@@ -193,6 +226,7 @@ function _updateTheatreActors(wrapper: HTMLElement, agentRun: AgentRun | null) {
   for (const actorEl of actors) {
     const roleId = (actorEl as HTMLElement).dataset.roleId;
     const member = agentRun?.crew?.find((m) => m.id === roleId);
+    const toolCount = Number((actorEl as HTMLElement).dataset.toolCount) || 0;
     const status = member?.status || 'idle';
 
     // Update animation class
@@ -219,6 +253,31 @@ function _updateTheatreActors(wrapper: HTMLElement, agentRun: AgentRun | null) {
       }
     } else if (summaryEl) {
       summaryEl.remove();
+    }
+
+    // Update tooltip status text
+    const tooltipStatusEl = actorEl.querySelector('.theatre-tooltip-status');
+    if (tooltipStatusEl) tooltipStatusEl.textContent = _statusLabel(status);
+    const tooltipActionEl = actorEl.querySelector('.theatre-tooltip-action');
+    const actionText = member?.currentAction || '';
+    if (actionText && actionText !== _statusLabel('idle')) {
+      if (tooltipActionEl) {
+        tooltipActionEl.textContent = actionText;
+      } else {
+        const newActionEl = document.createElement('div');
+        newActionEl.className = 'theatre-tooltip-action';
+        newActionEl.textContent = actionText;
+        const tooltipMeta = actorEl.querySelector('.theatre-tooltip-meta');
+        const tooltip = actorEl.querySelector('.theatre-actor-tooltip');
+        if (tooltip) tooltip.insertBefore(newActionEl, tooltipMeta || null);
+      }
+    } else if (tooltipActionEl) {
+      tooltipActionEl.remove();
+    }
+    // Update tooltip meta (tool count) — only on full rebuild via data attribute
+    if (toolCount > 0) {
+      const tooltipMetaEl = actorEl.querySelector('.theatre-tooltip-meta');
+      if (tooltipMetaEl) tooltipMetaEl.textContent = `Tool calls: ${toolCount}`;
     }
   }
 
@@ -266,6 +325,26 @@ function _drawFlowPaths(svg: SVGSVGElement, actorMap: Map<string, HTMLElement>, 
 
   svg.innerHTML = pathsHtml;
   svg.setAttribute('viewBox', `0 0 ${stageRect.width} ${stageRect.height}`);
+}
+
+// ─── Tool Count Helpers ─────────────────────────────────────────────────────
+
+/** Compute tool call counts per role from a TraceRecorder */
+function _computeToolCounts(recorder: TraceRecorder | null): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (!recorder) return counts;
+  const toolCalls = recorder.getAllToolCalls();
+  for (const tc of toolCalls) {
+    const roleId = getActorRoleForTool(tc.toolName);
+    counts.set(roleId, (counts.get(roleId) || 0) + 1);
+  }
+  return counts;
+}
+
+/** Get tool call records for a specific role from a TraceRecorder */
+function _getToolCallsForRole(recorder: TraceRecorder | null, roleId: string): Record<string, unknown>[] {
+  if (!recorder) return [];
+  return recorder.getAllToolCalls().filter((tc) => getActorRoleForTool(tc.toolName) === roleId);
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'path';
@@ -568,6 +569,123 @@ describe('electron tools helpers', () => {
         },
       });
       expect(structured.result.snippet.some((line) => line.text.includes('maxInputTokens'))).toBe(true);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('shows git status for a workspace with uncommitted changes', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-git-status-'));
+    try {
+      execFileSync('git', ['init'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: tmpDir, stdio: 'ignore' });
+      await fs.writeFile(path.join(tmpDir, 'README.md'), 'initial content', 'utf8');
+      execFileSync('git', ['add', '.'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-m', 'initial commit'], { cwd: tmpDir, stdio: 'ignore' });
+
+      await fs.writeFile(path.join(tmpDir, 'README.md'), 'modified content', 'utf8');
+      await fs.writeFile(path.join(tmpDir, 'new-file.txt'), 'new', 'utf8');
+
+      const output = await executeTool('git_status', {}, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('Git 工作区状态');
+      expect(output).toContain('Structured Status:');
+      expect(output).toContain('README.md');
+      expect(output).toContain('modified');
+      expect(output).toContain('new-file.txt');
+      expect(output).toContain('untracked');
+
+      const structured = extractStructuredPayload(output, 'Structured Status:');
+      expect(structured).toMatchObject({
+        type: 'deepchat.gitStatus',
+        version: 1,
+        branch: 'master',
+      });
+      expect(structured.files.length).toBeGreaterThanOrEqual(2);
+      expect(structured.summary.modified).toBeGreaterThanOrEqual(1);
+      expect(structured.summary.untracked).toBeGreaterThanOrEqual(1);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('shows git diff for modified files', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-git-diff-'));
+    try {
+      execFileSync('git', ['init'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: tmpDir, stdio: 'ignore' });
+      await fs.writeFile(path.join(tmpDir, 'README.md'), 'line1\nline2\nline3\n', 'utf8');
+      execFileSync('git', ['add', '.'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-m', 'initial'], { cwd: tmpDir, stdio: 'ignore' });
+
+      await fs.writeFile(path.join(tmpDir, 'README.md'), 'line1\nmodified line2\nline3\nnew line4\n', 'utf8');
+
+      const output = await executeTool('git_diff', {}, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('Git 差异');
+      expect(output).toContain('Structured Diff:');
+      expect(output).toContain('README.md');
+      expect(output).toContain('modified line2');
+      expect(output).toContain('未暂存');
+
+      const structured = extractStructuredPayload(output, 'Structured Diff:');
+      expect(structured).toMatchObject({
+        type: 'deepchat.gitDiff',
+        version: 1,
+        staged: false,
+      });
+      expect(structured.files).toContain('README.md');
+      expect(structured.additions).toBeGreaterThan(0);
+
+      // Test staged diff
+      execFileSync('git', ['add', 'README.md'], { cwd: tmpDir, stdio: 'ignore' });
+      const stagedOutput = await executeTool('git_diff', { staged: true }, { workspaceRoots: [tmpDir] });
+      expect(stagedOutput).toContain('已暂存');
+      expect(stagedOutput).toContain('modified line2');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('shows git log with commit history', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-git-log-'));
+    try {
+      execFileSync('git', ['init'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: tmpDir, stdio: 'ignore' });
+
+      await fs.writeFile(path.join(tmpDir, 'a.txt'), 'a', 'utf8');
+      execFileSync('git', ['add', '.'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-m', 'first commit'], { cwd: tmpDir, stdio: 'ignore' });
+
+      await fs.writeFile(path.join(tmpDir, 'b.txt'), 'b', 'utf8');
+      execFileSync('git', ['add', '.'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-m', 'second commit'], { cwd: tmpDir, stdio: 'ignore' });
+
+      const output = await executeTool('git_log', { count: 5 }, { workspaceRoots: [tmpDir] });
+
+      expect(output).toContain('Git 提交历史');
+      expect(output).toContain('Structured Log:');
+      expect(output).toContain('second commit');
+      expect(output).toContain('first commit');
+      expect(output).toContain('Test User');
+
+      const structured = extractStructuredPayload(output, 'Structured Log:');
+      expect(structured).toMatchObject({
+        type: 'deepchat.gitLog',
+        version: 1,
+        count: 5,
+      });
+      expect(structured.commits).toHaveLength(2);
+      expect(structured.commits[0].message).toBe('second commit');
+      expect(structured.commits[1].message).toBe('first commit');
+
+      // Test with file filter
+      const fileOutput = await executeTool('git_log', { file: 'a.txt' }, { workspaceRoots: [tmpDir] });
+      expect(fileOutput).toContain('first commit');
+      expect(fileOutput).not.toContain('second commit');
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }

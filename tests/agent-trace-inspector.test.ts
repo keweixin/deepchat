@@ -198,4 +198,103 @@ describe('agent-trace-inspector', () => {
     const title = document.querySelector('.trace-inspector-title');
     expect(title.textContent).toContain('Test Chat');
   });
+
+  it('renders Rerun from here button on tool call cards', () => {
+    const recorder = new TraceRecorder({ runId: 'run_1' });
+    recorder.recordRunStart();
+    recorder.recordToolRequest({ toolCallId: 'tc_1', toolName: 'web_search', autoApproved: true });
+    recorder.recordToolResult({ toolCallId: 'tc_1', toolName: 'web_search', ok: true, outputSummary: 'Found results' });
+    recorder.recordRunEnd({ status: RUN_STATUS.DONE });
+
+    openTraceInspector(recorder);
+    const cards = document.querySelectorAll('.trace-tool-card');
+    expect(cards).toHaveLength(1);
+    const rerunBtn = cards[0].querySelector('.trace-action-btn--rerun');
+    expect(rerunBtn).not.toBeNull();
+    expect(rerunBtn.textContent).toBe('Rerun from here');
+  });
+
+  it('dispatches deepchat:rerun-from-tool on Rerun click', () => {
+    const recorder = new TraceRecorder({ runId: 'run_1' });
+    recorder.recordRunStart();
+    recorder.recordToolRequest({ toolCallId: 'tc_1', toolName: 'web_search', autoApproved: true });
+    recorder.recordToolResult({ toolCallId: 'tc_1', toolName: 'web_search', ok: true });
+    recorder.recordRunEnd({ status: RUN_STATUS.DONE });
+
+    openTraceInspector(recorder);
+    const handler = vi.fn();
+    document.addEventListener('deepchat:rerun-from-tool', handler);
+
+    const rerunBtn = document.querySelector('.trace-action-btn--rerun');
+    rerunBtn.click();
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler.mock.calls[0][0].detail.toolName).toBe('web_search');
+    expect(handler.mock.calls[0][0].detail.toolCallId).toBe('tc_1');
+    expect(rerunBtn.textContent).toBe('Rerun requested');
+
+    document.removeEventListener('deepchat:rerun-from-tool', handler);
+  });
+
+  it('renders Override plan button when run is active', () => {
+    const recorder = new TraceRecorder({ runId: 'run_1' });
+    recorder.recordRunStart();
+    // Run is still active (no recordRunEnd)
+
+    openTraceInspector(recorder);
+    const overrideBtn = document.querySelector('.trace-action-btn--override');
+    expect(overrideBtn).not.toBeNull();
+    expect(overrideBtn.textContent).toBe('Override plan');
+  });
+
+  it('does not render Override plan button when run is done', () => {
+    const recorder = new TraceRecorder({ runId: 'run_1' });
+    recorder.recordRunStart();
+    recorder.recordRunEnd({ status: RUN_STATUS.DONE });
+
+    openTraceInspector(recorder);
+    const overrideBtn = document.querySelector('.trace-action-btn--override');
+    expect(overrideBtn).toBeNull();
+  });
+
+  it('dispatches deepchat:override-plan on Override click', () => {
+    const recorder = new TraceRecorder({ runId: 'run_1' });
+    recorder.recordRunStart();
+
+    openTraceInspector(recorder);
+    const handler = vi.fn();
+    document.addEventListener('deepchat:override-plan', handler);
+
+    const overrideBtn = document.querySelector('.trace-action-btn--override');
+    overrideBtn.click();
+
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler.mock.calls[0][0].detail.runId).toBe('run_1');
+    expect(overrideBtn.textContent).toBe('Override sent');
+
+    document.removeEventListener('deepchat:override-plan', handler);
+  });
+
+  it('scrolls to focused role tools when focusedRoleId is set', () => {
+    const recorder = new TraceRecorder({ runId: 'run_1' });
+    recorder.recordRunStart();
+    recorder.recordToolRequest({ toolCallId: 'tc_1', toolName: 'web_search', autoApproved: true });
+    recorder.recordToolResult({ toolCallId: 'tc_1', toolName: 'web_search', ok: true });
+    recorder.recordToolRequest({ toolCallId: 'tc_2', toolName: 'read_file', autoApproved: true });
+    recorder.recordToolResult({ toolCallId: 'tc_2', toolName: 'read_file', ok: true });
+    recorder.recordRunEnd({ status: RUN_STATUS.DONE });
+
+    openTraceInspector(recorder, { focusedRoleId: 'researcher' });
+
+    // Wait for requestAnimationFrame
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        const focusedCards = document.querySelectorAll('.trace-tool-card--focused');
+        expect(focusedCards.length).toBeGreaterThanOrEqual(1);
+        // The focused card should be the web_search one (researcher role)
+        expect(focusedCards[0].textContent).toContain('web_search');
+        resolve(undefined);
+      });
+    });
+  });
 });

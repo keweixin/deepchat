@@ -424,6 +424,74 @@
   overflow-y: auto;
 }
 
+/* ─── Action Buttons ──────────────────────────────────────────────────────── */
+
+.trace-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, 0.15));
+  border-radius: 6px;
+  background: var(--bg-secondary, rgba(30, 41, 59, 0.5));
+  color: var(--text-secondary, #94a3b8);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+  white-space: nowrap;
+}
+
+.trace-action-btn:hover {
+  background: var(--bg-hover, rgba(148, 163, 184, 0.1));
+  color: var(--text-primary, #f1f5f9);
+  border-color: var(--border-hover, rgba(148, 163, 184, 0.25));
+}
+
+.trace-action-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.trace-action-btn--rerun {
+  margin-top: 8px;
+  width: 100%;
+  justify-content: center;
+}
+
+.trace-action-btn--rerun:hover {
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.trace-action-btn--override {
+  margin-left: auto;
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.trace-action-btn--override:hover {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+/* ─── Focused Tool Card ───────────────────────────────────────────────────── */
+
+.trace-tool-card--focused {
+  border-color: var(--accent-primary, #2dd4bf);
+  box-shadow: 0 0 0 1px var(--accent-primary, #2dd4bf);
+}
+
+.trace-actor-card--focused {
+  border-color: var(--accent-primary, #2dd4bf);
+  box-shadow: 0 0 0 1px var(--accent-primary, #2dd4bf);
+  background: var(--bg-tertiary, rgba(45, 212, 191, 0.05));
+}
+
 /* ─── Actor Grid ──────────────────────────────────────────────────────────── */
 
 .trace-actor-grid {

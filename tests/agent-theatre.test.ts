@@ -168,6 +168,77 @@ describe('agent-theatre', () => {
     expect(actors.length).toBe(6);
     expect(actors[0].classList.contains('theatre-actor--thinking')).toBe(false);
   });
+
+  it('renders tooltip on each actor card', () => {
+    renderAgentTheatre(container, makeAgentRun());
+    const actors = container.querySelectorAll('.theatre-actor');
+    for (const actor of actors) {
+      const tooltip = actor.querySelector('.theatre-actor-tooltip');
+      expect(tooltip).toBeTruthy();
+      expect(tooltip.querySelector('.theatre-tooltip-header')).toBeTruthy();
+      expect(tooltip.querySelector('.theatre-tooltip-status')).toBeTruthy();
+    }
+  });
+
+  it('shows tool count in tooltip when traceRecorder is provided', () => {
+    const mockRecorder = {
+      getAllToolCalls: () => [{ toolName: 'read_file' }, { toolName: 'search_workspace' }, { toolName: 'web_search' }],
+    };
+    renderAgentTheatre(container, makeAgentRun(), { traceRecorder: mockRecorder as any });
+    const readerActor = container.querySelector('.theatre-actor[data-role-id="reader"]');
+    const meta = readerActor.querySelector('.theatre-tooltip-meta');
+    expect(meta).toBeTruthy();
+    expect(meta.textContent).toContain('2');
+
+    const researcherActor = container.querySelector('.theatre-actor[data-role-id="researcher"]');
+    const researcherMeta = researcherActor.querySelector('.theatre-tooltip-meta');
+    expect(researcherMeta).toBeTruthy();
+    expect(researcherMeta.textContent).toContain('1');
+  });
+
+  it('dispatches crew-role-click with traceRecorder detail', () => {
+    const mockRecorder = {
+      getAllToolCalls: () => [{ toolName: 'read_file' }],
+    };
+    renderAgentTheatre(container, makeAgentRun(), { traceRecorder: mockRecorder as any });
+    const handler = vi.fn();
+    container.querySelector('.agent-theatre-stage').addEventListener('deepchat:crew-role-click', handler);
+    const actor = container.querySelector('.theatre-actor[data-role-id="reader"]');
+    actor.click();
+    expect(handler).toHaveBeenCalledOnce();
+    const detail = handler.mock.calls[0][0].detail;
+    expect(detail.roleId).toBe('reader');
+    expect(detail.traceRecorder).toBe(mockRecorder);
+    expect(detail.toolCalls).toHaveLength(1);
+    expect(detail.toolCount).toBe(1);
+  });
+
+  it('highlights clicked actor and removes highlight from others', () => {
+    renderAgentTheatre(container, makeAgentRun());
+    const planner = container.querySelector('.theatre-actor[data-role-id="planner"]');
+    const reader = container.querySelector('.theatre-actor[data-role-id="reader"]');
+
+    planner.click();
+    expect(planner.classList.contains('theatre-actor--highlighted')).toBe(true);
+    expect(reader.classList.contains('theatre-actor--highlighted')).toBe(false);
+
+    reader.click();
+    expect(reader.classList.contains('theatre-actor--highlighted')).toBe(true);
+    expect(planner.classList.contains('theatre-actor--highlighted')).toBe(false);
+  });
+
+  it('sets data-tool-count attribute on actor cards', () => {
+    const mockRecorder = {
+      getAllToolCalls: () => [{ toolName: 'read_file' }, { toolName: 'read_file' }, { toolName: 'web_search' }],
+    };
+    renderAgentTheatre(container, makeAgentRun(), { traceRecorder: mockRecorder as any });
+    const reader = container.querySelector('.theatre-actor[data-role-id="reader"]');
+    expect(reader.dataset.toolCount).toBe('2');
+    const researcher = container.querySelector('.theatre-actor[data-role-id="researcher"]');
+    expect(researcher.dataset.toolCount).toBe('1');
+    const planner = container.querySelector('.theatre-actor[data-role-id="planner"]');
+    expect(planner.dataset.toolCount).toBe('0');
+  });
 });
 
 describe('setCrewDisplayMode', () => {

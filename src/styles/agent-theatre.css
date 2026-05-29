@@ -168,6 +168,63 @@
   white-space: nowrap;
 }
 
+/* ─── Tooltip ─────────────────────────────────────────────────────────────── */
+
+.theatre-actor-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 140px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-primary, #111827);
+  border: 1px solid var(--border-color, #374151);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  text-align: left;
+  z-index: 10;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.theatre-actor:hover .theatre-actor-tooltip {
+  display: block;
+}
+
+.theatre-tooltip-header {
+  font-weight: 600;
+  font-size: 0.75rem;
+  margin-bottom: 2px;
+}
+
+.theatre-tooltip-status {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.theatre-tooltip-action {
+  color: var(--text-tertiary, #6b7280);
+  margin-top: 2px;
+  font-size: 0.625rem;
+}
+
+.theatre-tooltip-meta {
+  color: var(--accent-primary, #3b82f6);
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+/* ─── Actor Highlight ─────────────────────────────────────────────────────── */
+
+.theatre-actor--highlighted {
+  border-color: var(--accent-primary, #3b82f6) !important;
+  box-shadow:
+    0 0 0 2px var(--accent-primary, #3b82f6),
+    0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
 /* ─── Status Animations ───────────────────────────────────────────────────── */
 
 /* thinking — breathing glow */

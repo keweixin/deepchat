@@ -24,12 +24,17 @@ let _overlay: HTMLElement | null = null;
 let _panel: HTMLElement | null = null;
 let _currentRecorder: TraceRecorder | null = null;
 let _isOpen = false;
+let _focusedRoleId: string | null = null;
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-export function openTraceInspector(recorder: TraceRecorder | null, options: { conversationTitle?: string } = {}) {
+export function openTraceInspector(
+  recorder: TraceRecorder | null,
+  options: { conversationTitle?: string; focusedRoleId?: string; readOnly?: boolean } = {}
+) {
   if (!recorder) return;
   _currentRecorder = recorder;
+  _focusedRoleId = options.focusedRoleId || null;
   _ensureDOM();
   _render(recorder, options);
   _show();
@@ -113,7 +118,7 @@ function _render(recorder: TraceRecorder, options: { conversationTitle?: string 
   _panel.innerHTML = '';
 
   // Header
-  _panel.appendChild(_renderHeader(conversationTitle));
+  _panel.appendChild(_renderHeader(conversationTitle, recorder));
 
   // Run summary bar
   _panel.appendChild(_renderRunSummary(summary));
@@ -144,9 +149,14 @@ function _render(recorder: TraceRecorder, options: { conversationTitle?: string 
   body.appendChild(_renderExportActions(recorder));
 
   _panel.appendChild(body);
+
+  // If a role is focused, scroll to and highlight that role's tool cards
+  if (_focusedRoleId) {
+    requestAnimationFrame(() => _scrollToRoleTools(_focusedRoleId!));
+  }
 }
 
-function _renderHeader(title: string) {
+function _renderHeader(title: string, recorder: TraceRecorder) {
   const header = document.createElement('div');
   header.className = 'trace-inspector-header';
 
@@ -158,6 +168,26 @@ function _renderHeader(title: string) {
     </svg>
     <span>Trace Inspector${title ? ` — ${escapeHtml(title)}` : ''}</span>
   `;
+
+  // Override plan button (only when run is active)
+  if (recorder.isRunning || recorder.isWaiting) {
+    const overrideBtn = document.createElement('button');
+    overrideBtn.className = 'trace-action-btn trace-action-btn--override';
+    overrideBtn.textContent = 'Override plan';
+    overrideBtn.setAttribute('aria-label', 'Inject mid-agent instructions');
+    overrideBtn.addEventListener('click', () => {
+      document.dispatchEvent(
+        new CustomEvent('deepchat:override-plan', {
+          detail: { runId: recorder.runId },
+        })
+      );
+      overrideBtn.textContent = 'Override sent';
+      setTimeout(() => {
+        overrideBtn.textContent = 'Override plan';
+      }, 2000);
+    });
+    header.appendChild(overrideBtn);
+  }
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'trace-inspector-close';
@@ -305,6 +335,7 @@ interface ToolRoleMeta {
 }
 
 interface ToolCallRecord {
+  toolCallId?: string;
   status: string;
   roleMeta?: ToolRoleMeta;
   roleId: string;
@@ -374,6 +405,31 @@ function _renderToolCards(tools: ToolCallRecord[]) {
 
       card.appendChild(rawBtn);
     }
+
+    // Rerun from here button
+    const rerunBtn = document.createElement('button');
+    rerunBtn.className = 'trace-action-btn trace-action-btn--rerun';
+    rerunBtn.textContent = 'Rerun from here';
+    rerunBtn.setAttribute('aria-label', `Rerun agent from tool call ${tc.toolName}`);
+    rerunBtn.addEventListener('click', () => {
+      document.dispatchEvent(
+        new CustomEvent('deepchat:rerun-from-tool', {
+          detail: {
+            toolCallId: tc.toolCallId || '',
+            toolName: tc.toolName,
+            roleId: tc.roleId,
+            args: tc.args,
+          },
+        })
+      );
+      rerunBtn.textContent = 'Rerun requested';
+      rerunBtn.disabled = true;
+      setTimeout(() => {
+        rerunBtn.textContent = 'Rerun from here';
+        rerunBtn.disabled = false;
+      }, 2000);
+    });
+    card.appendChild(rerunBtn);
 
     container.appendChild(card);
   }
@@ -538,6 +594,52 @@ function _renderExportActions(recorder: TraceRecorder) {
   wrap.appendChild(exportJson);
   wrap.appendChild(copySummary);
   return wrap;
+}
+
+// ─── Focused Role Helpers ───────────────────────────────────────────────────
+
+function _scrollToRoleTools(roleId: string) {
+  if (!_panel) return;
+  const roleBadges = _panel.querySelectorAll('.trace-tool-role-badge');
+  let firstMatch: HTMLElement | null = null;
+
+  for (const badge of roleBadges) {
+    const card = (badge as HTMLElement).closest('.trace-tool-card') as HTMLElement | null;
+    if (!card) continue;
+    const badgeText = badge.textContent?.trim().toLowerCase() || '';
+    // Match by role label (e.g. "Planner", "Reader") or role ID
+    const meta = _getActorMetaForRoleId(roleId);
+    if (badgeText === (meta?.label || roleId).toLowerCase() || badgeText === roleId) {
+      card.classList.add('trace-tool-card--focused');
+      if (!firstMatch) firstMatch = card;
+    }
+  }
+
+  // Also highlight the actor card in the grid
+  const actorCards = _panel.querySelectorAll('.trace-actor-card');
+  for (const ac of actorCards) {
+    const nameEl = ac.querySelector('.trace-actor-name');
+    const meta = _getActorMetaForRoleId(roleId);
+    if (nameEl && meta && nameEl.textContent?.trim().toLowerCase() === meta.label.toLowerCase()) {
+      ac.classList.add('trace-actor-card--focused');
+    }
+  }
+
+  if (firstMatch && typeof firstMatch.scrollIntoView === 'function') {
+    firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function _getActorMetaForRoleId(roleId: string): { label: string } | null {
+  const map: Record<string, { label: string }> = {
+    planner: { label: 'Planner' },
+    reader: { label: 'Reader' },
+    researcher: { label: 'Researcher' },
+    coder: { label: 'Coder' },
+    reviewer: { label: 'Reviewer' },
+    writer: { label: 'Writer' },
+  };
+  return map[roleId] || null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
