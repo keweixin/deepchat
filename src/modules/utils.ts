@@ -110,3 +110,23 @@ export function scrollToBottom(el: HTMLElement, smooth: boolean = true): void {
     behavior: smooth ? 'smooth' : 'instant',
   });
 }
+
+/** Fill composer input with a prompt and trigger input event */
+export function fillComposerPrompt(prompt: string): void {
+  const input = document.getElementById('message-input') as HTMLInputElement | null;
+  if (!input) return;
+  input.value = prompt;
+  input.focus?.();
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** Trigger browser download of a text file */
+export function downloadTextFile(text: string, fileName: string, type: string): void {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}

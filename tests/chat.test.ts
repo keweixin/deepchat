@@ -9,10 +9,7 @@ import {
   buildAnswerActionPrompt,
   getAgentPlanActionAvailability,
   getCompactMessagePreview,
-  getToolRiskMeta,
   buildConversationUsageTelemetryDetails,
-  buildRunCodeArtifactMarkdown,
-  buildRunCodeExplainPrompt,
   formatConversationUsageTelemetry,
   hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
@@ -24,10 +21,15 @@ import {
   renderContextMentionStrip,
   renderConversationUsageTelemetryPanel,
   renderLatestEvidenceDrawer,
-  renderToolCalls,
   shouldCompactHistoricalMessage,
   trimMessagesForRegeneration,
 } from '../src/modules/chat.js';
+import {
+  getToolRiskMeta,
+  renderToolCalls,
+  buildRunCodeExplainPrompt,
+  buildRunCodeArtifactMarkdown,
+} from '../src/modules/chat-tool-ui.ts';
 
 describe('chat regeneration', () => {
   it('groups secondary answer actions into compact menus', () => {
