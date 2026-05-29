@@ -50,20 +50,57 @@ export function sortConversations(conversations: any[]) {
   });
 }
 
+// Simple LRU-style cache for memory context results
+const MEMORY_CONTEXT_CACHE = new Map<string, { text: string; hits: any[]; terms: string[] }>();
+const MEMORY_CONTEXT_CACHE_TTL_MS = 60_000;
+let memoryCacheLastCleared = 0;
+
+function getMemoryCacheKey(conversations: any[], activeId: string, content: string): string {
+  // Approximate invalidation: content + activeId + conversation count + total message count
+  const totalMessages = conversations.reduce((sum, c) => sum + (c.messages?.length || 0), 0);
+  return `${activeId}:${content.length}:${conversations.length}:${totalMessages}:${quickHash(content)}`;
+}
+
+function quickHash(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+  }
+  return hash >>> 0;
+}
+
 export function buildRelevantMemoryContext(
   conversations: any[],
   activeConversationId: string,
   latestUserContent: string,
-  options: { maxHits?: number; maxChars?: number } = {}
+  options: { maxHits?: number; maxChars?: number; maxConversations?: number } = {}
 ) {
   const maxHits = clampInt(options.maxHits, 1, 6, 3);
   const maxChars = clampInt(options.maxChars, 400, 2400, 1200);
+  const maxConversations = clampInt(options.maxConversations, 1, 100, 20);
   const terms = extractMemoryTerms(latestUserContent);
   if (terms.length === 0) return { text: '', hits: [], terms: [] };
 
+  // Periodic cache cleanup
+  const now = Date.now();
+  if (now - memoryCacheLastCleared > MEMORY_CONTEXT_CACHE_TTL_MS) {
+    MEMORY_CONTEXT_CACHE.clear();
+    memoryCacheLastCleared = now;
+  }
+
+  // Check cache
+  const cacheKey = getMemoryCacheKey(conversations, activeConversationId, latestUserContent);
+  const cached = MEMORY_CONTEXT_CACHE.get(cacheKey);
+  if (cached) return cached;
+
   const normalizedLatest = normalizeMemoryText(latestUserContent);
   const hits = [];
-  for (const conversation of normalizeConversations(conversations)) {
+  // Limit scan to most recently updated conversations
+  const recentConversations = normalizeConversations(conversations)
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0))
+    .slice(0, maxConversations);
+  for (const conversation of recentConversations) {
     const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
     const latestUserIndex = conversation.id === activeConversationId ? findLatestUserIndex(messages) : -1;
     for (let index = 0; index < messages.length; index += 1) {
@@ -90,7 +127,11 @@ export function buildRelevantMemoryContext(
   const selected = hits
     .sort((left, right) => right.score - left.score || right.timestamp - left.timestamp)
     .slice(0, maxHits);
-  if (selected.length === 0) return { text: '', hits: [], terms };
+  if (selected.length === 0) {
+    const emptyResult = { text: '', hits: [], terms };
+    MEMORY_CONTEXT_CACHE.set(cacheKey, emptyResult);
+    return emptyResult;
+  }
 
   const lines = [
     '<related_memory>',
@@ -103,7 +144,9 @@ export function buildRelevantMemoryContext(
     '</related_memory>',
   ];
   const text = lines.join('\n').slice(0, maxChars);
-  return { text, hits: selected, terms };
+  const result = { text, hits: selected, terms };
+  MEMORY_CONTEXT_CACHE.set(cacheKey, result);
+  return result;
 }
 
 export function buildTaskCheckpoint(conversation: Record<string, any> = {}, options: { now?: string } = {}) {
