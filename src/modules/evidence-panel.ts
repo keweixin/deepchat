@@ -10,6 +10,7 @@ import {
   summarizeGitLog,
   summarizeReadManyFiles,
 } from './tool-runs.js';
+import { getToolProductRiskLevel, hasToolProductMetadata } from './tool-registry.js';
 
 const STATUS_META: Record<string, { label: string; tone: string }> = {
   pending: { label: '等待确认', tone: 'pending' },
@@ -107,6 +108,18 @@ export function renderEvidencePanel(
     statusEl.className = `evidence-item-status tone-${meta.tone}`;
     statusEl.textContent = meta.label;
     header.appendChild(nameEl);
+
+    // Product-oriented risk badge
+    const toolName = String(tool.name || '');
+    if (hasToolProductMetadata(toolName)) {
+      const risk = getToolProductRiskLevel(toolName);
+      const riskEl = document.createElement('span');
+      riskEl.className = `evidence-item-risk evidence-item-risk--${risk.level}`;
+      riskEl.textContent = risk.label;
+      riskEl.title = `风险等级：${risk.label}`;
+      header.appendChild(riskEl);
+    }
+
     header.appendChild(statusEl);
 
     const body = document.createElement('div');

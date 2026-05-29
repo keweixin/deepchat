@@ -390,6 +390,28 @@ export function bindSettingsEvents(
   if (els.closeBtn) els.closeBtn.addEventListener('click', close);
   if (els.overlay) els.overlay.addEventListener('click', close);
 
+  // ─── Settings Tabs ───
+  const settingsBody = els.panel?.querySelector('.settings-body') as HTMLElement | null;
+  const tabButtons = els.panel?.querySelectorAll('.settings-tab') ?? [];
+  function switchSettingsTab(tabId: string) {
+    if (!settingsBody) return;
+    settingsBody.dataset.activeTab = tabId;
+    tabButtons.forEach((btn) => {
+      const isActive = (btn as HTMLElement).dataset.tab === tabId;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', String(isActive));
+    });
+  }
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tabId = (btn as HTMLElement).dataset.tab;
+      if (tabId) switchSettingsTab(tabId);
+    });
+  });
+  if (settingsBody && !settingsBody.dataset.activeTab) {
+    settingsBody.dataset.activeTab = 'tab-connection';
+  }
+
   // ─── Provider Presets ───
   document.querySelectorAll('.provider-btn').forEach((btn) => {
     btn.addEventListener('click', () => {

@@ -62,7 +62,7 @@
   top: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-2);
   margin: calc(var(--space-6) * -1) calc(var(--space-6) * -1) var(--space-5);
   padding: var(--space-3) var(--space-6);
@@ -156,6 +156,29 @@
 
 .settings-section {
   margin-bottom: var(--space-8);
+}
+
+.settings-section[data-tab] {
+  display: none;
+}
+
+.settings-body[data-active-tab='tab-connection'] .settings-section[data-tab='tab-connection'],
+.settings-body[data-active-tab='tab-model'] .settings-section[data-tab='tab-model'],
+.settings-body[data-active-tab='tab-agent'] .settings-section[data-tab='tab-agent'],
+.settings-body[data-active-tab='tab-preference'] .settings-section[data-tab='tab-preference'] {
+  display: block;
+  animation: fadeInSection 0.2s ease;
+}
+
+@keyframes fadeInSection {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .settings-section h3 {
   font-size: var(--font-size-sm);

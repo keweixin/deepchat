@@ -32,14 +32,28 @@ describe('renderToolCard', () => {
     expect(card.querySelector('.tool-card-name').textContent).toContain('read_file');
   });
 
-  it('shows risk level for write tool', () => {
+  it('shows risk level for write tool (legacy fallback)', () => {
     const card = renderToolCard({ name: 'write_file', args: { path: '/test.md' } });
+    // write_file is not in TOOL_REGISTRY, so it falls back to legacy risk classification
     expect(card.querySelector('.tool-card-risk').textContent).toContain('写入');
   });
 
-  it('shows risk level for execute tool', () => {
+  it('shows product-oriented risk level for execute tool', () => {
     const card = renderToolCard({ name: 'run_code', args: { code: '1+1' } });
-    expect(card.querySelector('.tool-card-risk').textContent).toContain('执行');
+    // run_code has product metadata with riskLevel: 'high'
+    expect(card.querySelector('.tool-card-risk').textContent).toContain('高风险');
+  });
+
+  it('shows product-oriented risk level for read tool', () => {
+    const card = renderToolCard({ name: 'read_file', args: { path: '/test.md' } });
+    // read_file has product metadata with riskLevel: 'medium'
+    expect(card.querySelector('.tool-card-risk').textContent).toContain('中风险');
+  });
+
+  it('shows product-oriented risk level for low-risk tool', () => {
+    const card = renderToolCard({ name: 'web_search', args: { query: 'test' } });
+    // web_search has product metadata with riskLevel: 'low'
+    expect(card.querySelector('.tool-card-risk').textContent).toContain('低风险');
   });
 
   it('shows auto-approved status', () => {

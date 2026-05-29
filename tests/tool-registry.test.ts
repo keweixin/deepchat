@@ -11,6 +11,9 @@ import {
   getAllToolNames,
   getToolCardSummary,
   getToolSummary,
+  getToolProductRiskLevel,
+  hasToolProductMetadata,
+  RISK_LEVEL_PRODUCT,
 } from '../src/modules/tool-registry.js';
 
 const ALL_12_TOOLS = [
@@ -189,6 +192,47 @@ describe('getToolSummary', () => {
   it('returns correct summary for project_map', () => {
     const result = getToolSummary({ toolName: 'project_map' });
     expect(result.label).toContain('项目结构');
+  });
+});
+
+describe('getToolProductRiskLevel', () => {
+  it('returns low risk for web_search', () => {
+    const risk = getToolProductRiskLevel('web_search');
+    expect(risk.level).toBe('low');
+    expect(risk.label).toBe('低风险');
+    expect(risk.color).toBe('#22c55e');
+  });
+
+  it('returns medium risk for read_file', () => {
+    const risk = getToolProductRiskLevel('read_file');
+    expect(risk.level).toBe('medium');
+    expect(risk.label).toBe('中风险');
+    expect(risk.color).toBe('#eab308');
+  });
+
+  it('returns high risk for run_code', () => {
+    const risk = getToolProductRiskLevel('run_code');
+    expect(risk.level).toBe('high');
+    expect(risk.label).toBe('高风险');
+    expect(risk.color).toBe('#ef4444');
+  });
+
+  it('falls back to medium for unknown tools', () => {
+    const risk = getToolProductRiskLevel('unknown_tool');
+    expect(risk.level).toBe('medium');
+    expect(risk.label).toBe('中风险');
+  });
+});
+
+describe('hasToolProductMetadata', () => {
+  it('returns true for registered tools', () => {
+    expect(hasToolProductMetadata('web_search')).toBe(true);
+    expect(hasToolProductMetadata('read_file')).toBe(true);
+    expect(hasToolProductMetadata('run_code')).toBe(true);
+  });
+
+  it('returns false for unknown tools', () => {
+    expect(hasToolProductMetadata('unknown_tool')).toBe(false);
   });
 });
 

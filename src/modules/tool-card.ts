@@ -14,6 +14,8 @@ import {
   getToolPurpose,
   getToolScope,
   getToolRiskReason,
+  getToolProductRiskLevel,
+  hasToolProductMetadata,
 } from './tool-registry.js';
 import type { RiskLevel } from './tool-registry.js';
 import {
@@ -42,6 +44,16 @@ export const APPROVAL_STATUS: Readonly<Record<string, ApprovalStatus>> = Object.
 
 function inferRiskLevel(toolName: string): RiskLevel {
   return getToolRiskLevel(toolName);
+}
+
+function inferProductRiskLevel(toolName: string): {
+  level: 'low' | 'medium' | 'high';
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+} {
+  return getToolProductRiskLevel(toolName);
 }
 
 function inferApprovalStatus(tool: Record<string, unknown>): ApprovalStatus {
@@ -193,14 +205,20 @@ export function renderToolCard(
   options: { showRaw?: boolean; onToggleRaw?: (expanded: boolean) => void } = {}
 ): HTMLElement {
   const { showRaw = false, onToggleRaw } = options;
-  const risk = inferRiskLevel(String(tool.name || ''));
   const approval = inferApprovalStatus(tool);
   const duration = formatDuration((tool.durationMs as number) || 0);
   const isRepair = tool.isRepair || tool.repaired;
   const toolName = String(tool.name || 'unknown');
-  const purpose = getToolPurpose(toolName);
-  const scope = inferScope(tool);
-  const riskReason = getToolRiskReason(toolName);
+  const hasMetadata = hasToolProductMetadata(toolName);
+
+  // Prefer product-oriented risk level (low/medium/high) when metadata exists
+  const productRisk = inferProductRiskLevel(toolName);
+  const legacyRisk = inferRiskLevel(toolName);
+  const risk = hasMetadata ? { ...productRisk, icon: legacyRisk.icon } : { ...legacyRisk, level: 'unknown' as const };
+
+  const purpose = hasMetadata ? getToolPurpose(toolName) : `执行 ${toolName}`;
+  const scope = hasMetadata ? getToolScope(toolName) : inferScope(tool);
+  const riskReason = hasMetadata ? getToolRiskReason(toolName) : `基于工具名称推断的风险等级：${legacyRisk.label}`;
   const resultSummary = inferResultSummary(tool);
   const nextAction = inferNextAction(tool);
   const traceId = String(tool.id || '');
@@ -215,11 +233,19 @@ export function renderToolCard(
   // ─── Header ───────────────────────────────────────────────────────────────
   const header = document.createElement('div');
   header.className = 'tool-card-header';
+
+  const riskBadgeClass = hasMetadata
+    ? `tool-card-risk tool-card-risk--${(risk as any).level || 'unknown'}`
+    : 'tool-card-risk';
+  const riskBadgeStyle = hasMetadata
+    ? `color:${productRisk.color};background:${productRisk.bg};border-color:${productRisk.border}`
+    : `color:${legacyRisk.color}`;
+
   header.innerHTML = `
     <span class="tool-card-icon">${getToolIcon(toolName)}</span>
     <span class="tool-card-name">${escapeHtml(toolName)}</span>
     <span class="tool-card-status tool-card-status--${approval.id}" style="color:${approval.color}">${approval.icon} ${approval.label}</span>
-    <span class="tool-card-risk" style="color:${risk.color}" title="风险等级: ${risk.label}">${risk.icon} ${risk.label}</span>
+    <span class="${riskBadgeClass}" style="${riskBadgeStyle}" title="风险等级: ${hasMetadata ? productRisk.label : legacyRisk.label}">${legacyRisk.icon} ${hasMetadata ? productRisk.label : legacyRisk.label}</span>
   `;
 
   // ─── Body (product-oriented) ──────────────────────────────────────────────
@@ -239,7 +265,9 @@ export function renderToolCard(
   // Risk row
   const riskEl = document.createElement('div');
   riskEl.className = 'tool-card-risk-row';
-  riskEl.innerHTML = `<span class="tool-card-label">风险</span><span class="tool-card-value" style="color:${risk.color}">${risk.icon} ${risk.label} — ${escapeHtml(riskReason)}</span>`;
+  const riskValueStyle = hasMetadata ? `color:${productRisk.color}` : `color:${legacyRisk.color}`;
+  const riskLabel = hasMetadata ? productRisk.label : legacyRisk.label;
+  riskEl.innerHTML = `<span class="tool-card-label">风险</span><span class="tool-card-value" style="${riskValueStyle}">${legacyRisk.icon} ${riskLabel} — ${escapeHtml(riskReason)}</span>`;
 
   // Result summary row
   const resultEl = document.createElement('div');

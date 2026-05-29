@@ -100,6 +100,31 @@
   color: var(--accent-primary);
 }
 
+/* Product-oriented risk badges in evidence panel */
+.evidence-item-risk {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: auto;
+  margin-right: 4px;
+}
+
+.evidence-item-risk--low {
+  background: color-mix(in srgb, #22c55e, transparent 88%);
+  color: #22c55e;
+}
+
+.evidence-item-risk--medium {
+  background: color-mix(in srgb, #eab308, transparent 88%);
+  color: #eab308;
+}
+
+.evidence-item-risk--high {
+  background: color-mix(in srgb, #ef4444, transparent 88%);
+  color: #ef4444;
+}
+
 .evidence-item-body {
   display: flex;
   flex-direction: column;

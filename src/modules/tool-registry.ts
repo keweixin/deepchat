@@ -207,6 +207,36 @@ export const RISK_LEVELS = Object.freeze({
 
 export type RiskLevel = (typeof RISK_LEVELS)[keyof typeof RISK_LEVELS];
 
+// ─── Product-oriented Risk Level (low / medium / high) ──────────────────────
+
+export const RISK_LEVEL_PRODUCT = Object.freeze({
+  low: { label: '低风险', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.25)' },
+  medium: { label: '中风险', color: '#eab308', bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.25)' },
+  high: { label: '高风险', color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.25)' },
+} as const);
+
+export type ProductRiskLevel = keyof typeof RISK_LEVEL_PRODUCT;
+
+/** Get product-oriented risk level (low/medium/high) with color coding */
+export function getToolProductRiskLevel(name: string): {
+  level: ProductRiskLevel;
+  label: string;
+  color: string;
+  bg: string;
+  border: string;
+} {
+  const def = getToolDefinition(name);
+  const level = (def?.riskLevel || 'medium') as ProductRiskLevel;
+  const meta = RISK_LEVEL_PRODUCT[level] || RISK_LEVEL_PRODUCT.medium;
+  return { level, ...meta };
+}
+
+/** Check if a tool has product metadata in registry */
+export function hasToolProductMetadata(name: string): boolean {
+  const def = getToolDefinition(name);
+  return !!def && !!def.purpose && !!def.scope && !!def.riskReason;
+}
+
 export function getToolRiskLevel(toolName: string): RiskLevel {
   const name = String(toolName || '').toLowerCase();
   if (name.includes('run_code') || name.includes('execute') || name.includes('shell')) return RISK_LEVELS.execute;
