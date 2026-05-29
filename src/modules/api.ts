@@ -508,7 +508,7 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 3000
     init.signal.addEventListener('abort', () => {
       clearTimeout(timer);
       controller.abort();
-    });
+    }, { once: true });
   }
 
   try {

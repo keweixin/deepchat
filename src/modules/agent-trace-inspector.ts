@@ -102,6 +102,7 @@ function _hide() {
   _panel.classList.remove('is-visible');
   _isOpen = false;
   document.body.style.overflow = '';
+  document.removeEventListener('keydown', _onKeyDown);
 }
 
 // ─── Rendering ──────────────────────────────────────────────────────────────
