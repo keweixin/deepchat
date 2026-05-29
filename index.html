@@ -302,6 +302,29 @@
               </button>
             </div>
             <button
+              id="composer-context-btn"
+              class="composer-context-btn"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              title="插入 @file / @folder / @symbol 等显式上下文"
+            >
+              上下文
+            </button>
+            <button id="composer-template-btn" class="composer-settings-shortcut" type="button" title="插入常用提示词">
+              模板
+            </button>
+            <button
+              id="composer-advanced-toggle"
+              class="composer-advanced-toggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="composer-advanced-options"
+              title="展开思考、联网、增强和设置选项"
+            >
+              选项
+            </button>
+            <button
               id="composer-tool-drawer-btn"
               class="composer-tool-drawer-btn"
               type="button"
@@ -314,34 +337,6 @@
                 <span class="composer-tool-title">工具</span>
                 <span id="composer-tool-status" class="composer-toggle-status">智能 Agent</span>
               </span>
-            </button>
-            <button
-              id="composer-context-btn"
-              class="composer-context-btn"
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded="false"
-              title="插入 @file / @folder / @symbol 等显式上下文"
-            >
-              上下文
-            </button>
-            <button
-              id="composer-template-btn"
-              class="composer-settings-shortcut"
-              type="button"
-              title="插入常用提示词"
-            >
-              模板
-            </button>
-            <button
-              id="composer-advanced-toggle"
-              class="composer-advanced-toggle"
-              type="button"
-              aria-expanded="false"
-              aria-controls="composer-advanced-options"
-              title="展开思考、联网、增强和设置选项"
-            >
-              选项
             </button>
             <div id="composer-advanced-options" class="composer-advanced-options" aria-label="高级发送选项">
               <label class="composer-control" for="composer-thinking-select">

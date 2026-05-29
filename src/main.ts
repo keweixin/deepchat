@@ -472,6 +472,11 @@ function initComposerOptions(openSettings) {
       };
     }
     syncComposerModeSelect($modeSelect, composerModeId, settings);
+    // Sync mode pills visual state
+    document.querySelectorAll('.composer-mode-pill[data-mode]').forEach((pill) => {
+      const mode = (pill as HTMLElement).dataset.mode;
+      pill.classList.toggle('is-active', mode === composerModeId);
+    });
     syncThinkingSelect($thinking, composerOverrides.thinkingBudget);
 
     const hasSearchKey = Boolean(settings.tavilyApiKey);
@@ -632,6 +637,27 @@ function initComposerOptions(openSettings) {
   if ($contextBtn) {
     $contextBtn.addEventListener('click', () => toggleContextShortcutMenu($contextBtn, openSettings));
   }
+
+  // Mode pill click handlers
+  document.querySelectorAll('.composer-mode-pill[data-mode]').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      const modeValue = (pill as HTMLElement).dataset.mode;
+      if (!modeValue) return;
+      const settings = getSettings();
+      const mode = getComposerMode(modeValue);
+      if (!mode) return;
+      composerModeId = mode.id;
+      const modeOverrides = getComposerModeOverrides(composerModeId, settings);
+      composerOverrides = { ...composerOverrides, ...modeOverrides };
+      applySettingsToComposer(settings);
+      setActiveConversationComposerMode(composerModeId);
+      // Sync active visual state
+      document.querySelectorAll('.composer-mode-pill[data-mode]').forEach((p) => {
+        p.classList.toggle('is-active', p === pill);
+      });
+      showToast(`本轮模式：${mode.label}`, 1200);
+    });
+  });
 
   document.querySelectorAll('[data-context-chip]').forEach((chip) => {
     chip.addEventListener('click', () => {

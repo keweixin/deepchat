@@ -1,6 +1,15 @@
 /**
  * Evidence Panel — Displays tool evidence for each assistant message
+ * (Product-oriented: shows summaries instead of raw JSON by default)
  */
+
+import {
+  summarizeProjectMap,
+  summarizeGitDiff,
+  summarizeGitStatus,
+  summarizeGitLog,
+  summarizeReadManyFiles,
+} from './tool-runs.js';
 
 const STATUS_META: Record<string, { label: string; tone: string }> = {
   pending: { label: '等待确认', tone: 'pending' },
@@ -122,18 +131,24 @@ export function renderEvidencePanel(
       body.appendChild(ctxLine);
     }
 
+    // Result summary (product-oriented)
+    const summaryLine = document.createElement('div');
+    summaryLine.className = 'evidence-item-summary';
+    summaryLine.textContent = buildEvidenceSummary(tool);
+    body.appendChild(summaryLine);
+
     if (tool.output) {
       const outToggle = document.createElement('button');
       outToggle.className = 'evidence-item-toggle';
       outToggle.type = 'button';
-      outToggle.textContent = '查看输出';
+      outToggle.textContent = '查看原始输出';
       const outBlock = document.createElement('pre');
       outBlock.className = 'evidence-item-output';
       outBlock.hidden = true;
       outBlock.textContent = String(tool.output).slice(0, 2000);
       outToggle.addEventListener('click', () => {
         outBlock.hidden = !outBlock.hidden;
-        outToggle.textContent = outBlock.hidden ? '查看输出' : '收起输出';
+        outToggle.textContent = outBlock.hidden ? '查看原始输出' : '收起原始输出';
       });
       body.appendChild(outToggle);
       body.appendChild(outBlock);
@@ -169,10 +184,17 @@ function getToolDisplayName(tool: Record<string, unknown>): string {
   const map: Record<string, string> = {
     web_search: '联网搜索',
     read_file: '读取文件',
+    read_many_files: '批量读取',
     search_workspace: '工作区搜索',
     read_symbol: '读取符号',
     run_code: '运行代码',
     list_directory: '列目录',
+    list_files: '列目录',
+    index_workspace: '索引工作区',
+    project_map: '项目结构',
+    git_status: 'Git 状态',
+    git_diff: 'Git 差异',
+    git_log: 'Git 日志',
   };
   return map[name] || name;
 }
@@ -184,4 +206,79 @@ function formatArgs(args: unknown): string {
   } catch {
     return String(args);
   }
+}
+
+function buildEvidenceSummary(tool: Record<string, unknown>): string {
+  const name = String(tool.name || '');
+  const output = String(tool.output || '');
+  const ok = tool.ok === true;
+
+  if (!ok && tool.status === 'denied') return '❌ 用户已拒绝执行';
+  if (!ok) return '⚠️ 执行失败或未完成';
+  if (!output) return '✅ 执行成功，无输出';
+
+  if (name === 'project_map') {
+    const s = summarizeProjectMap(output);
+    const parts: string[] = [];
+    if (s.fileCount) parts.push(`${s.fileCount} 个文件`);
+    if (s.dirCount) parts.push(`${s.dirCount} 个目录`);
+    if (s.entryFiles.length) parts.push(`入口：${s.entryFiles.slice(0, 2).join(', ')}`);
+    return parts.length ? `✅ ${parts.join(' · ')}` : '✅ 项目结构已生成';
+  }
+
+  if (name === 'git_diff') {
+    const s = summarizeGitDiff(output);
+    const parts: string[] = [];
+    if (s.changedFiles) parts.push(`${s.changedFiles} 个文件变更`);
+    if (s.insertions) parts.push(`+${s.insertions}`);
+    if (s.deletions) parts.push(`-${s.deletions}`);
+    if (s.riskyFiles.length) parts.push(`⚠️ 风险文件`);
+    return parts.length ? `✅ ${parts.join(' · ')}` : '✅ 无变更';
+  }
+
+  if (name === 'git_status') {
+    const s = summarizeGitStatus(output);
+    const parts: string[] = [`分支：${s.branch}`];
+    if (s.staged) parts.push(`${s.staged} 个暂存`);
+    if (s.unstaged) parts.push(`${s.unstaged} 个未暂存`);
+    if (s.untracked) parts.push(`${s.untracked} 个未跟踪`);
+    return parts.join(' · ');
+  }
+
+  if (name === 'git_log') {
+    const s = summarizeGitLog(output, Number((tool.args as any)?.count) || 10);
+    const parts: string[] = [];
+    if (s.commitCount) parts.push(`${s.commitCount} 条提交`);
+    if (s.latestMessage) parts.push(`最新：${s.latestMessage.slice(0, 30)}${s.latestMessage.length > 30 ? '…' : ''}`);
+    return parts.length ? `✅ ${parts.join(' · ')}` : '✅ 提交历史已获取';
+  }
+
+  if (name === 'read_many_files') {
+    const s = summarizeReadManyFiles(tool);
+    return `✅ ${s.successfulFiles}/${s.totalFiles} 个文件成功读取${s.failedFiles ? `（${s.failedFiles} 个失败）` : ''}`;
+  }
+
+  if (name === 'web_search') {
+    const sources = (tool.sources as any[]) || [];
+    return sources.length ? `✅ 找到 ${sources.length} 个来源` : '✅ 搜索完成';
+  }
+
+  if (name === 'run_code') {
+    const exitMatch = output.match(/退出码[：:]\s*(\d+)/);
+    const exitCode = exitMatch ? exitMatch[1] : null;
+    if (exitCode === '0' || exitCode === null) return '✅ 代码运行成功';
+    return `⚠️ 运行结束（退出码 ${exitCode}）`;
+  }
+
+  if (name === 'read_file') {
+    const path = String((tool.args as any)?.path || (tool.args as any)?.file || '');
+    return path ? `✅ 已读取 ${path.split(/[/\\]/).pop() || path}` : '✅ 文件读取完成';
+  }
+
+  if (name === 'search_workspace') {
+    const query = String((tool.args as any)?.query || '');
+    return query ? `✅ 检索「${query.slice(0, 30)}${query.length > 30 ? '…' : ''}」完成` : '✅ 工作区检索完成';
+  }
+
+  return `✅ ${output.slice(0, 80)}${output.length > 80 ? '…' : ''}`;
 }

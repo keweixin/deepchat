@@ -1925,20 +1925,43 @@
   .welcome-suggestions {
     grid-template-columns: 1fr;
   }
-  .composer-control,
-  .composer-search-toggle,
+  .composer-toolbar {
+    gap: 4px;
+  }
+  .composer-mode-pills {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .composer-mode-pill {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
   .composer-tool-drawer-btn {
-    flex: 1 1 150px;
+    padding: 4px 8px;
+    gap: 4px;
+    min-height: 28px;
+  }
+  .composer-tool-drawer-btn .composer-tool-title {
+    display: none;
+  }
+  .composer-settings-shortcut,
+  .composer-context-btn,
+  .composer-advanced-toggle {
+    padding: 0 8px;
+    min-height: 28px;
+    font-size: 11px;
+  }
+  .composer-control,
+  .composer-search-toggle {
+    flex: 1 1 140px;
     justify-content: space-between;
   }
   .composer-run-status {
     order: 8;
     flex: 1 1 100%;
     justify-content: center;
-  }
-  .composer-settings-shortcut,
-  .composer-context-btn {
-    flex: 0 0 auto;
+    font-size: 11px;
+    min-height: 26px;
   }
 
   .composer-tool-menu,
