@@ -179,6 +179,25 @@
   accent-color: var(--accent-primary);
 }
 
+/* Status Bar */
+.settings-status-bar {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--glass-border);
+  overflow-x: auto;
+}
+
+.status-item {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg-hover);
+}
+
 /* Form Controls */
 .form-group {
   margin-bottom: var(--space-5);

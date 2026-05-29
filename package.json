@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run typecheck:strict && npm test && npm run build",
+    "verify:release": "node scripts/verify-release.mjs",
     "preview": "vite preview",
     "build:electron": "node scripts/build-electron.mjs",
     "electron:dev": "vite build && electron .",
