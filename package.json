@@ -32,7 +32,8 @@
       "electron.js",
       "preload.js",
       "electron/**/*",
-      "build/**/*"
+      "build/**/*",
+      "skills/**/*"
     ],
     "win": {
       "artifactName": "DeepChat-Setup-v${version}.${ext}",

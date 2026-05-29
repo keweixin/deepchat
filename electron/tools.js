@@ -36,6 +36,9 @@ const RUN_CODE_SECURITY_LIMITS = {
   killTreeOnTimeout: true,
 };
 
+const MAX_READ_MANY_FILES_BYTES = 500 * 1024;
+const PROJECT_MAP_EXCLUDED_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', '.cache', 'release']);
+
 const TOOL_SCHEMAS = {
   web_search: {
     type: 'function',
@@ -267,6 +270,56 @@ const TOOL_SCHEMAS = {
       },
     },
   },
+  project_map: {
+    type: 'function',
+    function: {
+      name: 'project_map',
+      description:
+        'Generate a tree-like project structure overview with file counts per directory. Excludes .git, node_modules, dist, build, .cache, and release directories. Read-only, low-risk operation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Approved workspace root. If omitted, the first configured root is used.',
+          },
+          maxDepth: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 10,
+            description: 'Maximum directory depth to traverse. Defaults to 4.',
+          },
+        },
+      },
+    },
+  },
+  read_many_files: {
+    type: 'function',
+    function: {
+      name: 'read_many_files',
+      description:
+        'Read multiple text files at once from an approved workspace. Each file is returned with a path header. Total output capped at 500KB. Read-only, medium-risk (bulk read) operation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          paths: {
+            type: 'array',
+            items: { type: 'string' },
+            minItems: 1,
+            maxItems: 50,
+            description: 'List of absolute or workspace-relative file paths to read.',
+          },
+          maxTotalBytes: {
+            type: 'integer',
+            minimum: 1024,
+            maximum: MAX_READ_MANY_FILES_BYTES,
+            description: 'Maximum total bytes to read across all files. Defaults to 500KB.',
+          },
+        },
+        required: ['paths'],
+      },
+    },
+  },
 };
 
 const MODE_TOOLS = {
@@ -278,6 +331,8 @@ const MODE_TOOLS = {
     'search_workspace',
     'read_symbol',
     'read_file',
+    'project_map',
+    'read_many_files',
     'git_status',
     'git_diff',
     'git_log',
@@ -290,6 +345,8 @@ const MODE_TOOLS = {
     'search_workspace',
     'read_symbol',
     'read_file',
+    'project_map',
+    'read_many_files',
     'run_code',
     'git_status',
     'git_diff',
@@ -384,6 +441,15 @@ function describeToolRisk(name, args) {
       ? `将读取已授权工作区内文件 ${file.slice(0, 160)} 的最近 ${count} 条 Git 提交历史。只读操作。`
       : `将读取已授权工作区的最近 ${count} 条 Git 提交历史。只读操作。`;
   }
+  if (name === 'project_map') {
+    const maxDepth = clampInt(args.maxDepth, 1, 10, 4);
+    return `将生成已授权工作区的项目结构概览（最大深度 ${maxDepth}），排除 .git、node_modules 等目录。只读操作。`;
+  }
+  if (name === 'read_many_files') {
+    const paths = Array.isArray(args.paths) ? args.paths : [];
+    const maxTotalBytes = clampInt(args.maxTotalBytes, 1024, MAX_READ_MANY_FILES_BYTES, MAX_READ_MANY_FILES_BYTES);
+    return `将批量读取已授权工作区内的 ${paths.length} 个文本文件（总上限 ${Math.round(maxTotalBytes / 1024)}KB）。只读操作。`;
+  }
   return '未知工具调用。';
 }
 
@@ -399,6 +465,8 @@ async function executeTool(name, args, settings, signal) {
   else if (name === 'git_status') output = await gitStatus(args, settings);
   else if (name === 'git_diff') output = await gitDiff(args, settings);
   else if (name === 'git_log') output = await gitLog(args, settings);
+  else if (name === 'project_map') output = await projectMap(args, settings);
+  else if (name === 'read_many_files') output = await readManyFiles(args, settings);
   else throw new Error(`不支持的工具：${name}`);
   return redactSensitiveText(output);
 }
@@ -2218,6 +2286,140 @@ async function gitLog(args, settings) {
     commits.forEach((commit, index) => {
       outputLines.push(`${index + 1}. ${commit.hash} ${commit.date} ${commit.message} (${commit.author})`);
     });
+  }
+  return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+// --- project_map tool ---
+
+async function projectMap(args, settings) {
+  const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
+  const maxDepth = clampInt(args.maxDepth, 1, 10, 4);
+  const lines = [];
+  let totalFiles = 0;
+  let totalDirs = 0;
+
+  async function walkMap(current, depth, prefix) {
+    if (depth > maxDepth) return;
+    let entries;
+    try {
+      entries = await fs.readdir(current, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    entries.sort((a, b) => {
+      if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    for (const entry of entries) {
+      if (PROJECT_MAP_EXCLUDED_DIRS.has(entry.name)) continue;
+      if (entry.isDirectory()) {
+        totalDirs += 1;
+        const dirPath = path.join(current, entry.name);
+        let fileCount = 0;
+        try {
+          const inner = await fs.readdir(dirPath);
+          fileCount = inner.length;
+        } catch {}
+        const connector = depth < maxDepth ? '├── ' : '└── ';
+        lines.push(`${prefix}${connector}${entry.name}/ (${fileCount} items)`);
+        if (depth < maxDepth) {
+          await walkMap(dirPath, depth + 1, prefix + '│   ');
+        }
+      } else if (entry.isFile()) {
+        totalFiles += 1;
+        lines.push(`${prefix}├── ${entry.name}`);
+      }
+    }
+  }
+
+  const rootName = path.basename(root) || root;
+  lines.push(`${rootName}/`);
+  await walkMap(root, 1, '');
+  return [
+    `项目结构：${root}`,
+    `最大深度：${maxDepth}`,
+    `排除目录：${[...PROJECT_MAP_EXCLUDED_DIRS].join(', ')}`,
+    `目录数：${totalDirs}，文件数：${totalFiles}`,
+    '',
+    ...lines,
+  ]
+    .join('\n')
+    .slice(0, MAX_TOOL_OUTPUT);
+}
+
+// --- read_many_files tool ---
+
+async function readManyFiles(args, settings) {
+  const paths_ = Array.isArray(args.paths) ? args.paths : [];
+  if (paths_.length === 0) throw new Error('文件路径列表不能为空。');
+  if (paths_.length > 50) throw new Error('单次最多读取 50 个文件。');
+  const maxTotalBytes = clampInt(args.maxTotalBytes, 1024, MAX_READ_MANY_FILES_BYTES, MAX_READ_MANY_FILES_BYTES);
+  const results = [];
+  let totalBytesRead = 0;
+
+  for (const rawPath of paths_) {
+    const label = String(rawPath || '').trim();
+    if (!label) continue;
+    try {
+      const filePath = await resolveAllowedPath(label, settings.workspaceRoots || []);
+      if (isSensitivePath(filePath)) {
+        results.push({ path: label, error: '该文件路径看起来包含敏感信息，已拒绝读取。' });
+        continue;
+      }
+      const stat = await fs.stat(filePath);
+      if (!stat.isFile()) {
+        results.push({ path: label, error: '不是文件，已跳过。' });
+        continue;
+      }
+      const remainingBytes = maxTotalBytes - totalBytesRead;
+      if (remainingBytes <= 0) {
+        results.push({ path: label, error: '已达到总字节数上限，跳过剩余文件。' });
+        continue;
+      }
+      const bytesToRead = Math.min(stat.size, remainingBytes);
+      const handle = await fs.open(filePath, 'r');
+      try {
+        const buffer = Buffer.alloc(bytesToRead);
+        await handle.read(buffer, 0, bytesToRead, 0);
+        if (isProbablyBinary(buffer)) {
+          results.push({ path: label, error: '该文件看起来是二进制文件，已跳过。' });
+          continue;
+        }
+        const text = redactSensitiveText(buffer.toString('utf8'));
+        totalBytesRead += Buffer.byteLength(text, 'utf8');
+        results.push({
+          path: label,
+          size: stat.size,
+          bytesRead: bytesToRead,
+          truncated: stat.size > bytesToRead,
+          content: text,
+        });
+      } finally {
+        await handle.close();
+      }
+    } catch (error) {
+      results.push({ path: label, error: error?.message || String(error) });
+    }
+  }
+
+  const outputLines = [
+    `批量文件读取`,
+    `文件数：${results.length}/${paths_.length}`,
+    `总读取字节：${totalBytesRead}/${maxTotalBytes}`,
+    '',
+  ];
+  for (const result of results) {
+    outputLines.push(`${'='.repeat(60)}`);
+    outputLines.push(`文件：${result.path}`);
+    if (result.error) {
+      outputLines.push(`错误：${result.error}`);
+    } else {
+      outputLines.push(`大小：${result.size} bytes${result.truncated ? `（仅读取前 ${result.bytesRead} bytes）` : ''}`);
+      outputLines.push('');
+      outputLines.push(result.content);
+    }
+    outputLines.push('');
   }
   return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
 }

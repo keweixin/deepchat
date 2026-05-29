@@ -94,8 +94,35 @@ function createSkillId(filePath) {
   return `skill_${Buffer.from(path.resolve(filePath).toLowerCase()).toString('base64url').slice(0, 24)}`;
 }
 
+/**
+ * Load built-in skill templates from the `skills/` directory at the project
+ * root.  These ship with the app and are always available regardless of
+ * user-imported external skills.
+ *
+ * Each `.md` file in the directory is parsed using the same YAML front-matter
+ * format as external skills.
+ */
+async function loadBuiltinSkills() {
+  const skillsDir = path.join(__dirname, '..', 'skills');
+  const entries = await fs.readdir(skillsDir, { withFileTypes: true }).catch(() => []);
+  const skills = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+    const filePath = path.join(skillsDir, entry.name);
+    try {
+      const skill = await readSkillFile(filePath);
+      skill.builtin = true;
+      skills.push(skill);
+    } catch {
+      // Skip files that fail to parse (too large, invalid, etc.)
+    }
+  }
+  return skills;
+}
+
 module.exports = {
   pickExternalSkill,
   loadSkillsFromPath,
+  loadBuiltinSkills,
   parseSkillMeta,
 };

@@ -19,6 +19,7 @@ import { ChatService, testApiConnection } from './chat-service.js';
 import { executeTool, clearWorkspaceIndexDiskCache } from './tools.js';
 import { McpManager } from './mcp-manager.js';
 import { validate, schemas } from './ipc-validation.js';
+import { warmBuiltinSkills } from './system-prompt.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -183,7 +184,7 @@ const menuTemplate = [
   },
 ];
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);
   });
@@ -207,6 +208,7 @@ app.whenReady().then(() => {
       },
     });
   });
+  await warmBuiltinSkills();
   registerIpc();
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
   createWindow();
