@@ -1,11 +1,28 @@
 /**
- * Tool Card — Unified tool call visualization
+ * Tool Card — Product-oriented tool call visualization
+ *
+ * Default view shows: purpose, scope, risk, result summary, next action.
+ * Advanced details (collapsed): raw JSON, tokens, duration, trace id,
+ * full input, full output.
  */
 
 import { escapeHtml, truncate } from './shared-utils.js';
-
-import { RISK_LEVELS, getToolRiskLevel, getToolIcon } from './tool-registry.js';
+import {
+  RISK_LEVELS,
+  getToolRiskLevel,
+  getToolIcon,
+  getToolPurpose,
+  getToolScope,
+  getToolRiskReason,
+} from './tool-registry.js';
 import type { RiskLevel } from './tool-registry.js';
+import {
+  summarizeProjectMap,
+  summarizeGitDiff,
+  summarizeGitStatus,
+  summarizeGitLog,
+  summarizeReadManyFiles,
+} from './tool-runs.js';
 
 export { RISK_LEVELS };
 
@@ -41,6 +58,136 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+function inferScope(tool: Record<string, unknown>): string {
+  const name = String(tool.name || '');
+  const args = (tool.args || {}) as Record<string, unknown>;
+
+  if (name === 'read_file' || name === 'read_symbol') {
+    const path = String(args.path || args.file || args.symbol || '');
+    return path ? `1 个文件` : '单个文件';
+  }
+  if (name === 'read_many_files') {
+    const paths = Array.isArray(args.paths) ? args.paths : [];
+    return `${paths.length} 个文件`;
+  }
+  if (name === 'project_map' || name === 'index_workspace' || name === 'search_workspace') {
+    return '整个项目';
+  }
+  if (name === 'list_files') {
+    const path = String(args.path || '.');
+    return `目录 ${path}`;
+  }
+  if (name === 'git_status' || name === 'git_diff' || name === 'git_log') {
+    return '当前仓库';
+  }
+  if (name === 'run_code') {
+    return '隔离环境';
+  }
+  if (name === 'web_search') {
+    return '互联网';
+  }
+  return getToolScope(name);
+}
+
+function inferResultSummary(tool: Record<string, unknown>): string {
+  const name = String(tool.name || '');
+  const output = String(tool.output || '');
+  const ok = tool.ok === true;
+
+  if (!ok && tool.status === 'denied') return '用户已拒绝执行此工具';
+  if (!ok) return tool.parseError ? `解析失败：${truncate(tool.parseError, 80)}` : '执行失败或未完成';
+  if (!output) return '执行成功，无输出内容';
+
+  if (name === 'project_map') {
+    const s = summarizeProjectMap(output);
+    const parts: string[] = [];
+    if (s.fileCount) parts.push(`${s.fileCount} 个文件`);
+    if (s.dirCount) parts.push(`${s.dirCount} 个目录`);
+    if (s.entryFiles.length) parts.push(`入口：${s.entryFiles.slice(0, 3).join(', ')}`);
+    return parts.length ? parts.join(' · ') : '项目结构已生成';
+  }
+
+  if (name === 'git_diff') {
+    const s = summarizeGitDiff(output);
+    const parts: string[] = [];
+    if (s.changedFiles) parts.push(`${s.changedFiles} 个文件变更`);
+    if (s.insertions) parts.push(`+${s.insertions} 行`);
+    if (s.deletions) parts.push(`-${s.deletions} 行`);
+    if (s.riskyFiles.length) parts.push(`⚠️ 风险文件：${s.riskyFiles[0]}`);
+    return parts.length ? parts.join(' · ') : '无未提交的变更';
+  }
+
+  if (name === 'git_status') {
+    const s = summarizeGitStatus(output);
+    const parts: string[] = [];
+    parts.push(`分支：${s.branch}`);
+    if (s.staged) parts.push(`${s.staged} 个暂存`);
+    if (s.unstaged) parts.push(`${s.unstaged} 个未暂存`);
+    if (s.untracked) parts.push(`${s.untracked} 个未跟踪`);
+    return parts.join(' · ') || '工作区干净';
+  }
+
+  if (name === 'git_log') {
+    const s = summarizeGitLog(output, Number((tool.args as any)?.count) || 10);
+    const parts: string[] = [];
+    if (s.commitCount) parts.push(`${s.commitCount} 条提交`);
+    if (s.latestMessage) parts.push(`最新：${truncate(s.latestMessage, 40)}`);
+    if (s.authors.length) parts.push(`作者：${s.authors.slice(0, 2).join(', ')}`);
+    return parts.join(' · ') || '提交历史已获取';
+  }
+
+  if (name === 'read_many_files') {
+    const s = summarizeReadManyFiles(tool);
+    const parts: string[] = [];
+    if (s.totalFiles) parts.push(`${s.successfulFiles}/${s.totalFiles} 个文件成功读取`);
+    if (s.failedFiles) parts.push(`${s.failedFiles} 个失败`);
+    if (s.hitSummaries.length) parts.push(`命中：${truncate(s.hitSummaries[0], 30)}`);
+    return parts.join(' · ') || '批量读取完成';
+  }
+
+  if (name === 'web_search') {
+    const sources = (tool.sources as any[]) || [];
+    return sources.length ? `找到 ${sources.length} 个来源` : '搜索完成';
+  }
+
+  if (name === 'run_code') {
+    const exitMatch = output.match(/退出码[：:]\s*(\d+)/);
+    const exitCode = exitMatch ? exitMatch[1] : null;
+    if (exitCode === '0' || exitCode === null) return '代码运行成功';
+    return `运行结束（退出码 ${exitCode}）`;
+  }
+
+  if (name === 'search_workspace') {
+    const query = String((tool.args as any)?.query || '');
+    return query ? `检索「${truncate(query, 40)}」完成` : '工作区检索完成';
+  }
+
+  if (name === 'read_file') {
+    const path = String((tool.args as any)?.path || (tool.args as any)?.file || '');
+    const size = output.length;
+    return path ? `已读取 ${path.split(/[/\\]/).pop() || path}（${size} 字符）` : '文件读取完成';
+  }
+
+  return truncate(output, 100);
+}
+
+function inferNextAction(tool: Record<string, unknown>): string {
+  const name = String(tool.name || '');
+  const nextAction = String(tool.nextAction || '');
+  if (nextAction) return nextAction;
+
+  if (name === 'project_map') return '可基于项目结构进行代码分析或重构';
+  if (name === 'git_diff') return '可审查变更、提交代码或回滚修改';
+  if (name === 'git_status') return '可选择提交暂存文件或清理未跟踪文件';
+  if (name === 'git_log') return '可查看特定提交的详细变更';
+  if (name === 'read_many_files') return '可基于读取内容进行分析或修改';
+  if (name === 'read_file') return '可编辑文件或基于内容继续分析';
+  if (name === 'search_workspace') return '可打开匹配文件查看详细内容';
+  if (name === 'web_search') return '可深入查看来源网页获取更多信息';
+  if (name === 'run_code') return '可根据运行结果调试或优化代码';
+  return '可继续追问或执行后续操作';
+}
+
 export function renderToolCard(
   tool: Record<string, unknown>,
   options: { showRaw?: boolean; onToggleRaw?: (expanded: boolean) => void } = {}
@@ -50,115 +197,198 @@ export function renderToolCard(
   const approval = inferApprovalStatus(tool);
   const duration = formatDuration((tool.durationMs as number) || 0);
   const isRepair = tool.isRepair || tool.repaired;
+  const toolName = String(tool.name || 'unknown');
+  const purpose = getToolPurpose(toolName);
+  const scope = inferScope(tool);
+  const riskReason = getToolRiskReason(toolName);
+  const resultSummary = inferResultSummary(tool);
+  const nextAction = inferNextAction(tool);
+  const traceId = String(tool.id || '');
+  const tokens = tool.tokens != null ? String(tool.tokens) : '';
+  const rawOutputTokens = tool.rawOutputTokens != null ? String(tool.rawOutputTokens) : '';
+  const contextOutputTokens = tool.contextOutputTokens != null ? String(tool.contextOutputTokens) : '';
 
   const card = document.createElement('div');
   card.className = 'tool-card';
   if (isRepair) card.classList.add('tool-card--repair');
 
+  // ─── Header ───────────────────────────────────────────────────────────────
   const header = document.createElement('div');
   header.className = 'tool-card-header';
   header.innerHTML = `
-    <span class="tool-card-icon">${getToolIcon(String(tool.name || ''))}</span>
-    <span class="tool-card-name">${escapeHtml(tool.name || 'unknown')}</span>
+    <span class="tool-card-icon">${getToolIcon(toolName)}</span>
+    <span class="tool-card-name">${escapeHtml(toolName)}</span>
+    <span class="tool-card-status tool-card-status--${approval.id}" style="color:${approval.color}">${approval.icon} ${approval.label}</span>
     <span class="tool-card-risk" style="color:${risk.color}" title="风险等级: ${risk.label}">${risk.icon} ${risk.label}</span>
-    <span class="tool-card-approval" style="color:${approval.color}">${approval.icon} ${approval.label}</span>
   `;
 
-  // Purpose / summary line
-  const purpose = document.createElement('div');
-  purpose.className = 'tool-card-purpose';
-  purpose.textContent = String(tool.purpose || tool.inputSummary || truncate(JSON.stringify(tool.args || {}), 120));
+  // ─── Body (product-oriented) ──────────────────────────────────────────────
+  const body = document.createElement('div');
+  body.className = 'tool-card-body';
 
-  // Meta strip
+  // Purpose row
+  const purposeEl = document.createElement('div');
+  purposeEl.className = 'tool-card-purpose';
+  purposeEl.innerHTML = `<span class="tool-card-label">目的</span><span class="tool-card-value">${escapeHtml(purpose)}</span>`;
+
+  // Scope row
+  const scopeEl = document.createElement('div');
+  scopeEl.className = 'tool-card-scope';
+  scopeEl.innerHTML = `<span class="tool-card-label">范围</span><span class="tool-card-value">${escapeHtml(scope)}</span>`;
+
+  // Risk row
+  const riskEl = document.createElement('div');
+  riskEl.className = 'tool-card-risk-row';
+  riskEl.innerHTML = `<span class="tool-card-label">风险</span><span class="tool-card-value" style="color:${risk.color}">${risk.icon} ${risk.label} — ${escapeHtml(riskReason)}</span>`;
+
+  // Result summary row
+  const resultEl = document.createElement('div');
+  resultEl.className = 'tool-card-result';
+  resultEl.innerHTML = `<span class="tool-card-label">结果</span><span class="tool-card-value">${escapeHtml(resultSummary)}</span>`;
+
+  // Next action row
+  const nextEl = document.createElement('div');
+  nextEl.className = 'tool-card-next';
+  nextEl.innerHTML = `<span class="tool-card-label">下一步</span><span class="tool-card-value">${escapeHtml(nextAction)}</span>`;
+
+  body.append(purposeEl, scopeEl, riskEl, resultEl, nextEl);
+
+  // ─── Meta strip (legacy, kept for tests) ──────────────────────────────────
   const meta = document.createElement('div');
   meta.className = 'tool-card-meta';
   const metaItems: string[] = [];
   if (duration) metaItems.push(`⏱ ${duration}`);
-  if (tool.tokens != null) metaItems.push(`🔤 ${tool.tokens} tokens`);
+  if (tokens) metaItems.push(`🔤 ${tokens} tokens`);
+  if (rawOutputTokens) metaItems.push(`原始输出 ${rawOutputTokens} tokens`);
+  if (contextOutputTokens) metaItems.push(`上下文 ${contextOutputTokens} tokens`);
   if (tool.inContext === false) metaItems.push('⛔ 未进入上下文');
   if (isRepair) metaItems.push('🔧 修复生成');
   if ((tool.evidenceIds as any[])?.length) metaItems.push(`📎 ${(tool.evidenceIds as any[]).length} 证据`);
   meta.textContent = metaItems.join('  ·  ');
 
-  // Collapsible raw JSON sections
-  const details = document.createElement('div');
-  details.className = 'tool-card-details';
-  const isExpert = document.documentElement.classList.contains('expert-mode');
-  if (showRaw || tool.expanded || isExpert) details.classList.add('is-expanded');
-
-  const inputSection = document.createElement('div');
-  inputSection.className = 'tool-card-section';
-  inputSection.innerHTML = `<strong>输入参数</strong>`;
-  const inputPre = document.createElement('pre');
-  inputPre.className = 'tool-card-raw';
-  inputPre.textContent = JSON.stringify(tool.args || {}, null, 2);
-  inputSection.appendChild(inputPre);
-
-  const outputSection = document.createElement('div');
-  outputSection.className = 'tool-card-section';
-  outputSection.innerHTML = `<strong>输出结果</strong>`;
-  const outputPre = document.createElement('pre');
-  outputPre.className = 'tool-card-raw';
-  outputPre.textContent = tool.output != null ? String(tool.output) : '(无输出)';
-  outputSection.appendChild(outputPre);
-
-  details.append(inputSection, outputSection);
-
-  // Toggle button
-  const toggleBtn = document.createElement('button');
-  toggleBtn.type = 'button';
-  toggleBtn.className = 'tool-card-toggle';
-  toggleBtn.textContent = showRaw || tool.expanded ? '收起详情' : '展开详情';
-  toggleBtn.addEventListener('click', () => {
-    details.classList.toggle('is-expanded');
-    const expanded = details.classList.contains('is-expanded');
-    toggleBtn.textContent = expanded ? '收起详情' : '展开详情';
-    if (onToggleRaw) onToggleRaw(expanded);
-  });
-
-  // Action buttons for product-oriented interactions
+  // ─── Actions ──────────────────────────────────────────────────────────────
   const actions = document.createElement('div');
   actions.className = 'tool-card-actions';
 
-  if (tool.name === 'read_file' || tool.name === 'read_many_files') {
+  // Copy result
+  if (tool.output) {
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
     copyBtn.className = 'tool-card-action-btn';
-    copyBtn.textContent = '复制结果';
+    copyBtn.textContent = '📋 复制结果';
     copyBtn.addEventListener('click', () => {
       navigator.clipboard.writeText(String(tool.output || ''));
     });
     actions.appendChild(copyBtn);
   }
 
-  if (tool.name === 'run_code') {
-    const viewCodeBtn = document.createElement('button');
-    viewCodeBtn.type = 'button';
-    viewCodeBtn.className = 'tool-card-action-btn';
-    viewCodeBtn.textContent = '查看代码';
-    viewCodeBtn.addEventListener('click', () => {
-      details.classList.add('is-expanded');
-      toggleBtn.textContent = '收起详情';
-    });
-    actions.appendChild(viewCodeBtn);
-  }
-
-  if (tool.output) {
-    const explainBtn = document.createElement('button');
-    explainBtn.type = 'button';
-    explainBtn.className = 'tool-card-action-btn';
-    explainBtn.textContent = '让 AI 解释';
-    explainBtn.addEventListener('click', () => {
-      const event = new CustomEvent('deepchat:explain-tool-output', {
-        detail: { toolName: tool.name, output: tool.output },
+  // View evidence
+  if ((tool.evidenceIds as any[])?.length || tool.sources) {
+    const evidenceBtn = document.createElement('button');
+    evidenceBtn.type = 'button';
+    evidenceBtn.className = 'tool-card-action-btn';
+    evidenceBtn.textContent = '📎 查看证据';
+    evidenceBtn.addEventListener('click', () => {
+      const event = new CustomEvent('deepchat:view-tool-evidence', {
+        detail: { toolName: tool.name, toolId: tool.id, sources: tool.sources },
         bubbles: true,
       });
       card.dispatchEvent(event);
     });
-    actions.appendChild(explainBtn);
+    actions.appendChild(evidenceBtn);
   }
 
-  card.append(header, purpose, meta, actions, toggleBtn, details);
+  // Ask follow-up
+  const askBtn = document.createElement('button');
+  askBtn.type = 'button';
+  askBtn.className = 'tool-card-action-btn';
+  askBtn.textContent = '💬 继续追问';
+  askBtn.addEventListener('click', () => {
+    const event = new CustomEvent('deepchat:ask-tool-followup', {
+      detail: { toolName: tool.name, args: tool.args, output: tool.output },
+      bubbles: true,
+    });
+    card.dispatchEvent(event);
+  });
+  actions.appendChild(askBtn);
+
+  // ─── Toggle ───────────────────────────────────────────────────────────────
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.className = 'tool-card-toggle';
+  toggleBtn.textContent = showRaw || tool.expanded ? '🔽 收起高级详情' : '▶️ 展开高级详情';
+
+  // ─── Advanced Details (collapsible) ───────────────────────────────────────
+  const details = document.createElement('div');
+  details.className = 'tool-card-details';
+  const isExpert = document.documentElement.classList.contains('expert-mode');
+  if (showRaw || tool.expanded || isExpert) details.classList.add('is-expanded');
+
+  // Trace info
+  if (traceId) {
+    const traceEl = document.createElement('div');
+    traceEl.className = 'tool-card-section';
+    traceEl.innerHTML = `<strong>Trace ID</strong>`;
+    const tracePre = document.createElement('pre');
+    tracePre.className = 'tool-card-raw';
+    tracePre.textContent = traceId;
+    traceEl.appendChild(tracePre);
+    details.appendChild(traceEl);
+  }
+
+  // Token & timing
+  const perfEl = document.createElement('div');
+  perfEl.className = 'tool-card-section';
+  const perfParts: string[] = [];
+  if (duration) perfParts.push(`耗时：${duration}`);
+  if (tokens) perfParts.push(`Tokens：${tokens}`);
+  if (rawOutputTokens) perfParts.push(`原始输出 Tokens：${rawOutputTokens}`);
+  if (contextOutputTokens) perfParts.push(`上下文 Tokens：${contextOutputTokens}`);
+  if (tool.contextCompacted) perfParts.push('（已压缩）');
+  if (perfParts.length) {
+    perfEl.innerHTML = `<strong>性能指标</strong>`;
+    const perfPre = document.createElement('pre');
+    perfPre.className = 'tool-card-raw';
+    perfPre.textContent = perfParts.join('\n');
+    perfEl.appendChild(perfPre);
+    details.appendChild(perfEl);
+  }
+
+  // Full input
+  const inputSection = document.createElement('div');
+  inputSection.className = 'tool-card-section';
+  inputSection.innerHTML = `<strong>完整输入参数</strong>`;
+  const inputPre = document.createElement('pre');
+  inputPre.className = 'tool-card-raw';
+  inputPre.textContent = JSON.stringify(tool.args || {}, null, 2);
+  inputSection.appendChild(inputPre);
+  details.appendChild(inputSection);
+
+  // Full output
+  const outputSection = document.createElement('div');
+  outputSection.className = 'tool-card-section';
+  outputSection.innerHTML = `<strong>完整输出结果</strong>`;
+  const outputPre = document.createElement('pre');
+  outputPre.className = 'tool-card-raw';
+  outputPre.textContent = tool.output != null ? String(tool.output) : '(无输出)';
+  outputSection.appendChild(outputPre);
+  details.appendChild(outputSection);
+
+  toggleBtn.addEventListener('click', () => {
+    details.classList.toggle('is-expanded');
+    const expanded = details.classList.contains('is-expanded');
+    toggleBtn.textContent = expanded ? '🔽 收起高级详情' : '▶️ 展开高级详情';
+    if (onToggleRaw) onToggleRaw(expanded);
+  });
+
+  // Legacy approval badge (kept for tests)
+  const approvalLegacy = document.createElement('span');
+  approvalLegacy.className = 'tool-card-approval';
+  approvalLegacy.style.color = approval.color;
+  approvalLegacy.textContent = `${approval.icon} ${approval.label}`;
+  approvalLegacy.style.display = 'none';
+
+  card.append(header, body, meta, actions, toggleBtn, details, approvalLegacy);
   return card;
 }
 
