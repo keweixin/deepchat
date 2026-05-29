@@ -228,7 +228,10 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         }
 
         contentEl.classList.add('streaming-cursor');
-        deps.attachCopyHandlersOnly(contentEl);
+        // Only attach copy handlers if content may contain code blocks
+        if (fullContent.includes('```')) {
+          deps.attachCopyHandlersOnly(contentEl);
+        }
         if (streamStartTime > 0) {
           const elapsed = (Date.now() - streamStartTime) / 1000;
           if (elapsed > 0.5) {
