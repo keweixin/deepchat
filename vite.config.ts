@@ -12,7 +12,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/mermaid')) return 'vendor-mermaid';
+          // Only force-split the mermaid core entry; let Vite auto-code-split
+          // internal diagram chunks (flowchart, gantt, etc.) into their own lazy chunks.
+          if (id.includes('node_modules/mermaid/dist/mermaid.core.mjs')) return 'vendor-mermaid';
           if (id.includes('node_modules/katex')) return 'vendor-katex';
           if (id.includes('node_modules/highlight.js')) return 'vendor-highlight';
         },
