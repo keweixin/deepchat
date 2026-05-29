@@ -27,6 +27,15 @@ import {
   RETRY_MAX_MS,
 } from './constants.js';
 
+/** Observability: count of malformed SSE fragments encountered */
+let malformedSseCount = 0;
+
+export function getMalformedSseStats() {
+  const count = malformedSseCount;
+  malformedSseCount = 0;
+  return count;
+}
+
 import {
   extractContextMentions,
   appendContextHintsToUserContent,
@@ -494,7 +503,8 @@ async function streamBrowserChat(messages: any[], opts: StreamChatOpts = {}): Pr
           }
           if (delta?.reasoning_content) opts.onThinking?.(delta.reasoning_content);
         } catch {
-          // Ignore malformed SSE fragments.
+          // Track malformed SSE for observability
+          malformedSseCount++;
         }
       }
     }
