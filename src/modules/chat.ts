@@ -96,6 +96,7 @@ import { renderStreamingMarkdown } from './streaming-renderer.js';
 import { TraceRecorder, migrateLegacyAgentRun } from './agent-trace.js';
 import { openTraceInspector } from './agent-trace-inspector.js';
 import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
+import { COPY_FEEDBACK_MS, OUTLINE_HIGHLIGHT_MS } from './constants.js';
 import { createVirtualList } from './virtual-message-list.js';
 import { escapeRegExp, clampNumber, formatBytes } from './shared-utils.js';
 import { createSidebar } from './chat-sidebar.js';
@@ -827,7 +828,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
               (block as HTMLElement).style.outline = '2px solid var(--accent-primary)';
               setTimeout(() => {
                 if (block.isConnected) (block as HTMLElement).style.outline = '';
-              }, 2000);
+              }, OUTLINE_HIGHLIGHT_MS);
               return;
             }
           }
@@ -2341,7 +2342,7 @@ function downloadArtifact(artifact: Record<string, any>, index: number) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 1000); // URL revocation delay, not a shared constant
 }
 
 export function renderAssistantEvidence(container: HTMLElement, message: any) {
@@ -2822,7 +2823,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
       copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
       setTimeout(() => {
         if (copyBtn.isConnected) copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
-      }, 1500);
+      }, COPY_FEEDBACK_MS);
     }
   });
   actions.appendChild(copyBtn);
@@ -2918,7 +2919,7 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
           copyBtn.classList.remove('copied');
           copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
         }
-      }, 1500);
+      }, COPY_FEEDBACK_MS);
     }
   });
   actions.appendChild(copyBtn);
@@ -2934,7 +2935,7 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
       copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
       setTimeout(() => {
         if (copyMdBtn.isConnected) copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`;
-      }, 1500);
+      }, COPY_FEEDBACK_MS);
     }
   });
   actions.appendChild(copyMdBtn);
@@ -3401,7 +3402,7 @@ function attachCopyHandlersOnly(container: HTMLElement) {
             (el.querySelector('.copy-text') as HTMLElement | null)!.textContent = '复制';
             el.classList.remove('copied');
           }
-        }, 1500);
+        }, COPY_FEEDBACK_MS);
       } catch (err) {
         console.warn('[Chat] clipboard write failed:', err);
       }

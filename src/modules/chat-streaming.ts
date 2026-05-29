@@ -7,6 +7,7 @@
 
 import { renderStreamingMarkdown } from './streaming-renderer.js';
 import { renderMarkdown, postProcess } from './renderer.js';
+import { COPY_FEEDBACK_MS, OUTLINE_HIGHLIGHT_MS, STREAMING_APPEND_THRESHOLD, STREAMING_FULL_SYNC_INTERVAL } from './constants.js';
 import { showToast, scrollToBottom } from './utils.js';
 import {
   createAgentRun,
@@ -169,7 +170,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
             block.style.outline = '2px solid var(--accent-primary)';
             setTimeout(() => {
               block.style.outline = '';
-            }, 2000);
+            }, OUTLINE_HIGHLIGHT_MS);
             return;
           }
         }
@@ -186,13 +187,13 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
     let tokenCount = 0;
 
     // Append-only rendering for long content
-    const APPEND_THRESHOLD = 2000;
-    const FULL_SYNC_INTERVAL = 5000;
+    const APPEND_THRESHOLD = STREAMING_APPEND_THRESHOLD;
+    const FULL_SYNC_INTERVAL = STREAMING_FULL_SYNC_INTERVAL;
     let lastFullRenderLen = 0;
 
     function getThrottleMs() {
       if (fullContent.length < 200) return 50;
-      if (fullContent.length < 2000) return 120;
+      if (fullContent.length < STREAMING_APPEND_THRESHOLD) return 120;
       return 250;
     }
 
@@ -452,7 +453,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
           showToast(`网络错误，正在重试 (${retryCount + 1}/2)...`);
           setTimeout(() => {
             if (!deps.getIsStreaming()) doStream(conv, retryCount + 1);
-          }, 1500);
+          }, COPY_FEEDBACK_MS);
           return;
         }
         traceRecorder.recordError({ source: 'model_stream', message: err.message });

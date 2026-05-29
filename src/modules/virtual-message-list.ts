@@ -9,9 +9,11 @@
  * - ResizeObserver-based height caching eliminates forced reflow on scroll
  */
 
-const DEFAULT_BUFFER = 3;
-const ENABLE_THRESHOLD = 30; // messages
-const DEFAULT_ESTIMATED_HEIGHT = 120;
+import { VIRTUAL_BUFFER, VIRTUAL_ENABLE_THRESHOLD, VIRTUAL_DEFAULT_HEIGHT } from './constants.js';
+
+const DEFAULT_BUFFER = VIRTUAL_BUFFER;
+const ENABLE_THRESHOLD = VIRTUAL_ENABLE_THRESHOLD;
+const DEFAULT_ESTIMATED_HEIGHT = VIRTUAL_DEFAULT_HEIGHT;
 
 /**
  * Calculate which message indices should be rendered

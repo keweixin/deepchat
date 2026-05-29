@@ -7,8 +7,8 @@
 import { renderMarkdown, postProcess } from './renderer.js';
 import { escapeHtml } from './shared-utils.js';
 import { relativeTime, formatTime } from './utils.js';
+import { MARKDOWN_RENDER_CACHE_LIMIT } from './constants.js';
 
-const MARKDOWN_RENDER_CACHE_LIMIT = 240;
 const HISTORICAL_FULL_RENDER_LIMIT = 60;
 const HISTORICAL_COMPACT_MIN_CHARS = 800;
 

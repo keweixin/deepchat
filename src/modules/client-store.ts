@@ -1,5 +1,6 @@
 import { hasNativeBridge } from './bridge.ts';
 import { getSettings, saveSettings } from './settings-core.js';
+import { SAVE_DEBOUNCE_MS } from './constants.js';
 
 const CONVERSATIONS_KEY = 'dc_conversations';
 const BACKUP_SECRETS_EXCLUDED = [
@@ -49,7 +50,7 @@ export function saveConversations(conversations: any[]): Promise<void> {
       } catch (err) {
         reject(err);
       }
-    }, 250);
+    }, SAVE_DEBOUNCE_MS);
   });
 }
 

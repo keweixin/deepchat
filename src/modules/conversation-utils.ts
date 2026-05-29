@@ -1,4 +1,5 @@
 import { findLatestUserIndex } from './shared-utils.js';
+import { MEMORY_CONTEXT_CACHE_TTL_MS, MEMORY_CONTEXT_MAX_CONVERSATIONS } from './constants.js';
 
 export const SIDEBAR_FILTERS = {
   active: 'active',
@@ -52,7 +53,6 @@ export function sortConversations(conversations: any[]) {
 
 // Simple LRU-style cache for memory context results
 const MEMORY_CONTEXT_CACHE = new Map<string, { text: string; hits: any[]; terms: string[] }>();
-const MEMORY_CONTEXT_CACHE_TTL_MS = 60_000;
 let memoryCacheLastCleared = 0;
 
 function getMemoryCacheKey(conversations: any[], activeId: string, content: string): string {
@@ -78,7 +78,7 @@ export function buildRelevantMemoryContext(
 ) {
   const maxHits = clampInt(options.maxHits, 1, 6, 3);
   const maxChars = clampInt(options.maxChars, 400, 2400, 1200);
-  const maxConversations = clampInt(options.maxConversations, 1, 100, 20);
+  const maxConversations = clampInt(options.maxConversations, 1, 100, MEMORY_CONTEXT_MAX_CONVERSATIONS);
   const terms = extractMemoryTerms(latestUserContent);
   if (terms.length === 0) return { text: '', hits: [], terms: [] };
 

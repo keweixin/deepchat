@@ -18,6 +18,14 @@ import {
 } from './settings-core.js';
 
 import { hasNativeBridge } from './bridge.js';
+import {
+  API_TIMEOUT_MS,
+  NATIVE_HEARTBEAT_INTERVAL_MS,
+  NATIVE_HEARTBEAT_POLL_MS,
+  NATIVE_FALLBACK_TIMEOUT_MS,
+  RETRY_BASE_MS,
+  RETRY_MAX_MS,
+} from './constants.js';
 
 import {
   extractContextMentions,
@@ -289,10 +297,9 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
   const removeAbortListener = () => opts.signal?.removeEventListener('abort', abort);
 
   // Heartbeat: if no token/thinking for 30s, main process may be unresponsive
-  const HEARTBEAT_INTERVAL = 30000;
   const heartbeatTimer = setInterval(() => {
     if (settled) return;
-    if (Date.now() - lastTokenTime > HEARTBEAT_INTERVAL) {
+    if (Date.now() - lastTokenTime > NATIVE_HEARTBEAT_INTERVAL_MS) {
       settled = true;
       unsubscribe();
       clearTimeout(fallbackTimer);
@@ -300,7 +307,7 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
       removeAbortListener();
       opts.onError?.(new Error('主进程响应超时，请检查服务状态'));
     }
-  }, 5000);
+  }, NATIVE_HEARTBEAT_POLL_MS);
 
   // Fallback: if main process never sends done/error, clean up after 10 min
   const fallbackTimer = setTimeout(() => {
@@ -310,7 +317,7 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
       clearInterval(heartbeatTimer);
       removeAbortListener();
     }
-  }, 600_000);
+  }, NATIVE_FALLBACK_TIMEOUT_MS);
 
   (window as any).deepchat.chat.start({
     requestId,
@@ -500,7 +507,7 @@ async function streamBrowserChat(messages: any[], opts: StreamChatOpts = {}): Pr
 }
 
 /** Fetch with independent timeout guard (30s default) */
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 30000): Promise<Response> {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = API_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs);
 
