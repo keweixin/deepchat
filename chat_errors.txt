@@ -1,0 +1,230 @@
+﻿
+src/modules/chat.ts(166,36): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(167,35): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(167,44): error TS7006: Parameter 'html' implicitly has an 'any' type.
+src/modules/chat.ts(243,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(244,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(245,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(246,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(247,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(248,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(249,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(255,24): error TS7006: Parameter 'convs' implicitly has an 'any' type.
+src/modules/chat.ts(259,23): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/modules/chat.ts(263,24): error TS7006: Parameter 'f' implicitly has an 'any' type.
+src/modules/chat.ts(267,19): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/chat.ts(284,22): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/chat.ts(288,25): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/chat.ts(292,26): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/chat.ts(318,32): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(318,41): error TS7006: Parameter 'html' implicitly has an 'any' type.
+src/modules/chat.ts(363,27): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/chat.ts(376,28): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/chat.ts(447,29): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/modules/chat.ts(471,51): error TS7006: Parameter 'modeId' implicitly has an 'any' type.
+src/modules/chat.ts(478,35): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/modules/chat.ts(506,29): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/modules/chat.ts(506,33): error TS7006: Parameter 'newTitle' implicitly has an 'any' type.
+src/modules/chat.ts(515,32): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/modules/chat.ts(556,35): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(580,29): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/chat.ts(594,30): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(594,40): error TS7006: Parameter 'newContent' implicitly has an 'any' type.
+src/modules/chat.ts(616,34): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/chat.ts(620,37): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(643,45): error TS7006: Parameter 'messages' implicitly has an 'any' type.
+src/modules/chat.ts(643,55): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(650,31): error TS7006: Parameter 'msgEl' implicitly has an 'any' type.
+src/modules/chat.ts(650,38): error TS7006: Parameter 'speed' implicitly has an 'any' type.
+src/modules/chat.ts(660,31): error TS7006: Parameter 'msgEl' implicitly has an 'any' type.
+src/modules/chat.ts(688,40): error TS7006: Parameter 'contentEl' implicitly has an 'any' type.
+src/modules/chat.ts(688,51): error TS7006: Parameter 'msg' implicitly has an 'any' type.
+src/modules/chat.ts(688,56): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/modules/chat.ts(716,31): error TS7006: Parameter 'el' implicitly has an 'any' type.
+src/modules/chat.ts(716,35): error TS7006: Parameter 'msg' implicitly has an 'any' type.
+src/modules/chat.ts(716,40): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/modules/chat.ts(716,45): error TS7006: Parameter 'totalMessageCount' implicitly has an 'any' type.
+src/modules/chat.ts(769,34): error TS7006: Parameter 'stage' implicitly has an 'any' type.
+src/modules/chat.ts(772,32): error TS7006: Parameter 'tool' implicitly has an 'any' type.
+src/modules/chat.ts(784,74): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/modules/chat.ts(792,29): error TS7053: Element implicitly has an 'any' type because expression of type 'any
+' can't be used to index type '{ reader: string[]; researcher: string[]; coder: string[]; }'.
+src/modules/chat.ts(798,45): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/modules/chat.ts(814,55): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/modules/chat.ts(854,20): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/modules/chat.ts(864,28): error TS7006: Parameter 'msg' implicitly has an 'any' type.
+src/modules/chat.ts(864,33): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/modules/chat.ts(879,27): error TS7006: Parameter 'msg' implicitly has an 'any' type.
+src/modules/chat.ts(942,33): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(1092,30): error TS7006: Parameter 'tool' implicitly has an 'any' type.
+src/modules/chat.ts(1101,25): error TS7006: Parameter 'tool' implicitly has an 'any' type.
+src/modules/chat.ts(1119,33): error TS7006: Parameter 'tool' implicitly has an 'any' type.
+src/modules/chat.ts(1134,31): error TS7006: Parameter 'tool' implicitly has an 'any' type.
+src/modules/chat.ts(1148,33): error TS7006: Parameter 'tool' implicitly has an 'any' type.
+src/modules/chat.ts(1167,34): error TS7006: Parameter 'outputText' implicitly has an 'any' type.
+src/modules/chat.ts(1182,34): error TS7006: Parameter 'outputText' implicitly has an 'any' type.
+src/modules/chat.ts(1313,37): error TS7006: Parameter 'card' implicitly has an 'any' type.
+src/modules/chat.ts(1313,43): error TS7006: Parameter 'tool' implicitly has an 'any' type.
+src/modules/chat.ts(1313,49): error TS7006: Parameter 'result' implicitly has an 'any' type.
+src/modules/chat.ts(1353,42): error TS7006: Parameter 'label' implicitly has an 'any' type.
+src/modules/chat.ts(1353,49): error TS7006: Parameter 'action' implicitly has an 'any' type.
+src/modules/chat.ts(1368,31): error TS7006: Parameter 'label' implicitly has an 'any' type.
+src/modules/chat.ts(1368,38): error TS7006: Parameter 'text' implicitly has an 'any' type.
+src/modules/chat.ts(1368,44): error TS7006: Parameter 'bytes' implicitly has an 'any' type.
+src/modules/chat.ts(1379,37): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(1442,36): error TS2339: Property 'steps' does not exist on type 'never'.
+src/modules/chat.ts(1442,51): error TS2339: Property 'steps' does not exist on type 'never'.
+src/modules/chat.ts(1452,10): error TS2339: Property 'mode' does not exist on type 'never'.
+src/modules/chat.ts(1452,23): error TS2339: Property 'mode' does not exist on type 'never'.
+src/modules/chat.ts(1452,46): error TS2339: Property 'mode' does not exist on type 'never'.
+src/modules/chat.ts(1453,10): error TS2339: Property 'maxRounds' does not exist on type 'never'.
+src/modules/chat.ts(1453,33): error TS2339: Property 'maxRounds' does not exist on type 'never'.
+src/modules/chat.ts(1454,33): error TS2339: Property 'confidence' does not exist on type 'never'.
+src/modules/chat.ts(1454,77): error TS2339: Property 'confidence' does not exist on type 'never'.
+src/modules/chat.ts(1468,27): error TS2339: Property 'steps' does not exist on type 'never'.
+src/modules/chat.ts(1475,43): error TS2339: Property 'selectedTools' does not exist on type 'never'.
+src/modules/chat.ts(1476,43): error TS2339: Property 'candidateTools' does not exist on type 'never'.
+src/modules/chat.ts(1477,36): error TS2339: Property 'searchPlan' does not exist on type 'never'.
+src/modules/chat.ts(1478,43): error TS2339: Property 'missingPrerequisites' does not exist on type 'never'.
+src/modules/chat.ts(1479,43): error TS2339: Property 'approvalPolicy' does not exist on type 'never'.
+src/modules/chat.ts(1480,41): error TS2339: Property 'warnings' does not exist on type 'never'.
+src/modules/chat.ts(1536,31): error TS7006: Parameter 'action' implicitly has an 'any' type.
+src/modules/chat.ts(1563,40): error TS7006: Parameter 'action' implicitly has an 'any' type.
+src/modules/chat.ts(1569,29): error TS7006: Parameter 'prompt' implicitly has an 'any' type.
+src/modules/chat.ts(1577,32): error TS7006: Parameter 'card' implicitly has an 'any' type.
+src/modules/chat.ts(1604,31): error TS7006: Parameter 'card' implicitly has an 'any' type.
+src/modules/chat.ts(1604,37): error TS7006: Parameter 'labelText' implicitly has an 'any' type.
+src/modules/chat.ts(1635,36): error TS2339: Property 'maxInputTokens' does not exist on type 'never'.
+src/modules/chat.ts(1636,42): error TS2339: Property 'estimatedInputTokens' does not exist on type 'never'.
+src/modules/chat.ts(1639,19): error TS2339: Property 'trimmed' does not exist on type 'never'.
+src/modules/chat.ts(1639,50): error TS2339: Property 'droppedCount' does not exist on type 'never'.
+src/modules/chat.ts(1640,19): error TS2339: Property 'summaryUsed' does not exist on type 'never'.
+src/modules/chat.ts(1641,19): error TS2339: Property 'prefixFingerprint' does not exist on type 'never'.
+src/modules/chat.ts(1641,63): error TS2339: Property 'prefixFingerprint' does not exist on type 'never'.
+src/modules/chat.ts(1645,61): error TS2339: Property 'trimmed' does not exist on type 'never'.
+src/modules/chat.ts(1651,30): error TS7006: Parameter 'stages' implicitly has an 'any' type.
+src/modules/chat.ts(1676,10): error TS7053: Element implicitly has an 'any' type because expression of type 'an
+y' can't be used to index type '{ plan: string; memory: string; checkpoint: string; summary: string; warning: s
+tring; model: string; tool: string; tool_pending: string; tool_approved: string; tool_denied: string; tool_resu
+lt: string; tool_failed: string; final: string; stop: string; }'.
+src/modules/chat.ts(1689,42): error TS7053: Element implicitly has an 'any' type because expression of type 'an
+y' can't be used to index type '{ ready: string; needs_attention: string; waiting_for_approval: string; failed:
+ string; completed: string; }'.
+src/modules/chat.ts(1705,23): error TS7006: Parameter 'message' implicitly has an 'any' type.
+src/modules/chat.ts(1709,36): error TS7006: Parameter 'apiMessages' implicitly has an 'any' type.
+src/modules/chat.ts(1709,49): error TS7006: Parameter 'conversation' implicitly has an 'any' type.
+src/modules/chat.ts(1735,44): error TS7006: Parameter 'conversation' implicitly has an 'any' type.
+src/modules/chat.ts(1749,25): error TS7006: Parameter 'value' implicitly has an 'any' type.
+src/modules/chat.ts(1754,45): error TS7006: Parameter 'message' implicitly has an 'any' type.
+src/modules/chat.ts(1754,54): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(1758,49): error TS7006: Parameter 'message' implicitly has an 'any' type.
+src/modules/chat.ts(1758,58): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(1762,42): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(1762,53): error TS7006: Parameter 'message' implicitly has an 'any' type.
+src/modules/chat.ts(1792,29): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(1792,39): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/modules/chat.ts(1830,33): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(1861,45): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(1893,36): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(1893,47): error TS7006: Parameter 'contentEl' implicitly has an 'any' type.
+src/modules/chat.ts(1898,10): error TS2345: Argument of type '(heading: Element, index: number) => { id: string
+; text: string; level: string; } | null' is not assignable to parameter of type '(value: unknown, index: number
+, array: unknown[]) => { id: string; text: string; level: string; } | null'.
+src/modules/chat.ts(1925,46): error TS18047: 'item' is possibly 'null'.
+src/modules/chat.ts(1927,21): error TS18047: 'item' is possibly 'null'.
+src/modules/chat.ts(1928,24): error TS18047: 'item' is possibly 'null'.
+src/modules/chat.ts(1942,26): error TS7006: Parameter 'heading' implicitly has an 'any' type.
+src/modules/chat.ts(1942,35): error TS7006: Parameter 'text' implicitly has an 'any' type.
+src/modules/chat.ts(1942,41): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/modules/chat.ts(2034,29): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/modules/chat.ts(2038,30): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(2060,34): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(2097,22): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/chat.ts(2107,37): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(2141,22): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/chat.ts(2151,34): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(2189,22): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/chat.ts(2199,34): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(2233,22): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/chat.ts(2243,35): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(2277,22): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/chat.ts(2287,27): error TS7006: Parameter 'artifact' implicitly has an 'any' type.
+src/modules/chat.ts(2287,37): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/modules/chat.ts(2316,41): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(2316,52): error TS7006: Parameter 'message' implicitly has an 'any' type.
+src/modules/chat.ts(2320,15): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/modules/chat.ts(2331,49): error TS7006: Parameter 'source' implicitly has an 'any' type.
+src/modules/chat.ts(2345,56): error TS7006: Parameter 'citation' implicitly has an 'any' type.
+src/modules/chat.ts(2355,3): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(2425,7): error TS18048: 'usage.cacheHit' is possibly 'undefined'.
+src/modules/chat.ts(2425,30): error TS18048: 'usage.cacheMiss' is possibly 'undefined'.
+src/modules/chat.ts(2426,37): error TS18047: 'usage' is possibly 'null'.
+src/modules/chat.ts(2466,42): error TS7006: Parameter 'source' implicitly has an 'any' type.
+src/modules/chat.ts(2471,49): error TS7006: Parameter 'citation' implicitly has an 'any' type.
+src/modules/chat.ts(2499,30): error TS7006: Parameter 'card' implicitly has an 'any' type.
+src/modules/chat.ts(2499,36): error TS7006: Parameter 'labelText' implicitly has an 'any' type.
+src/modules/chat.ts(2518,32): error TS7006: Parameter 'card' implicitly has an 'any' type.
+src/modules/chat.ts(2518,38): error TS7006: Parameter 'text' implicitly has an 'any' type.
+src/modules/chat.ts(2528,35): error TS7006: Parameter 'card' implicitly has an 'any' type.
+src/modules/chat.ts(2528,41): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/modules/chat.ts(2537,37): error TS7006: Parameter 'card' implicitly has an 'any' type.
+src/modules/chat.ts(2597,45): error TS7006: Parameter 'run' implicitly has an 'any' type.
+src/modules/chat.ts(2694,3): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(2734,30): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(2734,41): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(2779,32): error TS7006: Parameter 'msgEl' implicitly has an 'any' type.
+src/modules/chat.ts(2779,39): error TS7006: Parameter 'msg' implicitly has an 'any' type.
+src/modules/chat.ts(2779,44): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(2864,28): error TS7006: Parameter 'msgEl' implicitly has an 'any' type.
+src/modules/chat.ts(2864,35): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(2864,44): error TS7006: Parameter 'tokens' implicitly has an 'any' type.
+src/modules/chat.ts(2864,52): error TS7006: Parameter 'speed' implicitly has an 'any' type.
+src/modules/chat.ts(2864,59): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(3010,11): error TS18048: 'usage.rounds' is possibly 'undefined'.
+src/modules/chat.ts(3021,35): error TS7006: Parameter 'label' implicitly has an 'any' type.
+src/modules/chat.ts(3021,42): error TS7006: Parameter 'title' implicitly has an 'any' type.
+src/modules/chat.ts(3021,49): error TS7006: Parameter 'onClick' implicitly has an 'any' type.
+src/modules/chat.ts(3031,33): error TS7006: Parameter 'label' implicitly has an 'any' type.
+src/modules/chat.ts(3031,40): error TS7006: Parameter 'title' implicitly has an 'any' type.
+src/modules/chat.ts(3059,27): error TS7006: Parameter 'action' implicitly has an 'any' type.
+src/modules/chat.ts(3059,35): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(3059,44): error TS7006: Parameter 'message' implicitly has an 'any' type.
+src/modules/chat.ts(3065,34): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(3065,43): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(3072,30): error TS7006: Parameter 'msgEl' implicitly has an 'any' type.
+src/modules/chat.ts(3072,37): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(3072,46): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(3085,34): error TS7006: Parameter 'content' implicitly has an 'any' type.
+src/modules/chat.ts(3085,43): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(3101,27): error TS7006: Parameter 'text' implicitly has an 'any' type.
+src/modules/chat.ts(3101,33): error TS7006: Parameter 'fileName' implicitly has an 'any' type.
+src/modules/chat.ts(3101,43): error TS7006: Parameter 'type' implicitly has an 'any' type.
+src/modules/chat.ts(3111,55): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(3111,66): error TS7006: Parameter 'conversation' implicitly has an 'any' type.
+src/modules/chat.ts(3142,71): error TS2345: Argument of type 'string | number' is not assignable to parameter o
+f type 'string'.
+src/modules/chat.ts(3191,44): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(3191,55): error TS7006: Parameter 'conversation' implicitly has an 'any' type.
+src/modules/chat.ts(3278,24): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(3278,34): error TS7006: Parameter 'direction' implicitly has an 'any' type.
+src/modules/chat.ts(3324,39): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(3340,32): error TS7006: Parameter 'msgIndex' implicitly has an 'any' type.
+src/modules/chat.ts(3349,33): error TS7006: Parameter 'container' implicitly has an 'any' type.
+src/modules/chat.ts(3351,75): error TS7006: Parameter 'btn' implicitly has an 'any' type.
+src/modules/chat.ts(3374,74): error TS7006: Parameter 'btn' implicitly has an 'any' type.
+src/modules/chat.ts(3470,21): error TS18046: 'error' is of type 'unknown'.
+src/modules/chat.ts(3476,35): error TS18046: 'error' is of type 'unknown'.
+src/modules/chat.ts(3486,27): error TS7006: Parameter 'wrapper' implicitly has an 'any' type.
+src/modules/chat.ts(3486,36): error TS7006: Parameter 'output' implicitly has an 'any' type.
+src/modules/chat.ts(3486,44): error TS7006: Parameter 'ok' implicitly has an 'any' type.
+src/modules/chat.ts(3511,36): error TS7006: Parameter 'model' implicitly has an 'any' type.
+src/modules/chat.ts(3515,33): error TS7006: Parameter 'conversation' implicitly has an 'any' type.
+src/modules/chat.ts(3607,31): error TS7006: Parameter 'conversation' implicitly has an 'any' type.
+src/modules/chat.ts(3644,35): error TS7006: Parameter 'conversation' implicitly has an 'any' type.
+src/modules/chat.ts(3665,28): error TS7006: Parameter 'streaming' implicitly has an 'any' type.
+src/modules/chat.ts(3671,5): error TS18047: 'sendBtn' is possibly 'null'.
+src/modules/chat.ts(3672,5): error TS18047: 'stopBtn' is possibly 'null'.
+src/modules/chat.ts(3675,5): error TS18047: 'sendBtn' is possibly 'null'.
+src/modules/chat.ts(3676,5): error TS18047: 'stopBtn' is possibly 'null'.
+
+

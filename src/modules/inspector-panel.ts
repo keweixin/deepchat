@@ -26,9 +26,9 @@ import { diffArtifactVersions } from './artifact-versions.js';
 import { downloadZipArchive } from './zip-builder.js';
 import { escapeHtml, formatBytes } from './shared-utils.js';
 
-let _panelEl = null;
-let _contentEl = null;
-let _toolbarEl = null;
+let _panelEl: HTMLElement | null = null;
+let _contentEl: HTMLElement | null = null;
+let _toolbarEl: HTMLElement | null = null;
 let _isOpen = false;
 let _currentMode = 'empty'; // empty | message | trace | theatre | artifact
 let _currentData: Record<string, any> = {};
@@ -64,7 +64,7 @@ function _ensurePanel() {
  * @param {string} mode
  * @param {Object} data
  */
-export function openInspectorPanel(mode, data = {}) {
+export function openInspectorPanel(mode: string, data: Record<string, any> = {}) {
   _ensurePanel();
   if (!_panelEl) return;
   _isOpen = true;
@@ -91,7 +91,7 @@ export function closeInspectorPanel() {
  * @param {string} mode
  * @param {Object} data
  */
-export function toggleInspectorPanel(mode, data = {}) {
+export function toggleInspectorPanel(mode: string, data: Record<string, any> = {}) {
   if (_isOpen && _currentMode === mode) {
     closeInspectorPanel();
   } else {
@@ -112,7 +112,7 @@ export function isInspectorPanelOpen() {
  * @param {string} mode
  * @param {Object} data
  */
-export function updateInspectorPanel(mode, data = {}) {
+export function updateInspectorPanel(mode: string, data: Record<string, any> = {}) {
   if (!_isOpen) return;
   _currentMode = mode;
   _renderContent(mode, data);
@@ -120,7 +120,7 @@ export function updateInspectorPanel(mode, data = {}) {
 
 // ─── Content Renderers ──────────────────────────────────────────────────────
 
-function _renderContent(mode, data) {
+function _renderContent(mode: string, data: Record<string, any>) {
   if (!_contentEl) return;
   _contentEl.innerHTML = '';
 
@@ -145,6 +145,7 @@ function _renderContent(mode, data) {
 }
 
 function _renderEmpty() {
+  if (!_contentEl) return;
   _contentEl.innerHTML = `
     <div class="inspector-empty">
       <p>选择一条消息或按 <kbd>Ctrl+Shift+I</kbd> 查看详情</p>
@@ -152,7 +153,8 @@ function _renderEmpty() {
   `;
 }
 
-function _renderMessageInfo(data) {
+function _renderMessageInfo(data: Record<string, any>) {
+  if (!_contentEl) return;
   const { msg, index } = data;
   if (!msg) return _renderEmpty();
 
@@ -214,7 +216,8 @@ function _renderMessageInfo(data) {
   _contentEl.innerHTML = html;
 }
 
-function _renderTraceInfo(data) {
+function _renderTraceInfo(data: Record<string, any>) {
+  if (!_contentEl) return;
   const { recorder } = data;
   if (!recorder) return _renderEmpty();
 
@@ -241,7 +244,8 @@ function _renderTraceInfo(data) {
   _contentEl.innerHTML = html;
 }
 
-function _renderModelInfo(data) {
+function _renderModelInfo(data: Record<string, any>) {
+  if (!_contentEl) return;
   const { settings, matrix, badge } = data;
   if (!settings) return _renderEmpty();
 
@@ -271,7 +275,8 @@ function _renderModelInfo(data) {
 
 // ─── Artifact Renderer ──────────────────────────────────────────────────────
 
-function _renderArtifactInfo(data) {
+function _renderArtifactInfo(data: Record<string, any>) {
+  if (!_contentEl) return;
   const { msg, messages, index: msgIndex } = data;
   if (!msg?.content) return _renderEmpty();
 
@@ -311,7 +316,8 @@ function _renderArtifactInfo(data) {
   `;
 
   for (const [i, artifact] of artifacts.entries()) {
-    const icon = ARTIFACT_TYPE_ICONS[artifact.type] || ARTIFACT_TYPE_ICONS['code-file'];
+    const icon =
+      ARTIFACT_TYPE_ICONS[artifact.type as keyof typeof ARTIFACT_TYPE_ICONS] || ARTIFACT_TYPE_ICONS['code-file'];
     const typeLabel = getArtifactTypeLabel(artifact.type);
     const metaParts = _buildArtifactMeta(artifact);
     const preview = _buildArtifactPreview(artifact);
@@ -359,9 +365,10 @@ function _renderArtifactInfo(data) {
   _contentEl.innerHTML = html;
 
   // Attach event listeners
-  _contentEl.querySelectorAll('.inspector-artifact-action').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      const target = /** @type {HTMLElement} */ e.currentTarget;
+  Array.from(_contentEl.querySelectorAll('.inspector-artifact-action')).forEach((btn) => {
+    btn.addEventListener('click', (e: Event) => {
+      const target = e.currentTarget as HTMLElement | null;
+      if (!target) return;
       const action = target.dataset.action;
       const idx = Number(target.dataset.artifactIdx);
       const art = artifacts[idx];
@@ -375,7 +382,7 @@ function _renderArtifactInfo(data) {
       } else if (action === 'download') {
         _downloadArtifact(art, idx);
       } else if (action === 'diff') {
-        const vkey = target.dataset.versionKey;
+        const vkey = target.dataset.versionKey || '';
         _showVersionDiff(vkey, versionGroups, artifacts, idx);
       }
     });
@@ -384,11 +391,13 @@ function _renderArtifactInfo(data) {
   // Search/filter handler
   const searchInput = _contentEl.querySelector('.inspector-artifact-search-input');
   if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const query = /** @type {HTMLInputElement} */ e.target.value.toLowerCase().trim();
-      _contentEl.querySelectorAll('.inspector-artifact-card').forEach((card) => {
-        const searchText = card.dataset.artifactSearch || '';
-        card.style.display = !query || searchText.includes(query) ? '' : 'none';
+    searchInput.addEventListener('input', (e: Event) => {
+      const query = (e.target as HTMLInputElement | null)?.value.toLowerCase().trim() || '';
+      if (!_contentEl) return;
+      Array.from(_contentEl.querySelectorAll('.inspector-artifact-card')).forEach((card) => {
+        const el = card as HTMLElement;
+        const searchText = el.dataset.artifactSearch || '';
+        el.style.display = !query || searchText.includes(query) ? '' : 'none';
       });
     });
   }
@@ -398,14 +407,14 @@ function _renderArtifactInfo(data) {
  * Normalize an artifact title into a stable key for version grouping.
  * Strips trailing version numbers like " 2", " 3" etc.
  */
-function _artifactVersionKey(artifact) {
+function _artifactVersionKey(artifact: Artifact) {
   return (artifact.title || '').replace(/\s+\d+$/, '').toLowerCase();
 }
 
 /**
  * Collect all artifact versions across messages, grouped by normalized title.
  */
-function _collectArtifactVersions(messages, _currentMsgIndex) {
+function _collectArtifactVersions(messages: any[], _currentMsgIndex: number) {
   const groups = new Map();
   if (!Array.isArray(messages)) return groups;
 
@@ -429,18 +438,24 @@ function _collectArtifactVersions(messages, _currentMsgIndex) {
 /**
  * Show inline diff view comparing two artifact versions.
  */
-function _showVersionDiff(versionKey, versionGroups, currentArtifacts, currentIndex) {
-  const container = _contentEl.querySelector('.inspector-artifact-diff-container');
+function _showVersionDiff(
+  versionKey: string,
+  versionGroups: Map<string, any[]>,
+  currentArtifacts: any[],
+  currentIndex: number
+) {
+  if (!_contentEl) return;
+  const container = _contentEl.querySelector('.inspector-artifact-diff-container') as HTMLElement | null;
   if (!container) return;
 
   const versions = versionGroups.get(versionKey) || [];
   if (versions.length < 2) return;
 
   // Build selector for two versions
-  const buildOptions = (selectedIdx) =>
+  const buildOptions = (selectedIdx: number) =>
     versions
       .map(
-        (v, i) =>
+        (v: Record<string, any>, i: number) =>
           `<option value="${i}" ${i === selectedIdx ? 'selected' : ''}>消息 #${(v.messageIndex ?? 0) + 1} — ${new Date(v.createdAt || Date.now()).toLocaleString()}</option>`
       )
       .join('');
@@ -469,16 +484,18 @@ function _showVersionDiff(versionKey, versionGroups, currentArtifacts, currentIn
   _renderDiffContent(container, versions, 0, versions.length - 1);
 
   // Selector change handlers
-  container.querySelectorAll('.inspector-artifact-diff-select').forEach((sel) => {
+  Array.from(container.querySelectorAll('.inspector-artifact-diff-select')).forEach((sel) => {
     sel.addEventListener('change', () => {
-      const oldIdx = Number(container.querySelector('[data-side="old"]').value);
-      const newIdx = Number(container.querySelector('[data-side="new"]').value);
+      const oldSelect = container.querySelector('[data-side="old"]') as HTMLSelectElement | null;
+      const newSelect = container.querySelector('[data-side="new"]') as HTMLSelectElement | null;
+      const oldIdx = Number(oldSelect?.value ?? 0);
+      const newIdx = Number(newSelect?.value ?? 0);
       _renderDiffContent(container, versions, oldIdx, newIdx);
     });
   });
 
   // Close button
-  const closeBtn = container.querySelector('.inspector-artifact-diff-close');
+  const closeBtn = container.querySelector('.inspector-artifact-diff-close') as HTMLElement | null;
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       container.hidden = true;
@@ -495,7 +512,7 @@ function _showVersionDiff(versionKey, versionGroups, currentArtifacts, currentIn
 /**
  * Render diff lines into the diff view container.
  */
-function _renderDiffContent(container, versions, oldIdx, newIdx) {
+function _renderDiffContent(container: HTMLElement, versions: any[], oldIdx: number, newIdx: number) {
   const statsEl = container.querySelector('.inspector-artifact-diff-stats');
   const viewEl = container.querySelector('.inspector-artifact-diff-view');
   if (!statsEl || !viewEl) return;
@@ -534,7 +551,7 @@ function _renderDiffContent(container, versions, oldIdx, newIdx) {
 /**
  * Simple LCS-based line diff algorithm.
  */
-function _computeLineDiff(oldLines, newLines) {
+function _computeLineDiff(oldLines: string[], newLines: string[]) {
   const m = oldLines.length;
   const n = newLines.length;
 
@@ -586,7 +603,7 @@ function _computeLineDiff(oldLines, newLines) {
   return result;
 }
 
-function _distToNextChange(lines, fromIdx) {
+function _distToNextChange(lines: Array<{ type: string; text: string }>, fromIdx: number) {
   for (let k = fromIdx + 1; k < lines.length; k++) {
     if (lines[k].type !== 'ctx') return k - fromIdx;
   }
@@ -596,9 +613,9 @@ function _distToNextChange(lines, fromIdx) {
 /**
  * Download all artifacts as a ZIP file.
  */
-function _downloadAllArtifacts(artifacts) {
+function _downloadAllArtifacts(artifacts: Artifact[]) {
   if (artifacts.length === 0) return;
-  const files = artifacts.map((art, i) => ({
+  const files = artifacts.map((art: Artifact, i: number) => ({
     name: buildArtifactDownloadName(art, i),
     content: art.source,
   }));
@@ -611,7 +628,7 @@ function _downloadAllArtifacts(artifacts) {
  * @param {import('./artifacts.js').Artifact} artifact
  * @returns {string[]}
  */
-function _buildArtifactMeta(artifact) {
+function _buildArtifactMeta(artifact: Artifact) {
   const parts = [getArtifactTypeLabel(artifact.type)];
   if (artifact.language) parts.push(artifact.language);
   if (artifact.format) parts.push(artifact.format.toUpperCase());
@@ -627,7 +644,7 @@ function _buildArtifactMeta(artifact) {
  * @param {import('./artifacts.js').Artifact} artifact
  * @returns {string}
  */
-function _buildArtifactPreview(artifact) {
+function _buildArtifactPreview(artifact: Artifact) {
   switch (artifact.type) {
     case 'html-preview':
       return _buildHtmlPreview(artifact);
@@ -643,7 +660,7 @@ function _buildArtifactPreview(artifact) {
   }
 }
 
-function _buildHtmlPreview(artifact) {
+function _buildHtmlPreview(artifact: Artifact) {
   const srcdoc = createSandboxedHtmlDocument(artifact.source, { title: artifact.title });
   const safeSrcdoc = srcdoc.replace(/"/g, '&quot;');
   return `
@@ -658,7 +675,7 @@ function _buildHtmlPreview(artifact) {
   `;
 }
 
-function _buildMermaidPreview(artifact) {
+function _buildMermaidPreview(artifact: Artifact) {
   const lines = artifact.source.split('\n').slice(0, 12);
   const preview = lines.join('\n');
   const truncated = artifact.source.split('\n').length > 12;
@@ -669,7 +686,7 @@ function _buildMermaidPreview(artifact) {
   `;
 }
 
-function _buildJsonPreview(artifact) {
+function _buildJsonPreview(artifact: Artifact) {
   let display = artifact.source;
   if (artifact.parsed) {
     try {
@@ -687,8 +704,8 @@ function _buildJsonPreview(artifact) {
   `;
 }
 
-function _buildTablePreview(artifact) {
-  const rows = parseTableRows(artifact.source, artifact.format);
+function _buildTablePreview(artifact: Artifact) {
+  const rows = parseTableRows(artifact.source, artifact.format || '');
   if (rows.length === 0) {
     return `
       <div class="inspector-artifact-preview inspector-artifact-preview--table">
@@ -728,7 +745,7 @@ function _buildTablePreview(artifact) {
   return tableHtml;
 }
 
-function _buildCodePreview(artifact) {
+function _buildCodePreview(artifact: Artifact) {
   const lines = artifact.source.split('\n').slice(0, 30);
   const truncated = artifact.source.split('\n').length > 30;
   const langClass = artifact.language ? ` language-${escapeHtml(artifact.language)}` : '';
@@ -745,7 +762,7 @@ function _buildCodePreview(artifact) {
  * @param {string} [format]
  * @returns {string[][]}
  */
-function parseTableRows(source, format) {
+function parseTableRows(source: string, format: string) {
   const lines = String(source || '')
     .split('\n')
     .map((l) => l.trim())
@@ -754,25 +771,25 @@ function parseTableRows(source, format) {
 
   if (format === 'markdown') {
     // Skip separator row (---|---)
-    const dataLines = lines.filter((l) => !/^\|?\s*[-:]+[-|:\s]+\s*\|?\s*$/.test(l));
-    return dataLines.map((line) =>
+    const dataLines = lines.filter((l: string) => !/^\|?\s*[-:]+[-|:\s]+\s*\|?\s*$/.test(l));
+    return dataLines.map((line: string) =>
       line
         .replace(/^\|/, '')
         .replace(/\|$/, '')
         .split('|')
-        .map((c) => c.trim())
+        .map((c: string) => c.trim())
     );
   }
 
   const sep = format === 'tsv' ? '\t' : ',';
-  return lines.map((line) => line.split(sep).map((c) => c.trim()));
+  return lines.map((line: string) => line.split(sep).map((c: string) => c.trim()));
 }
 
 /**
  * Copy artifact source to clipboard.
  * @param {import('./artifacts.js').Artifact} artifact
  */
-function _copyArtifactSource(artifact) {
+function _copyArtifactSource(artifact: Artifact) {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(artifact.source).then(() => {
       _showInspectorToast('已复制到剪贴板');
@@ -785,7 +802,7 @@ function _copyArtifactSource(artifact) {
  * @param {import('./artifacts.js').Artifact} artifact
  * @param {number} index
  */
-function _downloadArtifact(artifact, index) {
+function _downloadArtifact(artifact: Artifact, index: number) {
   let blob;
   switch (artifact.type) {
     case 'html-preview': {
@@ -813,7 +830,7 @@ function _downloadArtifact(artifact, index) {
  * Show a brief toast message inside the inspector panel.
  * @param {string} message
  */
-function _showInspectorToast(message) {
+function _showInspectorToast(message: string) {
   if (!_contentEl) return;
   const toast = document.createElement('div');
   toast.className = 'inspector-toast';
@@ -881,16 +898,17 @@ function _ensureToolbar() {
 
 function _updateToolbar() {
   if (!_toolbarEl) return;
-  _toolbarEl.querySelectorAll('.inspector-toolbar-btn').forEach((btn) => {
-    const isActive = btn.dataset.mode === _currentMode;
-    btn.classList.toggle('is-active', isActive);
+  Array.from(_toolbarEl.querySelectorAll('.inspector-toolbar-btn')).forEach((btn) => {
+    const el = btn as HTMLElement;
+    const isActive = el.dataset.mode === _currentMode;
+    el.classList.toggle('is-active', isActive);
   });
 }
 
 // ─── Global Shortcut ────────────────────────────────────────────────────────
 
 export function bindInspectorPanelShortcut() {
-  const handler = (e) => {
+  const handler = (e: KeyboardEvent) => {
     if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i') {
       e.preventDefault();
       toggleInspectorPanel('empty');

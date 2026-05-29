@@ -1,0 +1,112 @@
+﻿src/modules/chat.ts(243,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(244,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(245,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(246,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(247,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(248,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(249,3): error TS2322: Type 'HTMLElement | null' is not assignable to type 'HTMLElement'.
+src/modules/chat.ts(268,7): error TS2322: Type 'Record<string, any>' is not assignable to type 'boolean'.
+src/modules/chat.ts(364,30): error TS2339: Property 'detail' does not exist on type 'Event'.
+src/modules/chat.ts(377,15): error TS2339: Property 'ctrlKey' does not exist on type 'Event'.
+src/modules/chat.ts(377,32): error TS2339: Property 'shiftKey' does not exist on type 'Event'.
+src/modules/chat.ts(377,50): error TS2339: Property 'key' does not exist on type 'Event'.
+src/modules/chat.ts(709,49): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(725,9): error TS18047: 'contentEl' is possibly 'null'.
+src/modules/chat.ts(726,21): error TS2345: Argument of type 'Element | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(728,32): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(734,9): error TS18047: 'contentEl' is possibly 'null'.
+src/modules/chat.ts(734,31): error TS2345: Argument of type 'Element | null' is not assignable to parameter of type 'Node'.
+src/modules/chat.ts(736,28): error TS2345: Argument of type 'Element | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(739,37): error TS2345: Argument of type 'Element | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(741,7): error TS18047: 'contentEl' is possibly 'null'.
+src/modules/chat.ts(742,19): error TS2345: Argument of type 'Element | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(744,30): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(749,33): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(751,42): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(757,23): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(761,21): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(763,25): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(781,25): error TS2345: Argument of type 'Element | null' is not assignable to parameter of type 'HTMLElement | null'.
+src/modules/chat.ts(782,55): error TS2339: Property '__crewClickBound' does not exist on type 'Element'.
+src/modules/chat.ts(783,28): error TS2339: Property '__crewClickBound' does not exist on type 'Element'.
+src/modules/chat.ts(785,26): error TS2339: Property 'detail' does not exist on type 'Event'.
+src/modules/chat.ts(792,29): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ reader: string[]; researcher: string[]; coder: string[]; }'.
+src/modules/chat.ts(800,21): error TS2339: Property 'style' does not exist on type 'Element'.
+src/modules/chat.ts(802,23): error TS2339: Property 'style' does not exist on type 'Element'.
+src/modules/chat.ts(815,16): error TS2339: Property 'ctrlKey' does not exist on type 'Event'.
+src/modules/chat.ts(815,30): error TS2339: Property 'metaKey' does not exist on type 'Event'.
+src/modules/chat.ts(825,30): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(826,29): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter of type 'HTMLElement'.
+src/modules/chat.ts(1442,36): error TS2339: Property 'steps' does not exist on type 'never'.
+src/modules/chat.ts(1442,51): error TS2339: Property 'steps' does not exist on type 'never'.
+src/modules/chat.ts(1452,10): error TS2339: Property 'mode' does not exist on type 'never'.
+src/modules/chat.ts(1452,23): error TS2339: Property 'mode' does not exist on type 'never'.
+src/modules/chat.ts(1452,46): error TS2339: Property 'mode' does not exist on type 'never'.
+src/modules/chat.ts(1453,10): error TS2339: Property 'maxRounds' does not exist on type 'never'.
+src/modules/chat.ts(1453,33): error TS2339: Property 'maxRounds' does not exist on type 'never'.
+src/modules/chat.ts(1454,33): error TS2339: Property 'confidence' does not exist on type 'never'.
+src/modules/chat.ts(1454,77): error TS2339: Property 'confidence' does not exist on type 'never'.
+src/modules/chat.ts(1468,27): error TS2339: Property 'steps' does not exist on type 'never'.
+src/modules/chat.ts(1475,43): error TS2339: Property 'selectedTools' does not exist on type 'never'.
+src/modules/chat.ts(1476,43): error TS2339: Property 'candidateTools' does not exist on type 'never'.
+src/modules/chat.ts(1477,36): error TS2339: Property 'searchPlan' does not exist on type 'never'.
+src/modules/chat.ts(1478,43): error TS2339: Property 'missingPrerequisites' does not exist on type 'never'.
+src/modules/chat.ts(1479,43): error TS2339: Property 'approvalPolicy' does not exist on type 'never'.
+src/modules/chat.ts(1480,41): error TS2339: Property 'warnings' does not exist on type 'never'.
+src/modules/chat.ts(1635,36): error TS2339: Property 'maxInputTokens' does not exist on type 'never'.
+src/modules/chat.ts(1636,42): error TS2339: Property 'estimatedInputTokens' does not exist on type 'never'.
+src/modules/chat.ts(1639,19): error TS2339: Property 'trimmed' does not exist on type 'never'.
+src/modules/chat.ts(1639,50): error TS2339: Property 'droppedCount' does not exist on type 'never'.
+src/modules/chat.ts(1640,19): error TS2339: Property 'summaryUsed' does not exist on type 'never'.
+src/modules/chat.ts(1641,19): error TS2339: Property 'prefixFingerprint' does not exist on type 'never'.
+src/modules/chat.ts(1641,63): error TS2339: Property 'prefixFingerprint' does not exist on type 'never'.
+src/modules/chat.ts(1645,61): error TS2339: Property 'trimmed' does not exist on type 'never'.
+src/modules/chat.ts(1676,10): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ plan: string; memory: string; checkpoint: string; summary: string; warning: string; model: string; tool: string; tool_pending: string; tool_approved: string; tool_denied: string; tool_result: string; tool_failed: string; final: string; stop: string; }'.
+src/modules/chat.ts(1689,42): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ ready: string; needs_attention: string; waiting_for_approval: string; failed: string; completed: string; }'.
+src/modules/chat.ts(1750,25): error TS2769: No overload matches this call.
+src/modules/chat.ts(1925,46): error TS18047: 'item' is possibly 'null'.
+src/modules/chat.ts(1927,21): error TS18047: 'item' is possibly 'null'.
+src/modules/chat.ts(1928,24): error TS18047: 'item' is possibly 'null'.
+src/modules/chat.ts(2098,15): error TS2339: Property 'key' does not exist on type 'Event'.
+src/modules/chat.ts(2142,15): error TS2339: Property 'key' does not exist on type 'Event'.
+src/modules/chat.ts(2190,15): error TS2339: Property 'key' does not exist on type 'Event'.
+src/modules/chat.ts(2234,15): error TS2339: Property 'key' does not exist on type 'Event'.
+src/modules/chat.ts(2278,15): error TS2339: Property 'key' does not exist on type 'Event'.
+src/modules/chat.ts(2309,45): error TS2345: Argument of type 'Record<string, any>' is not assignable to parameter of type 'Artifact'.
+src/modules/chat.ts(2332,23): error TS2339: Property 'title' does not exist on type 'string'.
+src/modules/chat.ts(2332,39): error TS2339: Property 'url' does not exist on type 'string'.
+src/modules/chat.ts(2333,22): error TS2339: Property 'url' does not exist on type 'string'.
+src/modules/chat.ts(2425,7): error TS18048: 'usage.cacheHit' is possibly 'undefined'.
+src/modules/chat.ts(2425,30): error TS18048: 'usage.cacheMiss' is possibly 'undefined'.
+src/modules/chat.ts(2426,37): error TS18047: 'usage' is possibly 'null'.
+src/modules/chat.ts(2466,68): error TS2339: Property 'title' does not exist on type 'string'.
+src/modules/chat.ts(2466,84): error TS2339: Property 'url' does not exist on type 'string'.
+src/modules/chat.ts(2807,5): error TS18047: 'contentEl' is possibly 'null'.
+src/modules/chat.ts(2828,7): error TS18047: 'contentEl' is possibly 'null'.
+src/modules/chat.ts(2833,5): error TS18047: 'contentEl' is possibly 'null'.
+src/modules/chat.ts(2834,5): error TS18047: 'contentEl' is possibly 'null'.
+src/modules/chat.ts(2878,64): error TS2339: Property 'innerText' does not exist on type 'Element'.
+src/modules/chat.ts(2988,31): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/modules/chat.ts(2991,31): error TS2345: Argument of type 'number' is not assignable to parameter of type 'string'.
+src/modules/chat.ts(3010,11): error TS18048: 'usage.rounds' is possibly 'undefined'.
+src/modules/chat.ts(3142,71): error TS2345: Argument of type 'string | number' is not assignable to parameter of type 'string'.
+src/modules/chat.ts(3287,7): error TS2365: Operator '<' cannot be applied to types 'string' and 'number'.
+src/modules/chat.ts(3351,74): error TS2345: Argument of type '(btn: HTMLElement) => void' is not assignable to parameter of type '(value: Element, key: number, parent: NodeListOf<Element>) => void'.
+src/modules/chat.ts(3357,9): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3357,41): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(3358,9): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3358,42): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(3359,9): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3362,11): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3362,43): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(3363,11): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3363,44): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(3364,11): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3374,73): error TS2345: Argument of type '(btn: HTMLElement) => void' is not assignable to parameter of type '(value: Element, key: number, parent: NodeListOf<Element>) => void'.
+src/modules/chat.ts(3462,35): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+src/modules/chat.ts(3470,21): error TS18046: 'error' is of type 'unknown'.
+src/modules/chat.ts(3476,35): error TS18046: 'error' is of type 'unknown'.
+src/modules/chat.ts(3671,5): error TS18047: 'sendBtn' is possibly 'null'.
+src/modules/chat.ts(3672,5): error TS18047: 'stopBtn' is possibly 'null'.
+src/modules/chat.ts(3675,5): error TS18047: 'sendBtn' is possibly 'null'.
+src/modules/chat.ts(3676,5): error TS18047: 'stopBtn' is possibly 'null'.

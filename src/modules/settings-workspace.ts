@@ -2,6 +2,8 @@
  * Settings Workspace utilities — workspace list rendering and refresh
  */
 
+import { SettingsElements } from './settings-dom.js';
+
 export function renderWorkspaceList(
   container: HTMLElement | null,
   roots: string[],
@@ -50,7 +52,7 @@ export function renderWorkspaceList(
 }
 
 export async function refreshWorkspaces(
-  els: Record<string, HTMLElement>,
+  els: SettingsElements,
   nextSettings: Record<string, unknown>,
   {
     removeWorkspace,
@@ -63,6 +65,7 @@ export async function refreshWorkspaces(
   renderWorkspaceList(els.workspaceList, (nextSettings.workspaceRoots as string[]) || [], async (root) => {
     const updated = await removeWorkspace(root);
     await refreshWorkspaces(els, updated, { removeWorkspace, renderSkillGrid });
+    if (!els.skillGrid) return;
     renderSkillGrid(els.skillGrid, String(updated.activeSkill || ''), updated);
   });
 }

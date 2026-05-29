@@ -1,0 +1,93 @@
+﻿
+src/modules/chat.ts(344,7): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter 
+of type 'HTMLElement'.
+src/modules/chat.ts(350,24): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(350,49): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(350,71): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(366,12): error TS2769: No overload matches this call.
+src/modules/chat.ts(367,39): error TS2769: No overload matches this call.
+src/modules/chat.ts(429,20): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(499,7): error TS18047: '$chatTitle' is possibly 'null'.
+src/modules/chat.ts(578,18): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(684,3): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(709,49): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(729,32): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(745,30): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(750,33): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(752,42): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(762,21): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(764,25): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(785,28): error TS2769: No overload matches this call.
+src/modules/chat.ts(826,30): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(827,29): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(840,3): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(869,9): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(871,9): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(876,18): error TS2345: Argument of type 'HTMLElement | null' is not assignable to parameter
+ of type 'HTMLElement'.
+src/modules/chat.ts(887,5): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(889,5): error TS18047: '$messages' is possibly 'null'.
+src/modules/chat.ts(1464,54): error TS2345: Argument of type 'Record<string, any> | null' is not assignable to 
+parameter of type 'null | undefined'.
+src/modules/chat.ts(1636,36): error TS2339: Property 'maxInputTokens' does not exist on type 'never'.
+src/modules/chat.ts(1637,42): error TS2339: Property 'estimatedInputTokens' does not exist on type 'never'.
+src/modules/chat.ts(1640,19): error TS2339: Property 'trimmed' does not exist on type 'never'.
+src/modules/chat.ts(1640,50): error TS2339: Property 'droppedCount' does not exist on type 'never'.
+src/modules/chat.ts(1641,19): error TS2339: Property 'summaryUsed' does not exist on type 'never'.
+src/modules/chat.ts(1642,19): error TS2339: Property 'prefixFingerprint' does not exist on type 'never'.
+src/modules/chat.ts(1642,63): error TS2339: Property 'prefixFingerprint' does not exist on type 'never'.
+src/modules/chat.ts(1646,61): error TS2339: Property 'trimmed' does not exist on type 'never'.
+src/modules/chat.ts(1677,10): error TS7053: Element implicitly has an 'any' type because expression of type 'an
+y' can't be used to index type '{ plan: string; memory: string; checkpoint: string; summary: string; warning: s
+tring; model: string; tool: string; tool_pending: string; tool_approved: string; tool_denied: string; tool_resu
+lt: string; tool_failed: string; final: string; stop: string; }'.
+src/modules/chat.ts(2311,45): error TS2345: Argument of type 'Record<string, any>' is not assignable to paramet
+er of type 'Artifact'.
+src/modules/chat.ts(2991,31): error TS2345: Argument of type 'number' is not assignable to parameter of type 's
+tring'.
+src/modules/chat.ts(2994,31): error TS2345: Argument of type 'number' is not assignable to parameter of type 's
+tring'.
+src/modules/chat.ts(3013,11): error TS18048: 'usage.rounds' is possibly 'undefined'.
+src/modules/chat.ts(3145,71): error TS2345: Argument of type 'string | number' is not assignable to parameter o
+f type 'string'.
+src/modules/chat.ts(3290,7): error TS2365: Operator '<' cannot be applied to types 'string' and 'number'.
+src/modules/chat.ts(3354,74): error TS2345: Argument of type '(btn: HTMLElement) => void' is not assignable to 
+parameter of type '(value: Element, key: number, parent: NodeListOf<Element>) => void'.
+src/modules/chat.ts(3360,9): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3360,41): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(3361,9): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3361,42): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(3362,9): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3365,11): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3365,43): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(3366,11): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3366,44): error TS2339: Property 'hidden' does not exist on type 'Element'.
+src/modules/chat.ts(3367,11): error TS2531: Object is possibly 'null'.
+src/modules/chat.ts(3377,73): error TS2345: Argument of type '(btn: HTMLElement) => void' is not assignable to 
+parameter of type '(value: Element, key: number, parent: NodeListOf<Element>) => void'.
+src/modules/chat.ts(3465,35): error TS2345: Argument of type 'unknown' is not assignable to parameter of type '
+string'.
+src/modules/chat.ts(3473,21): error TS18046: 'error' is of type 'unknown'.
+src/modules/chat.ts(3479,35): error TS18046: 'error' is of type 'unknown'.
+src/modules/chat.ts(3507,3): error TS18047: '$chatTitle' is possibly 'null'.
+src/modules/chat.ts(3508,3): error TS18047: '$modelName' is possibly 'null'.
+src/modules/chat.ts(3509,3): error TS18047: '$modelName' is possibly 'null'.
+src/modules/chat.ts(3515,3): error TS18047: '$modelName' is possibly 'null'.
+src/modules/chat.ts(3554,65): error TS18047: '$chatUsageBadge' is possibly 'null'.
+src/modules/chat.ts(3674,5): error TS18047: 'sendBtn' is possibly 'null'.
+src/modules/chat.ts(3675,5): error TS18047: 'stopBtn' is possibly 'null'.
+src/modules/chat.ts(3678,5): error TS18047: 'sendBtn' is possibly 'null'.
+src/modules/chat.ts(3679,5): error TS18047: 'stopBtn' is possibly 'null'.
+
+

@@ -5,9 +5,14 @@
 import { copyToClipboard, showToast, uid } from './utils.js';
 import { hasNativeBridge } from './api.js';
 import { listMcpStatus } from './client-store.ts';
-import { renderEmptyList } from './settings-dom.js';
+import { renderEmptyList, SettingsElements } from './settings-dom.js';
 
-export function renderMcpServerList(container, servers = [], onChange, statuses = []) {
+export function renderMcpServerList(
+  container: HTMLElement | null,
+  servers: Record<string, any>[] = [],
+  onChange: ((servers: Record<string, any>[]) => void) | null = null,
+  statuses: Record<string, any>[] = []
+) {
   if (!container) return;
   container.innerHTML = '';
   if (!servers.length) {
@@ -112,7 +117,7 @@ export function renderMcpServerList(container, servers = [], onChange, statuses 
   }
 }
 
-export function summarizeMcpStatusRefresh(statuses = []) {
+export function summarizeMcpStatusRefresh(statuses: Record<string, any>[] = []) {
   const rows = Array.isArray(statuses) ? statuses : [];
   if (!rows.length) return '没有配置 MCP Server';
   const ok = rows.filter((status) => status.ok).length;
@@ -133,18 +138,18 @@ export function emitMcpStatusChanged(statuses: any[] = [], meta: Record<string, 
   );
 }
 
-function shortHash(value) {
+function shortHash(value: unknown) {
   return String(value || '').slice(0, 8);
 }
 
-function formatDuration(ms) {
+function formatDuration(ms: unknown) {
   const value = Number(ms);
   if (!Number.isFinite(value) || value <= 0) return '未知';
   if (value < 60000) return `${Math.round(value / 1000)}s`;
   return `${Math.round(value / 60000)}m`;
 }
 
-function buildMcpToolsClipboard(server, status) {
+function buildMcpToolsClipboard(server: Record<string, any>, status: Record<string, any>) {
   return JSON.stringify(
     {
       server: {
@@ -166,20 +171,21 @@ function buildMcpToolsClipboard(server, status) {
   );
 }
 
-export function readMcpServerForm(els) {
+export function readMcpServerForm(els: SettingsElements) {
+  if (!els.mcpCommand) throw new Error('请填写 MCP 启动命令。');
   const command = els.mcpCommand.value.trim();
   if (!command) throw new Error('请填写 MCP 启动命令。');
   return {
     id: `mcp_${uid()}`,
-    name: els.mcpName.value.trim() || command,
+    name: (els.mcpName?.value.trim() || command) as string,
     command,
-    args: parseMcpArgs(els.mcpArgs.value),
-    env: parseMcpEnv(els.mcpEnv.value),
+    args: parseMcpArgs(els.mcpArgs?.value),
+    env: parseMcpEnv(els.mcpEnv?.value),
     enabled: true,
   };
 }
 
-export function parseMcpArgs(value) {
+export function parseMcpArgs(value: unknown) {
   const text = String(value || '').trim();
   if (!text) return [];
   try {
@@ -189,7 +195,7 @@ export function parseMcpArgs(value) {
   return text.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((item) => item.replace(/^"|"$/g, '')) || [];
 }
 
-export function parseMcpEnv(value) {
+export function parseMcpEnv(value: unknown) {
   const text = String(value || '').trim();
   if (!text) return {};
   const parsed = JSON.parse(text);
@@ -197,7 +203,12 @@ export function parseMcpEnv(value) {
   return parsed;
 }
 
-export async function runStatusAction(statusEl, pendingText, successText, action) {
+export async function runStatusAction(
+  statusEl: HTMLElement | null,
+  pendingText: string,
+  successText: string | ((result: unknown) => string),
+  action: () => Promise<unknown>
+) {
   if (!statusEl) return;
   statusEl.textContent = pendingText;
   statusEl.className = 'inline-status';
@@ -218,7 +229,7 @@ export async function refreshMcpStatuses() {
   return statuses;
 }
 
-export function markMcpStatusStale(els, nextSettings) {
+export function markMcpStatusStale(els: SettingsElements, nextSettings: Record<string, any>) {
   emitMcpStatusChanged([], { stale: true });
   renderMcpServerList(els.mcpServerList, nextSettings.mcpServers || [], null, []);
   if (els.mcpStatusText) {

@@ -163,8 +163,9 @@ export {
   hashString,
 } from './chat-message-renderer.js';
 
-const getCachedRenderedMarkdown = (content) => _getCachedRenderedMarkdown(markdownRenderCache, content);
-const primeMarkdownRenderCache = (content, html) => _primeMarkdownRenderCache(markdownRenderCache, content, html);
+const getCachedRenderedMarkdown = (content: string) => _getCachedRenderedMarkdown(markdownRenderCache, content);
+const primeMarkdownRenderCache = (content: string, html: string) =>
+  _primeMarkdownRenderCache(markdownRenderCache, content, html);
 const getMarkdownCacheKey = _getMarkdownCacheKey;
 const hashString = _hashString;
 const shouldCompactHistoricalMessage = _shouldCompactHistoricalMessage;
@@ -222,13 +223,13 @@ let _virtualList: any = null;
 let sidebar: any = null;
 let streamOrchestrator: any = null;
 
-let $messages: HTMLElement,
-  $welcome: HTMLElement,
-  $convList: HTMLElement,
-  $chatTitle: HTMLElement,
-  $modelName: HTMLElement,
-  $chatUsageBadge: HTMLElement,
-  $evidencePanelBtn: HTMLElement;
+let $messages: HTMLElement | null = null,
+  $welcome: HTMLElement | null = null,
+  $convList: HTMLElement | null = null,
+  $chatTitle: HTMLElement | null = null,
+  $modelName: HTMLElement | null = null,
+  $chatUsageBadge: HTMLElement | null = null,
+  $evidencePanelBtn: HTMLElement | null = null;
 
 const markdownRenderCache = createMarkdownCache();
 
@@ -252,19 +253,19 @@ export async function initChat() {
 
   sidebar = createSidebar({
     getConversations: () => conversations,
-    setConversations: (convs) => {
+    setConversations: (convs: Record<string, any>[]) => {
       conversations = convs;
     },
     getActiveConvId: () => activeConvId,
-    setActiveConvId: (id) => {
+    setActiveConvId: (id: string) => {
       activeConvId = id;
     },
     getSidebarFilter: () => sidebarFilter,
-    setSidebarFilter: (f) => {
+    setSidebarFilter: (f: string) => {
       sidebarFilter = f;
     },
     getBulkMode: () => bulkMode,
-    setBulkMode: (m) => {
+    setBulkMode: (m: boolean) => {
       bulkMode = m;
     },
     getSelectedIds: () => selectedConversationIds,
@@ -281,15 +282,15 @@ export async function initChat() {
 
   streamOrchestrator = createStreamOrchestrator({
     getIsStreaming: () => isStreaming,
-    setIsStreaming: (v) => {
+    setIsStreaming: (v: any) => {
       isStreaming = v;
     },
     getUserScrolledUp: () => userScrolledUp,
-    setUserScrolledUp: (v) => {
+    setUserScrolledUp: (v: any) => {
       userScrolledUp = v;
     },
     getAbortController: () => abortController,
-    setAbortController: (v) => {
+    setAbortController: (v: any) => {
       abortController = v;
     },
     $messages,
@@ -315,7 +316,7 @@ export async function initChat() {
     persist,
     updateHeader,
     refreshConversationTaskCheckpoint,
-    primeMarkdownRenderCache: (content, html) => primeMarkdownRenderCache(content, html),
+    primeMarkdownRenderCache: (content: string, html: string) => primeMarkdownRenderCache(content, html),
     refreshReadingNavigator,
     getConversationUsageSummary,
     buildCacheProfile,
@@ -341,13 +342,13 @@ export async function initChat() {
 
   // Smart scroll: detect when user scrolls up during streaming
   let scrollRaf = 0;
-  _on($messages, 'scroll', () => {
+  _on($messages!, 'scroll', () => {
     if (!isStreaming) return;
     if (scrollRaf) return;
     scrollRaf = requestAnimationFrame(() => {
       scrollRaf = 0;
       const threshold = 80;
-      const atBottom = $messages.scrollHeight - $messages.scrollTop - $messages.clientHeight < threshold;
+      const atBottom = $messages!.scrollHeight - $messages!.scrollTop - $messages!.clientHeight < threshold;
       userScrolledUp = !atBottom;
     });
   });
@@ -360,11 +361,11 @@ export async function initChat() {
     _chatCleanupFns.push(() => searchInput.removeEventListener('input', onInput));
   }
 
-  const runCodeHandler = (event) => {
+  const runCodeHandler = (event: CustomEvent) => {
     handleRunCodeBlock(event.detail).catch((error) => showToast(error.message || '代码运行失败'));
   };
-  document.addEventListener('deepchat:run-code-block', runCodeHandler);
-  _chatCleanupFns.push(() => document.removeEventListener('deepchat:run-code-block', runCodeHandler));
+  document.addEventListener('deepchat:run-code-block', runCodeHandler as EventListener);
+  _chatCleanupFns.push(() => document.removeEventListener('deepchat:run-code-block', runCodeHandler as EventListener));
 
   const reloadHandler = () => {
     reloadConversations().catch(() => showToast('刷新对话失败'));
@@ -373,7 +374,7 @@ export async function initChat() {
   _chatCleanupFns.push(() => window.removeEventListener('deepchat:reload-conversations', reloadHandler));
 
   // Global shortcut: Ctrl+Shift+T opens trace for the latest assistant message
-  const traceKeyHandler = (event) => {
+  const traceKeyHandler = (event: KeyboardEvent) => {
     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 't') {
       event.preventDefault();
       const conv = getActiveConversation();
@@ -426,7 +427,7 @@ function persist() {
 
 function smartScroll(smooth = true) {
   if (!userScrolledUp) {
-    scrollToBottom($messages, smooth);
+    scrollToBottom($messages!, smooth);
   }
 }
 
@@ -444,7 +445,7 @@ export function createConversation() {
   return conv;
 }
 
-function switchConversation(id) {
+function switchConversation(id: string) {
   if (isStreaming) stopStreaming();
   activeConvId = id;
   userScrolledUp = false;
@@ -468,14 +469,14 @@ export function getActiveConversationComposerMode() {
   return conv?.composerModeId || '';
 }
 
-export function setActiveConversationComposerMode(modeId) {
+export function setActiveConversationComposerMode(modeId: string) {
   const conv = conversations.find((c) => c.id === activeConvId);
   if (!conv) return;
   conv.composerModeId = modeId;
   persist();
 }
 
-async function deleteConversation(id) {
+async function deleteConversation(id: string) {
   const conv = conversations.find((c) => c.id === id);
   const title = conv ? conv.title : '此对话';
   const ok = await confirmAction({
@@ -496,14 +497,14 @@ async function deleteConversation(id) {
       activeConvId = null;
       sidebar.renderConversationList();
       showWelcome();
-      $chatTitle.textContent = '新的对话';
+      $chatTitle!.textContent = '新的对话';
     }
   } else {
     sidebar.renderConversationList();
   }
 }
 
-function renameConversation(id, newTitle) {
+function renameConversation(id: string, newTitle: string) {
   const conv = conversations.find((c) => c.id === id);
   if (!conv || !newTitle.trim()) return;
   conv.title = newTitle.trim();
@@ -512,7 +513,7 @@ function renameConversation(id, newTitle) {
   if (id === activeConvId) updateHeader();
 }
 
-function togglePinConversation(id) {
+function togglePinConversation(id: string) {
   const conv = conversations.find((c) => c.id === id);
   if (!conv) return;
   conv.pinned = !conv.pinned;
@@ -553,7 +554,7 @@ export function exportCurrentChat(format = 'markdown') {
 
 // ─── Send / Edit / Regenerate ───
 
-export async function sendMessage(content, options: Record<string, any> = {}) {
+export async function sendMessage(content: string, options: Record<string, any> = {}) {
   if (isStreaming) return;
   const attachments = Array.isArray(options.attachments) ? options.attachments : [];
   if (!content.trim() && attachments.length === 0) return;
@@ -561,7 +562,7 @@ export async function sendMessage(content, options: Record<string, any> = {}) {
   let conv = getActiveConversation();
   if (!conv) conv = createConversation();
 
-  if ($welcome) $welcome.style.display = 'none';
+  if ($welcome!) $welcome!.style.display = 'none';
 
   const userMsg = {
     role: 'user',
@@ -575,9 +576,9 @@ export async function sendMessage(content, options: Record<string, any> = {}) {
   const userEl = appendMessageDOM(userMsg);
   userEl.dataset.messageIndex = String(conv.messages.length - 1);
   addUserMessageActions(userEl, userMsg, conv.messages.length - 1);
-  scrollToBottom($messages);
+  scrollToBottom($messages!);
 
-  if (conv.messages.filter((m) => m.role === 'user').length === 1) {
+  if (conv.messages.filter((m: Record<string, any>) => m.role === 'user').length === 1) {
     conv.title = truncate(content.trim() || attachments[0]?.name || '附件对话', 25);
     sidebar.renderConversationList();
     updateHeader();
@@ -591,7 +592,7 @@ export async function sendMessage(content, options: Record<string, any> = {}) {
  * Edit a user message at a given index and regenerate from that point.
  * Removes all messages after the edit point.
  */
-async function editMessageAt(msgIndex, newContent) {
+async function editMessageAt(msgIndex: number, newContent: string) {
   if (isStreaming) return;
   const conv = getActiveConversation();
   if (!conv) return;
@@ -613,11 +614,11 @@ async function regenerateLastResponse() {
   const conv = getActiveConversation();
   if (!conv || conv.messages.length === 0) return;
 
-  const idx = conv.messages.map((m) => m.role).lastIndexOf('assistant');
+  const idx = conv.messages.map((m: Record<string, any>) => m.role).lastIndexOf('assistant');
   if (idx >= 0) await regenerateResponseAt(idx);
 }
 
-async function regenerateResponseAt(msgIndex) {
+async function regenerateResponseAt(msgIndex: number) {
   if (isStreaming) return;
   const conv = getActiveConversation();
   if (!conv || conv.messages[msgIndex]?.role !== 'assistant') return;
@@ -640,14 +641,14 @@ async function regenerateResponseAt(msgIndex) {
   await streamOrchestrator.doStream(conv, 0, oldMsg.versions);
 }
 
-export function trimMessagesForRegeneration(messages, msgIndex) {
+export function trimMessagesForRegeneration(messages: Record<string, any>[], msgIndex: number) {
   if (!Array.isArray(messages) || messages[msgIndex]?.role !== 'assistant') return messages;
   return messages.slice(0, msgIndex);
 }
 
 // ─── doStream extracted to chat-streaming.js ───
 
-function updateSpeedIndicator(msgEl, speed) {
+function updateSpeedIndicator(msgEl: HTMLElement, speed: number) {
   let indicator = msgEl.querySelector('.speed-indicator');
   if (!indicator) {
     indicator = document.createElement('div');
@@ -657,7 +658,7 @@ function updateSpeedIndicator(msgEl, speed) {
   indicator.textContent = `⚡ ${speed} tok/s`;
 }
 
-function removeSpeedIndicator(msgEl) {
+function removeSpeedIndicator(msgEl: HTMLElement) {
   const indicator = msgEl.querySelector('.speed-indicator');
   if (indicator) indicator.remove();
 }
@@ -676,16 +677,16 @@ export function stopStreaming() {
 
 function showWelcome() {
   resetReadingNavigator();
-  if ($welcome) $welcome.style.display = '';
+  if ($welcome!) $welcome!.style.display = '';
   if (_virtualList) {
     _virtualList.destroy();
     _virtualList = null;
   }
-  $messages.querySelectorAll('.message').forEach((m) => m.remove());
+  $messages!.querySelectorAll('.message').forEach((m) => m.remove());
   refreshReadingNavigator();
 }
 
-function renderCompactAssistantMessage(contentEl, msg, idx) {
+function renderCompactAssistantMessage(contentEl: HTMLElement, msg: Record<string, any>, idx: number) {
   contentEl.innerHTML = '';
   contentEl.classList.add('is-compact');
   const card = document.createElement('div');
@@ -706,70 +707,71 @@ function renderCompactAssistantMessage(contentEl, msg, idx) {
     await postProcess(contentEl);
     const conv = getActiveConversation();
     const currentMsg = conv?.messages?.[idx] || msg;
-    if (currentMsg.stopped) renderStoppedNotice(contentEl.closest('.message-body'), idx);
+    if (currentMsg.stopped) renderStoppedNotice(contentEl.closest('.message-body') as HTMLElement, idx);
     refreshReadingNavigator();
   });
   card.append(meta, preview, expand);
   contentEl.appendChild(card);
 }
 
-function _setupMessageElement(el, msg, idx, totalMessageCount) {
+function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: number, totalMessageCount: number) {
   el.dataset.messageIndex = String(idx);
   if (msg.role === 'user') {
     addUserMessageActions(el, msg, idx);
   }
   if (msg.role === 'assistant') {
-    const contentEl = el.querySelector('.message-content');
+    const contentEl = el.querySelector('.message-content') as HTMLElement | null;
+    if (!contentEl) return;
     if (msg.error) {
       if (msg.content) {
         contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
         postProcess(contentEl)
           .then(() => {
-            renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
+            renderAssistantToc(el.querySelector('.answer-toc-container') as HTMLElement, contentEl);
             refreshReadingNavigator();
           })
           .catch((err) => console.warn('[Chat] postProcess failed:', err));
         const errorWrap = document.createElement('div');
         renderErrorContent(errorWrap, msg.error);
-        contentEl.appendChild(errorWrap.firstElementChild);
+        if (errorWrap.firstElementChild) contentEl.appendChild(errorWrap.firstElementChild);
       } else {
         renderErrorContent(contentEl, msg.error);
       }
     } else if (shouldCompactHistoricalMessage(totalMessageCount, idx, msg)) {
-      renderCompactAssistantMessage(contentEl, msg, idx);
+      renderCompactAssistantMessage(contentEl!, msg, idx);
     } else {
       contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
       postProcess(contentEl)
         .then(() => {
-          renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
+          renderAssistantToc(el.querySelector('.answer-toc-container') as HTMLElement, contentEl);
           refreshReadingNavigator();
         })
         .catch((err) => console.warn('[Chat] postProcess failed:', err));
     }
-    renderAssistantAnswerHeader(el.querySelector('.answer-header-container'), msg);
+    renderAssistantAnswerHeader(el.querySelector('.answer-header-container') as HTMLElement, msg);
     addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
-    if (msg.stopped) renderStoppedNotice(el.querySelector('.message-body'), idx);
+    if (msg.stopped) renderStoppedNotice(el.querySelector('.message-body') as HTMLElement, idx);
 
     if (msg.thinking) {
-      const thinkingBlock = el.querySelector('.thinking-block');
-      const thinkingContentEl = el.querySelector('.thinking-content');
+      const thinkingBlock = el.querySelector('.thinking-block') as HTMLElement | null;
+      const thinkingContentEl = el.querySelector('.thinking-content') as HTMLElement | null;
       if (thinkingBlock && thinkingContentEl) {
         thinkingBlock.hidden = false;
         thinkingContentEl.textContent = msg.thinking;
       }
     }
-    renderToolCalls(el.querySelector('.tool-calls-container'), msg.toolCalls || []);
-    renderEvidencePanel(el.querySelector('.evidence-panel'), msg.toolCalls || []);
-    renderAgentTimeline(el.querySelector('.agent-timeline-container'), msg);
+    renderToolCalls(el.querySelector('.tool-calls-container') as HTMLElement, msg.toolCalls || []);
+    renderEvidencePanel(el.querySelector('.evidence-panel') as HTMLElement | null, msg.toolCalls || []);
+    renderAgentTimeline(el.querySelector('.agent-timeline-container') as HTMLElement, msg);
 
     let agentRun = msg.agentRun;
     if (!agentRun && ((msg.toolCalls && msg.toolCalls.length > 0) || (msg.agentStages && msg.agentStages.length > 0))) {
       agentRun = createAgentRun(msg.composerOverrides?.activeSkill || 'auto');
       if (msg.agentStages && msg.agentStages.length > 0) {
-        msg.agentStages.forEach((stage) => handleCrewAgentStage(agentRun, stage));
+        msg.agentStages.forEach((stage: Record<string, any>) => handleCrewAgentStage(agentRun, stage));
       }
       if (msg.toolCalls && msg.toolCalls.length > 0) {
-        msg.toolCalls.forEach((tool) => {
+        msg.toolCalls.forEach((tool: Record<string, any>) => {
           applyCrewToolRequest(agentRun, tool);
           applyCrewToolResult(agentRun, tool, msg.toolCalls);
         });
@@ -777,14 +779,14 @@ function _setupMessageElement(el, msg, idx, totalMessageCount) {
       finalizeCrewRun(agentRun, { aborted: msg.stopped, error: msg.error });
       msg.agentRun = agentRun;
     }
-    const historyCrewContainer = el.querySelector('.agent-crew-container');
-    renderCrewOrTheatre(historyCrewContainer, agentRun);
-    if (historyCrewContainer && !historyCrewContainer.__crewClickBound) {
-      historyCrewContainer.__crewClickBound = true;
-      historyCrewContainer.addEventListener('deepchat:crew-role-click', (e) => {
-        const roleId = e.detail?.roleId;
+    const historyCrewContainer = el.querySelector('.agent-crew-container') as HTMLElement | null;
+    renderCrewOrTheatre(historyCrewContainer as HTMLElement, agentRun);
+    if (historyCrewContainer && !(historyCrewContainer as any).__crewClickBound) {
+      (historyCrewContainer as any).__crewClickBound = true;
+      historyCrewContainer.addEventListener('deepchat:crew-role-click', (e: Event) => {
+        const roleId = (e as CustomEvent).detail?.roleId;
         if (!roleId) return;
-        const toolNameMap = {
+        const toolNameMap: Record<string, string[]> = {
           reader: ['read_file', 'search_workspace', 'read_symbol'],
           researcher: ['web_search'],
           coder: ['run_code'],
@@ -795,11 +797,11 @@ function _setupMessageElement(el, msg, idx, totalMessageCount) {
           const blocks = historyToolContainer.querySelectorAll('.tool-call-block');
           for (const block of blocks) {
             const nameEl = block.querySelector('.tool-call-header strong');
-            if (nameEl && targetTools.some((t) => nameEl.textContent.includes(t))) {
-              block.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              block.style.outline = '2px solid var(--accent-primary)';
+            if (nameEl && targetTools.some((t: string) => nameEl.textContent!.includes(t))) {
+              (block as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+              (block as HTMLElement).style.outline = '2px solid var(--accent-primary)';
               setTimeout(() => {
-                block.style.outline = '';
+                (block as HTMLElement).style.outline = '';
               }, 2000);
               return;
             }
@@ -811,7 +813,7 @@ function _setupMessageElement(el, msg, idx, totalMessageCount) {
         }
       });
       // Ctrl+Click on historical crew opens Trace Inspector
-      historyCrewContainer.addEventListener('click', (e) => {
+      historyCrewContainer.addEventListener('click', (e: MouseEvent) => {
         if (!e.ctrlKey && !e.metaKey) return;
         e.preventDefault();
         e.stopPropagation();
@@ -822,8 +824,8 @@ function _setupMessageElement(el, msg, idx, totalMessageCount) {
       });
     }
 
-    renderAssistantArtifacts(el.querySelector('.artifact-container'), msg);
-    renderAssistantEvidence(el.querySelector('.message-body'), msg);
+    renderAssistantArtifacts(el.querySelector('.artifact-container') as HTMLElement, msg);
+    renderAssistantEvidence(el.querySelector('.message-body') as HTMLElement, msg);
   }
 }
 
@@ -836,22 +838,22 @@ function renderMessages() {
     _virtualList = null;
   }
 
-  $messages.querySelectorAll('.message').forEach((m) => m.remove());
+  $messages!.querySelectorAll('.message').forEach((m) => m.remove());
 
   if (!conv || conv.messages.length === 0) {
-    if ($welcome) $welcome.style.display = '';
+    if ($welcome!) $welcome!.style.display = '';
     refreshReadingNavigator();
     return;
   }
 
-  if ($welcome) $welcome.style.display = 'none';
+  if ($welcome!) $welcome!.style.display = 'none';
 
   // Use virtual list for long conversations
   if (conv.messages.length >= 30 && !isStreaming) {
     _virtualList = createVirtualList({
       container: $messages,
       getCount: () => conv.messages.length,
-      renderItem: (index) => {
+      renderItem: (index: number) => {
         const msg = conv.messages[index];
         const el = _createMessageElement(msg);
         _setupMessageElement(el, msg, index, conv.messages.length);
@@ -861,31 +863,31 @@ function renderMessages() {
     });
     _virtualList.enable();
   } else {
-    conv.messages.forEach((msg, idx) => {
+    conv.messages.forEach((msg: Record<string, any>, idx: number) => {
       const el = _createMessageElement(msg);
       _setupMessageElement(el, msg, idx, conv.messages.length);
-      if ($welcome && $welcome.parentNode === $messages) {
-        $messages.insertBefore(el, $welcome);
+      if ($welcome! && $welcome!.parentNode === $messages!) {
+        $messages!.insertBefore(el, $welcome!);
       } else {
-        $messages.appendChild(el);
+        $messages!.appendChild(el);
       }
     });
   }
 
-  scrollToBottom($messages, false);
+  scrollToBottom($messages!, false);
   refreshReadingNavigator();
 }
 
-function appendMessageDOM(msg, streaming = false) {
+function appendMessageDOM(msg: Record<string, any>, streaming = false) {
   if (_virtualList) {
     _virtualList.destroy();
     _virtualList = null;
   }
   const el = _createMessageElement(msg, streaming);
-  if ($welcome && $welcome.parentNode === $messages) {
-    $messages.insertBefore(el, $welcome);
+  if ($welcome! && $welcome!.parentNode === $messages!) {
+    $messages!.insertBefore(el, $welcome!);
   } else {
-    $messages.appendChild(el);
+    $messages!.appendChild(el);
   }
   return el;
 }
@@ -939,7 +941,7 @@ export function renderContextMentionStrip(content = '') {
   return strip;
 }
 
-export function renderToolCalls(container, toolCalls: any[] = [], options: Record<string, any> = {}) {
+export function renderToolCalls(container: HTMLElement, toolCalls: any[] = [], options: Record<string, any> = {}) {
   if (!container) return;
   container.innerHTML = '';
   if (!toolCalls || toolCalls.length === 0) {
@@ -1089,7 +1091,7 @@ export function renderToolCalls(container, toolCalls: any[] = [], options: Recor
   }
 }
 
-function createToolRiskBadge(tool) {
+function createToolRiskBadge(tool: Record<string, any>) {
   const riskMeta = getToolRiskMeta(tool);
   const badge = document.createElement('span');
   badge.className = `tool-risk-badge tone-${riskMeta.tone}`;
@@ -1098,7 +1100,7 @@ function createToolRiskBadge(tool) {
   return badge;
 }
 
-function createToolMeta(tool) {
+function createToolMeta(tool: Record<string, any>) {
   const items = [];
   if (tool.requestedAt) items.push(`请求：${formatToolTime(tool.requestedAt)}`);
   if (tool.autoApproved) items.push('审批：自动通过');
@@ -1116,7 +1118,7 @@ function createToolMeta(tool) {
   return meta;
 }
 
-function createToolSecurityMeta(tool) {
+function createToolSecurityMeta(tool: Record<string, any>) {
   if (!tool.security) return null;
   const items = [];
   if (tool.security.riskLevel) items.push(`风险：${tool.security.riskLevel}`);
@@ -1131,7 +1133,7 @@ function createToolSecurityMeta(tool) {
   return meta;
 }
 
-function createToolNextAction(tool) {
+function createToolNextAction(tool: Record<string, any>) {
   if (!tool.nextAction) return null;
   const next = document.createElement('div');
   next.className = 'tool-next-action';
@@ -1145,7 +1147,7 @@ function createToolNextAction(tool) {
   return next;
 }
 
-function createToolRepairAction(tool) {
+function createToolRepairAction(tool: Record<string, any>) {
   if (!shouldOfferToolRepair(tool)) return null;
   const row = document.createElement('div');
   row.className = 'tool-repair-action';
@@ -1164,7 +1166,7 @@ function createToolRepairAction(tool) {
   return row;
 }
 
-function createToolOutputSummary(outputText, tool: Record<string, any> = {}) {
+function createToolOutputSummary(outputText: string, tool: Record<string, any> = {}) {
   const text = compactToolOutputSummaryText(outputText);
   if (!text) return null;
   const summary = document.createElement('div');
@@ -1179,7 +1181,7 @@ function createToolOutputSummary(outputText, tool: Record<string, any> = {}) {
   return summary;
 }
 
-function createToolOutputPreview(outputText, toolName = '') {
+function createToolOutputPreview(outputText: string, toolName = '') {
   const sources = extractToolSources(outputText);
   const localCitations = extractLocalCitations(outputText, toolName);
   const workspaceSymbol = extractWorkspaceSymbolResult(outputText, toolName);
@@ -1310,7 +1312,7 @@ function createRunCodeExperimentCard(tool: Record<string, any> = {}) {
   return card;
 }
 
-function appendRunExperimentActions(card, tool, result) {
+function appendRunExperimentActions(card: HTMLElement, tool: Record<string, any>, result: Record<string, any>) {
   const code = getRunCodeSourceCode(tool);
   const row = document.createElement('div');
   row.className = 'run-experiment-actions';
@@ -1350,7 +1352,7 @@ function appendRunExperimentActions(card, tool, result) {
   if (row.children.length) card.appendChild(row);
 }
 
-function createRunExperimentActionButton(label, action) {
+function createRunExperimentActionButton(label: string, action: string) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `run-experiment-action-btn action-${action}`;
@@ -1365,7 +1367,7 @@ function downloadRunCodeArtifact(tool: Record<string, any> = {}, result: Record<
   downloadTextFile(buildRunCodeArtifactMarkdown(tool, result), fileName, 'text/markdown;charset=utf-8');
 }
 
-function createRunOutputBlock(label, text, bytes) {
+function createRunOutputBlock(label: string, text: string, bytes: number) {
   const block = document.createElement('details');
   block.className = 'run-output-block';
   const summary = document.createElement('summary');
@@ -1376,7 +1378,7 @@ function createRunOutputBlock(label, text, bytes) {
   return block;
 }
 
-export function renderAgentTimeline(container, message: Record<string, any> = {}) {
+export function renderAgentTimeline(container: HTMLElement, message: Record<string, any> = {}) {
   if (!container) return;
   container.innerHTML = '';
   const stages = Array.isArray(message.agentStages) ? message.agentStages : [];
@@ -1438,7 +1440,10 @@ export function renderAgentTimeline(container, message: Record<string, any> = {}
   container.appendChild(panel);
 }
 
-function createAgentPlanCard(plan = null, contextBudget = null) {
+function createAgentPlanCard(
+  plan: Record<string, any> | null = null,
+  contextBudget: Record<string, any> | null = null
+) {
   if (!plan || !Array.isArray(plan.steps) || plan.steps.length === 0) return null;
   const card = document.createElement('section');
   card.className = 'agent-plan-card';
@@ -1533,7 +1538,7 @@ export function getAgentPlanActionAvailability(plan: Record<string, any> = {}) {
   return { missingPrerequisites: missing, disabledReasons };
 }
 
-function applyAgentPlanAction(action, plan: Record<string, any> = {}) {
+function applyAgentPlanAction(action: string, plan: Record<string, any> = {}) {
   const disabledReason = getAgentPlanActionAvailability(plan).disabledReasons[action];
   if (disabledReason) {
     showToast(disabledReason, 3200);
@@ -1560,13 +1565,13 @@ function applyAgentPlanAction(action, plan: Record<string, any> = {}) {
   showToast(action === 'execute_all' ? '当前计划已在执行，已准备继续指令' : '已填入计划控制指令');
 }
 
-function shouldAutoSendAgentPlanAction(action) {
+function shouldAutoSendAgentPlanAction(action: string) {
   if (isStreaming) return false;
   if (!['execute_all', 'single_step', 'revise'].includes(action)) return false;
   return Boolean(conversations.find((conv) => conv.id === activeConvId));
 }
 
-function fillComposerPrompt(prompt) {
+function fillComposerPrompt(prompt: string) {
   const input = document.getElementById('message-input') as HTMLInputElement;
   if (!input) return;
   input.value = prompt;
@@ -1574,7 +1579,7 @@ function fillComposerPrompt(prompt) {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-function appendAgentSearchPlan(card, searchPlan: any[] = []) {
+function appendAgentSearchPlan(card: HTMLElement, searchPlan: any[] = []) {
   const items = Array.isArray(searchPlan) ? searchPlan.filter((item) => item?.query) : [];
   if (!items.length) return;
   const section = document.createElement('div');
@@ -1601,7 +1606,7 @@ function appendAgentSearchPlan(card, searchPlan: any[] = []) {
   card.appendChild(section);
 }
 
-function appendAgentPlanChips(card, labelText, values: any[] = [], extraClass = '') {
+function appendAgentPlanChips(card: HTMLElement, labelText: string, values: any[] = [], extraClass = '') {
   const filtered = (Array.isArray(values) ? values : []).map((value) => String(value || '').trim()).filter(Boolean);
   if (!filtered.length) return;
   const group = document.createElement('div');
@@ -1630,7 +1635,7 @@ function createAgentPlanExecutionSummary(plan: Record<string, any> = {}) {
   return box;
 }
 
-function createAgentPlanBudgetSummary(contextBudget = null) {
+function createAgentPlanBudgetSummary(contextBudget: Record<string, any> | null = null) {
   if (!contextBudget || typeof contextBudget !== 'object') return null;
   const max = Number(contextBudget.maxInputTokens || 0);
   const estimated = Number(contextBudget.estimatedInputTokens || 0);
@@ -1648,12 +1653,12 @@ function createAgentPlanBudgetSummary(contextBudget = null) {
   return box;
 }
 
-function collapseAgentStages(stages) {
+function collapseAgentStages(stages: Record<string, any>[]) {
   return stages.slice(-12);
 }
 
 function formatAgentStageLabel(stage: Record<string, any> = {}) {
-  const labels = {
+  const labels: Record<string, string> = {
     plan: '规划工具',
     memory: '检索历史',
     checkpoint: '任务检查点',
@@ -1678,14 +1683,14 @@ function formatAgentStageLabel(stage: Record<string, any> = {}) {
 
 function formatTaskCheckpointStageSummary(checkpoint: Record<string, any> = {}) {
   if (!checkpoint || typeof checkpoint !== 'object') return '';
-  const statusLabels = {
+  const statusLabels: Record<string, string> = {
     ready: '可继续',
     needs_attention: '需要处理',
     waiting_for_approval: '等待确认',
     failed: '上一轮失败',
     completed: '已完成',
   };
-  const parts = [];
+  const parts: string[] = [];
   if (checkpoint.agentStatus) parts.push(statusLabels[checkpoint.agentStatus] || checkpoint.agentStatus);
   if (Array.isArray(checkpoint.pendingApprovals) && checkpoint.pendingApprovals.length) {
     parts.push(`待确认 ${checkpoint.pendingApprovals.length} 项`);
@@ -1702,11 +1707,11 @@ function formatTaskCheckpointStageSummary(checkpoint: Record<string, any> = {}) 
   return parts.length ? `已使用长期任务状态：${parts.join('，')}` : '';
 }
 
-function syncToolRuns(message) {
+function syncToolRuns(message: any) {
   message.toolRuns = buildToolRuns(message.toolCalls || []);
 }
 
-function maybeAppendRelevantMemory(apiMessages, conversation) {
+function maybeAppendRelevantMemory(apiMessages: Record<string, any>[], conversation: Record<string, any>) {
   const settings = getSettings();
   if (settings.autoContextSummary === false) return null;
   const lastIndex = findLastUserMessageIndex(apiMessages);
@@ -1732,7 +1737,7 @@ function maybeAppendRelevantMemory(apiMessages, conversation) {
   };
 }
 
-function refreshConversationTaskCheckpoint(conversation) {
+function refreshConversationTaskCheckpoint(conversation: Record<string, any>) {
   if (!conversation) return;
   const checkpoint = buildTaskCheckpoint(conversation);
   conversation.taskCheckpoint = checkpoint;
@@ -1746,20 +1751,20 @@ function findLastUserMessageIndex(messages: any[] = []) {
   return -1;
 }
 
-function formatToolTime(value) {
-  const date = new Date(value);
+function formatToolTime(value: unknown) {
+  const date = new Date(value as any);
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleTimeString('zh-CN', { hour12: false });
 }
 
-export function hasSearchWithoutCitedSource(message, content) {
+export function hasSearchWithoutCitedSource(message: any, content: string) {
   return hasUncitedSearchSource(message, content);
 }
 
-export function hasLocalFilesWithoutCitedSource(message, content) {
+export function hasLocalFilesWithoutCitedSource(message: any, content: string) {
   return hasUncitedLocalSource(message, content);
 }
 
-export function renderAssistantArtifacts(container, message) {
+export function renderAssistantArtifacts(container: HTMLElement, message: any) {
   if (!container) return [];
   container.replaceChildren();
   const artifacts = extractArtifacts(message?.content || '');
@@ -1789,7 +1794,7 @@ export function renderAssistantArtifacts(container, message) {
   return artifacts;
 }
 
-function renderArtifactCard(artifact, index) {
+function renderArtifactCard(artifact: Record<string, any>, index: number) {
   const card = document.createElement('div');
   card.className = 'artifact-card';
   card.dataset.artifactType = artifact.type;
@@ -1827,7 +1832,7 @@ function renderArtifactCard(artifact, index) {
   return card;
 }
 
-function buildArtifactMetaParts(artifact) {
+function buildArtifactMetaParts(artifact: Record<string, any>) {
   const parts = [formatBytes(artifact.size || 0)];
   switch (artifact.type) {
     case 'html-preview': {
@@ -1858,7 +1863,7 @@ function buildArtifactMetaParts(artifact) {
   return parts.filter(Boolean);
 }
 
-export function renderAssistantAnswerHeader(container, message: Record<string, any> = {}) {
+export function renderAssistantAnswerHeader(container: HTMLElement, message: Record<string, any> = {}) {
   if (!container) return null;
   container.innerHTML = '';
   const items = buildAssistantAnswerHeaderItems(message);
@@ -1890,7 +1895,7 @@ export function renderAssistantAnswerHeader(container, message: Record<string, a
   return header;
 }
 
-export function renderAssistantToc(container, contentEl, options: Record<string, any> = {}) {
+export function renderAssistantToc(container: HTMLElement, contentEl: HTMLElement, options: Record<string, any> = {}) {
   if (!container || !contentEl) return [];
   container.innerHTML = '';
   const minHeadings = Number.isFinite(options.minHeadings) ? options.minHeadings : 3;
@@ -1921,6 +1926,7 @@ export function renderAssistantToc(container, contentEl, options: Record<string,
   const list = document.createElement('ol');
   list.className = 'answer-toc-list';
   for (const item of headings.slice(0, 8)) {
+    if (!item) continue;
     const row = document.createElement('li');
     row.className = `answer-toc-item level-${item.level}`;
     const link = document.createElement('a');
@@ -1939,7 +1945,7 @@ export function renderAssistantToc(container, contentEl, options: Record<string,
   return headings;
 }
 
-function ensureHeadingId(heading, text, index) {
+function ensureHeadingId(heading: Element, text: string, index: number) {
   const current = String(heading.id || '').trim();
   if (current) return current;
   const slug = text
@@ -2031,11 +2037,11 @@ function getAssistantHeaderToolRuns(message: Record<string, any> = {}) {
   ].filter(Boolean);
 }
 
-function isFailedToolStatus(status) {
+function isFailedToolStatus(status: Record<string, any>) {
   return ['failed', 'error', 'denied', 'timeout', 'cancelled', 'canceled'].includes(String(status || '').toLowerCase());
 }
 
-function openArtifactPreview(artifact) {
+function openArtifactPreview(artifact: Record<string, any>) {
   switch (artifact.type) {
     case 'html-preview':
       openHtmlArtifactPreview(artifact);
@@ -2057,7 +2063,7 @@ function openArtifactPreview(artifact) {
   }
 }
 
-function openHtmlArtifactPreview(artifact) {
+function openHtmlArtifactPreview(artifact: Record<string, any>) {
   document.querySelector('.artifact-preview-overlay')?.remove();
   const overlay = document.createElement('div');
   overlay.className = 'artifact-preview-overlay';
@@ -2094,7 +2100,7 @@ function openHtmlArtifactPreview(artifact) {
     document.removeEventListener('keydown', onKeyDown);
     overlay.remove();
   };
-  const onKeyDown = (event) => {
+  const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') cleanup();
   };
   closeBtn.addEventListener('click', cleanup, { once: true });
@@ -2104,7 +2110,7 @@ function openHtmlArtifactPreview(artifact) {
   document.addEventListener('keydown', onKeyDown);
 }
 
-function openMermaidArtifactPreview(artifact) {
+function openMermaidArtifactPreview(artifact: Record<string, any>) {
   document.querySelector('.artifact-preview-overlay')?.remove();
   const overlay = document.createElement('div');
   overlay.className = 'artifact-preview-overlay';
@@ -2138,7 +2144,7 @@ function openMermaidArtifactPreview(artifact) {
     document.removeEventListener('keydown', onKeyDown);
     overlay.remove();
   };
-  const onKeyDown = (event) => {
+  const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') cleanup();
   };
   closeBtn.addEventListener('click', cleanup, { once: true });
@@ -2148,7 +2154,7 @@ function openMermaidArtifactPreview(artifact) {
   document.addEventListener('keydown', onKeyDown);
 }
 
-function openJsonArtifactPreview(artifact) {
+function openJsonArtifactPreview(artifact: Record<string, any>) {
   document.querySelector('.artifact-preview-overlay')?.remove();
   const overlay = document.createElement('div');
   overlay.className = 'artifact-preview-overlay';
@@ -2186,7 +2192,7 @@ function openJsonArtifactPreview(artifact) {
     document.removeEventListener('keydown', onKeyDown);
     overlay.remove();
   };
-  const onKeyDown = (event) => {
+  const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') cleanup();
   };
   closeBtn.addEventListener('click', cleanup, { once: true });
@@ -2196,7 +2202,7 @@ function openJsonArtifactPreview(artifact) {
   document.addEventListener('keydown', onKeyDown);
 }
 
-function openCodeArtifactPreview(artifact) {
+function openCodeArtifactPreview(artifact: Record<string, any>) {
   document.querySelector('.artifact-preview-overlay')?.remove();
   const overlay = document.createElement('div');
   overlay.className = 'artifact-preview-overlay';
@@ -2230,7 +2236,7 @@ function openCodeArtifactPreview(artifact) {
     document.removeEventListener('keydown', onKeyDown);
     overlay.remove();
   };
-  const onKeyDown = (event) => {
+  const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') cleanup();
   };
   closeBtn.addEventListener('click', cleanup, { once: true });
@@ -2240,7 +2246,7 @@ function openCodeArtifactPreview(artifact) {
   document.addEventListener('keydown', onKeyDown);
 }
 
-function openTableArtifactPreview(artifact) {
+function openTableArtifactPreview(artifact: Record<string, any>) {
   document.querySelector('.artifact-preview-overlay')?.remove();
   const overlay = document.createElement('div');
   overlay.className = 'artifact-preview-overlay';
@@ -2274,7 +2280,7 @@ function openTableArtifactPreview(artifact) {
     document.removeEventListener('keydown', onKeyDown);
     overlay.remove();
   };
-  const onKeyDown = (event) => {
+  const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') cleanup();
   };
   closeBtn.addEventListener('click', cleanup, { once: true });
@@ -2284,7 +2290,7 @@ function openTableArtifactPreview(artifact) {
   document.addEventListener('keydown', onKeyDown);
 }
 
-function downloadArtifact(artifact, index) {
+function downloadArtifact(artifact: Record<string, any>, index: number) {
   let blob;
   let mimeType = 'text/plain;charset=utf-8';
   switch (artifact.type) {
@@ -2306,18 +2312,18 @@ function downloadArtifact(artifact, index) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = buildArtifactDownloadName(artifact, index);
+  link.download = buildArtifactDownloadName(artifact as any, index);
   document.body.appendChild(link);
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function renderAssistantEvidence(container, message) {
+export function renderAssistantEvidence(container: HTMLElement, message: any) {
   if (!container) return;
   container
     .querySelectorAll('.source-grounding-warning, .source-grounding-card, .tool-evidence-panel')
-    .forEach((item) => item.remove());
+    .forEach((item: Record<string, any>) => item.remove());
   const grounding = getSearchGrounding(message, message?.content || '');
   const localGrounding = getLocalFileGrounding(message, message?.content || '');
   appendToolEvidencePanel(container, message, grounding, localGrounding);
@@ -2328,7 +2334,7 @@ export function renderAssistantEvidence(container, message) {
       meta: [grounding.queries[0] ? `query: ${grounding.queries[0]}` : '', `${grounding.sources.length} 个来源`]
         .filter(Boolean)
         .join(' · '),
-      items: grounding.sources.slice(0, 3).map((source) => ({
+      items: grounding.sources.slice(0, 3).map((source: Record<string, any>) => ({
         label: source.title || source.url,
         href: source.url,
       })),
@@ -2342,7 +2348,7 @@ export function renderAssistantEvidence(container, message) {
       warning: localGrounding.warning,
       title: localGrounding.warning ? '本地文件证据未被明确引用' : '已引用本地文件证据',
       meta: `${localGrounding.citations.length} 个文件引用`,
-      items: localGrounding.citations.slice(0, 4).map((citation) => ({
+      items: localGrounding.citations.slice(0, 4).map((citation: Record<string, any>) => ({
         label: citation.label,
         href: '',
       })),
@@ -2352,7 +2358,7 @@ export function renderAssistantEvidence(container, message) {
 }
 
 function appendToolEvidencePanel(
-  container,
+  container: HTMLElement,
   message: Record<string, any> = {},
   grounding: Record<string, any> = {},
   localGrounding: Record<string, any> = {}
@@ -2422,8 +2428,8 @@ function buildToolEvidenceMeta(
   if (grounding.sources?.length) parts.push(`${grounding.sources.length} 个来源`);
   if (localGrounding.citations?.length) parts.push(`${localGrounding.citations.length} 个文件引用`);
   const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
-  if (usage?.cacheHit > 0 || usage?.cacheMiss > 0) {
-    parts.push(`cache ${Math.round((usage.cacheHitRate || 0) * 100)}%`);
+  if ((usage?.cacheHit || 0) > 0 || (usage?.cacheMiss || 0) > 0) {
+    parts.push(`cache ${Math.round((usage?.cacheHitRate || 0) * 100)}%`);
   } else if (message.cacheProfile?.cacheHitRate !== undefined) {
     parts.push(`cache ${Math.round(Number(message.cacheProfile.cacheHitRate || 0) * 100)}%`);
   }
@@ -2463,12 +2469,12 @@ function createToolEvidenceRunCard(run: Record<string, any> = {}, answerContent 
   appendEvidenceChips(
     card,
     '来源',
-    (run.sources || []).slice(0, 3).map((source) => source.title || source.url)
+    (run.sources || []).slice(0, 3).map((source: Record<string, any>) => source.title || source.url)
   );
   appendEvidenceChips(
     card,
     '文件',
-    (run.localCitations || []).slice(0, 6).map((citation) => citation.label)
+    (run.localCitations || []).slice(0, 6).map((citation: Record<string, any>) => citation.label)
   );
   if (Array.isArray(run.workspaceResults) && run.workspaceResults.length) {
     appendEvidenceChips(
@@ -2496,7 +2502,7 @@ function createToolEvidenceRunCard(run: Record<string, any> = {}, answerContent 
   return card;
 }
 
-function appendEvidenceChips(card, labelText, values: any[] = []) {
+function appendEvidenceChips(card: HTMLElement, labelText: string, values: any[] = []) {
   const filtered = values.map((value) => String(value || '').trim()).filter(Boolean);
   if (!filtered.length) return;
   const group = document.createElement('div');
@@ -2515,7 +2521,7 @@ function appendEvidenceChips(card, labelText, values: any[] = []) {
   card.appendChild(group);
 }
 
-function appendEvidencePreview(card, text) {
+function appendEvidencePreview(card: HTMLElement, text: string) {
   const preview = document.createElement('p');
   preview.className = 'tool-evidence-preview';
   preview.textContent = String(text || '')
@@ -2525,7 +2531,7 @@ function appendEvidencePreview(card, text) {
   card.appendChild(preview);
 }
 
-function appendToolCitationStatus(card, status) {
+function appendToolCitationStatus(card: HTMLElement, status: Record<string, any>) {
   const box = document.createElement('div');
   box.className = `tool-evidence-citation-status ${status.state}`;
   box.textContent = `${status.label} · ${status.cited}/${status.total} 条证据`;
@@ -2534,7 +2540,7 @@ function appendToolCitationStatus(card, status) {
   appendEvidenceRefBreakdown(card, status.refs);
 }
 
-function appendEvidenceRefBreakdown(card, refs: any[] = []) {
+function appendEvidenceRefBreakdown(card: HTMLElement, refs: any[] = []) {
   const visible = (Array.isArray(refs) ? refs : []).slice(0, 6);
   if (!visible.length) return;
   const group = document.createElement('div');
@@ -2594,7 +2600,7 @@ function buildMessageEvidencePayload(message: Record<string, any> = {}) {
   return {
     type: 'deepchat.messageEvidence',
     version: 1,
-    toolRuns: (message.toolRuns || []).map((run) => ({
+    toolRuns: (message.toolRuns || []).map((run: Record<string, any>) => ({
       ...buildToolEvidencePayload(run),
       citationStatus: buildToolCitationStatus(run, content),
     })),
@@ -2691,7 +2697,7 @@ function isEvidenceRefMentioned(content = '', ref: Record<string, any> = {}) {
 }
 
 function appendGroundingCard(
-  container,
+  container: HTMLElement,
   { warning, title: titleText, meta: metaText, items = [], warningText }: Record<string, any>
 ) {
   const card = document.createElement('div');
@@ -2731,7 +2737,7 @@ function appendGroundingCard(
   }
 }
 
-function renderStoppedNotice(container, msgIndex) {
+function renderStoppedNotice(container: HTMLElement, msgIndex: number) {
   if (!container || container.querySelector('.generation-stopped-notice')) return;
   const notice = document.createElement('div');
   notice.className = 'generation-stopped-notice';
@@ -2776,7 +2782,7 @@ function renderErrorContent(container: HTMLElement, message: string, onClose?: a
 
 // ─── User Message Actions (Edit) ───
 
-function addUserMessageActions(msgEl, msg, msgIndex) {
+function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msgIndex: number) {
   const actions = document.createElement('div');
   actions.className = 'message-actions';
 
@@ -2801,7 +2807,8 @@ function addUserMessageActions(msgEl, msg, msgIndex) {
   editBtn.className = 'msg-action-btn';
   editBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> 编辑`;
   editBtn.addEventListener('click', () => {
-    const contentEl = msgEl.querySelector('.message-content');
+    const contentEl = msgEl.querySelector('.message-content') as HTMLElement | null;
+    if (!contentEl) return;
     const originalText = msg.content;
 
     contentEl.innerHTML = '';
@@ -2861,7 +2868,7 @@ function addUserMessageActions(msgEl, msg, msgIndex) {
 
 // ─── Assistant Message Actions ───
 
-function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
+function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, speed: number, msgIndex: number) {
   const existing = msgEl.querySelector('.message-actions');
   if (existing) existing.remove();
 
@@ -2875,7 +2882,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
   copyBtn.className = 'msg-action-btn';
   copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
   copyBtn.addEventListener('click', async () => {
-    const plainText = msgEl.querySelector('.message-content')?.innerText || content;
+    const plainText = (msgEl.querySelector('.message-content') as HTMLElement | null)?.innerText || content;
     const ok = await copyToClipboard(plainText);
     if (ok) {
       showToast('已复制到剪贴板');
@@ -3007,7 +3014,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
       if (usage.cacheHit > 0) parts.push(`命中 ${Math.round(usage.cacheHitRate * 100)}%`);
       if (Number(usage.cost?.estimatedCostUsd || 0) > 0)
         parts.push(`$${Number(usage.cost?.estimatedCostUsd || 0).toFixed(6)}`);
-      if (usage.rounds > 1) parts.push(`${usage.rounds} 轮`);
+      if ((usage.rounds || 0) > 1) parts.push(`${usage.rounds} 轮`);
     }
     if (speed) parts.push(`${speed} tok/s`);
     badge.textContent = parts.join(' · ');
@@ -3018,7 +3025,7 @@ function addMessageActions(msgEl, content, tokens, speed, msgIndex) {
   msgEl.querySelector('.message-body')?.appendChild(actions);
 }
 
-function createAnswerActionButton(label, title, onClick) {
+function createAnswerActionButton(label: string, title: any, onClick: () => void) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'msg-action-btn answer-action-btn';
@@ -3028,7 +3035,7 @@ function createAnswerActionButton(label, title, onClick) {
   return button;
 }
 
-function createAnswerActionMenu(label, title, items: any[] = []) {
+function createAnswerActionMenu(label: string, title: any, items: any[] = []) {
   const details = document.createElement('details');
   details.className = 'answer-action-menu';
   details.title = title;
@@ -3056,20 +3063,20 @@ function createAnswerActionMenu(label, title, items: any[] = []) {
   return details;
 }
 
-function sendAnswerAction(action, content, message) {
+function sendAnswerAction(action: string, content: string, message: any) {
   const prompt = buildAnswerActionPrompt(action, content, message);
   if (!prompt) return;
   sendMessage(prompt, { composerOverrides: { enhance: false } });
 }
 
-function exportAssistantMarkdown(content, msgIndex) {
+function exportAssistantMarkdown(content: string, msgIndex: number) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const fileName = `deepchat-answer-${msgIndex + 1}-${stamp}.md`;
   downloadTextFile(content || '', fileName, 'text/markdown;charset=utf-8');
   showToast('已导出当前回答 Markdown');
 }
 
-function exportAssistantHtml(msgEl, content, msgIndex) {
+function exportAssistantHtml(msgEl: HTMLElement, content: string, msgIndex: number) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const contentEl = msgEl?.querySelector?.('.message-content');
   const bodyHtml = contentEl?.innerHTML || escapeHtml(content || '').replace(/\n/g, '<br>');
@@ -3082,7 +3089,7 @@ function exportAssistantHtml(msgEl, content, msgIndex) {
   showToast('已导出当前回答 HTML');
 }
 
-function exportAssistantArtifact(content, msgIndex) {
+function exportAssistantArtifact(content: string, msgIndex: number) {
   const artifacts = extractArtifacts(content || '');
   if (artifacts.length > 0) {
     for (const [index, artifact] of artifacts.entries()) {
@@ -3098,7 +3105,7 @@ function exportAssistantArtifact(content, msgIndex) {
   }
 }
 
-function downloadTextFile(text, fileName, type) {
+function downloadTextFile(text: string, fileName: string, type: string) {
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -3108,7 +3115,7 @@ function downloadTextFile(text, fileName, type) {
   URL.revokeObjectURL(url);
 }
 
-export function renderConversationUsageTelemetryPanel(container, conversation) {
+export function renderConversationUsageTelemetryPanel(container: HTMLElement, conversation: Record<string, any>) {
   const details = buildConversationUsageTelemetryDetails(conversation);
   container.replaceChildren();
   if (!details) {
@@ -3130,7 +3137,7 @@ export function renderConversationUsageTelemetryPanel(container, conversation) {
 
   const metrics = document.createElement('div');
   metrics.className = 'usage-panel-grid';
-  [
+  const usageMetrics: [string, string | number][] = [
     ['输入', details.usage.input],
     ['输出', details.usage.output],
     ['思考', details.usage.reasoning],
@@ -3139,7 +3146,8 @@ export function renderConversationUsageTelemetryPanel(container, conversation) {
     ['Cache miss', details.usage.cacheMiss],
     ['命中率', details.hitRateLabel],
     ['Agent 轮次', details.usage.rounds || 1],
-  ].forEach(([label, value]) => metrics.appendChild(createUsageMetric(label, value)));
+  ];
+  usageMetrics.forEach(([label, value]) => metrics.appendChild(createUsageMetric(label, String(value))));
 
   const cost = document.createElement('div');
   cost.className = 'usage-panel-section';
@@ -3188,7 +3196,7 @@ export function renderConversationUsageTelemetryPanel(container, conversation) {
   return details;
 }
 
-export function renderLatestEvidenceDrawer(container, conversation) {
+export function renderLatestEvidenceDrawer(container: HTMLElement, conversation: Record<string, any>) {
   if (!container) return null;
   const evidence = getLatestEvidenceMessage(conversation);
   container.replaceChildren();
@@ -3275,14 +3283,14 @@ export function renderLatestEvidenceDrawer(container, conversation) {
   return container;
 }
 
-function switchVersion(msgIndex, direction) {
+function switchVersion(msgIndex: number, direction: number) {
   const conv = getActiveConversation();
   if (!conv) return;
   const msg = conv.messages[msgIndex];
   if (!msg || !msg.versions || msg.versions.length === 0) return;
 
   const totalVersions = msg.versions.length + 1;
-  let currentIdx = msg._versionIdx ?? totalVersions - 1;
+  let currentIdx = Number(msg._versionIdx ?? totalVersions - 1);
   const newIdx = currentIdx + direction;
   if (newIdx < 0 || newIdx >= totalVersions) return;
 
@@ -3321,7 +3329,7 @@ function switchVersion(msgIndex, direction) {
   renderMessages();
 }
 
-async function continueFromResponseAt(msgIndex) {
+async function continueFromResponseAt(msgIndex: number) {
   if (isStreaming) return;
   const conv = getActiveConversation();
   if (!conv || conv.messages[msgIndex]?.role !== 'assistant') return;
@@ -3337,7 +3345,7 @@ async function continueFromResponseAt(msgIndex) {
   await streamOrchestrator.doStream(conv);
 }
 
-function toggleMessageFavorite(msgIndex) {
+function toggleMessageFavorite(msgIndex: number) {
   const conv = getActiveConversation();
   if (!conv?.messages?.[msgIndex]) return;
   conv.messages[msgIndex].favorite = !conv.messages[msgIndex].favorite;
@@ -3346,23 +3354,24 @@ function toggleMessageFavorite(msgIndex) {
   showToast(conv.messages[msgIndex].favorite ? '已收藏回答' : '已取消收藏');
 }
 
-function attachCopyHandlersOnly(container) {
+function attachCopyHandlersOnly(container: HTMLElement) {
   // Delegate to shared handler from renderer
   container.querySelectorAll('.code-copy-btn:not([data-bound])').forEach((btn) => {
-    btn.setAttribute('data-bound', '1');
-    btn.addEventListener('click', async () => {
-      const code = decodeURIComponent(btn.dataset.code || '');
+    const el = btn as HTMLElement;
+    el.setAttribute('data-bound', '1');
+    el.addEventListener('click', async () => {
+      const code = decodeURIComponent(el.dataset.code || '');
       try {
         await navigator.clipboard.writeText(code);
-        btn.querySelector('.copy-icon').hidden = true;
-        btn.querySelector('.check-icon').hidden = false;
-        btn.querySelector('.copy-text').textContent = '已复制';
-        btn.classList.add('copied');
+        (el.querySelector('.copy-icon') as HTMLElement | null)!.hidden = true;
+        (el.querySelector('.check-icon') as HTMLElement | null)!.hidden = false;
+        (el.querySelector('.copy-text') as HTMLElement | null)!.textContent = '已复制';
+        el.classList.add('copied');
         setTimeout(() => {
-          btn.querySelector('.copy-icon').hidden = false;
-          btn.querySelector('.check-icon').hidden = true;
-          btn.querySelector('.copy-text').textContent = '复制';
-          btn.classList.remove('copied');
+          (el.querySelector('.copy-icon') as HTMLElement | null)!.hidden = false;
+          (el.querySelector('.check-icon') as HTMLElement | null)!.hidden = true;
+          (el.querySelector('.copy-text') as HTMLElement | null)!.textContent = '复制';
+          el.classList.remove('copied');
         }, 1500);
       } catch (err) {
         console.warn('[Chat] clipboard write failed:', err);
@@ -3372,12 +3381,13 @@ function attachCopyHandlersOnly(container) {
 
   // Run JS code blocks
   container.querySelectorAll('.code-run-btn:not([data-bound])').forEach((btn) => {
-    btn.setAttribute('data-bound', '1');
-    btn.addEventListener('click', () => {
-      const code = decodeURIComponent(btn.dataset.code || '');
+    const el = btn as HTMLElement;
+    el.setAttribute('data-bound', '1');
+    el.addEventListener('click', () => {
+      const code = decodeURIComponent(el.dataset.code || '');
       document.dispatchEvent(
         new CustomEvent('deepchat:run-code-block', {
-          detail: { button: btn, code, language: btn.dataset.language || 'javascript' },
+          detail: { button: el, code, language: el.dataset.language || 'javascript' },
         })
       );
     });
@@ -3459,7 +3469,7 @@ async function handleRunCodeBlock(detail: Record<string, any> = {}) {
           persist();
         }
         confirmBox.remove();
-        renderCodeOutput(wrapper, output, true);
+        renderCodeOutput(wrapper, output as string, true);
       } catch (error) {
         if (tool) {
           applyToolResult(msg.toolCalls, {
@@ -3467,13 +3477,13 @@ async function handleRunCodeBlock(detail: Record<string, any> = {}) {
             name: 'run_code',
             args: { language, code },
             ok: false,
-            output: error.message || String(error),
+            output: (error as Error).message || String(error),
           });
           syncToolRuns(msg);
-          renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
+          renderToolCalls(msgEl.querySelector('.tool-calls-container') as HTMLElement, msg.toolCalls);
           persist();
         }
-        renderCodeOutput(wrapper, error.message || String(error), false);
+        renderCodeOutput(wrapper, (error as Error).message || String(error), false);
       } finally {
         button.disabled = false;
         button.textContent = '▶ 运行';
@@ -3483,7 +3493,7 @@ async function handleRunCodeBlock(detail: Record<string, any> = {}) {
   );
 }
 
-function renderCodeOutput(wrapper, output, ok) {
+function renderCodeOutput(wrapper: HTMLElement, output: string, ok: boolean) {
   wrapper.querySelector('.code-output')?.remove();
   const outputEl = document.createElement('div');
   outputEl.className = `code-output${ok ? '' : ' is-error'}`;
@@ -3501,54 +3511,54 @@ function renderCodeOutput(wrapper, output, ok) {
 function updateHeader() {
   const conv = getActiveConversation();
   const settings = getSettings();
-  $chatTitle.textContent = conv ? conv.title : '新的对话';
-  $modelName.textContent = settings.model as string;
-  $modelName.title = settings.model as string;
+  $chatTitle!.textContent = conv ? conv.title : '新的对话';
+  $modelName!.textContent = settings.model as string;
+  $modelName!.title = settings.model as string;
   updateHeaderUsageBadge(conv);
   updateEvidenceButton(conv);
 }
 
-export function updateModelDisplay(model) {
-  $modelName.textContent = model;
+export function updateModelDisplay(model: string) {
+  $modelName!.textContent = model;
 }
 
-function updateHeaderUsageBadge(conversation) {
+function updateHeaderUsageBadge(conversation: Record<string, any>) {
   if (!$chatUsageBadge) return;
   const telemetry = formatConversationUsageTelemetry(conversation);
   if (!telemetry) {
-    $chatUsageBadge.classList.add('hidden');
-    $chatUsageBadge.textContent = '';
-    $chatUsageBadge.title = '';
-    $chatUsageBadge.removeAttribute('role');
-    $chatUsageBadge.removeAttribute('tabindex');
+    $chatUsageBadge!.classList.add('hidden');
+    $chatUsageBadge!.textContent = '';
+    $chatUsageBadge!.title = '';
+    $chatUsageBadge!.removeAttribute('role');
+    $chatUsageBadge!.removeAttribute('tabindex');
     closeUsageTelemetryPanel();
     return;
   }
-  $chatUsageBadge.classList.remove('hidden');
-  $chatUsageBadge.textContent = telemetry.text;
-  $chatUsageBadge.title = telemetry.title;
-  $chatUsageBadge.setAttribute('role', 'button');
-  $chatUsageBadge.setAttribute('tabindex', '0');
-  $chatUsageBadge.setAttribute('aria-label', '查看会话 Token 与缓存详情');
-  $chatUsageBadge.dataset.hitRate = telemetry.hitRate === null ? '' : String(telemetry.hitRate);
+  $chatUsageBadge!.classList.remove('hidden');
+  $chatUsageBadge!.textContent = telemetry.text;
+  $chatUsageBadge!.title = telemetry.title;
+  $chatUsageBadge!.setAttribute('role', 'button');
+  $chatUsageBadge!.setAttribute('tabindex', '0');
+  $chatUsageBadge!.setAttribute('aria-label', '查看会话 Token 与缓存详情');
+  $chatUsageBadge!.dataset.hitRate = telemetry.hitRate === null ? '' : String(telemetry.hitRate);
   if (usageTelemetryPanelEl) renderConversationUsageTelemetryPanel(usageTelemetryPanelEl, conversation);
 }
 
 function bindUsageTelemetryPanel() {
-  if (!$chatUsageBadge || $chatUsageBadge.dataset.panelBound === 'true') return;
-  $chatUsageBadge.dataset.panelBound = 'true';
-  $chatUsageBadge.addEventListener('click', (event) => {
+  if (!$chatUsageBadge || $chatUsageBadge!.dataset.panelBound === 'true') return;
+  $chatUsageBadge!.dataset.panelBound = 'true';
+  $chatUsageBadge!.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleUsageTelemetryPanel();
   });
-  $chatUsageBadge.addEventListener('keydown', (event) => {
+  $chatUsageBadge!.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     toggleUsageTelemetryPanel();
   });
   document.addEventListener('click', (event) => {
     if (!usageTelemetryPanelEl) return;
-    if (usageTelemetryPanelEl.contains(event.target as Node) || $chatUsageBadge.contains(event.target as Node)) return;
+    if (usageTelemetryPanelEl.contains(event.target as Node) || $chatUsageBadge!.contains(event.target as Node)) return;
     closeUsageTelemetryPanel();
   });
   document.addEventListener('keydown', (event) => {
@@ -3584,7 +3594,7 @@ function closeUsageTelemetryPanel() {
 
 function positionUsageTelemetryPanel() {
   if (!usageTelemetryPanelEl || !$chatUsageBadge) return;
-  const rect = $chatUsageBadge.getBoundingClientRect();
+  const rect = $chatUsageBadge!.getBoundingClientRect();
   const margin = 12;
   const right = Math.max(margin, window.innerWidth - rect.right);
   const top = Math.min(window.innerHeight - margin, rect.bottom + 8);
@@ -3593,9 +3603,9 @@ function positionUsageTelemetryPanel() {
 }
 
 function bindEvidenceDrawer() {
-  if (!$evidencePanelBtn || $evidencePanelBtn.dataset.drawerBound === 'true') return;
-  $evidencePanelBtn.dataset.drawerBound = 'true';
-  $evidencePanelBtn.addEventListener('click', (event) => {
+  if (!$evidencePanelBtn || $evidencePanelBtn!.dataset.drawerBound === 'true') return;
+  $evidencePanelBtn!.dataset.drawerBound = 'true';
+  $evidencePanelBtn!.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleEvidenceDrawer();
   });
@@ -3604,18 +3614,18 @@ function bindEvidenceDrawer() {
   });
 }
 
-function updateEvidenceButton(conversation) {
+function updateEvidenceButton(conversation: Record<string, any>) {
   if (!$evidencePanelBtn) return;
   const evidence = getLatestEvidenceMessage(conversation);
   if (!evidence) {
-    $evidencePanelBtn.classList.add('hidden');
-    $evidencePanelBtn.title = '暂无工具证据';
+    $evidencePanelBtn!.classList.add('hidden');
+    $evidencePanelBtn!.title = '暂无工具证据';
     closeEvidenceDrawer();
     return;
   }
   const runCount = Array.isArray(evidence.message.toolRuns) ? evidence.message.toolRuns.length : 0;
-  $evidencePanelBtn.classList.remove('hidden');
-  $evidencePanelBtn.title = runCount ? `查看最近工具证据：${runCount} 个工具` : '查看最近 Token / Cache 证据';
+  $evidencePanelBtn!.classList.remove('hidden');
+  $evidencePanelBtn!.title = runCount ? `查看最近工具证据：${runCount} 个工具` : '查看最近 Token / Cache 证据';
   if (evidenceDrawerEl) renderLatestEvidenceDrawer(evidenceDrawerEl, conversation);
 }
 
@@ -3641,7 +3651,7 @@ function closeEvidenceDrawer() {
   evidenceDrawerEl = null;
 }
 
-function getLatestEvidenceMessage(conversation) {
+function getLatestEvidenceMessage(conversation: Record<string, any>) {
   const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -3662,10 +3672,12 @@ function formatAgentStageBrief(stage: Record<string, any> = {}) {
   return `${round}${name}${detail ? `：${detail}` : ''}`;
 }
 
-function toggleStreamingUI(streaming) {
+function toggleStreamingUI(streaming: boolean) {
   const sendBtn = document.getElementById('send-btn');
   const stopBtn = document.getElementById('stop-btn');
   const input = document.getElementById('message-input') as HTMLInputElement;
+
+  if (!sendBtn || !stopBtn) return;
 
   if (streaming) {
     sendBtn.classList.add('hidden');

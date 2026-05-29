@@ -68,14 +68,19 @@ import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
  * @param {Function} deps.hasUncitedLocalSource
  * @param {Function} deps.openTraceInspectorFn
  */
-export function createStreamOrchestrator(deps) {
-  async function doStream(conv, retryCount = 0, inheritVersions = null, composerOverrides = null) {
+export function createStreamOrchestrator(deps: Record<string, any>) {
+  async function doStream(
+    conv: Record<string, any>,
+    retryCount = 0,
+    inheritVersions: any[] | null = null,
+    composerOverrides: Record<string, any> | null = null
+  ) {
     deps.setIsStreaming(true);
     deps.setUserScrolledUp(false);
     deps.setAbortController(new AbortController());
     deps.toggleStreamingUI(true);
 
-    const assistantMsg: Record<string, unknown> = {
+    const assistantMsg: Record<string, any> = {
       role: 'assistant',
       content: '',
       thinking: '',
@@ -112,7 +117,7 @@ export function createStreamOrchestrator(deps) {
       return isAgentSkill(skill);
     }
 
-    function shouldCreateCrewFromStage(event) {
+    function shouldCreateCrewFromStage(event: Record<string, any>) {
       const mode = deps.getSettings().crewDisplayMode || 'auto';
       if (mode === 'off') return false;
       if (mode === 'always') return true;
@@ -144,22 +149,22 @@ export function createStreamOrchestrator(deps) {
       ensureAgentRun();
       deps.renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
     }
-    crewContainer.addEventListener('deepchat:crew-role-click', (e) => {
-      const roleId = e.detail?.roleId;
+    crewContainer.addEventListener('deepchat:crew-role-click', (e: Event) => {
+      const roleId = (e as CustomEvent).detail?.roleId;
       if (!roleId) return;
-      if (e.shiftKey && assistantMsg.traceRecorder) {
+      if ((e as any).shiftKey && assistantMsg.traceRecorder) {
         (deps.openTraceInspectorFn || openTraceInspector)(assistantMsg.traceRecorder, {
           conversationTitle: conv.title,
         });
         return;
       }
       const toolNameMap = ROLE_TOOL_MAP;
-      const targetTools = toolNameMap[roleId];
+      const targetTools = (toolNameMap as Record<string, readonly string[]>)[roleId as string];
       if (targetTools && toolContainer) {
         const blocks = toolContainer.querySelectorAll('.tool-call-block');
         for (const block of blocks) {
           const nameEl = block.querySelector('.tool-call-header strong');
-          if (nameEl && targetTools.some((t) => nameEl.textContent.includes(t))) {
+          if (nameEl && targetTools.some((t: string) => nameEl.textContent?.includes(t))) {
             block.scrollIntoView({ behavior: 'smooth', block: 'center' });
             block.style.outline = '2px solid var(--accent-primary)';
             setTimeout(() => {
@@ -175,7 +180,7 @@ export function createStreamOrchestrator(deps) {
 
     let fullContent = '';
     let fullThinking = '';
-    let renderTimer = null;
+    let renderTimer: ReturnType<typeof setTimeout> | null = null;
     let lastRenderLen = 0;
     let streamStartTime = 0;
     let tokenCount = 0;
@@ -210,8 +215,12 @@ export function createStreamOrchestrator(deps) {
     }
 
     const apiMessages = conv.messages
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({ role: m.role, content: m.modelContent || m.content, attachments: m.attachments || [] }));
+      .filter((m: Record<string, any>) => m.role === 'user' || m.role === 'assistant')
+      .map((m: Record<string, any>) => ({
+        role: m.role,
+        content: m.modelContent || m.content,
+        attachments: m.attachments || [],
+      }));
 
     const enhanceEnabled = composerOverrides?.enhance ?? deps.isEnhanceEnabled();
     if (enhanceEnabled && apiMessages.length > 0) {
@@ -248,13 +257,13 @@ export function createStreamOrchestrator(deps) {
       contextSummary: conv.contextSummary || '',
       contextSummaryMeta: conv.contextSummaryMeta || null,
       cacheProfile: conv.cacheProfile || null,
-      onToken(token) {
+      onToken(token: string) {
         if (streamStartTime === 0) streamStartTime = Date.now();
         tokenCount++;
         fullContent += token;
         scheduleRender();
       },
-      onThinking(token) {
+      onThinking(token: string) {
         fullThinking += token;
         if (thinkingContent) {
           thinkingContent.textContent = fullThinking;
@@ -262,12 +271,12 @@ export function createStreamOrchestrator(deps) {
           if (thinkingBlock) thinkingBlock.hidden = false;
         }
       },
-      onTokenCount(counts) {
+      onTokenCount(counts: Record<string, any>) {
         assistantMsg.tokens = counts;
         assistantMsg.cacheProfile = deps.buildCacheProfile(counts, assistantMsg.contextBudget);
         conv.cacheProfile = assistantMsg.cacheProfile;
       },
-      onToolRequest(event) {
+      onToolRequest(event: Record<string, any>) {
         if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
         const tool = deps.createToolRecord(event);
         (assistantMsg.toolCalls as Record<string, unknown>[]).push(tool);
@@ -285,7 +294,7 @@ export function createStreamOrchestrator(deps) {
         });
         deps.renderToolCalls(toolContainer, assistantMsg.toolCalls, {
           requestId: event.requestId,
-          onDecision(toolCallId, approved) {
+          onDecision(toolCallId: string, approved: boolean) {
             deps.applyToolDecision(tool, approved);
             deps.syncToolRuns(assistantMsg);
             applyCrewToolResult(ensureAgentRun(), tool, assistantMsg.toolCalls as any[]);
@@ -302,7 +311,7 @@ export function createStreamOrchestrator(deps) {
           },
         });
       },
-      onToolResult(event) {
+      onToolResult(event: Record<string, any>) {
         if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
         deps.applyToolResult(assistantMsg.toolCalls, event);
         deps.syncToolRuns(assistantMsg);
@@ -322,7 +331,7 @@ export function createStreamOrchestrator(deps) {
           evidenceIds: event.evidenceIds,
         });
       },
-      onAgentStage(event) {
+      onAgentStage(event: Record<string, any>) {
         (assistantMsg.agentStages as Record<string, unknown>[]).push({ ...event, at: new Date().toISOString() });
         traceRecorder.recordStage(event);
         deps.renderAgentTimeline(agentContainer, assistantMsg);
@@ -331,11 +340,11 @@ export function createStreamOrchestrator(deps) {
           deps.renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
         }
       },
-      onContextBudget(event) {
+      onContextBudget(event: Record<string, any>) {
         assistantMsg.contextBudget = event;
         deps.renderAgentTimeline(agentContainer, assistantMsg);
       },
-      onContextSummary(event) {
+      onContextSummary(event: Record<string, any>) {
         conv.contextSummary = event.summary || conv.contextSummary || '';
         conv.contextSummaryUpdatedAt = event.updatedAt || new Date().toISOString();
         conv.contextSummaryMeta = event.meta || conv.contextSummaryMeta || null;
@@ -347,8 +356,8 @@ export function createStreamOrchestrator(deps) {
         });
         deps.renderAgentTimeline(agentContainer, assistantMsg);
       },
-      async onDone(doneEvent: Record<string, unknown> = {}) {
-        clearTimeout(renderTimer);
+      async onDone(doneEvent: Record<string, any> = {}) {
+        clearTimeout(renderTimer ?? undefined);
         if (assistantMsg.agentRun) {
           finalizeCrewRun(assistantMsg.agentRun, { aborted: Boolean(doneEvent.aborted) });
           deps.renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
@@ -402,8 +411,8 @@ export function createStreamOrchestrator(deps) {
         scrollToBottom(deps.$messages);
         deps.refreshReadingNavigator();
       },
-      onError(err) {
-        clearTimeout(renderTimer);
+      onError(err: Error) {
+        clearTimeout(renderTimer ?? undefined);
         contentEl.classList.remove('streaming-cursor');
         const typing = msgEl.querySelector('.typing-indicator');
         if (typing) typing.remove();

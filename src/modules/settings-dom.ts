@@ -510,7 +510,7 @@ export function bindSettingsEvents(
       runStatusAction(
         els.workspaceIndexCacheStatus,
         '正在清理工作区索引缓存...',
-        formatWorkspaceIndexClearResult,
+        (result: unknown) => formatWorkspaceIndexClearResult(result as Record<string, unknown>),
         clearWorkspaceIndexCache
       )
     );
@@ -615,8 +615,8 @@ export function bindSettingsEvents(
       runStatusAction(
         els.mcpStatusText,
         '刷新 MCP 工具 schema...',
-        (statuses) => summarizeMcpStatusRefresh(statuses),
-        doRefreshMcpStatuses
+        (statuses: unknown) => summarizeMcpStatusRefresh(statuses as Record<string, any>[]),
+        doRefreshMcpStatuses || (() => Promise.resolve())
       )
     );
   }

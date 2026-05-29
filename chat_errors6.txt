@@ -1,0 +1,4 @@
+﻿
+src/modules/chat.ts(3145,35): error TS1005: ';' expected.
+
+
