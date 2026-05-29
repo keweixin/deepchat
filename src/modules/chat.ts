@@ -729,7 +729,7 @@ function renderCompactAssistantMessage(contentEl: HTMLElement, msg: Record<strin
   expand.addEventListener('click', async () => {
     contentEl.classList.remove('is-compact');
     contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-    await postProcess(contentEl);
+    await postProcess(contentEl, true);
     const conv = getActiveConversation();
     const currentMsg = conv?.messages?.[idx] || msg;
     if (currentMsg.stopped) renderStoppedNotice(contentEl.closest('.message-body') as HTMLElement, idx);
@@ -750,7 +750,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
     if (msg.error) {
       if (msg.content) {
         contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-        postProcess(contentEl)
+        postProcess(contentEl, true)
           .then(() => {
             renderAssistantToc(el.querySelector('.answer-toc-container') as HTMLElement, contentEl);
             refreshReadingNavigator();
@@ -766,7 +766,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
       renderCompactAssistantMessage(contentEl!, msg, idx);
     } else {
       contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
-      postProcess(contentEl)
+      postProcess(contentEl, true)
         .then(() => {
           renderAssistantToc(el.querySelector('.answer-toc-container') as HTMLElement, contentEl);
           refreshReadingNavigator();

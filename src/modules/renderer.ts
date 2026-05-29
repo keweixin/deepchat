@@ -345,8 +345,11 @@ export function renderMarkdown(md: string) {
 
 /**
  * Post-process a DOM element: render KaTeX + Mermaid + copy handlers
+ * @param skipIfProcessed - If true, skip containers already marked with data-post-processed.
+ *                          Use for historical messages to avoid redundant work on re-render.
  */
-export async function postProcess(container: HTMLElement) {
+export async function postProcess(container: HTMLElement, skipIfProcessed = false) {
+  if (skipIfProcessed && container.dataset.postProcessed === '1') return;
   await renderKatex(container);
   await renderMermaidDiagrams(container);
   decorateMermaidDiagrams(container);
@@ -354,6 +357,7 @@ export async function postProcess(container: HTMLElement) {
   decorateReadableContent(container);
   attachCopyHandlers(container);
   bindZoomableMedia(container);
+  container.dataset.postProcessed = '1';
 }
 
 /**

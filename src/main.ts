@@ -93,10 +93,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
   await initApiSettings();
   await initChat();
-  initReadingNavigator();
-  initSettings(onModelChange);
   bindEvents();
   maybeShowOnboardingHint();
+  // Defer non-critical init to improve perceived startup time
+  const schedule = typeof requestIdleCallback !== 'undefined' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 0);
+  schedule(() => {
+    initReadingNavigator();
+    initSettings(onModelChange);
+  });
 });
 
 function onModelChange(model) {
