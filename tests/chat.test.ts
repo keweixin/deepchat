@@ -14,12 +14,12 @@ import {
   hasLocalFilesWithoutCitedSource,
   hasSearchWithoutCitedSource,
   renderAgentTimeline,
-  renderContextMentionStrip,
   renderConversationUsageTelemetryPanel,
   renderLatestEvidenceDrawer,
   shouldCompactHistoricalMessage,
 } from '../src/modules/chat.js';
 import { trimMessagesForRegeneration } from '../src/modules/conversation-utils.ts';
+import { renderContextMentionStrip } from '../src/modules/context-mentions.ts';
 import {
   getToolRiskMeta,
   renderToolCalls,

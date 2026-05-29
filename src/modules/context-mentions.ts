@@ -90,3 +90,27 @@ export function stripVolatileContextBlocks(content = ''): string {
     .replace(/<selected_context>[\s\S]*?<\/selected_context>/gi, ' ')
     .replace(/<task_checkpoint>[\s\S]*?<\/task_checkpoint>/gi, ' ');
 }
+
+export function renderContextMentionStrip(content = '') {
+  const mentions = extractContextMentions(content);
+  if (mentions.length === 0) return null;
+  const strip = document.createElement('div');
+  strip.className = 'message-context-mentions';
+  const label = document.createElement('span');
+  label.className = 'message-context-label';
+  label.textContent = '选定上下文';
+  strip.appendChild(label);
+  for (const mention of mentions) {
+    const chip = document.createElement('span');
+    chip.className = `message-context-chip type-${mention.type}`;
+    chip.textContent =
+      mention.type === 'folder'
+        ? `目录 ${mention.path}`
+        : mention.type === 'symbol'
+          ? `符号 ${mention.path}`
+          : `文件 ${mention.path}`;
+    chip.title = mention.path;
+    strip.appendChild(chip);
+  }
+  return strip;
+}

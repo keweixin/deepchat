@@ -14,7 +14,7 @@
  */
 
 import { approveToolRequest, streamChat, runTool } from './api.js';
-import { extractContextMentions } from './context-mentions.ts';
+import { extractContextMentions, renderContextMentionStrip } from './context-mentions.ts';
 import { getSettings } from './settings-core.js';
 import { normalizeTokenUsage, getConversationUsageSummary } from './token-budget.js';
 import { loadConversations, saveConversations } from './client-store.ts';
@@ -951,30 +951,6 @@ function renderAttachmentStrip(attachments: any[] = []) {
     caption.textContent = `${attachment.name || '附件'}${attachment.size ? ` · ${formatBytes(attachment.size)}` : ''}`;
     item.appendChild(caption);
     strip.appendChild(item);
-  }
-  return strip;
-}
-
-export function renderContextMentionStrip(content = '') {
-  const mentions = extractContextMentions(content);
-  if (mentions.length === 0) return null;
-  const strip = document.createElement('div');
-  strip.className = 'message-context-mentions';
-  const label = document.createElement('span');
-  label.className = 'message-context-label';
-  label.textContent = '选定上下文';
-  strip.appendChild(label);
-  for (const mention of mentions) {
-    const chip = document.createElement('span');
-    chip.className = `message-context-chip type-${mention.type}`;
-    chip.textContent =
-      mention.type === 'folder'
-        ? `目录 ${mention.path}`
-        : mention.type === 'symbol'
-          ? `符号 ${mention.path}`
-          : `文件 ${mention.path}`;
-    chip.title = mention.path;
-    strip.appendChild(chip);
   }
   return strip;
 }
