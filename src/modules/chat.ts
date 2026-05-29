@@ -367,6 +367,31 @@ export async function initChat() {
   document.addEventListener('deepchat:run-code-block', runCodeHandler as EventListener);
   _chatCleanupFns.push(() => document.removeEventListener('deepchat:run-code-block', runCodeHandler as EventListener));
 
+  // Agent control events
+  const agentPauseHandler = () => {
+    if (isStreaming) {
+      showToast('Agent 已暂停');
+      stopStreaming();
+    }
+  };
+  const agentStopHandler = () => {
+    if (isStreaming) {
+      showToast('Agent 已停止');
+      stopStreaming();
+    }
+  };
+  const agentSkipToolHandler = () => {
+    showToast('跳过当前工具（功能开发中）');
+  };
+  document.addEventListener('deepchat:agent-pause', agentPauseHandler);
+  document.addEventListener('deepchat:agent-stop', agentStopHandler);
+  document.addEventListener('deepchat:agent-skip-tool', agentSkipToolHandler);
+  _chatCleanupFns.push(() => {
+    document.removeEventListener('deepchat:agent-pause', agentPauseHandler);
+    document.removeEventListener('deepchat:agent-stop', agentStopHandler);
+    document.removeEventListener('deepchat:agent-skip-tool', agentSkipToolHandler);
+  });
+
   const reloadHandler = () => {
     reloadConversations().catch(() => showToast('刷新对话失败'));
   };

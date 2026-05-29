@@ -365,3 +365,46 @@
     color: var(--text-tertiary, #6b7280);
   }
 }
+
+/* ─── Control Bar ──────────────────────────────────────────────────────────── */
+
+.theatre-control-bar {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+.theatre-control-btn {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.theatre-control-pause {
+  color: #f59e0b;
+  border-color: #f59e0b;
+}
+.theatre-control-pause:hover {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.theatre-control-skip {
+  color: var(--text-secondary);
+}
+.theatre-control-skip:hover {
+  background: var(--glass-bg-hover);
+}
+
+.theatre-control-stop {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+.theatre-control-stop:hover {
+  background: rgba(239, 68, 68, 0.1);
+}

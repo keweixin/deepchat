@@ -125,6 +125,39 @@ export function renderAgentTheatre(container: HTMLElement | null, agentRun: Agen
   `;
   wrapper.appendChild(header);
 
+  // Control bar (only when agent is running)
+  if (agentRun?.status === 'running') {
+    const controlBar = document.createElement('div');
+    controlBar.className = 'theatre-control-bar';
+
+    const pauseBtn = document.createElement('button');
+    pauseBtn.type = 'button';
+    pauseBtn.className = 'theatre-control-btn theatre-control-pause';
+    pauseBtn.textContent = '暂停';
+    pauseBtn.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('deepchat:agent-pause', { detail: { runId: agentRun.id } }));
+    });
+
+    const skipBtn = document.createElement('button');
+    skipBtn.type = 'button';
+    skipBtn.className = 'theatre-control-btn theatre-control-skip';
+    skipBtn.textContent = '跳过工具';
+    skipBtn.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('deepchat:agent-skip-tool', { detail: { runId: agentRun.id } }));
+    });
+
+    const stopBtn = document.createElement('button');
+    stopBtn.type = 'button';
+    stopBtn.className = 'theatre-control-btn theatre-control-stop';
+    stopBtn.textContent = '停止';
+    stopBtn.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('deepchat:agent-stop', { detail: { runId: agentRun.id } }));
+    });
+
+    controlBar.append(pauseBtn, skipBtn, stopBtn);
+    wrapper.appendChild(controlBar);
+  }
+
   // Stage: actors + SVG flow overlay
   const stage = document.createElement('div');
   stage.className = 'agent-theatre-stage';
