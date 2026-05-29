@@ -48,7 +48,7 @@ function getDB(): Promise<IDBDatabase> {
 /**
  * Save a complete trace (all events + run summary) to IndexedDB.
  */
-export async function saveTrace(recorder, conversationId) {
+export async function saveTrace(recorder: Record<string, any>, conversationId: string) {
   if (!recorder || !recorder.runId) return;
   const db = await getDB();
 
@@ -69,7 +69,7 @@ export async function saveTrace(recorder, conversationId) {
   });
 
   // Save all events
-  const events = recorder.events.map((e) => ({
+  const events = recorder.events.map((e: Record<string, any>) => ({
     ...e,
     runId: recorder.runId,
     conversationId: conversationId || '',
@@ -103,7 +103,7 @@ export async function saveTrace(recorder, conversationId) {
 /**
  * Save a single trace event (for incremental streaming updates).
  */
-export async function saveTraceEvent(event, runId, conversationId) {
+export async function saveTraceEvent(event: Record<string, any>, runId: string, conversationId: string) {
   if (!event || !runId) return;
   const db = await getDB();
   const record = {
@@ -126,7 +126,7 @@ export async function saveTraceEvent(event, runId, conversationId) {
 /**
  * Load all events for a given runId.
  */
-export async function loadTraceEvents(runId) {
+export async function loadTraceEvents(runId: string) {
   if (!runId) return [];
   const db = await getDB();
   return new Promise((resolve, reject) => {
@@ -146,7 +146,7 @@ export async function loadTraceEvents(runId) {
 /**
  * Load run summary for a given runId.
  */
-export async function loadRunSummary(runId) {
+export async function loadRunSummary(runId: string) {
   if (!runId) return null;
   const db = await getDB();
   return new Promise((resolve, reject) => {
@@ -170,7 +170,7 @@ export async function listRunsForConversation(conversationId: string, options: R
     const store = tx.objectStore(STORE_RUNS);
     const index = store.index('conversationId');
     const req = index.openCursor(conversationId, 'prev'); // newest first
-    const results = [];
+    const results: Record<string, any>[] = [];
     let skipped = 0;
     req.onsuccess = () => {
       const cursor = req.result;
@@ -205,7 +205,7 @@ export async function listAllRuns(options: Record<string, any> = {}) {
     const store = tx.objectStore(STORE_RUNS);
     const index = store.index('startedAt');
     const req = index.openCursor(null, 'prev');
-    const results = [];
+    const results: Record<string, any>[] = [];
     req.onsuccess = () => {
       const cursor = req.result;
       if (!cursor) {
@@ -241,7 +241,7 @@ export async function listAllRuns(options: Record<string, any> = {}) {
 /**
  * Delete a single run and all its events.
  */
-export async function deleteTrace(runId) {
+export async function deleteTrace(runId: string) {
   if (!runId) return;
   const db = await getDB();
   await new Promise<void>((resolve, reject) => {

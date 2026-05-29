@@ -9,7 +9,7 @@ import { normalizeTokenUsage, getConversationUsageSummary } from './token-budget
 
 // ─── Token Usage Formatting ──────────────────────────────────────────────────
 
-export function formatTokenUsageTitle(tokens) {
+export function formatTokenUsageTitle(tokens: Record<string, any>) {
   const usage = normalizeTokenUsage(tokens);
   const profile = tokens?.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : {};
   const lines = [
@@ -46,7 +46,7 @@ export function formatTokenUsageTitle(tokens) {
         .join(', ')}`
     );
   }
-  if (usage.rounds > 1) lines.push(`Agent 轮次: ${usage.rounds}`);
+  if ((usage.rounds || 0) > 1) lines.push(`Agent 轮次: ${usage.rounds}`);
   const warnings = [
     ...(usage.warnings || []),
     ...(tokens.cacheStabilityWarnings || []),
@@ -58,7 +58,7 @@ export function formatTokenUsageTitle(tokens) {
 
 // ─── Conversation Usage Telemetry ────────────────────────────────────────────
 
-export function formatConversationUsageTelemetry(conversation) {
+export function formatConversationUsageTelemetry(conversation: Record<string, any>) {
   const details = buildConversationUsageTelemetryDetails(conversation);
   if (!details) return null;
   return {
@@ -69,7 +69,7 @@ export function formatConversationUsageTelemetry(conversation) {
   };
 }
 
-export function buildConversationUsageTelemetryDetails(conversation) {
+export function buildConversationUsageTelemetryDetails(conversation: Record<string, any>) {
   const usage = getConversationUsageSummary(conversation);
   if (!usage || usage.total <= 0) return null;
   const profile = getConversationCacheProfile(conversation) || {};
@@ -80,7 +80,7 @@ export function buildConversationUsageTelemetryDetails(conversation) {
   if (hitRate !== null) textParts.push(`缓存 ${hitRate}%`);
   if (Number(usage.cost?.estimatedSavingsUsd || 0) > 0)
     textParts.push(`省 ${formatUsd(usage.cost?.estimatedSavingsUsd || 0)}`);
-  if (usage.rounds > 1) textParts.push(`${usage.rounds} 轮`);
+  if ((usage.rounds || 0) > 1) textParts.push(`${usage.rounds} 轮`);
 
   const titleLines = [
     '本会话 Token / Cache 汇总',
@@ -99,7 +99,7 @@ export function buildConversationUsageTelemetryDetails(conversation) {
     titleLines.push(`估算成本: ${formatUsd(usage.cost.estimatedCostUsd || 0)}`);
     titleLines.push(`缓存节省: ${formatUsd(usage.cost.estimatedSavingsUsd || 0)}`);
   }
-  if (usage.rounds > 1) titleLines.push(`Agent 轮次: ${usage.rounds}`);
+  if ((usage.rounds || 0) > 1) titleLines.push(`Agent 轮次: ${usage.rounds}`);
   if (profile.prefixFingerprint) titleLines.push(`Prefix: ${profile.prefixFingerprint}`);
   if (profile.prefixTokens) titleLines.push(`Prefix tokens: ${profile.prefixTokens}`);
   if (reasons.length) titleLines.push(`Cache miss 可能原因: ${reasons.map(formatCacheStabilityReason).join('、')}`);
@@ -123,7 +123,7 @@ export function buildConversationUsageTelemetryDetails(conversation) {
 
 // ─── Cache Profile ───────────────────────────────────────────────────────────
 
-export function buildCacheProfile(tokens, contextBudget) {
+export function buildCacheProfile(tokens: Record<string, any>, contextBudget: Record<string, any>) {
   const usage = normalizeTokenUsage(tokens);
   const profile = tokens?.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : {};
   return {
@@ -147,7 +147,7 @@ export function buildCacheProfile(tokens, contextBudget) {
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
-export function getConversationCacheProfile(conversation) {
+export function getConversationCacheProfile(conversation: Record<string, any>) {
   if (conversation?.cacheProfile && typeof conversation.cacheProfile === 'object') return conversation.cacheProfile;
   const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -159,7 +159,7 @@ export function getConversationCacheProfile(conversation) {
   return null;
 }
 
-export function formatCompactTokenCount(value) {
+export function formatCompactTokenCount(value: string | number) {
   const number = Number(value) || 0;
   if (number < 1000) return String(Math.round(number));
   if (number < 1000000) {
@@ -169,23 +169,23 @@ export function formatCompactTokenCount(value) {
   return `${(number / 1000000).toFixed(1).replace(/\.0$/, '')}m`;
 }
 
-export function formatUsd(value) {
+export function formatUsd(value: unknown) {
   return `$${Number(value || 0).toFixed(6)}`;
 }
 
-export function formatUsageSourceLabel(source) {
+export function formatUsageSourceLabel(source: string) {
   if (source === 'provider') return '服务商真实 usage';
   if (source === 'mixed') return '真实和估算混合';
   return '本地估算';
 }
 
-export function normalizeCacheStabilityReasons(value) {
+export function normalizeCacheStabilityReasons(value: unknown) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))];
 }
 
-export function formatCacheStabilityReason(reason) {
-  const labels = {
+export function formatCacheStabilityReason(reason: string) {
+  const labels: Record<string, string> = {
     model_changed: '模型切换',
     system_prompt_changed: '系统提示词变化',
     tool_schema_changed: '工具 schema 变化',
@@ -195,7 +195,7 @@ export function formatCacheStabilityReason(reason) {
   return labels[reason] || reason;
 }
 
-export function formatCacheStabilityDetails(details) {
+export function formatCacheStabilityDetails(details: Record<string, any>) {
   if (!details || typeof details !== 'object') return '';
   const parts = [];
   for (const [key, value] of Object.entries(details)) {
@@ -210,7 +210,7 @@ export function formatCacheStabilityDetails(details) {
 
 // ─── DOM Helpers (for renderConversationUsageTelemetryPanel) ─────────────────
 
-export function createUsageMetric(label, value) {
+export function createUsageMetric(label: string, value: unknown) {
   const item = document.createElement('div');
   item.className = 'usage-panel-metric';
   const name = document.createElement('span');
@@ -223,14 +223,14 @@ export function createUsageMetric(label, value) {
   return item;
 }
 
-export function createUsageSectionTitle(text) {
+export function createUsageSectionTitle(text: string) {
   const title = document.createElement('div');
   title.className = 'usage-panel-section-title';
   title.textContent = text;
   return title;
 }
 
-export function createUsageRow(label, value) {
+export function createUsageRow(label: string, value: unknown) {
   const row = document.createElement('div');
   row.className = 'usage-panel-row';
   const name = document.createElement('span');

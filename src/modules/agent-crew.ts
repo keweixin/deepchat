@@ -2,7 +2,7 @@
  * Agent Crew Component — Renders the small coordination crew view
  */
 
-export function renderAgentCrew(container, agentRun) {
+export function renderAgentCrew(container: HTMLElement, agentRun: Record<string, any>) {
   if (!container) return;
 
   if (!agentRun || !agentRun.crew || agentRun.crew.length === 0) {
@@ -22,7 +22,9 @@ export function renderAgentCrew(container, agentRun) {
   }
 
   // Calculate completed count
-  const runningOrDoneCount = agentRun.crew.filter((c) => ['running', 'done', 'waiting'].includes(c.status)).length;
+  const runningOrDoneCount = agentRun.crew.filter((c: Record<string, any>) =>
+    ['running', 'done', 'waiting'].includes(c.status)
+  ).length;
   const totalCount = agentRun.crew.length;
 
   // Render header
@@ -33,7 +35,7 @@ export function renderAgentCrew(container, agentRun) {
     wrapper.appendChild(header);
   }
 
-  const statusLabels = {
+  const statusLabels: Record<string, string> = {
     running: '智能团队协作中',
     waiting: '等待你确认',
     done: '任务协作已完成',
@@ -41,15 +43,15 @@ export function renderAgentCrew(container, agentRun) {
     cancelled: '协作已被终止',
   };
   const activeStatusText = statusLabels[agentRun.status] || '智能团队';
-  const waitingCount = agentRun.crew.filter((c) => c.status === 'waiting').length;
+  const waitingCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'waiting').length;
   const badgeText =
     agentRun.status === 'waiting' && waitingCount > 0
       ? `等待确认 · ${waitingCount} 个工具`
       : `${runningOrDoneCount}/${totalCount} 参与`;
-  const runningCount = agentRun.crew.filter((c) => c.status === 'running').length;
-  const doneCount = agentRun.crew.filter((c) => c.status === 'done').length;
-  const skippedCount = agentRun.crew.filter((c) => c.status === 'skipped').length;
-  const errorCount = agentRun.crew.filter((c) => c.status === 'error').length;
+  const runningCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'running').length;
+  const doneCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'done').length;
+  const skippedCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'skipped').length;
+  const errorCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'error').length;
   const detailParts = [];
   if (runningCount > 0) detailParts.push(`运行 ${runningCount}`);
   if (waitingCount > 0) detailParts.push(`等待 ${waitingCount}`);
@@ -78,14 +80,14 @@ export function renderAgentCrew(container, agentRun) {
 
   const activeRoleIds = new Set();
 
-  agentRun.crew.forEach((member) => {
+  agentRun.crew.forEach((member: Record<string, any>) => {
     activeRoleIds.add(member.id);
     let card = cardMap.get(member.id);
 
     if (!card) {
       card = document.createElement('div');
       card.dataset.roleId = member.id;
-      card.addEventListener('click', (e) => {
+      card.addEventListener('click', (e: Event) => {
         if ((e.target as HTMLElement).closest('.crew-detail-val a')) return;
         card.dispatchEvent(
           new CustomEvent('deepchat:crew-role-click', {
@@ -104,7 +106,7 @@ export function renderAgentCrew(container, agentRun) {
     card.className = `agent-crew-card status-${member.status}`;
     if (wasExpanded) card.classList.add('is-expanded');
 
-    const statusIcons = {
+    const statusIcons: Record<string, string> = {
       idle: '○',
       running: '●',
       done: '✓',
@@ -136,7 +138,7 @@ export function renderAgentCrew(container, agentRun) {
   }
 }
 
-function createCrewHeaderTitle(status, statusText) {
+function createCrewHeaderTitle(status: string, statusText: string) {
   const title = document.createElement('div');
   title.className = 'agent-crew-title';
 
@@ -189,7 +191,7 @@ function createCrewCardDetails(member: Record<string, any> = {}, { toolCount = 0
   return details;
 }
 
-function createCrewDetailRow(label, value) {
+function createCrewDetailRow(label: string, value: string) {
   const row = document.createElement('div');
   row.className = 'crew-detail-row';
   row.append(
@@ -199,7 +201,7 @@ function createCrewDetailRow(label, value) {
   return row;
 }
 
-function createTextElement(tag, className, text) {
+function createTextElement(tag: string, className: string, text: string) {
   const element = document.createElement(tag);
   if (className) element.className = className;
   element.textContent = String(text || '');

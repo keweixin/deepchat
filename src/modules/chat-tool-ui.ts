@@ -96,7 +96,7 @@ export function buildToolRepairPrompt(tool: Record<string, unknown> = {}) {
     .join('\n');
 }
 
-export function compactToolOutputSummaryText(outputText) {
+export function compactToolOutputSummaryText(outputText: string) {
   const lines = String(outputText || '')
     .replace(/```[\s\S]*?```/g, '[代码片段]')
     .split(/\r?\n/)
@@ -115,7 +115,7 @@ export function getRunCodeSourceCode(tool: Record<string, unknown> = {}) {
   return String(code || '').trim();
 }
 
-export function formatCodeFenceLanguage(language) {
+export function formatCodeFenceLanguage(language: string) {
   return (
     String(language || 'text')
       .replace(/[^\w#+.-]/g, '')
@@ -129,7 +129,7 @@ export function getBoundedRunCodeForPrompt(tool: Record<string, unknown> = {}) {
 }
 
 export function buildRunCodeRerunPrompt(tool: Record<string, unknown> = {}, result: Record<string, unknown> = {}) {
-  const language = (result.language as string) || (tool.args as Record<string, unknown>)?.language || 'text';
+  const language = String((result.language as string) || (tool.args as Record<string, unknown>)?.language || 'text');
   const code = getBoundedRunCodeForPrompt(tool);
   const lines = [
     '请重新运行下面这段代码，并解释运行结果。运行前仍需我确认 run_code 工具调用。',
@@ -145,7 +145,7 @@ export function buildRunCodeRerunPrompt(tool: Record<string, unknown> = {}, resu
 }
 
 export function buildRunCodeExplainPrompt(tool: Record<string, unknown> = {}, result: Record<string, unknown> = {}) {
-  const language = (result.language as string) || (tool.args as Record<string, unknown>)?.language || 'text';
+  const language = String((result.language as string) || (tool.args as Record<string, unknown>)?.language || 'text');
   const code = getBoundedRunCodeForPrompt(tool);
   const lines = [
     '请解释这次 run_code 代码实验为什么失败，指出最可能的根因，并给出可确认后重试的修复版本。',
@@ -163,7 +163,7 @@ export function buildRunCodeExplainPrompt(tool: Record<string, unknown> = {}, re
 }
 
 export function buildRunCodeArtifactMarkdown(tool: Record<string, unknown> = {}, result: Record<string, unknown> = {}) {
-  const language = (result.language as string) || (tool.args as Record<string, unknown>)?.language || 'text';
+  const language = String((result.language as string) || (tool.args as Record<string, unknown>)?.language || 'text');
   const code = getRunCodeSourceCode(tool);
   const status = result.ok ? '成功' : result.timedOut ? '超时' : '失败';
   const lines = [

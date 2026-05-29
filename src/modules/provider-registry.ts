@@ -115,11 +115,11 @@ export const PROVIDER_REGISTRY = Object.freeze([
 
 // ─── Lookup Helpers ─────────────────────────────────────────────────────────
 
-export function getProviderById(id) {
+export function getProviderById(id: string) {
   return PROVIDER_REGISTRY.find((p) => p.id === id) || null;
 }
 
-export function getProviderByModel(modelId) {
+export function getProviderByModel(modelId: string) {
   if (!modelId) return null;
   const m = String(modelId).toLowerCase();
   for (const provider of PROVIDER_REGISTRY) {
@@ -130,7 +130,7 @@ export function getProviderByModel(modelId) {
   return null;
 }
 
-export function getModelInfo(modelId, providerId) {
+export function getModelInfo(modelId: string, providerId?: string) {
   if (!modelId) return null;
   const provider = providerId ? getProviderById(providerId) : getProviderByModel(modelId);
   if (!provider) return null;

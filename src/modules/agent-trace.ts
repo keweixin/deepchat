@@ -345,7 +345,7 @@ export class TraceRecorder {
 
   // ─── Actor Management ───────────────────────────────────────────────────
 
-  getOrCreateActor(roleId, defaults = {}) {
+  getOrCreateActor(roleId: string, defaults: Record<string, any> = {}) {
     if (this._actors.has(roleId)) return this._actors.get(roleId);
     const actor = {
       id: roleId,
@@ -365,7 +365,7 @@ export class TraceRecorder {
     return actor;
   }
 
-  getActor(roleId) {
+  getActor(roleId: string) {
     return this._actors.get(roleId) || null;
   }
 
@@ -375,7 +375,7 @@ export class TraceRecorder {
 
   // ─── Tool Call Access ───────────────────────────────────────────────────
 
-  getToolCall(toolCallId) {
+  getToolCall(toolCallId: string) {
     return this._toolCalls.get(toolCallId) || null;
   }
 
@@ -406,7 +406,7 @@ export class TraceRecorder {
     return { ...this._tokenUsage };
   }
 
-  setTokenUsage(usage) {
+  setTokenUsage(usage: Record<string, number>) {
     if (usage) {
       this._tokenUsage.input += usage.input || 0;
       this._tokenUsage.output += usage.output || 0;
@@ -454,23 +454,23 @@ export class TraceRecorder {
 
   // ─── Internal helpers ───────────────────────────────────────────────────
 
-  _push(baseEvent) {
+  _push(baseEvent: Record<string, any>): Record<string, any> {
     const event = Object.freeze({
       eventId: generateEventId(),
       ...baseEvent,
     });
-    this.events.push(event);
+    this.events.push(event as Record<string, any>);
     if (this._onEvent) {
       try {
-        this._onEvent(event);
+        this._onEvent(event as Record<string, any>);
       } catch {
         // onEvent callback errors should not break recording
       }
     }
-    return event;
+    return event as Record<string, any>;
   }
 
-  _updateActorFromStage(event) {
+  _updateActorFromStage(event: Record<string, any>) {
     const { stage } = event;
     if (stage === 'plan') {
       const actor = this.getOrCreateActor('planner');
@@ -492,7 +492,7 @@ export class TraceRecorder {
     }
   }
 
-  _updateActorFromToolRequest(event) {
+  _updateActorFromToolRequest(event: Record<string, any>) {
     const roleId = getActorRoleForTool(event.toolName);
     const actor = this.getOrCreateActor(roleId);
     actor.currentTool = event.toolName;
@@ -510,7 +510,7 @@ export class TraceRecorder {
     }
   }
 
-  _updateActorFromApproval(event) {
+  _updateActorFromApproval(event: Record<string, any>) {
     const tc = this._toolCalls.get(event.toolCallId);
     if (!tc) return;
     const roleId = getActorRoleForTool(tc.toolName);
@@ -529,7 +529,7 @@ export class TraceRecorder {
     }
   }
 
-  _updateActorFromToolResult(event) {
+  _updateActorFromToolResult(event: Record<string, any>) {
     const roleId = getActorRoleForTool(event.toolName);
     const actor = this.getOrCreateActor(roleId);
 
@@ -559,7 +559,7 @@ export function getActorRoleForTool(toolName = '') {
  * Convert the old agentRun object (from agent-run-store.js) into a TraceRecorder.
  * Used for backward compatibility when loading historical conversations.
  */
-export function migrateLegacyAgentRun(legacyRun) {
+export function migrateLegacyAgentRun(legacyRun: Record<string, any>) {
   if (!legacyRun) return null;
   const recorder = new TraceRecorder({
     runId: legacyRun.id || uid(),
@@ -611,8 +611,8 @@ export function migrateLegacyAgentRun(legacyRun) {
   return recorder;
 }
 
-function normalizeRunStatus(status) {
-  const map = {
+function normalizeRunStatus(status: string) {
+  const map: Record<string, string> = {
     running: RUN_STATUS.RUNNING,
     waiting: RUN_STATUS.WAITING,
     done: RUN_STATUS.DONE,
@@ -622,8 +622,8 @@ function normalizeRunStatus(status) {
   return map[status] || RUN_STATUS.DONE;
 }
 
-function normalizeActorStatus(status) {
-  const map = {
+function normalizeActorStatus(status: string) {
+  const map: Record<string, string> = {
     idle: ACTOR_STATUS.IDLE,
     thinking: ACTOR_STATUS.THINKING,
     waiting: ACTOR_STATUS.WAITING_APPROVAL,
@@ -642,7 +642,7 @@ function normalizeActorStatus(status) {
 /**
  * Export a trace to a downloadable blob.
  */
-export function exportTraceAsBlob(recorder, format = 'jsonl') {
+export function exportTraceAsBlob(recorder: TraceRecorder | null | undefined, format = 'jsonl') {
   if (!recorder) return null;
   const content = format === 'jsonl' ? recorder.toJSONL() : recorder.toJSON();
   const mime = format === 'jsonl' ? 'application/x-ndjson' : 'application/json';
@@ -652,7 +652,7 @@ export function exportTraceAsBlob(recorder, format = 'jsonl') {
 /**
  * Generate a filename for trace export.
  */
-export function generateTraceFileName(recorder) {
+export function generateTraceFileName(recorder: TraceRecorder | null | undefined) {
   if (!recorder) return 'trace.jsonl';
   const date = new Date(recorder.startedAt).toISOString().slice(0, 10);
   const mode = recorder.mode || 'unknown';

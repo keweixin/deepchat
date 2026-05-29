@@ -20,7 +20,17 @@ const ENABLE_THRESHOLD = 30; // messages
  * @param {number} [opts.buffer=3] — buffer messages above/below
  * @returns {Set<number>} indices to render
  */
-export function getVisibleIndices({ messageCount, visibleStart, visibleEnd, buffer = DEFAULT_BUFFER }) {
+export function getVisibleIndices({
+  messageCount,
+  visibleStart,
+  visibleEnd,
+  buffer = DEFAULT_BUFFER,
+}: {
+  messageCount: number;
+  visibleStart: number;
+  visibleEnd: number;
+  buffer?: number;
+}) {
   const start = Math.max(0, visibleStart - buffer);
   const end = Math.min(messageCount - 1, visibleEnd + buffer);
   const set = new Set<number>();
@@ -34,7 +44,7 @@ export function getVisibleIndices({ messageCount, visibleStart, visibleEnd, buff
  * @param {number} messageCount
  * @returns {number[]} estimated heights
  */
-export function estimateMessageHeights(container, messageCount) {
+export function estimateMessageHeights(container: HTMLElement, messageCount: number) {
   const children = container.querySelectorAll('.message');
   const heights = [];
   let avgHeight = 120;
@@ -58,7 +68,7 @@ export function estimateMessageHeights(container, messageCount) {
  * @param {number[]} heights — estimated heights
  * @returns {{start: number, end: number}}
  */
-export function calculateVisibleRange(container, heights) {
+export function calculateVisibleRange(container: HTMLElement, heights: number[]) {
   const scrollTop = container.scrollTop;
   const viewportHeight = container.clientHeight;
 
@@ -90,7 +100,7 @@ export function calculateVisibleRange(container, heights) {
  * @param {number} height
  * @returns {HTMLElement}
  */
-export function createPlaceholder(height) {
+export function createPlaceholder(height: number) {
   const el = document.createElement('div');
   el.className = 'message-placeholder';
   el.style.height = `${height}px`;
@@ -112,7 +122,7 @@ export function createVirtualList(opts: Record<string, any>) {
   let enabled = (settings as Record<string, any>).virtualScrollEnabled !== false; // default enabled
   let heights: number[] = [];
   let renderedIndices = new Set<number>();
-  let rafId = null;
+  let rafId: number | null = null;
 
   function shouldEnable() {
     if (!enabled) return false;
@@ -168,7 +178,7 @@ export function createVirtualList(opts: Record<string, any>) {
   function _fullRender() {
     const count = getCount();
     // Clear all placeholders before rendering
-    container.querySelectorAll('.message-placeholder').forEach((el) => el.remove());
+    container.querySelectorAll('.message-placeholder').forEach((el: Element) => el.remove());
     // Ensure all messages are rendered
     for (let i = 0; i < count; i++) {
       if (!renderedIndices.has(i)) {

@@ -25,7 +25,7 @@ const INLINE_RULES = [
   {
     pattern: /\[([^\]]+)\]\(([^)]+)\)/g,
     wrap: 'a',
-    attrs: (m) => ({ href: m[2], target: '_blank', rel: 'noopener noreferrer' }),
+    attrs: (m: RegExpMatchArray) => ({ href: m[2], target: '_blank', rel: 'noopener noreferrer' }),
   },
 ];
 
@@ -35,7 +35,7 @@ const INLINE_RULES = [
  * @param {string} text
  * @returns {string} HTML string
  */
-export function renderStreamingMarkdown(text) {
+export function renderStreamingMarkdown(text: string) {
   if (!text) return '';
 
   // Quick check: if no markdown syntax, return escaped text
@@ -44,8 +44,8 @@ export function renderStreamingMarkdown(text) {
   }
 
   // First, protect code spans by replacing them with placeholders
-  const codeSpans = [];
-  let protectedText = text.replace(/`([^`]+)`/g, (match, code) => {
+  const codeSpans: string[] = [];
+  let protectedText = text.replace(/`([^`]+)`/g, (match: string, code: string) => {
     codeSpans.push(escapeHtml(code));
     return `\x00CODE${codeSpans.length - 1}\x00`;
   });
@@ -69,7 +69,7 @@ export function renderStreamingMarkdown(text) {
   );
 
   // Restore code spans
-  protectedText = protectedText.replace(/\x00CODE(\d+)\x00/g, (match, idx) => {
+  protectedText = protectedText.replace(/\x00CODE(\d+)\x00/g, (match: string, idx: string) => {
     return `<code class="inline-code">${codeSpans[Number(idx)]}</code>`;
   });
 
@@ -78,7 +78,7 @@ export function renderStreamingMarkdown(text) {
   // Split by our known tags, escape the rest
   const parts = protectedText.split(/(<\/?(?:strong|em|del|code|a)(?:\s[^>]*)?>)/g);
   const result = parts
-    .map((part, i) => {
+    .map((part: string, i: number) => {
       if (i % 2 === 1) return part; // keep tags
       return escapeHtml(part).replace(/\n/g, '<br>');
     })
@@ -91,9 +91,9 @@ export function renderStreamingMarkdown(text) {
  * Streaming DOM controller — incremental updates without full innerHTML replacement
  * @param {HTMLElement} container — the .message-content element
  */
-export function createStreamingRenderer(container) {
+export function createStreamingRenderer(container: HTMLElement) {
   let lastText = '';
-  let cursorEl = null;
+  let cursorEl: HTMLElement | null = null;
 
   function ensureCursor() {
     if (!cursorEl) {
@@ -115,7 +115,7 @@ export function createStreamingRenderer(container) {
    * Update DOM with new text using incremental diff
    * @param {string} fullText
    */
-  function update(fullText) {
+  function update(fullText: string) {
     if (fullText === lastText) return;
 
     // For simplicity with markdown: if text grew at the end (common case),
@@ -132,7 +132,7 @@ export function createStreamingRenderer(container) {
    * @param {string} fullText
    * @param {Function} renderFull — function that returns full HTML (renderMarkdown)
    */
-  function finalize(fullText, renderFull) {
+  function finalize(fullText: string, renderFull: (text: string) => string) {
     removeCursor();
     const html = renderFull(fullText);
     container.innerHTML = html;
@@ -153,7 +153,7 @@ export function createStreamingRenderer(container) {
  * @param {string} text
  * @returns {boolean}
  */
-export function containsBlockMarkdown(text) {
+export function containsBlockMarkdown(text: string) {
   if (!text) return false;
   // Code fence, table, heading, blockquote, horizontal rule, list
   const blockPatterns = [

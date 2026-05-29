@@ -283,9 +283,9 @@ function bindEvents() {
     if (e.key === 'Escape') {
       const settingsPanel = document.getElementById('settings-panel');
       const settingsOverlay = document.getElementById('settings-overlay');
-      if (!settingsPanel.classList.contains('hidden')) {
+      if (settingsPanel && !settingsPanel.classList.contains('hidden')) {
         settingsPanel.classList.add('hidden');
-        settingsOverlay.classList.add('hidden');
+        settingsOverlay?.classList.add('hidden');
       }
     }
     if ((e.ctrlKey || e.metaKey) && e.key === '/') {
@@ -368,8 +368,8 @@ function bindEvents() {
 }
 
 async function handleSend() {
-  const $input = document.getElementById('message-input');
-  const content = $input.value.trim();
+  const $input = document.getElementById('message-input') as HTMLTextAreaElement | null;
+  const content = $input?.value?.trim() || '';
   if (!content && pendingAttachments.length === 0) return;
 
   const hasImages = pendingAttachments.some((item) => String(item.mimeType || '').startsWith('image/'));

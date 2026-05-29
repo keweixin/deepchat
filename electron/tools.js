@@ -1552,7 +1552,7 @@ async function clearWorkspaceIndexDiskCache(settings = {}) {
     if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
     const filePath = path.join(dir, entry.name);
     const stat = await fs.stat(filePath).catch(() => null);
-    await fs.rm(filePath, { force: true }).catch(() => {});
+    await fs.rm(filePath, { force: true }).catch((err) => console.warn('[Tools] cache cleanup failed:', err.message));
     deletedFiles += 1;
     deletedBytes += stat?.size || 0;
   }
@@ -1637,7 +1637,7 @@ async function readSearchableFile(filePath, maxBytes) {
     const sha256 = crypto.createHash('sha256').update(slice).digest('hex').slice(0, 16);
     return { text: slice.toString('utf8'), sha256 };
   } finally {
-    await handle.close().catch(() => {});
+    await handle.close().catch((err) => console.warn('[Tools] handle.close failed:', err.message));
   }
 }
 

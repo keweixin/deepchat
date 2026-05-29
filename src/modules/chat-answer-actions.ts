@@ -28,10 +28,10 @@ export function buildAnswerActionMenuGroups() {
   };
 }
 
-export function buildAnswerActionPrompt(action, content = '', message = null) {
+export function buildAnswerActionPrompt(action: string, content = '', message: Record<string, any> | null = null) {
   const source = compactAnswerActionContext(content);
   if (!source) return '';
-  const instructions = {
+  const instructions: Record<string, string> = {
     shorter: '请基于下面这段上一条回答，重新输出一个更短版本。保留关键结论和必要步骤，删除展开解释，不要引入新事实。',
     deeper:
       '请基于下面这段上一条回答，重新输出一个更详细版本。补充背景、原因、取舍、风险和下一步，但不要编造未验证事实。',
@@ -51,13 +51,13 @@ export function buildAnswerActionPrompt(action, content = '', message = null) {
   return `${instruction}${evidenceBlock}\n\n<previous_answer>\n${source}\n</previous_answer>`;
 }
 
-export function buildAnswerActionEvidenceSummary(message = null) {
+export function buildAnswerActionEvidenceSummary(message: Record<string, any> | null = null) {
   if (!message || typeof message !== 'object') return '';
-  const lines = [];
+  const lines: string[] = [];
   const runs = Array.isArray(message.toolRuns) ? message.toolRuns.filter(Boolean) : [];
   if (runs.length) {
     lines.push('工具证据：');
-    runs.slice(0, 6).forEach((run, index) => {
+    runs.slice(0, 6).forEach((run: Record<string, any>, index: number) => {
       const pieces = [
         `${index + 1}. ${run.name || 'unknown_tool'}`,
         run.status ? `status=${run.status}` : '',
@@ -69,12 +69,12 @@ export function buildAnswerActionEvidenceSummary(message = null) {
       lines.push(pieces.join(' · '));
       const sources = (run.sources || [])
         .slice(0, 3)
-        .map((source) => source.url || source.title)
+        .map((source: Record<string, any>) => source.url || source.title)
         .filter(Boolean);
       if (sources.length) lines.push(`   sources: ${sources.join(' | ')}`);
       const citations = (run.localCitations || [])
         .slice(0, 4)
-        .map((citation) => citation.label || citation.file)
+        .map((citation: Record<string, any>) => citation.label || citation.file)
         .filter(Boolean);
       if (citations.length) lines.push(`   files: ${citations.join(' | ')}`);
       if (run.contextCompacted)
@@ -162,10 +162,10 @@ export function buildAgentPlanExecutionSummaryParts(plan: Record<string, unknown
   };
 }
 
-export function buildAgentPlanActionPrompt(action, plan = {}) {
+export function buildAgentPlanActionPrompt(action: string, plan: Record<string, any> = {}) {
   const summary = serializeAgentPlanForPrompt(plan);
   if (!summary) return '';
-  const instructions = {
+  const instructions: Record<string, string> = {
     execute_all:
       '请按下面的 DeepChat Agent 计划继续执行。低风险读取/搜索工具按计划推进；运行代码、MCP 外部操作和任何写入动作仍必须等待我的确认。每一步完成后保留证据，最终回答说明用了哪些工具和来源。',
     single_step:
@@ -178,7 +178,7 @@ export function buildAgentPlanActionPrompt(action, plan = {}) {
   return `${instruction}\n\n<agent_plan>\n${summary}\n</agent_plan>`;
 }
 
-export function buildAgentPlanActionComposerOverrides(action) {
+export function buildAgentPlanActionComposerOverrides(action: string) {
   if (action === 'revise') {
     return {
       enhance: false,
@@ -197,7 +197,7 @@ function serializeAgentPlanForPrompt(plan: Record<string, unknown> = {}) {
   const executionSummary = buildAgentPlanExecutionSummaryParts(plan).parts.join(' · ');
   const lines = [`模式：${plan.mode || 'unknown'}`, `最多轮数：${plan.maxRounds || ''}`, `原因：${plan.reason || ''}`];
   if (executionSummary) lines.push(`风险摘要：${executionSummary}`);
-  const pushList = (label, values, mapper = (value) => value) => {
+  const pushList = (label: string, values: unknown, mapper = (value: any) => value) => {
     const list = (Array.isArray(values) ? values : [])
       .map(mapper)
       .map((value) => String(value || '').trim())
@@ -210,7 +210,7 @@ function serializeAgentPlanForPrompt(plan: Record<string, unknown> = {}) {
   pushList(
     '搜索计划',
     plan.searchPlan,
-    (item) => `${item.purpose || '搜索'}：${item.query}${item.reason ? `（${item.reason}）` : ''}`
+    (item: Record<string, any>) => `${item.purpose || '搜索'}：${item.query}${item.reason ? `（${item.reason}）` : ''}`
   );
   pushList('预计工具', plan.selectedTools);
   pushList('候选工具', plan.candidateTools);

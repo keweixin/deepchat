@@ -42,7 +42,7 @@ export function applyCrewToolRequest(agentRun: Record<string, any>, tool: Record
   if (!agentRun || !agentRun.crew) return;
   const toolName = tool.name || tool.function?.name || '';
   const roleId = getCrewRoleForTool(toolName);
-  const member = agentRun.crew.find((m) => m.id === roleId);
+  const member = agentRun.crew.find((m: Record<string, any>) => m.id === roleId);
   if (!member) return;
 
   const toolId = tool.id || tool.toolCallId || tool.callId || `${toolName}_${Date.now().toString(36)}`;
@@ -80,7 +80,7 @@ export function applyCrewToolResult(
     return;
   }
   const roleId = getCrewRoleForTool(toolName);
-  const member = agentRun.crew.find((m) => m.id === roleId);
+  const member = agentRun.crew.find((m: Record<string, any>) => m.id === roleId);
   if (!member) return;
 
   const ok = event.ok !== undefined ? event.ok : tool.ok;
@@ -121,7 +121,7 @@ export function handleCrewAgentStage(agentRun: Record<string, any>, stageEvent: 
   const stage = stageEvent.stage;
 
   if (stage === 'plan') {
-    const planner = agentRun.crew.find((m) => m.id === 'planner');
+    const planner = agentRun.crew.find((m: Record<string, any>) => m.id === 'planner');
     if (planner) {
       planner.status = 'running';
       planner.currentAction = '正在分析规划任务';
@@ -135,28 +135,28 @@ export function handleCrewAgentStage(agentRun: Record<string, any>, stageEvent: 
       }
     }
   } else if (stage === 'memory' || stage === 'checkpoint') {
-    const planner = agentRun.crew.find((m) => m.id === 'planner');
+    const planner = agentRun.crew.find((m: Record<string, any>) => m.id === 'planner');
     if (planner && planner.status === 'idle') {
       planner.status = 'done';
       planner.currentAction = stage === 'memory' ? '已检索历史记忆' : '已载入任务状态';
       planner.outputSummary = stageEvent.warning || '记忆前缀稳定';
     }
   } else if (stage === 'summary') {
-    const reviewer = agentRun.crew.find((m) => m.id === 'reviewer');
+    const reviewer = agentRun.crew.find((m: Record<string, any>) => m.id === 'reviewer');
     if (reviewer) {
       reviewer.status = 'running';
       reviewer.currentAction = '正在整理/压缩长上下文...';
       reviewer.startedAt = new Date().toISOString();
     }
   } else if (stage === 'final') {
-    const writer = agentRun.crew.find((m) => m.id === 'writer');
+    const writer = agentRun.crew.find((m: Record<string, any>) => m.id === 'writer');
     if (writer) {
       writer.status = 'running';
       writer.currentAction = '正在整理最终回答...';
       writer.startedAt = new Date().toISOString();
     }
     // Also, if Reviewer was running summary, complete it
-    const reviewer = agentRun.crew.find((m) => m.id === 'reviewer');
+    const reviewer = agentRun.crew.find((m: Record<string, any>) => m.id === 'reviewer');
     if (reviewer && reviewer.status === 'running') {
       reviewer.status = 'done';
       reviewer.currentAction = '上下文整理完毕';
@@ -166,9 +166,9 @@ export function handleCrewAgentStage(agentRun: Record<string, any>, stageEvent: 
   }
 }
 
-export function markCrewMemberDone(agentRun, roleId, action = '已完成') {
+export function markCrewMemberDone(agentRun: Record<string, any>, roleId: string, action = '已完成') {
   if (!agentRun || !agentRun.crew) return;
-  const member = agentRun.crew.find((m) => m.id === roleId);
+  const member = agentRun.crew.find((m: Record<string, any>) => m.id === roleId);
   if (member) {
     member.status = 'done';
     member.currentAction = action;
@@ -187,8 +187,8 @@ export function finalizeCrewRun(agentRun: Record<string, any>, options: Record<s
 
     if (source === 'model_stream') {
       // Model/API/stream errors belong to Writer or Planner, not arbitrary running tool roles
-      const writer = agentRun.crew.find((m) => m.id === 'writer');
-      const planner = agentRun.crew.find((m) => m.id === 'planner');
+      const writer = agentRun.crew.find((m: Record<string, any>) => m.id === 'writer');
+      const planner = agentRun.crew.find((m: Record<string, any>) => m.id === 'planner');
       const target = writer && (writer.status === 'running' || writer.status === 'idle') ? writer : planner;
       if (target) {
         target.status = 'error';
@@ -197,7 +197,7 @@ export function finalizeCrewRun(agentRun: Record<string, any>, options: Record<s
         target.finishedAt = new Date().toISOString();
       }
       // Mark other running/waiting members as skipped (not error) since the fault isn't theirs
-      agentRun.crew.forEach((member) => {
+      agentRun.crew.forEach((member: Record<string, any>) => {
         if (member.status === 'running' || member.status === 'waiting') {
           member.status = 'skipped';
           member.currentAction = '因模型流错误被跳过';
@@ -208,7 +208,7 @@ export function finalizeCrewRun(agentRun: Record<string, any>, options: Record<s
     }
 
     // Default: mark any running/waiting agent as error (tool-level failure)
-    agentRun.crew.forEach((member) => {
+    agentRun.crew.forEach((member: Record<string, any>) => {
       if (member.status === 'running' || member.status === 'waiting') {
         member.status = 'error';
         member.currentAction = '执行中途出错中断';
@@ -220,7 +220,7 @@ export function finalizeCrewRun(agentRun: Record<string, any>, options: Record<s
   }
 
   // 2. Mark Reviewer and Writer done (or skipped if aborted)
-  const reviewer = agentRun.crew.find((m) => m.id === 'reviewer');
+  const reviewer = agentRun.crew.find((m: Record<string, any>) => m.id === 'reviewer');
   if (reviewer && (reviewer.status === 'idle' || reviewer.status === 'running')) {
     if (aborted) {
       reviewer.status = 'skipped';
@@ -233,7 +233,7 @@ export function finalizeCrewRun(agentRun: Record<string, any>, options: Record<s
     reviewer.finishedAt = new Date().toISOString();
   }
 
-  const writer = agentRun.crew.find((m) => m.id === 'writer');
+  const writer = agentRun.crew.find((m: Record<string, any>) => m.id === 'writer');
   if (writer && (writer.status === 'idle' || writer.status === 'running')) {
     if (aborted) {
       writer.status = 'skipped';
@@ -248,7 +248,7 @@ export function finalizeCrewRun(agentRun: Record<string, any>, options: Record<s
   }
 
   // 3. Mark all remaining agents
-  agentRun.crew.forEach((member) => {
+  agentRun.crew.forEach((member: Record<string, any>) => {
     if (member.status === 'idle') {
       member.status = 'skipped';
       member.currentAction = '本轮跳过';
@@ -263,7 +263,7 @@ export function finalizeCrewRun(agentRun: Record<string, any>, options: Record<s
     }
   });
 
-  const hasWaiting = agentRun.crew.some((m) => m.status === 'waiting');
+  const hasWaiting = agentRun.crew.some((m: Record<string, any>) => m.status === 'waiting');
   if (hasWaiting && !aborted && !error) {
     agentRun.status = 'waiting';
   } else {

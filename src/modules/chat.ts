@@ -597,6 +597,7 @@ async function editMessageAt(msgIndex, newContent) {
   if (!conv) return;
 
   // Update message content and truncate everything after it
+  if (!conv.messages[msgIndex]) return;
   conv.messages[msgIndex].content = newContent.trim();
   conv.messages = conv.messages.slice(0, msgIndex + 1);
   refreshConversationTaskCheckpoint(conv);
@@ -743,7 +744,7 @@ function _setupMessageElement(el, msg, idx, totalMessageCount) {
           renderAssistantToc(el.querySelector('.answer-toc-container'), contentEl);
           refreshReadingNavigator();
         })
-        .catch(() => {});
+        .catch((err) => console.warn('[Chat] postProcess failed:', err));
     }
     renderAssistantAnswerHeader(el.querySelector('.answer-header-container'), msg);
     addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
@@ -3363,7 +3364,9 @@ function attachCopyHandlersOnly(container) {
           btn.querySelector('.copy-text').textContent = '复制';
           btn.classList.remove('copied');
         }, 1500);
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[Chat] clipboard write failed:', err);
+      }
     });
   });
 

@@ -354,10 +354,10 @@ function ensureAnchorId(node: HTMLElement): string {
   return node.dataset.readingAnchorId;
 }
 
-function isUsableCandidate(node: HTMLElement): boolean {
+function isUsableCandidate(node: Element): boolean {
   if (!node || node.closest('[hidden]')) return false;
   if (node.matches('h1,h2,h3,h4,h5,h6')) {
-    return cleanText(node.textContent).length > 0;
+    return cleanText((node as HTMLElement).textContent).length > 0;
   }
   return true;
 }

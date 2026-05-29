@@ -36,9 +36,9 @@ import {
  * @param {Function} deps.updateHeader
  * @param {HTMLElement} deps.$convList
  */
-export function createSidebar(deps) {
-  let conversationMenuEl = null;
-  let conversationMenuCleanup = null;
+export function createSidebar(deps: Record<string, any>) {
+  let conversationMenuEl: HTMLElement | null = null;
+  let conversationMenuCleanup: (() => void) | null = null;
 
   function closeConversationMenu() {
     if (conversationMenuCleanup) conversationMenuCleanup();
@@ -47,7 +47,7 @@ export function createSidebar(deps) {
     conversationMenuEl = null;
   }
 
-  function positionConversationMenu(menu, anchor) {
+  function positionConversationMenu(menu: HTMLElement, anchor: HTMLElement) {
     if (!menu || !anchor?.isConnected) {
       closeConversationMenu();
       return;
@@ -63,8 +63,8 @@ export function createSidebar(deps) {
     menu.style.top = `${Math.round(top)}px`;
   }
 
-  function openConversationMenu(id, anchor) {
-    const conv = deps.getConversations().find((c) => c.id === id);
+  function openConversationMenu(id: string, anchor: HTMLElement) {
+    const conv = deps.getConversations().find((c: Record<string, any>) => c.id === id);
     if (!conv || !anchor) return;
     closeConversationMenu();
     anchor.setAttribute('aria-expanded', 'true');
@@ -112,11 +112,11 @@ export function createSidebar(deps) {
     positionConversationMenu(menu, anchor);
     conversationMenuEl = menu;
 
-    const onPointerDown = (event) => {
-      if (menu.contains(event.target) || anchor.contains(event.target)) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (menu.contains(event.target as Node) || anchor.contains(event.target as Node)) return;
       closeConversationMenu();
     };
-    const onKeyDown = (event) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeConversationMenu();
     };
     const onReposition = () => positionConversationMenu(menu, anchor);
@@ -136,7 +136,7 @@ export function createSidebar(deps) {
     menu.querySelector('button')?.focus();
   }
 
-  function toggleConversationMenu(id, anchor) {
+  function toggleConversationMenu(id: string, anchor: HTMLElement) {
     if (conversationMenuEl?.dataset.conversationId === id) {
       closeConversationMenu();
       return;
@@ -144,7 +144,7 @@ export function createSidebar(deps) {
     openConversationMenu(id, anchor);
   }
 
-  function getEmptyConversationText(searchQuery) {
+  function getEmptyConversationText(searchQuery: string) {
     if (searchQuery) return '未找到匹配的对话';
     if (deps.getSidebarFilter() === SIDEBAR_FILTERS.favorites) return '暂无收藏回答';
     if (deps.getSidebarFilter() === SIDEBAR_FILTERS.archived) return '暂无归档对话';
@@ -205,7 +205,7 @@ export function createSidebar(deps) {
       item.className = `conversation-item${conv.id === deps.getActiveConvId() ? ' active' : ''}${conv.pinned ? ' is-pinned' : ''}${conv.archivedAt ? ' is-archived' : ''}`;
       item.dataset.conversationId = conv.id;
       const pinIcon = conv.pinned ? '<span class="conv-pin-indicator" title="已置顶">📌</span>' : '';
-      const tags = (conv.tags || []).map((tag) => `<span class="conv-tag">#${escapeHtml(tag)}</span>`).join('');
+      const tags = (conv.tags || []).map((tag: string) => `<span class="conv-tag">#${escapeHtml(tag)}</span>`).join('');
       const meta = [conv.folderId ? `<span class="conv-folder-label">${escapeHtml(conv.folderId)}</span>` : '', tags]
         .filter(Boolean)
         .join('');
@@ -242,7 +242,7 @@ export function createSidebar(deps) {
 
       item.querySelector('.conv-menu-trigger')?.addEventListener('click', (e) => {
         e.stopPropagation();
-        toggleConversationMenu(conv.id, e.currentTarget);
+        toggleConversationMenu(conv.id, e.currentTarget as HTMLElement);
       });
 
       const titleEl = item.querySelector('.conv-title') as HTMLElement;
@@ -281,8 +281,8 @@ export function createSidebar(deps) {
     });
   }
 
-  async function promptRenameConversation(id) {
-    const conv = deps.getConversations().find((c) => c.id === id);
+  async function promptRenameConversation(id: string) {
+    const conv = deps.getConversations().find((c: Record<string, any>) => c.id === id);
     if (!conv) return;
     const next = await promptText({
       title: '重命名对话',
@@ -305,7 +305,7 @@ export function createSidebar(deps) {
       tone: 'danger',
     });
     if (!ok) return;
-    const conversations = deps.getConversations().filter((c) => !selectedIds.has(c.id));
+    const conversations = deps.getConversations().filter((c: Record<string, any>) => !selectedIds.has(c.id));
     deps.setConversations(conversations);
     const activeConvId = deps.getActiveConvId();
     if (activeConvId && selectedIds.has(activeConvId)) {
@@ -335,14 +335,14 @@ export function createSidebar(deps) {
     renderConversationList((document.getElementById('search-input') as HTMLInputElement)?.value?.trim() || '');
   }
 
-  function toggleArchiveConversation(id) {
-    const conv = deps.getConversations().find((c) => c.id === id);
+  function toggleArchiveConversation(id: string) {
+    const conv = deps.getConversations().find((c: Record<string, any>) => c.id === id);
     if (!conv) return;
     conv.archivedAt = conv.archivedAt ? null : Date.now();
     deps.persist();
     const activeConvId = deps.getActiveConvId();
     if (conv.id === activeConvId && conv.archivedAt && deps.getSidebarFilter() === SIDEBAR_FILTERS.active) {
-      const next = deps.getConversations().find((item) => !item.archivedAt && item.id !== conv.id);
+      const next = deps.getConversations().find((item: Record<string, any>) => !item.archivedAt && item.id !== conv.id);
       if (next) deps.switchConversation(next.id);
       else {
         deps.setActiveConvId(null);
@@ -355,8 +355,8 @@ export function createSidebar(deps) {
     renderConversationList((document.getElementById('search-input') as HTMLInputElement)?.value?.trim() || '');
   }
 
-  async function editConversationTags(id) {
-    const conv = deps.getConversations().find((c) => c.id === id);
+  async function editConversationTags(id: string) {
+    const conv = deps.getConversations().find((c: Record<string, any>) => c.id === id);
     if (!conv) return;
     const next = await promptText({
       title: '编辑标签',
@@ -370,8 +370,8 @@ export function createSidebar(deps) {
     renderConversationList((document.getElementById('search-input') as HTMLInputElement)?.value?.trim() || '');
   }
 
-  async function moveConversationFolder(id) {
-    const conv = deps.getConversations().find((c) => c.id === id);
+  async function moveConversationFolder(id: string) {
+    const conv = deps.getConversations().find((c: Record<string, any>) => c.id === id);
     if (!conv) return;
     const next = await promptText({
       title: '移动到文件夹',
