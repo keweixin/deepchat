@@ -30,6 +30,7 @@ import {
   normalizeFolderName,
   parseTagsInput,
   sortConversations,
+  trimMessagesForRegeneration,
 } from './conversation-utils.js';
 import { exportConversation } from './exporters.js';
 import { enhancePrompt, isEnhanceEnabled } from './settings.js';
@@ -656,11 +657,6 @@ async function regenerateResponseAt(msgIndex: number) {
   persist();
   renderMessages();
   await streamOrchestrator.doStream(conv, 0, oldMsg.versions);
-}
-
-export function trimMessagesForRegeneration(messages: Record<string, any>[], msgIndex: number) {
-  if (!Array.isArray(messages) || messages[msgIndex]?.role !== 'assistant') return messages;
-  return messages.slice(0, msgIndex);
 }
 
 // ─── doStream extracted to chat-streaming.js ───

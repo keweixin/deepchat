@@ -18,8 +18,8 @@ import {
   renderConversationUsageTelemetryPanel,
   renderLatestEvidenceDrawer,
   shouldCompactHistoricalMessage,
-  trimMessagesForRegeneration,
 } from '../src/modules/chat.js';
+import { trimMessagesForRegeneration } from '../src/modules/conversation-utils.ts';
 import {
   getToolRiskMeta,
   renderToolCalls,

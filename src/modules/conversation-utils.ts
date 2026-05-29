@@ -621,3 +621,8 @@ function getDateGroup(timestamp: any): string {
   if (diff < 30) return '本月';
   return '更早';
 }
+
+export function trimMessagesForRegeneration(messages: Record<string, any>[], msgIndex: number) {
+  if (!Array.isArray(messages) || messages[msgIndex]?.role !== 'assistant') return messages;
+  return messages.slice(0, msgIndex);
+}
