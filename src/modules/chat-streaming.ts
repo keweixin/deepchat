@@ -185,6 +185,11 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
     let streamStartTime = 0;
     let tokenCount = 0;
 
+    // Append-only rendering for long content
+    const APPEND_THRESHOLD = 2000;
+    const FULL_SYNC_INTERVAL = 5000;
+    let lastFullRenderLen = 0;
+
     function getThrottleMs() {
       if (fullContent.length < 200) return 50;
       if (fullContent.length < 2000) return 120;
@@ -200,7 +205,27 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
           return;
         }
         lastRenderLen = fullContent.length;
-        contentEl.innerHTML = renderStreamingMarkdown(fullContent);
+
+        // Tiered rendering strategy
+        if (fullContent.length < APPEND_THRESHOLD) {
+          // Short content: full re-render (fast enough)
+          contentEl.innerHTML = renderStreamingMarkdown(fullContent);
+        } else if (fullContent.length - lastFullRenderLen > FULL_SYNC_INTERVAL || lastFullRenderLen === 0) {
+          // Periodic full sync to correct markdown formatting drift
+          contentEl.innerHTML = renderStreamingMarkdown(fullContent);
+          lastFullRenderLen = fullContent.length;
+        } else {
+          // Append-only mode: render only new content
+          const newContent = fullContent.slice(lastFullRenderLen);
+          if (newContent.trim()) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = renderStreamingMarkdown(newContent);
+            while (tempDiv.firstChild) {
+              contentEl.appendChild(tempDiv.firstChild);
+            }
+          }
+        }
+
         contentEl.classList.add('streaming-cursor');
         deps.attachCopyHandlersOnly(contentEl);
         if (streamStartTime > 0) {

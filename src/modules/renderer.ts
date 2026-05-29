@@ -390,11 +390,31 @@ async function renderMermaidDiagrams(container: HTMLElement) {
   const mermaidEls = container.querySelectorAll('.mermaid-wrapper .mermaid:not([data-processed])');
   if (mermaidEls.length === 0) return;
 
-  try {
-    const mermaid = await getMermaid();
-    await mermaid.run({ nodes: mermaidEls });
-  } catch {
-    // Silently ignore malformed diagram syntax.
+  // Use IntersectionObserver for lazy rendering if available
+  if (typeof IntersectionObserver !== 'undefined') {
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).map((e) => e.target as HTMLElement);
+        if (visible.length === 0) return;
+        observer.disconnect();
+        try {
+          const mermaid = await getMermaid();
+          await mermaid.run({ nodes: visible });
+        } catch {
+          // Silently ignore malformed diagram syntax.
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    mermaidEls.forEach((el) => observer.observe(el));
+  } else {
+    // Fallback: render immediately
+    try {
+      const mermaid = await getMermaid();
+      await mermaid.run({ nodes: mermaidEls });
+    } catch {
+      // Silently ignore malformed diagram syntax.
+    }
   }
 }
 
