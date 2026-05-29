@@ -6,6 +6,18 @@ const { spawn, execFile } = require('child_process');
 const crypto = require('crypto');
 const { parseWorkspaceQuery, matchesFileDirective, matchesChangedDirective } = require('./workspace-query');
 
+/** @type {import('./workspace-index')} */
+let workspaceIndexModule = null;
+function getWorkspaceIndexModule() {
+  if (workspaceIndexModule !== null) return workspaceIndexModule;
+  try {
+    workspaceIndexModule = require('./workspace-index');
+  } catch {
+    workspaceIndexModule = null;
+  }
+  return workspaceIndexModule;
+}
+
 const MAX_FILE_BYTES = 100 * 1024;
 const DEFAULT_FILE_BYTES = 30 * 1024;
 const MAX_SEARCH_FILE_BYTES = 64 * 1024;
@@ -697,8 +709,94 @@ async function searchWorkspace(args, settings) {
   const parsed = parseWorkspaceQuery(rawQuery);
   const symbol = normalizeSearchSymbol(args.symbol || parsed.symbol);
   const query = parsed.textQuery || symbol;
-  const index = await getWorkspaceIndex(args, settings);
   const maxResults = clampInt(args.max_results, 1, 20, 8);
+
+  // --- SQLite FTS5 fast path ---
+  const indexMod = getWorkspaceIndexModule();
+  if (indexMod) {
+    try {
+      const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
+      const directory = String(args.directory || '').trim();
+      let resolvedRoot = root;
+      if (directory) {
+        const resolved = await resolveAllowedDirectory(directory, [root]);
+        resolvedRoot = resolved;
+      } else {
+        resolvedRoot = root;
+      }
+      const pattern = String(args.pattern || '').trim();
+      const directiveSummary = buildDirectiveSummary(parsed);
+
+      const searchQuery = symbol || query;
+      const ftsResults = indexMod.searchWorkspace(searchQuery, {
+        root: resolvedRoot,
+        pattern: pattern || undefined,
+        limit: maxResults,
+      });
+
+      if (ftsResults.length > 0) {
+        const structured = {
+          type: 'deepchat.workspaceSearchResults',
+          version: 1,
+          query,
+          symbol: symbol || '',
+          root: resolvedRoot,
+          directory: directory || '.',
+          pattern: pattern || '',
+          index: {
+            cache: 'sqlite-fts5',
+            fileCount: indexMod.getWorkspaceStats().fileCount,
+            chunkCount: indexMod.getWorkspaceStats().chunkCount,
+            snapshotHash: '',
+            hash: '',
+          },
+          results: ftsResults.map((hit, i) => ({
+            index: i + 1,
+            file: hit.file.replace(/\\/g, '/'),
+            startLine: hit.lineStart,
+            endLine: hit.lineEnd,
+            score: hit.score,
+            scoreBreakdown: { content: hit.score },
+            matchReasons: ['content'],
+            kind: inferWorkspaceHitKind({ snippet: hit.snippet }, symbol),
+            symbol: symbol || inferWorkspaceHitSymbol({ snippet: hit.snippet }),
+            truncated: false,
+            snippet: hit.snippet,
+          })),
+        };
+
+        const lines = [
+          `工作区搜索：${rawQuery}`,
+          directiveSummary,
+          symbol ? `符号：${symbol}` : '',
+          `工作区：${resolvedRoot}`,
+          directory ? `目录：${directory}` : '',
+          pattern ? `文件筛选：${pattern}` : '',
+          `索引：sqlite-fts5 · files=${structured.index.fileCount} · chunks=${structured.index.chunkCount}`,
+          `结果数：${ftsResults.length}`,
+          'Structured Results:',
+          JSON.stringify(structured, null, 2),
+          '',
+        ].filter(Boolean);
+
+        ftsResults.forEach((hit, i) => {
+          lines.push(`${i + 1}. ${hit.file.replace(/\\/g, '/')}:${hit.lineStart}-${hit.lineEnd}`);
+          lines.push(`   score: ${hit.score.toFixed(2)}`);
+          lines.push('   摘录:');
+          for (const s of hit.snippet) {
+            lines.push(`   ${s.line}: ${s.text}`);
+          }
+          lines.push('');
+        });
+        return lines.join('\n').slice(0, MAX_TOOL_OUTPUT);
+      }
+    } catch {
+      // SQLite FTS5 not available; fall back to legacy path
+    }
+  }
+
+  // --- Legacy in-memory search path ---
+  const index = await getWorkspaceIndex(args, settings);
 
   // Apply directive filters
   const filteredFiles = index.files.filter((file) => {
@@ -833,15 +931,81 @@ function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected 
 async function readSymbol(args, settings) {
   const symbol = normalizeSearchSymbol(args.symbol);
   if (!symbol) throw new Error('符号名称不能为空，且只能包含字母、数字、_、$、. 或 -。');
-  const index = await getWorkspaceIndex({ ...args, symbol, query: symbol }, settings);
   const contextLines = clampInt(args.context_lines, 0, 20, 3);
   const maxLines = clampInt(args.max_lines, 20, 240, 120);
-  const matches = [];
 
-  for (const file of index.files) {
-    const symbolHits = findSymbolDefinitionHits(file, symbol, { contextLines, maxLines });
-    for (const hit of symbolHits) matches.push(hit);
+  let matches = [];
+
+  // --- SQLite FTS5 fast path ---
+  const indexMod = getWorkspaceIndexModule();
+  if (indexMod) {
+    try {
+      const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
+      const directory = String(args.directory || '').trim();
+      let resolvedRoot = root;
+      if (directory) resolvedRoot = await resolveAllowedDirectory(directory, [root]);
+      const pattern = String(args.pattern || '').trim();
+
+      const dbSymbols = indexMod.findSymbol(symbol, { root: resolvedRoot });
+      const filtered = pattern ? dbSymbols.filter((s) => s.file.replace(/\\/g, '/').includes(pattern)) : dbSymbols;
+
+      if (filtered.length > 0) {
+        for (const sym of filtered) {
+          const contentLines = [];
+          for (const ctx of sym.context) {
+            const lines = ctx.content.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+              contentLines.push({ line: ctx.lineStart + i, text: lines[i] });
+            }
+          }
+          const symLine = contentLines.findIndex((l) => l.line === sym.line);
+          const startIdx = Math.max(0, symLine - contextLines);
+          const uncappedEndIdx = Math.min(contentLines.length - 1, symLine + 1 + contextLines);
+          const endIdx = Math.min(uncappedEndIdx, startIdx + maxLines - 1);
+          const snippet = contentLines.slice(startIdx, endIdx + 1);
+
+          matches.push({
+            file: sym.file,
+            startLine: startIdx + 1,
+            endLine: endIdx + 1,
+            definitionLine: sym.line,
+            score: 20,
+            kind: sym.kind === 'export' ? 'function' : sym.kind,
+            signature: (contentLines[symLine]?.text || '').trim().slice(0, 240),
+            truncated: uncappedEndIdx > endIdx,
+            snippet,
+          });
+        }
+      }
+    } catch {
+      // SQLite not available; fall back to legacy path
+    }
   }
+
+  // --- Legacy fallback ---
+  if (matches.length === 0) {
+    const index = await getWorkspaceIndex({ ...args, symbol, query: symbol }, settings);
+    for (const file of index.files) {
+      const symbolHits = findSymbolDefinitionHits(file, symbol, { contextLines, maxLines });
+      for (const hit of symbolHits) matches.push(hit);
+    }
+  }
+
+  const index =
+    matches.length > 0
+      ? {
+          root: settings.workspaceRoots?.[0] || '',
+          relativeDirectory: String(args.directory || '.'),
+          pattern: String(args.pattern || ''),
+          fileCount: 0,
+          chunkCount: 0,
+          snapshotHash: '',
+          hash: '',
+          fromCache: false,
+          cacheLayer: '',
+          builtAtMs: 0,
+        }
+      : await getWorkspaceIndex({ ...args, symbol, query: symbol }, settings);
 
   matches.sort((a, b) => b.score - a.score || a.file.localeCompare(b.file) || a.startLine - b.startLine);
   const selected = matches[0] || null;
@@ -1330,6 +1494,15 @@ async function writeWorkspaceIndexDiskCache(cacheKey, index, settings = {}) {
 
 async function clearWorkspaceIndexDiskCache(settings = {}) {
   clearWorkspaceIndexCache();
+  // Also clear the SQLite FTS5 index
+  const indexMod = getWorkspaceIndexModule();
+  if (indexMod) {
+    try {
+      await indexMod.clearWorkspaceIndex();
+    } catch {
+      // best-effort
+    }
+  }
   const dir = getWorkspaceIndexDiskDir(settings);
   if (!dir) {
     return {
@@ -2452,4 +2625,5 @@ module.exports = {
   clearWorkspaceIndexCache,
   clearWorkspaceIndexDiskCache,
   RUN_CODE_SECURITY_LIMITS,
+  getWorkspaceIndexModule,
 };

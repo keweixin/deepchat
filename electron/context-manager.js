@@ -183,6 +183,39 @@ function hashMessages(messages = []) {
   return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex').slice(0, 16);
 }
 
+// ---------------------------------------------------------------------------
+// Memory-aware context building
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a context bundle that includes three-layer memory context.
+ *
+ * Loads the memory-manager lazily to avoid circular dependencies.  If the
+ * memory manager has not been initialised the extra block is silently omitted.
+ *
+ * @param {Array} messages - Raw conversation messages
+ * @param {object} options - Same options accepted by `buildContextBudgetBundle`
+ * @param {string} query  - Latest user content used to search memory
+ * @returns {{ messages: Array, meta: object, memoryContext: object|null }}
+ */
+function buildMemoryAwareContext(messages, options = {}, query = '') {
+  const bundle = buildContextBudgetBundle(messages, options);
+  let memoryContext = null;
+
+  if (query) {
+    try {
+      const mm = require('./memory-manager.ts');
+      if (mm.isMemoryManagerInitialized()) {
+        memoryContext = mm.formatMemoryForContext(query);
+      }
+    } catch {
+      // memory-manager not available — graceful degradation
+    }
+  }
+
+  return { ...bundle, memoryContext };
+}
+
 module.exports = {
   DEFAULT_MAX_INPUT_TOKENS,
   estimateTokens,
@@ -197,4 +230,5 @@ module.exports = {
   trimContext,
   formatMessagesForSummary,
   hashMessages,
+  buildMemoryAwareContext,
 };
