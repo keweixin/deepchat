@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { getSettings } = require('./storage');
 const { getToolDefinitions, describeToolRisk, executeTool } = require('./tools');
 const { McpManager, isMcpToolName } = require('./mcp-manager');

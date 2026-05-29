@@ -1,0 +1,666 @@
+/**
+ * Settings DOM utilities — element collection, tab switching, empty states,
+ * external skill list, and event binding.
+ */
+
+import {
+  getSettings,
+  saveSettings,
+  initApiSettings,
+  getProviderPreset,
+  hasNativeBridge,
+  testApiConnection,
+  testSearchConnection,
+  resolveRunnableSkill,
+} from './api.js';
+import {
+  clearWorkspaceIndexCache,
+  exportBackup,
+  importBackup,
+  pickExternalSkill,
+  pickWorkspace,
+  removeWorkspace,
+} from './client-store.ts';
+import { showToast } from './utils.js';
+import {
+  renderMcpServerList,
+  readMcpServerForm,
+  runStatusAction,
+  refreshMcpStatuses,
+  markMcpStatusStale,
+  summarizeMcpStatusRefresh,
+} from './settings-mcp.js';
+import { renderWorkspaceList, refreshWorkspaces } from './settings-workspace.ts';
+import { renderSkillGrid, renderStorageStatus, formatWorkspaceIndexClearResult } from './settings-skills.ts';
+import { PROMPT_PRESETS } from './settings-prompts.ts';
+
+export interface SettingsElements {
+  [key: string]: HTMLElement | null;
+  btn: HTMLElement | null;
+  closeBtn: HTMLElement | null;
+  overlay: HTMLElement | null;
+  panel: HTMLElement | null;
+  providerPresets: HTMLElement | null;
+  apiKey: HTMLInputElement | null;
+  apiBase: HTMLInputElement | null;
+  modelInput: HTMLInputElement | null;
+  temperature: HTMLInputElement | null;
+  temperatureVal: HTMLElement | null;
+  thinkingBudget: HTMLInputElement | null;
+  thinkingBudgetVal: HTMLElement | null;
+  maxTokens: HTMLInputElement | null;
+  maxInputTokens: HTMLInputElement | null;
+  maxContext: HTMLInputElement | null;
+  agentMaxRounds: HTMLInputElement | null;
+  autoContextSummary: HTMLInputElement | null;
+  cacheOptimization: HTMLInputElement | null;
+  privacyMode: HTMLInputElement | null;
+  clearWorkspaceIndexCacheBtn: HTMLElement | null;
+  workspaceIndexCacheStatus: HTMLElement | null;
+  toolApprovalTimeout: HTMLInputElement | null;
+  toolApprovalPolicy: HTMLSelectElement | null;
+  crewDisplayMode: HTMLSelectElement | null;
+  defaultComposerMode: HTMLSelectElement | null;
+  runCodeEnabled: HTMLInputElement | null;
+  systemPrompt: HTMLTextAreaElement | null;
+  modelQuickSelect: HTMLElement | null;
+  modelCapabilityStatus: HTMLElement | null;
+  toggleKeyVis: HTMLElement | null;
+  tavilyKey: HTMLInputElement | null;
+  toggleTavilyKeyVis: HTMLElement | null;
+  tavilyMaxResults: HTMLInputElement | null;
+  testApiBtn: HTMLElement | null;
+  apiTestStatus: HTMLElement | null;
+  testSearchBtn: HTMLElement | null;
+  searchTestStatus: HTMLElement | null;
+  storageStatus: HTMLElement | null;
+  workspaceList: HTMLElement | null;
+  addWorkspaceBtn: HTMLElement | null;
+  externalSkillList: HTMLElement | null;
+  addExternalSkillBtn: HTMLElement | null;
+  mcpName: HTMLInputElement | null;
+  mcpCommand: HTMLInputElement | null;
+  mcpArgs: HTMLInputElement | null;
+  mcpEnv: HTMLInputElement | null;
+  addMcpServerBtn: HTMLElement | null;
+  refreshMcpStatusBtn: HTMLElement | null;
+  mcpStatusText: HTMLElement | null;
+  mcpServerList: HTMLElement | null;
+  exportBackupBtn: HTMLElement | null;
+  importBackupBtn: HTMLElement | null;
+  enhanceToggle: HTMLInputElement | null;
+  skillGrid: HTMLElement | null;
+}
+
+export function collectSettingsElements(): SettingsElements {
+  return {
+    btn: document.getElementById('settings-btn'),
+    closeBtn: document.getElementById('settings-close-btn'),
+    overlay: document.getElementById('settings-overlay'),
+    panel: document.getElementById('settings-panel'),
+    providerPresets: document.querySelector('.provider-presets'),
+    apiKey: document.getElementById('api-key-input') as HTMLInputElement | null,
+    apiBase: document.getElementById('api-base-input') as HTMLInputElement | null,
+    modelInput: document.getElementById('model-input') as HTMLInputElement | null,
+    temperature: document.getElementById('temperature-input') as HTMLInputElement | null,
+    temperatureVal: document.getElementById('temperature-value'),
+    thinkingBudget: document.getElementById('thinking-budget-input') as HTMLInputElement | null,
+    thinkingBudgetVal: document.getElementById('thinking-budget-value'),
+    maxTokens: document.getElementById('max-tokens-input') as HTMLInputElement | null,
+    maxInputTokens: document.getElementById('max-input-tokens-input') as HTMLInputElement | null,
+    maxContext: document.getElementById('max-context-input') as HTMLInputElement | null,
+    agentMaxRounds: document.getElementById('agent-max-rounds-input') as HTMLInputElement | null,
+    autoContextSummary: document.getElementById('auto-context-summary-toggle') as HTMLInputElement | null,
+    cacheOptimization: document.getElementById('cache-optimization-toggle') as HTMLInputElement | null,
+    privacyMode: document.getElementById('privacy-mode-toggle') as HTMLInputElement | null,
+    clearWorkspaceIndexCacheBtn: document.getElementById('clear-workspace-index-cache-btn'),
+    workspaceIndexCacheStatus: document.getElementById('workspace-index-cache-status'),
+    toolApprovalTimeout: document.getElementById('tool-approval-timeout-input') as HTMLInputElement | null,
+    toolApprovalPolicy: document.getElementById('tool-approval-policy-select') as HTMLSelectElement | null,
+    crewDisplayMode: document.getElementById('crew-display-mode-select') as HTMLSelectElement | null,
+    defaultComposerMode: document.getElementById('default-composer-mode-select') as HTMLSelectElement | null,
+    runCodeEnabled: document.getElementById('run-code-enabled-toggle') as HTMLInputElement | null,
+    systemPrompt: document.getElementById('system-prompt-input') as HTMLTextAreaElement | null,
+    modelQuickSelect: document.querySelector('.model-quick-select'),
+    modelCapabilityStatus: document.getElementById('model-capability-status'),
+    toggleKeyVis: document.getElementById('toggle-key-visibility'),
+    tavilyKey: document.getElementById('tavily-key-input') as HTMLInputElement | null,
+    toggleTavilyKeyVis: document.getElementById('toggle-tavily-key-visibility'),
+    tavilyMaxResults: document.getElementById('tavily-max-results-input') as HTMLInputElement | null,
+    testApiBtn: document.getElementById('test-api-btn'),
+    apiTestStatus: document.getElementById('api-test-status'),
+    testSearchBtn: document.getElementById('test-search-btn'),
+    searchTestStatus: document.getElementById('search-test-status'),
+    storageStatus: document.getElementById('storage-status'),
+    workspaceList: document.getElementById('workspace-list'),
+    addWorkspaceBtn: document.getElementById('add-workspace-btn'),
+    externalSkillList: document.getElementById('external-skill-list'),
+    addExternalSkillBtn: document.getElementById('add-external-skill-btn'),
+    mcpName: document.getElementById('mcp-name-input') as HTMLInputElement | null,
+    mcpCommand: document.getElementById('mcp-command-input') as HTMLInputElement | null,
+    mcpArgs: document.getElementById('mcp-args-input') as HTMLInputElement | null,
+    mcpEnv: document.getElementById('mcp-env-input') as HTMLInputElement | null,
+    addMcpServerBtn: document.getElementById('add-mcp-server-btn'),
+    refreshMcpStatusBtn: document.getElementById('refresh-mcp-status-btn'),
+    mcpStatusText: document.getElementById('mcp-status-text'),
+    mcpServerList: document.getElementById('mcp-server-list'),
+    exportBackupBtn: document.getElementById('export-backup-btn'),
+    importBackupBtn: document.getElementById('import-backup-btn'),
+    enhanceToggle: document.getElementById('enhance-toggle') as HTMLInputElement | null,
+    skillGrid: document.getElementById('skill-grid'),
+  };
+}
+
+export function applySettingsToInputs(els: SettingsElements, settings: Record<string, unknown>): void {
+  if (!els || !settings) return;
+  if (els.apiKey) els.apiKey.value = (settings.apiKey as string) || '';
+  if (els.apiBase) els.apiBase.value = (settings.apiBase as string) || '';
+  if (els.modelInput) els.modelInput.value = (settings.model as string) || '';
+  if (els.tavilyKey) els.tavilyKey.value = (settings.tavilyApiKey as string) || '';
+  if (els.tavilyMaxResults) els.tavilyMaxResults.value = String(settings.tavilyMaxResults ?? '');
+  if (els.temperature) els.temperature.value = String(settings.temperature ?? '');
+  if (els.temperatureVal) els.temperatureVal.textContent = String(settings.temperature ?? '');
+  if (els.maxTokens) els.maxTokens.value = String(settings.maxTokens ?? '');
+  if (els.maxInputTokens) els.maxInputTokens.value = String(settings.maxInputTokens ?? '');
+  if (els.maxContext) els.maxContext.value = String(settings.maxContextMessages ?? '');
+  if (els.agentMaxRounds) els.agentMaxRounds.value = String(settings.agentMaxRounds ?? '');
+  if (els.autoContextSummary) els.autoContextSummary.checked = settings.autoContextSummary !== false;
+  if (els.cacheOptimization) els.cacheOptimization.checked = settings.cacheOptimization !== false;
+  if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = String(settings.toolApprovalTimeoutMs ?? '');
+  if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
+  if (els.thinkingBudget) els.thinkingBudget.value = String(settings.thinkingBudget ?? '');
+  if (els.thinkingBudgetVal)
+    els.thinkingBudgetVal.textContent = settings.thinkingBudget === 0 ? '自动' : `${settings.thinkingBudget} tokens`;
+  if (els.systemPrompt) els.systemPrompt.value = (settings.systemPrompt as string) || '';
+  if (els.enhanceToggle) els.enhanceToggle.checked = settings.enhance !== false;
+}
+
+export function renderEmptyList(container: HTMLElement | null, titleText: string, hintText: string): void {
+  if (!container) return;
+  const empty = document.createElement('div');
+  empty.className = 'workspace-empty';
+  const title = document.createElement('div');
+  title.textContent = titleText;
+  const hint = document.createElement('div');
+  hint.className = 'workspace-empty-hint';
+  hint.textContent = hintText;
+  empty.append(title, hint);
+  container.appendChild(empty);
+}
+
+interface ExternalSkill {
+  id: string;
+  name?: string;
+  enabled?: boolean;
+  sourcePath?: string;
+  description?: string;
+}
+
+export function renderExternalSkillList(
+  container: HTMLElement | null,
+  skills: ExternalSkill[] = [],
+  onChange?: (skills: ExternalSkill[]) => void
+): void {
+  if (!container) return;
+  container.innerHTML = '';
+  if (!skills.length) {
+    renderEmptyList(container, '尚未导入外部 Skill', '可导入本地 SKILL.md');
+    return;
+  }
+  for (const skill of skills) {
+    const item = document.createElement('div');
+    item.className = 'workspace-item column';
+    const main = document.createElement('div');
+    main.className = 'workspace-item-main';
+    const name = document.createElement('span');
+    name.textContent = skill.name || '外部 Skill';
+    const actions = document.createElement('div');
+    actions.className = 'form-actions';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'icon-btn-sm';
+    toggle.textContent = skill.enabled === false ? '启用' : '停用';
+    toggle.addEventListener('click', () => {
+      onChange?.(skills.map((item) => (item.id === skill.id ? { ...item, enabled: item.enabled === false } : item)));
+    });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon-btn-sm';
+    remove.textContent = '移除';
+    remove.addEventListener('click', () => onChange?.(skills.filter((item) => item.id !== skill.id)));
+    actions.append(toggle, remove);
+    main.append(name, actions);
+    const meta = document.createElement('div');
+    meta.className = 'workspace-item-meta';
+    meta.textContent = `${skill.enabled === false ? '停用' : '启用'} · ${skill.sourcePath || skill.description || '已导入内容'}`;
+    item.append(main, meta);
+    container.appendChild(item);
+  }
+}
+
+export function highlightActiveProvider(current: Record<string, unknown> | string): void {
+  const settings = typeof current === 'object' && current !== null ? current : { apiBase: current };
+  const provider = getProviderPreset(settings);
+  document.querySelectorAll('.provider-btn').forEach((btn) => {
+    btn.classList.toggle('active', (btn as HTMLElement).dataset.provider === provider.id);
+  });
+}
+
+export function highlightActiveModelTag(currentModel: string): void {
+  document.querySelectorAll('.model-tag').forEach((tag) => {
+    tag.classList.toggle('active', (tag as HTMLElement).dataset.model === currentModel);
+  });
+}
+
+interface SettingsTabGroup {
+  id: string;
+  label: string;
+  match: RegExp;
+}
+
+export function buildSettingsTabs(panel: HTMLElement | null): void {
+  if (!panel || panel.querySelector('.settings-tabs')) return;
+  const body = panel.querySelector('.settings-body');
+  const sections = body ? [...body.querySelectorAll('.settings-section')] : [];
+  if (!body || sections.length === 0) return;
+
+  const groups: SettingsTabGroup[] = [
+    { id: 'common', label: '常用', match: /API 配置|联网搜索|工作区与备份|智能增强/ },
+    { id: 'tools', label: '工具', match: /回答模式|Agent 与 Token|外部 Skill|MCP Server/ },
+    { id: 'model', label: '模型', match: /模型设置|系统提示词/ },
+  ];
+
+  const tabs = document.createElement('div');
+  tabs.className = 'settings-tabs';
+  const activeGroup = 'common';
+
+  for (const group of groups) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `settings-tab${group.id === activeGroup ? ' active' : ''}`;
+    (btn as HTMLElement).dataset.settingsGroup = group.id;
+    btn.textContent = group.label;
+    btn.addEventListener('click', () => setActiveSettingsGroup(body as HTMLElement, groups, group.id));
+    tabs.appendChild(btn);
+  }
+
+  for (const section of sections) {
+    const title = section.querySelector('h3')?.textContent || '';
+    const group = groups.find((item) => item.match.test(title)) || groups[0];
+    (section as HTMLElement).dataset.settingsGroup = group.id;
+  }
+
+  body.insertBefore(tabs, body.firstChild);
+  setActiveSettingsGroup(body as HTMLElement, groups, activeGroup);
+}
+
+function setActiveSettingsGroup(body: HTMLElement, groups: SettingsTabGroup[], activeId: string): void {
+  body.querySelectorAll('.settings-tab').forEach((tab) => {
+    tab.classList.toggle('active', (tab as HTMLElement).dataset.settingsGroup === activeId);
+  });
+  body.querySelectorAll('.settings-section').forEach((section) => {
+    (section as HTMLElement).hidden = (section as HTMLElement).dataset.settingsGroup !== activeId;
+  });
+}
+
+interface SettingsCallbacks {
+  doRefreshMcpStatuses: () => Promise<unknown>;
+  updateExternalSkills: (skills: ExternalSkill[]) => void;
+  updateMcpServers: (servers: unknown[]) => void;
+  setLatestMcpStatuses: (statuses: unknown[]) => void;
+}
+
+interface SettingsRenderers {
+  renderModelCapabilities: (container: HTMLElement | null, settings: Record<string, unknown>) => void;
+}
+
+export function bindSettingsEvents(
+  els: SettingsElements,
+  onModelChange?: (model: string) => void,
+  callbacks?: SettingsCallbacks,
+  renderers?: SettingsRenderers
+): void {
+  const { doRefreshMcpStatuses, updateExternalSkills, updateMcpServers, setLatestMcpStatuses } = callbacks || {};
+  const { renderModelCapabilities } = renderers || {};
+
+  window.addEventListener('deepchat:settings-changed', (event) => {
+    const customEvent = event as CustomEvent;
+    const next = customEvent.detail?.settings || getSettings();
+    const patch = customEvent.detail?.patch || {};
+    if (patch.thinkingBudget !== undefined && els.thinkingBudget) {
+      els.thinkingBudget.value = String(next.thinkingBudget);
+      if (els.thinkingBudgetVal)
+        els.thinkingBudgetVal.textContent = next.thinkingBudget === 0 ? '自动' : `${next.thinkingBudget} tokens`;
+    }
+    if (
+      patch.model !== undefined ||
+      patch.apiBase !== undefined ||
+      patch.maxContextMessages !== undefined ||
+      patch.maxInputTokens !== undefined ||
+      patch.maxTokens !== undefined
+    ) {
+      highlightActiveProvider(next);
+      renderModelCapabilities?.(els.modelCapabilityStatus, next);
+    }
+    if (patch.enhance !== undefined && els.enhanceToggle) {
+      els.enhanceToggle.checked = next.enhance !== false;
+    }
+    if (patch.cacheOptimization !== undefined && els.cacheOptimization) {
+      els.cacheOptimization.checked = next.cacheOptimization !== false;
+    }
+    if (patch.toolApprovalTimeoutMs !== undefined && els.toolApprovalTimeout) {
+      els.toolApprovalTimeout.value = String(next.toolApprovalTimeoutMs);
+    }
+    if (patch.toolApprovalPolicy !== undefined && els.toolApprovalPolicy) {
+      els.toolApprovalPolicy.value = (next.toolApprovalPolicy as string) || 'confirm_all';
+    }
+    if (patch.crewDisplayMode !== undefined && els.crewDisplayMode) {
+      els.crewDisplayMode.value = (next.crewDisplayMode as string) || 'auto';
+    }
+    if (patch.defaultComposerMode !== undefined && els.defaultComposerMode) {
+      els.defaultComposerMode.value = (next.defaultComposerMode as string) || 'daily';
+    }
+    if (patch.runCodeEnabled !== undefined && els.runCodeEnabled) {
+      els.runCodeEnabled.checked = next.runCodeEnabled !== false;
+    }
+    if (
+      patch.activeSkill !== undefined ||
+      patch.tavilyApiKey !== undefined ||
+      patch.workspaceRoots !== undefined ||
+      patch.mcpServers !== undefined
+    ) {
+      renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
+    }
+    if (patch.mcpServers !== undefined) {
+      setLatestMcpStatuses?.(markMcpStatusStale(els, next));
+    }
+  });
+
+  // ─── Open / Close ───
+  function open() {
+    if (els.panel) els.panel.classList.remove('hidden');
+    if (els.overlay) els.overlay.classList.remove('hidden');
+  }
+  function close() {
+    if (els.panel) els.panel.classList.add('hidden');
+    if (els.overlay) els.overlay.classList.add('hidden');
+  }
+
+  if (els.btn) els.btn.addEventListener('click', open);
+  if (els.closeBtn) els.closeBtn.addEventListener('click', close);
+  if (els.overlay) els.overlay.addEventListener('click', close);
+
+  // ─── Provider Presets ───
+  document.querySelectorAll('.provider-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const providerId = (btn as HTMLElement).dataset.provider || 'custom';
+      const url = (btn as HTMLElement).dataset.url;
+      const model = (btn as HTMLElement).dataset.model;
+      const patch: Record<string, unknown> = { providerId };
+      if (url && els.apiBase) {
+        els.apiBase.value = url;
+        patch.apiBase = url;
+      }
+      if (model && els.modelInput) {
+        els.modelInput.value = model;
+        patch.model = model;
+        onModelChange?.(model);
+        highlightActiveModelTag(model);
+      }
+      saveSettings(patch);
+      highlightActiveProvider({ ...getSettings(), ...patch });
+      renderModelCapabilities?.(els.modelCapabilityStatus, { ...getSettings(), ...patch });
+    });
+  });
+
+  // ─── Model Quick-Select Tags ───
+  document.querySelectorAll('.model-tag').forEach((tag) => {
+    tag.addEventListener('click', () => {
+      const model = (tag as HTMLElement).dataset.model || '';
+      const providerId = (tag as HTMLElement).dataset.provider || (getSettings().providerId as string);
+      const url = (tag as HTMLElement).dataset.url || '';
+      const patch: Record<string, unknown> = { providerId, model };
+      if (els.modelInput) els.modelInput.value = model;
+      if (url && els.apiBase && els.apiBase.value !== url) {
+        els.apiBase.value = url;
+        patch.apiBase = url;
+      }
+      saveSettings(patch);
+      onModelChange?.(model);
+      highlightActiveProvider({ ...getSettings(), ...patch });
+      highlightActiveModelTag(model);
+      renderModelCapabilities?.(els.modelCapabilityStatus, { ...getSettings(), ...patch });
+    });
+  });
+
+  // ─── Auto-save on change ───
+  if (els.apiKey) {
+    els.apiKey.addEventListener('change', () => saveSettings({ apiKey: els.apiKey!.value }));
+  }
+  if (els.apiBase) {
+    els.apiBase.addEventListener('input', () => {
+      const provider = getProviderPreset(els.apiBase!.value);
+      const patch = { apiBase: els.apiBase!.value, providerId: provider.id };
+      saveSettings(patch);
+      highlightActiveProvider({ ...getSettings(), ...patch });
+      renderModelCapabilities?.(els.modelCapabilityStatus, { ...getSettings(), ...patch });
+    });
+  }
+  if (els.modelInput) {
+    els.modelInput.addEventListener('input', () => {
+      saveSettings({ model: els.modelInput!.value });
+      onModelChange?.(els.modelInput!.value);
+      highlightActiveModelTag(els.modelInput!.value);
+      renderModelCapabilities?.(els.modelCapabilityStatus, { ...getSettings(), model: els.modelInput!.value });
+    });
+  }
+  if (els.temperature) {
+    els.temperature.addEventListener('input', () => {
+      if (els.temperatureVal) els.temperatureVal.textContent = els.temperature!.value;
+      saveSettings({ temperature: parseFloat(els.temperature!.value) });
+    });
+  }
+
+  // Thinking budget
+  if (els.thinkingBudget) {
+    els.thinkingBudget.addEventListener('input', () => {
+      const val = parseInt(els.thinkingBudget!.value);
+      if (els.thinkingBudgetVal) els.thinkingBudgetVal.textContent = val === 0 ? '自动' : `${val} tokens`;
+      saveSettings({ thinkingBudget: val });
+    });
+  }
+
+  if (els.maxTokens) {
+    els.maxTokens.addEventListener('change', () => saveSettings({ maxTokens: parseInt(els.maxTokens!.value) }));
+  }
+  if (els.maxInputTokens) {
+    els.maxInputTokens.addEventListener('change', () => {
+      const maxInputTokens = parseInt(els.maxInputTokens!.value, 10);
+      saveSettings({ maxInputTokens });
+      renderModelCapabilities?.(els.modelCapabilityStatus, { ...getSettings(), maxInputTokens });
+    });
+  }
+  if (els.maxContext) {
+    els.maxContext.addEventListener('change', () => {
+      const maxContextMessages = parseInt(els.maxContext!.value);
+      saveSettings({ maxContextMessages });
+      renderModelCapabilities?.(els.modelCapabilityStatus, { ...getSettings(), maxContextMessages });
+    });
+  }
+  if (els.agentMaxRounds) {
+    els.agentMaxRounds.addEventListener('change', () =>
+      saveSettings({ agentMaxRounds: parseInt(els.agentMaxRounds!.value, 10) })
+    );
+  }
+  if (els.autoContextSummary) {
+    els.autoContextSummary.addEventListener('change', () =>
+      saveSettings({ autoContextSummary: els.autoContextSummary!.checked })
+    );
+  }
+  if (els.cacheOptimization) {
+    els.cacheOptimization.addEventListener('change', () =>
+      saveSettings({ cacheOptimization: els.cacheOptimization!.checked })
+    );
+  }
+  if (els.privacyMode) {
+    els.privacyMode.addEventListener('change', () => saveSettings({ privacyMode: els.privacyMode!.checked }));
+  }
+  if (els.clearWorkspaceIndexCacheBtn) {
+    els.clearWorkspaceIndexCacheBtn.addEventListener('click', () =>
+      runStatusAction(
+        els.workspaceIndexCacheStatus,
+        '正在清理工作区索引缓存...',
+        formatWorkspaceIndexClearResult,
+        clearWorkspaceIndexCache
+      )
+    );
+  }
+  if (els.toolApprovalTimeout) {
+    els.toolApprovalTimeout.addEventListener('change', () =>
+      saveSettings({ toolApprovalTimeoutMs: parseInt(els.toolApprovalTimeout!.value, 10) })
+    );
+  }
+  if (els.toolApprovalPolicy) {
+    els.toolApprovalPolicy.addEventListener('change', () =>
+      saveSettings({ toolApprovalPolicy: els.toolApprovalPolicy!.value })
+    );
+  }
+  if (els.crewDisplayMode) {
+    els.crewDisplayMode.addEventListener('change', () => saveSettings({ crewDisplayMode: els.crewDisplayMode!.value }));
+  }
+  if (els.defaultComposerMode) {
+    els.defaultComposerMode.addEventListener('change', () =>
+      saveSettings({ defaultComposerMode: els.defaultComposerMode!.value })
+    );
+  }
+  if (els.runCodeEnabled) {
+    els.runCodeEnabled.addEventListener('change', () => saveSettings({ runCodeEnabled: els.runCodeEnabled!.checked }));
+  }
+  if (els.systemPrompt) {
+    els.systemPrompt.addEventListener('input', () => saveSettings({ systemPrompt: els.systemPrompt!.value }));
+  }
+  if (els.toggleKeyVis) {
+    els.toggleKeyVis.addEventListener('click', () => {
+      if (els.apiKey) els.apiKey.type = els.apiKey.type === 'password' ? 'text' : 'password';
+    });
+  }
+  if (els.toggleTavilyKeyVis) {
+    els.toggleTavilyKeyVis.addEventListener('click', () => {
+      if (els.tavilyKey) els.tavilyKey.type = els.tavilyKey.type === 'password' ? 'text' : 'password';
+    });
+  }
+  if (els.tavilyKey) {
+    els.tavilyKey.addEventListener('change', async () => {
+      const next = await saveSettings({ tavilyApiKey: els.tavilyKey!.value });
+      renderSkillGrid(els.skillGrid, (next.activeSkill as string) || '', next);
+    });
+  }
+  if (els.tavilyMaxResults) {
+    els.tavilyMaxResults.addEventListener('change', () =>
+      saveSettings({ tavilyMaxResults: parseInt(els.tavilyMaxResults!.value, 10) })
+    );
+  }
+  if (els.testApiBtn) {
+    els.testApiBtn.addEventListener('click', () =>
+      runStatusAction(els.apiTestStatus, '测试中...', '连接正常', () => testApiConnection())
+    );
+  }
+  if (els.testSearchBtn) {
+    els.testSearchBtn.addEventListener('click', () =>
+      runStatusAction(els.searchTestStatus, '搜索中...', '搜索正常', () => testSearchConnection('DeepChat test'))
+    );
+  }
+  if (els.addWorkspaceBtn) {
+    els.addWorkspaceBtn.addEventListener('click', async () => {
+      const next = await pickWorkspace();
+      await refreshWorkspaces(els, next, { removeWorkspace, renderSkillGrid });
+      renderSkillGrid(els.skillGrid, (next.activeSkill as string) || '', next);
+    });
+  }
+  if (els.addExternalSkillBtn) {
+    els.addExternalSkillBtn.addEventListener('click', async () => {
+      const next = await pickExternalSkill();
+      renderExternalSkillList(
+        els.externalSkillList,
+        (next.externalSkills as ExternalSkill[]) || [],
+        updateExternalSkills
+      );
+      showToast('外部 Skill 已导入');
+    });
+  }
+  if (els.addMcpServerBtn) {
+    els.addMcpServerBtn.addEventListener('click', async () => {
+      if (!hasNativeBridge()) {
+        showToast('MCP 只能在桌面版使用，浏览器预览不会保存 MCP 配置。');
+        return;
+      }
+      try {
+        const settings = getSettings();
+        const server = readMcpServerForm(els);
+        const next = await saveSettings({ mcpServers: [...((settings.mcpServers as unknown[]) || []), server] });
+        if (els.mcpName) els.mcpName.value = '';
+        if (els.mcpCommand) els.mcpCommand.value = '';
+        if (els.mcpArgs) els.mcpArgs.value = '';
+        if (els.mcpEnv) els.mcpEnv.value = '';
+        setLatestMcpStatuses?.(markMcpStatusStale(els, next));
+        renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
+        showToast('MCP 已添加');
+      } catch (error) {
+        showToast((error as Error).message || 'MCP 配置无效');
+      }
+    });
+  }
+  if (els.refreshMcpStatusBtn) {
+    els.refreshMcpStatusBtn.addEventListener('click', () =>
+      runStatusAction(
+        els.mcpStatusText,
+        '刷新 MCP 工具 schema...',
+        (statuses) => summarizeMcpStatusRefresh(statuses),
+        doRefreshMcpStatuses
+      )
+    );
+  }
+  if (els.exportBackupBtn) {
+    els.exportBackupBtn.addEventListener('click', async () => {
+      const result = await exportBackup();
+      if (!result?.canceled) showToast('备份已导出');
+    });
+  }
+  if (els.importBackupBtn) {
+    els.importBackupBtn.addEventListener('click', async () => {
+      const result = await importBackup();
+      if (!result?.canceled) {
+        const next = await initApiSettings();
+        applySettingsToInputs(els, next);
+        highlightActiveProvider(next);
+        highlightActiveModelTag((next.model as string) || '');
+        renderModelCapabilities?.(els.modelCapabilityStatus, next);
+        onModelChange?.((next.model as string) || '');
+        renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
+        renderStorageStatus(els.storageStatus, next);
+        await refreshWorkspaces(els, next, { removeWorkspace, renderSkillGrid });
+        renderExternalSkillList(
+          els.externalSkillList,
+          (next.externalSkills as ExternalSkill[]) || [],
+          updateExternalSkills
+        );
+        setLatestMcpStatuses?.(markMcpStatusStale(els, next));
+        window.dispatchEvent(new CustomEvent('deepchat:reload-conversations'));
+        showToast('备份已导入，界面已刷新');
+      }
+    });
+  }
+
+  // Prompt Preset buttons
+  document.querySelectorAll('.preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const preset = (btn as HTMLElement).dataset.preset || '';
+      if (PROMPT_PRESETS[preset] && els.systemPrompt) {
+        els.systemPrompt.value = PROMPT_PRESETS[preset];
+        saveSettings({ systemPrompt: PROMPT_PRESETS[preset] });
+        btn.classList.add('active');
+        setTimeout(() => btn.classList.remove('active'), 800);
+      }
+    });
+  });
+}

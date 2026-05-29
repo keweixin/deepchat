@@ -15,24 +15,31 @@ const SECURITY_PATTERNS = [
     name: 'innerHTML assignment',
     pattern: /\.innerHTML\s*=/,
     allowlist: [
-      'src/modules/renderer.js',
-      'src/main.js',
-      'src/modules/agent-crew.js',
-      'src/modules/chat.js',
-      'src/modules/reading-navigator.js',
-      'src/modules/settings.js',
-      'src/modules/agent-theatre.js',
-      'src/modules/agent-trace-inspector.js',
-      'src/modules/inspector-panel.js',
-      'src/modules/streaming-renderer.js',
-      'src/modules/tool-card.js',
-      'src/modules/workspace-index-report.js',
+      'src/modules/renderer.ts',
+      'src/main.ts',
+      'src/modules/agent-crew.ts',
+      'src/modules/chat.ts',
+      'src/modules/chat-sidebar.ts',
+      'src/modules/chat-message-renderer.ts',
+      'src/modules/reading-navigator.ts',
+      'src/modules/settings.ts',
+      'src/modules/agent-theatre.ts',
+      'src/modules/agent-trace-inspector.ts',
+      'src/modules/inspector-panel.ts',
+      'src/modules/streaming-renderer.ts',
+      'src/modules/tool-card.ts',
+      'src/modules/workspace-index-report.ts',
+      'src/modules/chat-streaming.ts',
+      'src/modules/settings-dom.ts',
+      'src/modules/settings-mcp.ts',
+      'src/modules/settings-skills.ts',
+      'src/modules/settings-workspace.ts',
     ],
   },
   {
     name: 'shell.openExternal without allowlist',
     pattern: /shell\.openExternal\s*\(/,
-    allowlist: ['electron.js'],
+    allowlist: ['electron.js', 'electron/main.ts'],
   },
 ];
 const SECRET_PATTERNS = [
@@ -44,7 +51,7 @@ const SENSITIVE_FILE_PATTERNS = /\.(env|pem|key|cert)$/i;
 const files = [
   ...SCAN_DIRS.flatMap((dir) => collectFiles(path.join(ROOT, dir))),
   ...EXTRA_FILES.map((file) => path.join(ROOT, file)).filter((file) => fs.existsSync(file)),
-].filter((file) => /\.(js|mjs|html|css)$/.test(file));
+].filter((file) => /\.(js|mjs|ts|html|css)$/.test(file));
 
 const issues = [];
 for (const file of files) {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 const fs = require('fs/promises');
 const path = require('path');
 const { app, safeStorage, dialog } = require('electron');

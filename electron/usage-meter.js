@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Usage Meter — Token usage normalization, cost estimation, and pricing
  *

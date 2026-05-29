@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Workspace search query parser with advanced directive support.
  *

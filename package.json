@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "syntax": "node --check electron.js && node --check preload.js",
-    "verify": "npm run format:check && npm run lint && npm test && npm run build",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
     "preview": "vite preview",
     "electron:dev": "vite build && electron .",
     "electron:build": "vite build && electron-builder --win --x64",
@@ -57,10 +58,13 @@
     }
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^25.9.1",
     "electron": "^42.1.0",
     "electron-builder": "^26.8.1",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
     "vite": "^8.0.12",
     "vitest": "^4.1.6"
   },
@@ -71,6 +75,7 @@
     "katex": "^0.16.47",
     "marked": "^18.0.3",
     "mermaid": "^11.15.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "tsx": "^4.22.3"
   }
 }

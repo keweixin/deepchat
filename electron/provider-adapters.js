@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Provider Adapters — API client, fallback logic, and provider capability detection
  *

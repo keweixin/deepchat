@@ -74,8 +74,8 @@ npm run electron:build:portable
 - [electron.js](./electron.js)：Electron 主进程、安全默认值和 IPC 边界。
 - [electron/chat-service.js](./electron/chat-service.js)：Agent loop、provider streaming、usage/cache 统计、工具审批。
 - [electron/tools.js](./electron/tools.js)：内置工具、工作区搜索、文件安全边界、代码运行轻沙箱。
-- [src/modules/api.js](./src/modules/api.js)：Provider registry、浏览器 fallback、usage/context helpers。
-- [src/modules/chat.js](./src/modules/chat.js)：聊天 UI、Agent timeline、工具卡、token/cache 展示。
+- [src/modules/api.ts](./src/modules/api.ts)：Provider registry、浏览器 fallback、usage/context helpers。
+- [src/modules/chat.ts](./src/modules/chat.ts)：聊天 UI、Agent timeline、工具卡、token/cache 展示。
 - [tests](./tests)：Vitest 单元和 UI helper 测试。
 
 ## 路线

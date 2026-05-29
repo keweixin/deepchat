@@ -66,3 +66,8 @@ desktop.ini
 # Claude Code / Agent files
 .claude/
 CLAUDE.md
+
+# Temporary / backup files
+*.bak
+*.bak?
+tmp_*.py

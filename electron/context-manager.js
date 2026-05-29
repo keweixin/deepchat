@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Context Manager — Message budgeting, trimming, and context compaction
  *
