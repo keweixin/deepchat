@@ -5,6 +5,7 @@
   },
   "include": [
     "src/types",
+    "src/modules/tool-registry.ts",
     "src/modules/shared-utils.ts",
     "src/modules/utils.ts",
     "src/modules/token-budget.ts",

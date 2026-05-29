@@ -17,6 +17,7 @@ import {
 } from './agent-run-store.js';
 import { TraceRecorder } from './agent-trace.js';
 import { openTraceInspector } from './agent-trace-inspector.js';
+import { isAgentSkill, ROLE_TOOL_MAP } from './tool-registry.js';
 import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
 
 /**
@@ -108,7 +109,7 @@ export function createStreamOrchestrator(deps) {
       if (mode === 'off') return false;
       if (mode === 'always') return true;
       const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
-      return ['web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill);
+      return isAgentSkill(skill);
     }
 
     function shouldCreateCrewFromStage(event) {
@@ -116,7 +117,7 @@ export function createStreamOrchestrator(deps) {
       if (mode === 'off') return false;
       if (mode === 'always') return true;
       const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
-      if (['web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'].includes(skill)) return true;
+      if (isAgentSkill(skill)) return true;
       const toolCalls = assistantMsg.toolCalls as unknown[];
       if (toolCalls?.length > 0) return true;
       if (['tool_repair', 'summary', 'final'].includes(event.stage)) return toolCalls?.length > 0;
@@ -152,11 +153,7 @@ export function createStreamOrchestrator(deps) {
         });
         return;
       }
-      const toolNameMap = {
-        reader: ['read_file', 'search_workspace', 'read_symbol'],
-        researcher: ['web_search'],
-        coder: ['run_code'],
-      };
+      const toolNameMap = ROLE_TOOL_MAP;
       const targetTools = toolNameMap[roleId];
       if (targetTools && toolContainer) {
         const blocks = toolContainer.querySelectorAll('.tool-call-block');

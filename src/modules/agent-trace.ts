@@ -9,6 +9,7 @@
  */
 
 import { uid } from './shared-utils.js';
+import { getToolRole } from './tool-registry.js';
 
 // ─── Event Type Definitions ────────────────────────────────────────────────
 
@@ -549,66 +550,7 @@ export class TraceRecorder {
 // ─── Tool-to-Actor Mapping ──────────────────────────────────────────────────
 
 export function getActorRoleForTool(toolName = '') {
-  const name = String(toolName).toLowerCase();
-
-  if (['index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name)) {
-    return 'reader';
-  }
-  if (name === 'web_search') {
-    return 'researcher';
-  }
-  if (name === 'run_code') {
-    return 'coder';
-  }
-
-  // Parse MCP tool name pattern: mcp__{serverId}__{toolName}_{hash}
-  let originalName = name;
-  if (name.startsWith('mcp__')) {
-    const parts = name.split('__');
-    if (parts.length >= 3) {
-      originalName = parts[2].replace(/_[a-z0-9]+$/, '');
-    }
-  }
-  if (name === 'mcp' || name.startsWith('mcp_') || name.startsWith('mcp__')) {
-    if (
-      originalName.includes('read') ||
-      originalName.includes('file') ||
-      originalName.includes('directory') ||
-      originalName.includes('folder') ||
-      originalName.includes('list')
-    )
-      return 'reader';
-    if (originalName.includes('write') || originalName.includes('edit') || originalName.includes('create'))
-      return 'coder';
-    return 'researcher';
-  }
-
-  if (
-    name.includes('search') ||
-    name.includes('fetch') ||
-    name.includes('query') ||
-    name.includes('database') ||
-    name.includes('literature') ||
-    name.includes('pubmed') ||
-    name.includes('arxiv') ||
-    name.includes('biorxiv') ||
-    name.includes('europepmc') ||
-    name.includes('openalex')
-  ) {
-    return 'researcher';
-  }
-  if (
-    name.includes('read') ||
-    name.includes('file') ||
-    name.includes('sequence') ||
-    name.includes('align') ||
-    name.includes('msa') ||
-    name.includes('pymol')
-  ) {
-    return 'reader';
-  }
-
-  return 'planner';
+  return getToolRole(toolName);
 }
 
 // ─── Compatibility Layer ────────────────────────────────────────────────────

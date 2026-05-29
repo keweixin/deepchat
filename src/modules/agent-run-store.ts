@@ -32,57 +32,10 @@ export function createAgentRun(mode = 'auto') {
   };
 }
 
+import { getToolRole, getToolSummary } from './tool-registry.js';
+
 export function getCrewRoleForTool(toolName = '') {
-  const name = String(toolName).toLowerCase();
-  if (['index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name)) {
-    return 'reader';
-  }
-  if (name === 'web_search') {
-    return 'researcher';
-  }
-  if (name === 'run_code') {
-    return 'coder';
-  }
-  // Parse original tool name from OpenAI tool name pattern: mcp__{serverId}__{toolName}_{hash}
-  let originalName = name;
-  if (name.startsWith('mcp__')) {
-    const parts = name.split('__');
-    if (parts.length >= 3) {
-      originalName = parts[2].replace(/_[a-z0-9]+$/, '');
-    }
-  }
-  if (name === 'mcp' || name.startsWith('mcp_') || name.startsWith('mcp__')) {
-    if (originalName.includes('read') || originalName.includes('file')) return 'reader';
-    if (originalName.includes('write') || originalName.includes('edit') || originalName.includes('create'))
-      return 'coder';
-    return 'researcher';
-  }
-  // Fallback map science skills and other tools
-  if (
-    name.includes('search') ||
-    name.includes('fetch') ||
-    name.includes('query') ||
-    name.includes('database') ||
-    name.includes('literature') ||
-    name.includes('pubmed') ||
-    name.includes('arxiv') ||
-    name.includes('biorxiv') ||
-    name.includes('europepmc') ||
-    name.includes('openalex')
-  ) {
-    return 'researcher';
-  }
-  if (
-    name.includes('read') ||
-    name.includes('file') ||
-    name.includes('sequence') ||
-    name.includes('align') ||
-    name.includes('msa') ||
-    name.includes('pymol')
-  ) {
-    return 'reader';
-  }
-  return 'planner';
+  return getToolRole(toolName);
 }
 
 export function applyCrewToolRequest(agentRun: Record<string, any>, tool: Record<string, any> = {}) {
@@ -147,23 +100,14 @@ export function applyCrewToolResult(
     member.status = 'done';
     member.currentAction = `${toolName} 执行完毕`;
 
-    // Create an intelligent summary
-    if (toolName === 'web_search') {
-      const sourceCount = event.sources?.length || tool.sources?.length || 0;
-      member.outputSummary = sourceCount > 0 ? `已找到 ${sourceCount} 个联网来源` : `搜索完毕`;
-    } else if (toolName === 'read_file') {
-      const file = tool.args?.path || tool.args?.file || '';
-      const basename = file.split(/[/\\]/).pop() || file;
-      member.outputSummary = basename ? `成功读取文件 ${basename}` : `读取文件完毕`;
-    } else if (toolName === 'search_workspace') {
-      const query = tool.args?.query || '';
-      member.outputSummary = `在工作区检索「${query}」`;
-    } else if (toolName === 'run_code') {
-      const duration = event.durationMs || tool.durationMs || '';
-      member.outputSummary = duration ? `代码运行成功 (${duration}ms)` : `代码运行成功`;
-    } else {
-      member.outputSummary = `工具 ${toolName} 执行成功`;
-    }
+    // Create an intelligent summary via registry
+    const summary = getToolSummary({
+      toolName,
+      args: tool.args || {},
+      sources: event.sources || tool.sources || [],
+      durationMs: (event.durationMs || tool.durationMs || 0) as number,
+    });
+    member.outputSummary = summary.label;
     member.finishedAt = new Date().toISOString();
   } else {
     // Approved but not completed yet

@@ -4,19 +4,10 @@
 
 import { escapeHtml, truncate } from './shared-utils.js';
 
-export interface RiskLevel {
-  id: string;
-  label: string;
-  color: string;
-  icon: string;
-}
+import { RISK_LEVELS, getToolRiskLevel, getToolIcon } from './tool-registry.js';
+import type { RiskLevel } from './tool-registry.js';
 
-export const RISK_LEVELS: Readonly<Record<string, RiskLevel>> = Object.freeze({
-  read: { id: 'read', label: '读取', color: '#3b82f6', icon: '👁' },
-  write: { id: 'write', label: '写入', color: '#f59e0b', icon: '✏' },
-  execute: { id: 'execute', label: '执行', color: '#ef4444', icon: '⚡' },
-  network: { id: 'network', label: '网络', color: '#8b5cf6', icon: '🌐' },
-});
+export { RISK_LEVELS };
 
 export interface ApprovalStatus {
   id: string;
@@ -32,31 +23,8 @@ export const APPROVAL_STATUS: Readonly<Record<string, ApprovalStatus>> = Object.
   denied: { id: 'denied', label: '已拒绝', color: '#ef4444', icon: '✕' },
 });
 
-const TOOL_ICON_MAP: Record<string, string> = {
-  read_file: '📄',
-  search_workspace: '🔍',
-  read_symbol: '🔣',
-  web_search: '🌐',
-  run_code: '⚡',
-  write_file: '✏',
-  edit_file: '✏',
-  default: '🛠',
-};
-
-function getToolIcon(toolName: string): string {
-  for (const key of Object.keys(TOOL_ICON_MAP)) {
-    if (toolName?.includes(key)) return TOOL_ICON_MAP[key];
-  }
-  return TOOL_ICON_MAP.default;
-}
-
-function inferRiskLevel(toolName: string, args: Record<string, unknown> = {}): RiskLevel {
-  const name = String(toolName || '').toLowerCase();
-  if (name.includes('run_code') || name.includes('execute') || name.includes('shell')) return RISK_LEVELS.execute;
-  if (name.includes('web_search') || name.includes('fetch') || name.includes('http')) return RISK_LEVELS.network;
-  if (name.includes('write') || name.includes('edit') || name.includes('create') || name.includes('delete'))
-    return RISK_LEVELS.write;
-  return RISK_LEVELS.read;
+function inferRiskLevel(toolName: string): RiskLevel {
+  return getToolRiskLevel(toolName);
 }
 
 function inferApprovalStatus(tool: Record<string, unknown>): ApprovalStatus {
@@ -78,7 +46,7 @@ export function renderToolCard(
   options: { showRaw?: boolean; onToggleRaw?: (expanded: boolean) => void } = {}
 ): HTMLElement {
   const { showRaw = false, onToggleRaw } = options;
-  const risk = inferRiskLevel(String(tool.name || ''), tool.args as Record<string, unknown>);
+  const risk = inferRiskLevel(String(tool.name || ''));
   const approval = inferApprovalStatus(tool);
   const duration = formatDuration((tool.durationMs as number) || 0);
   const isRepair = tool.isRepair || tool.repaired;
@@ -147,7 +115,49 @@ export function renderToolCard(
     if (onToggleRaw) onToggleRaw(expanded);
   });
 
-  card.append(header, purpose, meta, toggleBtn, details);
+  // Action buttons for product-oriented interactions
+  const actions = document.createElement('div');
+  actions.className = 'tool-card-actions';
+
+  if (tool.name === 'read_file' || tool.name === 'read_many_files') {
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'tool-card-action-btn';
+    copyBtn.textContent = '复制结果';
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(String(tool.output || ''));
+    });
+    actions.appendChild(copyBtn);
+  }
+
+  if (tool.name === 'run_code') {
+    const viewCodeBtn = document.createElement('button');
+    viewCodeBtn.type = 'button';
+    viewCodeBtn.className = 'tool-card-action-btn';
+    viewCodeBtn.textContent = '查看代码';
+    viewCodeBtn.addEventListener('click', () => {
+      details.classList.add('is-expanded');
+      toggleBtn.textContent = '收起详情';
+    });
+    actions.appendChild(viewCodeBtn);
+  }
+
+  if (tool.output) {
+    const explainBtn = document.createElement('button');
+    explainBtn.type = 'button';
+    explainBtn.className = 'tool-card-action-btn';
+    explainBtn.textContent = '让 AI 解释';
+    explainBtn.addEventListener('click', () => {
+      const event = new CustomEvent('deepchat:explain-tool-output', {
+        detail: { toolName: tool.name, output: tool.output },
+        bubbles: true,
+      });
+      card.dispatchEvent(event);
+    });
+    actions.appendChild(explainBtn);
+  }
+
+  card.append(header, purpose, meta, actions, toggleBtn, details);
   return card;
 }
 
