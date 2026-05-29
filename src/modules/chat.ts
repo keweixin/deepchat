@@ -826,7 +826,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
               (block as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
               (block as HTMLElement).style.outline = '2px solid var(--accent-primary)';
               setTimeout(() => {
-                (block as HTMLElement).style.outline = '';
+                if (block.isConnected) (block as HTMLElement).style.outline = '';
               }, 2000);
               return;
             }
@@ -2821,7 +2821,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
       showToast('已复制到剪贴板');
       copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
       setTimeout(() => {
-        copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
+        if (copyBtn.isConnected) copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
       }, 1500);
     }
   });
@@ -2914,8 +2914,10 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
       copyBtn.classList.add('copied');
       copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
       setTimeout(() => {
-        copyBtn.classList.remove('copied');
-        copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
+        if (copyBtn.isConnected) {
+          copyBtn.classList.remove('copied');
+          copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
+        }
       }, 1500);
     }
   });
@@ -2931,7 +2933,7 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
       showToast('已复制 Markdown 源码');
       copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
       setTimeout(() => {
-        copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`;
+        if (copyMdBtn.isConnected) copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`;
       }, 1500);
     }
   });
@@ -3393,10 +3395,12 @@ function attachCopyHandlersOnly(container: HTMLElement) {
         (el.querySelector('.copy-text') as HTMLElement | null)!.textContent = '已复制';
         el.classList.add('copied');
         setTimeout(() => {
-          (el.querySelector('.copy-icon') as HTMLElement | null)!.hidden = false;
-          (el.querySelector('.check-icon') as HTMLElement | null)!.hidden = true;
-          (el.querySelector('.copy-text') as HTMLElement | null)!.textContent = '复制';
-          el.classList.remove('copied');
+          if (el.isConnected) {
+            (el.querySelector('.copy-icon') as HTMLElement | null)!.hidden = false;
+            (el.querySelector('.check-icon') as HTMLElement | null)!.hidden = true;
+            (el.querySelector('.copy-text') as HTMLElement | null)!.textContent = '复制';
+            el.classList.remove('copied');
+          }
         }, 1500);
       } catch (err) {
         console.warn('[Chat] clipboard write failed:', err);

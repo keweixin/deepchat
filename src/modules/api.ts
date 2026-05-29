@@ -237,11 +237,18 @@ export async function runTool(name: string, args: Record<string, unknown> = {}):
 function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
   const requestId = opts.requestId || uid();
   let settled = false;
+  let lastTokenTime = Date.now();
 
   const unsubscribe = (window as any).deepchat.chat.onEvent((event: any) => {
     if (!event || event.requestId !== requestId) return;
-    if (event.type === 'token') opts.onToken?.(event.token);
-    if (event.type === 'thinking') opts.onThinking?.(event.token);
+    if (event.type === 'token') {
+      lastTokenTime = Date.now();
+      opts.onToken?.(event.token);
+    }
+    if (event.type === 'thinking') {
+      lastTokenTime = Date.now();
+      opts.onThinking?.(event.token);
+    }
     if (event.type === 'tokenCount') {
       const { type: _type, requestId: _requestId, ...usageEvent } = event;
       opts.onTokenCount?.(event.usage || usageEvent);
@@ -255,6 +262,7 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
       settled = true;
       unsubscribe();
       clearTimeout(fallbackTimer);
+      clearInterval(heartbeatTimer);
       removeAbortListener();
       opts.onDone?.(event);
     }
@@ -262,6 +270,7 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
       settled = true;
       unsubscribe();
       clearTimeout(fallbackTimer);
+      clearInterval(heartbeatTimer);
       removeAbortListener();
       opts.onError?.(new Error(event.message || '未知错误'));
     }
@@ -272,17 +281,33 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
       settled = true;
       unsubscribe();
       clearTimeout(fallbackTimer);
+      clearInterval(heartbeatTimer);
       (window as any).deepchat.chat.cancel(requestId);
     }
   };
   opts.signal?.addEventListener('abort', abort, { once: true });
   const removeAbortListener = () => opts.signal?.removeEventListener('abort', abort);
 
+  // Heartbeat: if no token/thinking for 30s, main process may be unresponsive
+  const HEARTBEAT_INTERVAL = 30000;
+  const heartbeatTimer = setInterval(() => {
+    if (settled) return;
+    if (Date.now() - lastTokenTime > HEARTBEAT_INTERVAL) {
+      settled = true;
+      unsubscribe();
+      clearTimeout(fallbackTimer);
+      clearInterval(heartbeatTimer);
+      removeAbortListener();
+      opts.onError?.(new Error('主进程响应超时，请检查服务状态'));
+    }
+  }, 5000);
+
   // Fallback: if main process never sends done/error, clean up after 10 min
   const fallbackTimer = setTimeout(() => {
     if (!settled) {
       settled = true;
       unsubscribe();
+      clearInterval(heartbeatTimer);
       removeAbortListener();
     }
   }, 600_000);

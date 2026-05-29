@@ -29,7 +29,8 @@ class McpManager {
         for (const tool of tools) {
           definitions.push(toOpenAiTool(server, tool));
         }
-      } catch {
+      } catch (err) {
+        console.error(`[mcp] Failed to list tools from ${server.name || server.command}:`, err.message || err);
         // Broken MCP servers should not prevent normal chat.
       }
     }

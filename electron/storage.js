@@ -72,7 +72,8 @@ async function readJson(fileName, fallback) {
   try {
     const raw = await fs.readFile(getFilePath(fileName), 'utf8');
     return JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    console.error(`[storage] Failed to read ${fileName}:`, err.message || err);
     return fallback;
   }
 }

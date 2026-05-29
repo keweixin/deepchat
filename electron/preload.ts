@@ -1,7 +1,18 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-function on(channel, callback) {
-  const listener = (_event, payload) => callback(payload);
+/** Allowed IPC channels for renderer → main event listening. */
+const VALID_ON_CHANNELS = [
+  'chat:event',
+  'menu:openSettings',
+  'menu:newChat',
+] as const;
+
+function on(channel: string, callback: (payload: any) => void) {
+  if (!VALID_ON_CHANNELS.includes(channel as any)) {
+    console.warn(`[preload] Blocked unauthorized IPC channel: ${channel}`);
+    return () => {};
+  }
+  const listener = (_event: any, payload: any) => callback(payload);
   ipcRenderer.on(channel, listener);
   return () => ipcRenderer.removeListener(channel, listener);
 }
