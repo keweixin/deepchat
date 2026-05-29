@@ -11,7 +11,6 @@ const DEFAULT_FILE_BYTES = 30 * 1024;
 const MAX_SEARCH_FILE_BYTES = 64 * 1024;
 const MAX_SEARCH_SCAN_FILES = 700;
 const MAX_TOOL_OUTPUT = 12000;
-const RUN_TIMEOUT_MS = 5000;
 const WORKSPACE_INDEX_TTL_MS = 5 * 60 * 1000;
 const WORKSPACE_INDEX_DISK_TTL_MS = 24 * 60 * 60 * 1000;
 const WORKSPACE_INDEX_DISK_MAX_BYTES = 8 * 1024 * 1024;
@@ -29,6 +28,13 @@ const SENSITIVE_FILE_NAMES = new Set([
   'known_hosts',
 ]);
 const SENSITIVE_EXTENSIONS = new Set(['.pem', '.key', '.p12', '.pfx', '.crt']);
+
+const RUN_CODE_SECURITY_LIMITS = {
+  maxOutputBytes: 1024 * 1024, // 1MB
+  maxMemoryMB: 512,
+  maxTimeoutMs: 5000,
+  killTreeOnTimeout: true,
+};
 
 const TOOL_SCHEMAS = {
   web_search: {
@@ -193,7 +199,8 @@ const TOOL_SCHEMAS = {
     type: 'function',
     function: {
       name: 'run_code',
-      description: 'Run a small JavaScript or Python snippet after explicit user approval.',
+      description:
+        'Run a small JavaScript or Python snippet after explicit user approval. Security limits: 5s timeout, process-tree kill on timeout, 1MB output cap, 512MB memory limit, output redaction for secrets.',
       parameters: {
         type: 'object',
         properties: {
@@ -287,8 +294,10 @@ function describeToolRisk(name, args) {
       '将运行代码片段；请确认代码可信。',
       `语言：${normalizeLanguage(args.language) || '未知'}`,
       `代码长度：${String(args.code || '').length} chars`,
-      `超时：${RUN_TIMEOUT_MS}ms`,
+      `超时：${RUN_CODE_SECURITY_LIMITS.maxTimeoutMs}ms · 进程树终止：${RUN_CODE_SECURITY_LIMITS.killTreeOnTimeout ? '是' : '否'}`,
+      `输出上限：${RUN_CODE_SECURITY_LIMITS.maxOutputBytes / 1024 / 1024}MB · 内存上限：${RUN_CODE_SECURITY_LIMITS.maxMemoryMB}MB`,
       '权限：独立临时 cwd/HOME/TEMP，环境变量已清洗；Windows 轻沙箱不承诺硬网络隔离。',
+      '安全：stdout/stderr 含密钥/token 时自动脱敏。',
     ].join('\n');
   }
   return '未知工具调用。';
@@ -1702,7 +1711,12 @@ async function runCode(args, settings = {}, signal) {
       : process.env.DEEPCHAT_NODE_PATH || process.execPath;
   const env = buildSandboxEnv(language, tempDir);
   const startedAt = Date.now();
-  const output = await spawnWithLimits(command, [filePath], String(args.stdin || ''), env, tempDir, signal);
+  const rawOutput = await spawnWithLimits(command, [filePath], String(args.stdin || ''), env, tempDir, signal);
+  const output = {
+    ...rawOutput,
+    stdout: redactRunCodeOutput(rawOutput.stdout),
+    stderr: redactRunCodeOutput(rawOutput.stderr),
+  };
   const durationMs = Date.now() - startedAt;
   const structured = buildRunCodeStructuredResult({
     language,
@@ -1819,28 +1833,71 @@ function normalizeLanguage(value) {
 
 function spawnWithLimits(command, args, stdin, env = process.env, cwd, signal) {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+  const isWin = process.platform === 'win32';
+  // On Unix, detached creates a new process group so we can kill the entire tree.
+  const child = spawn(command, args, { windowsHide: true, env, cwd, detached: !isWin });
+
   return new Promise((resolve) => {
-    const child = spawn(command, args, { windowsHide: true, env, cwd });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let killed = false;
+    const maxBytes = RUN_CODE_SECURITY_LIMITS.maxOutputBytes;
+
+    /** Kill the entire process tree, not just the main process. */
+    function killTree() {
+      if (killed) return;
+      killed = true;
+      if (isWin) {
+        // Windows: taskkill /F /T kills the process tree by PID.
+        try {
+          const { execSync } = require('child_process');
+          execSync(`taskkill /F /T /PID ${child.pid}`, { stdio: 'ignore' });
+        } catch {
+          // Fallback: direct kill if taskkill fails (e.g. process already exited).
+          try {
+            child.kill('SIGKILL');
+          } catch {}
+        }
+      } else {
+        // Unix: negative PID sends signal to the entire process group.
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+        } catch {
+          try {
+            child.kill('SIGKILL');
+          } catch {}
+        }
+      }
+    }
 
     const onAbort = () => {
       timedOut = true;
-      child.kill('SIGKILL');
+      killTree();
     };
     signal?.addEventListener('abort', onAbort, { once: true });
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
-    }, RUN_TIMEOUT_MS);
+      killTree();
+    }, RUN_CODE_SECURITY_LIMITS.maxTimeoutMs);
 
     child.stdout.on('data', (chunk) => {
-      stdout = truncate(stdout + chunk.toString('utf8'), MAX_TOOL_OUTPUT);
+      if (Buffer.byteLength(stdout, 'utf8') < maxBytes) {
+        stdout += chunk.toString('utf8');
+        if (Buffer.byteLength(stdout, 'utf8') > maxBytes) {
+          stdout = stdout.slice(0, maxBytes);
+        }
+      }
     });
     child.stderr.on('data', (chunk) => {
-      stderr = truncate(stderr + chunk.toString('utf8'), MAX_TOOL_OUTPUT);
+      if (Buffer.byteLength(stderr, 'utf8') < maxBytes) {
+        stderr += chunk.toString('utf8');
+        if (Buffer.byteLength(stderr, 'utf8') > maxBytes) {
+          stderr = stderr.slice(0, maxBytes);
+        }
+      }
     });
     const cleanup = () => {
       clearTimeout(timer);
@@ -1852,6 +1909,9 @@ function spawnWithLimits(command, args, stdin, env = process.env, cwd, signal) {
     });
     child.on('close', (exitCode) => {
       cleanup();
+      const truncationNotice = '[Output truncated: exceeded 1MB limit]';
+      if (Buffer.byteLength(stdout, 'utf8') >= maxBytes) stdout += `\n${truncationNotice}`;
+      if (Buffer.byteLength(stderr, 'utf8') >= maxBytes) stderr += `\n${truncationNotice}`;
       resolve({ stdout, stderr, exitCode, timedOut });
     });
 
@@ -1875,6 +1935,31 @@ function redactSensitiveText(value) {
     .replace(/\b(api[_-]?key|token|secret|password)\s*[:=]\s*['"]?[^'"\s]{8,}/gi, '$1=[REDACTED]');
 }
 
+/**
+ * Redact secrets from run_code stdout/stderr output.
+ * Extends redactSensitiveText with additional patterns common in code execution output
+ * (private keys, JWTs, connection strings, generic long hex/base64 blobs that look like secrets).
+ */
+function redactRunCodeOutput(value) {
+  return (
+    redactSensitiveText(value)
+      // PEM private key blocks
+      .replace(
+        /-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----[\s\S]*?-----END\s+(RSA\s+)?PRIVATE\s+KEY-----/g,
+        '[REDACTED PRIVATE KEY]'
+      )
+      // JWT tokens (three base64url segments separated by dots)
+      .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED JWT]')
+      // Connection strings with embedded credentials
+      .replace(/\b(?:mongodb|postgres|mysql|redis|amqp):\/\/[^'"\s]{8,}/gi, '[REDACTED CONNECTION STRING]')
+      // Generic assignment patterns that look like secrets (long hex or base64 values)
+      .replace(
+        /\b(?:api[_-]?key|token|secret|password|authorization|auth|credential|private[_-]?key)\s*[:=]\s*['"]?[A-Za-z0-9+/=_-]{16,}['"]?/gi,
+        '$1=[REDACTED]'
+      )
+  );
+}
+
 function clampInt(value, min, max, fallback) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
@@ -1893,6 +1978,7 @@ module.exports = {
   describeToolRisk,
   executeTool,
   redactSensitiveText,
+  redactRunCodeOutput,
   isSensitivePath,
   buildSandboxEnv,
   normalizeTavilyResults,
@@ -1901,4 +1987,5 @@ module.exports = {
   resolveAllowedPath,
   clearWorkspaceIndexCache,
   clearWorkspaceIndexDiskCache,
+  RUN_CODE_SECURITY_LIMITS,
 };

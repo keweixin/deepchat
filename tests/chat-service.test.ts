@@ -1059,7 +1059,7 @@ describe('electron chat service token usage and agent loop', () => {
     expect(service.waitForApproval).toHaveBeenCalledTimes(1);
     expect(events.find((event) => event.type === 'toolRequest')).toMatchObject({
       autoApproved: false,
-      approvalPolicy: 'auto_readonly',
+      approvalPolicy: 'tool_policy:confirm_always',
     });
   });
 });

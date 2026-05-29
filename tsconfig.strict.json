@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true
+  },
+  "include": ["src/types", "src/modules/shared-utils.ts", "src/modules/utils.ts", "src/modules/token-budget.ts"]
+}
