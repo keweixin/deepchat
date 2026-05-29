@@ -74,6 +74,7 @@ interface CrewMember {
 }
 
 interface AgentRun {
+  id?: string;
   status?: string;
   crew?: CrewMember[];
 }

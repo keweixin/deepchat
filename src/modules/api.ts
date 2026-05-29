@@ -474,6 +474,32 @@ async function streamBrowserChat(messages: any[], opts: StreamChatOpts = {}): Pr
   }
 }
 
+/** Fetch with independent timeout guard (30s default) */
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs);
+
+  if (init.signal) {
+    init.signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      controller.abort();
+    });
+  }
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Exponential backoff with jitter: min(1000 * 2^attempt + random, 8000) */
+function getRetryDelay(attempt: number): number {
+  const base = 1000 * Math.pow(2, attempt);
+  const jitter = Math.random() * 500;
+  return Math.min(base + jitter, 8000);
+}
+
 async function fetchBrowserChatCompletionWithFallback(
   settings: Record<string, unknown>,
   body: Record<string, unknown>,
@@ -482,31 +508,43 @@ async function fetchBrowserChatCompletionWithFallback(
   const warnings: string[] = [];
   let currentBody = { ...body };
   for (let attempt = 0; attempt < 3; attempt++) {
-    const response = await fetch(`${normalizeBaseUrl(String((settings as any).apiBase))}/chat/completions`, {
-      method: 'POST',
-      headers: buildHeaders(String((settings as any).apiKey), 'text/event-stream'),
-      body: JSON.stringify(currentBody),
-      signal,
-    });
-    if (response.ok) return { response, warnings };
-    const errorText = await response.text().catch(() => '');
-    if (
-      response.status === 400 &&
-      currentBody.stream_options &&
-      isUnsupportedParameterError(errorText, 'stream_options')
-    ) {
-      currentBody = { ...currentBody };
-      delete currentBody.stream_options;
-      warnings.push('当前服务商不支持 stream_options.include_usage，已自动重试并使用本地估算 token。');
-      continue;
+    try {
+      const response = await fetchWithTimeout(
+        `${normalizeBaseUrl(String((settings as any).apiBase))}/chat/completions`,
+        {
+          method: 'POST',
+          headers: buildHeaders(String((settings as any).apiKey), 'text/event-stream'),
+          body: JSON.stringify(currentBody),
+          signal,
+        }
+      );
+      if (response.ok) return { response, warnings };
+      const errorText = await response.text().catch(() => '');
+      if (
+        response.status === 400 &&
+        currentBody.stream_options &&
+        isUnsupportedParameterError(errorText, 'stream_options')
+      ) {
+        currentBody = { ...currentBody };
+        delete currentBody.stream_options;
+        warnings.push('当前服务商不支持 stream_options.include_usage，已自动重试并使用本地估算 token。');
+        continue;
+      }
+      if (response.status === 400 && currentBody.thinking && isUnsupportedParameterError(errorText, 'thinking')) {
+        currentBody = { ...currentBody };
+        delete currentBody.thinking;
+        warnings.push('当前服务商不支持 thinking 参数，已自动关闭思考预算后重试。');
+        continue;
+      }
+      return { response, warnings };
+    } catch (err: any) {
+      const isLastAttempt = attempt === 2;
+      if (isLastAttempt) throw err;
+      if (err.message?.includes('timeout')) {
+        warnings.push(`请求超时，${Math.round(getRetryDelay(attempt) / 1000)}秒后重试…`);
+      }
+      await new Promise((r) => setTimeout(r, getRetryDelay(attempt)));
     }
-    if (response.status === 400 && currentBody.thinking && isUnsupportedParameterError(errorText, 'thinking')) {
-      currentBody = { ...currentBody };
-      delete currentBody.thinking;
-      warnings.push('当前服务商不支持 thinking 参数，已自动关闭思考预算后重试。');
-      continue;
-    }
-    return { response, warnings };
   }
   throw new Error('API 请求参数降级后仍然失败。');
 }

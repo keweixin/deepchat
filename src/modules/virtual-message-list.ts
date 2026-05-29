@@ -6,10 +6,12 @@
  * - Hidden messages replaced by placeholder divs to preserve scroll position
  * - Streaming message always fully rendered
  * - Falls back to full render when disabled or message count is low (< 30)
+ * - ResizeObserver-based height caching eliminates forced reflow on scroll
  */
 
 const DEFAULT_BUFFER = 3;
 const ENABLE_THRESHOLD = 30; // messages
+const DEFAULT_ESTIMATED_HEIGHT = 120;
 
 /**
  * Calculate which message indices should be rendered
@@ -39,20 +41,28 @@ export function getVisibleIndices({
 }
 
 /**
+ * Calculate scroll-based visible range using cached heights.
+ * Reads only scrollTop/clientHeight — no forced reflow.
+ * @param {HTMLElement} container — scroll container ($messages)
+ * @param {number[]} heights — estimated heights
+ * @returns {{start: number, end: number}}
+ */
+/**
  * Estimate message heights from DOM (or use defaults)
+ * Kept for backward compatibility; virtual list now uses ResizeObserver.
  * @param {HTMLElement} container — $messages element
  * @param {number} messageCount
  * @returns {number[]} estimated heights
  */
 export function estimateMessageHeights(container: HTMLElement, messageCount: number) {
   const children = container.querySelectorAll('.message');
-  const heights = [];
-  let avgHeight = 120;
+  const heights: number[] = [];
+  let avgHeight = DEFAULT_ESTIMATED_HEIGHT;
 
   for (let i = 0; i < messageCount; i++) {
     const el = children[i];
     if (el) {
-      const h = el.getBoundingClientRect().height;
+      const h = el.getBoundingClientRect().height || DEFAULT_ESTIMATED_HEIGHT;
       heights.push(h);
       avgHeight = h;
     } else {
@@ -63,7 +73,8 @@ export function estimateMessageHeights(container: HTMLElement, messageCount: num
 }
 
 /**
- * Calculate scroll-based visible range
+ * Calculate scroll-based visible range using cached heights.
+ * Reads only scrollTop/clientHeight — no forced reflow.
  * @param {HTMLElement} container — scroll container ($messages)
  * @param {number[]} heights — estimated heights
  * @returns {{start: number, end: number}}
@@ -77,7 +88,7 @@ export function calculateVisibleRange(container: HTMLElement, heights: number[])
   let end = -1;
 
   for (let i = 0; i < heights.length; i++) {
-    const h = heights[i];
+    const h = heights[i] || DEFAULT_ESTIMATED_HEIGHT;
     // Item i is visible if its bottom is below scrollTop and its top is above viewport bottom
     if (start === -1 && accumulated + h > scrollTop) {
       start = i;
@@ -123,6 +134,7 @@ export function createVirtualList(opts: Record<string, any>) {
   let heights: number[] = [];
   let renderedIndices = new Set<number>();
   let rafId: number | null = null;
+  let resizeObserver: ResizeObserver | null = null;
 
   function shouldEnable() {
     if (!enabled) return false;
@@ -130,17 +142,51 @@ export function createVirtualList(opts: Record<string, any>) {
     return count >= ENABLE_THRESHOLD;
   }
 
+  /** ResizeObserver callback — updates cached heights without forced reflow */
+  function initResizeObserver() {
+    if (resizeObserver) return;
+    if (typeof ResizeObserver === 'undefined') return;
+    resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const el = entry.target as HTMLElement;
+        const idx = Number(el.dataset.messageIndex);
+        if (!Number.isNaN(idx) && idx >= 0 && idx < heights.length) {
+          const newHeight = entry.borderBoxSize?.[0]?.blockSize ?? el.offsetHeight;
+          if (newHeight > 0) heights[idx] = newHeight;
+        }
+      }
+    });
+  }
+
+  function observeElement(el: HTMLElement) {
+    if (typeof ResizeObserver === 'undefined') return;
+    if (!resizeObserver) initResizeObserver();
+    resizeObserver?.observe(el);
+  }
+
+  function unobserveElement(el: HTMLElement) {
+    resizeObserver?.unobserve(el);
+  }
+
+  /** Ensure heights array matches message count without reading DOM geometry */
+  function syncHeightsArray(count: number) {
+    if (heights.length === count) return;
+    if (heights.length < count) {
+      const avg = heights.length > 0 ? heights.reduce((a, b) => a + b, 0) / heights.length : DEFAULT_ESTIMATED_HEIGHT;
+      while (heights.length < count) heights.push(avg);
+    } else {
+      heights.length = count;
+    }
+  }
+
   function refresh() {
     if (!shouldEnable()) {
-      // Full render fallback
       _fullRender();
       return;
     }
 
     const count = getCount();
-    if (heights.length !== count) {
-      heights = estimateMessageHeights(container, count);
-    }
+    syncHeightsArray(count);
 
     const { start, end } = calculateVisibleRange(container, heights);
     const visible = getVisibleIndices({ messageCount: count, visibleStart: start, visibleEnd: end });
@@ -148,13 +194,14 @@ export function createVirtualList(opts: Record<string, any>) {
     // Remove items that are no longer visible
     for (const idx of renderedIndices) {
       if (!visible.has(idx)) {
-        const el = container.querySelector(`.message[data-message-index="${idx}"]`);
+        const el = container.querySelector(`.message[data-message-index="${idx}"]`) as HTMLElement | null;
         if (el) {
-          const h = el.getBoundingClientRect().height || heights[idx] || 120;
-          heights[idx] = h;
+          // Use cached height — NO getBoundingClientRect() here
+          const h = heights[idx] || DEFAULT_ESTIMATED_HEIGHT;
           const placeholder = createPlaceholder(h);
           placeholder.dataset.messageIndex = String(idx);
           container.replaceChild(placeholder, el);
+          unobserveElement(el);
         }
       }
     }
@@ -163,11 +210,13 @@ export function createVirtualList(opts: Record<string, any>) {
     for (const idx of visible) {
       if (!renderedIndices.has(idx)) {
         const placeholder = container.querySelector(`.message-placeholder[data-message-index="${idx}"]`);
-        const item = renderItem(idx, true);
+        const item = renderItem(idx, true) as HTMLElement | null;
         if (placeholder && item) {
           container.replaceChild(item, placeholder);
+          observeElement(item);
         } else if (item) {
           container.appendChild(item);
+          observeElement(item);
         }
       }
     }
@@ -182,8 +231,11 @@ export function createVirtualList(opts: Record<string, any>) {
     // Ensure all messages are rendered
     for (let i = 0; i < count; i++) {
       if (!renderedIndices.has(i)) {
-        const item = renderItem(i, true);
-        if (item) container.appendChild(item);
+        const item = renderItem(i, true) as HTMLElement | null;
+        if (item) {
+          container.appendChild(item);
+          observeElement(item);
+        }
       }
     }
     renderedIndices = new Set(Array.from({ length: count }, (_, i) => i));
@@ -217,6 +269,10 @@ export function createVirtualList(opts: Record<string, any>) {
   function destroy() {
     disable();
     if (rafId) cancelAnimationFrame(rafId);
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
   }
 
   // Initial render

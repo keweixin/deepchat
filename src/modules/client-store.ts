@@ -9,6 +9,10 @@ const BACKUP_SECRETS_EXCLUDED = [
   'settings.mcpServers[].args secret-like values',
 ];
 
+/** Debounced save to avoid repeated serialization during rapid updates */
+let lastSavedSnapshot: string | null = null;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
 export async function loadConversations(): Promise<any[]> {
   if (hasNativeBridge()) return (window as any).deepchat.conversations.load();
   const saved = localStorage.getItem(CONVERSATIONS_KEY);
@@ -21,13 +25,32 @@ export async function loadConversations(): Promise<any[]> {
   }
 }
 
-export async function saveConversations(conversations: any[]): Promise<void> {
+export function saveConversations(conversations: any[]): Promise<void> {
   const safe = Array.isArray(conversations) ? conversations : [];
-  if (hasNativeBridge()) {
-    await (window as any).deepchat.conversations.save(safe);
-  } else {
-    localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(safe));
-  }
+  const serialized = JSON.stringify(safe);
+
+  // Skip if unchanged
+  if (serialized === lastSavedSnapshot) return Promise.resolve();
+
+  // Debounce: cancel pending save and schedule new one
+  if (persistTimer) clearTimeout(persistTimer);
+
+  return new Promise((resolve, reject) => {
+    persistTimer = setTimeout(async () => {
+      persistTimer = null;
+      lastSavedSnapshot = serialized;
+      try {
+        if (hasNativeBridge()) {
+          await (window as any).deepchat.conversations.save(safe);
+        } else {
+          localStorage.setItem(CONVERSATIONS_KEY, serialized);
+        }
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
+    }, 250);
+  });
 }
 
 export async function exportBackup(): Promise<any> {
