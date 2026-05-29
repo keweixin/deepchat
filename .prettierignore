@@ -1,4 +1,5 @@
 .gitnexus/
 dist/
+dist-electron/
 node_modules/
 release/

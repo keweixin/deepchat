@@ -436,7 +436,8 @@ const COMPOSER_THINKING_LABELS = new Map([
 
 function initComposerOptions(openSettings) {
   const $toolbar = document.querySelector('.composer-toolbar');
-  const $modePills = document.getElementById('composer-mode-pills');
+  const $modeSelect = document.getElementById('composer-mode-select') as HTMLSelectElement | null;
+  const $chipToggle = document.getElementById('composer-chip-toggle');
   const $thinking = document.getElementById('composer-thinking-select');
   const $webToggle = document.getElementById('composer-web-search-toggle');
   const $webStatus = document.getElementById('composer-search-status');
@@ -470,7 +471,7 @@ function initComposerOptions(openSettings) {
         enhance: settings.enhance !== false,
       };
     }
-    syncComposerModePills($modePills, composerModeId, settings);
+    syncComposerModeSelect($modeSelect, composerModeId, settings);
     syncThinkingSelect($thinking, composerOverrides.thinkingBudget);
 
     const hasSearchKey = Boolean(settings.tavilyApiKey);
@@ -500,11 +501,9 @@ function initComposerOptions(openSettings) {
     syncing = false;
   }
 
-  if ($modePills) {
-    $modePills.addEventListener('click', (event) => {
-      const pill = event.target.closest('.composer-mode-pill');
-      if (!pill) return;
-      const modeValue = pill.dataset.mode;
+  if ($modeSelect) {
+    $modeSelect.addEventListener('change', () => {
+      const modeValue = $modeSelect.value;
       if (!modeValue) return;
       const settings = getSettings();
       composerModeId = getComposerMode(modeValue).id;
@@ -516,6 +515,13 @@ function initComposerOptions(openSettings) {
       applySettingsToComposer(settings);
       setActiveConversationComposerMode(composerModeId);
       showToast(`本轮模式：${getComposerMode(composerModeId).label}`, 1200);
+    });
+  }
+
+  if ($chipToggle) {
+    $chipToggle.addEventListener('click', () => {
+      const isOpen = $toolbar?.classList.toggle('is-chip-open');
+      $chipToggle.setAttribute('aria-expanded', String(isOpen));
     });
   }
 
@@ -675,20 +681,19 @@ function initComposerOptions(openSettings) {
   applySettingsToComposer();
 }
 
-function syncComposerModePills(container, activeModeId, settings = {}) {
-  if (!container) return;
+function syncComposerModeSelect(select, activeModeId, settings = {}) {
+  if (!select) return;
   const entries = buildComposerModeEntries(settings);
   const resolvedModeId = getComposerMode(activeModeId).id;
-  for (const pill of container.querySelectorAll('.composer-mode-pill')) {
-    const modeId = pill.dataset.mode;
-    const entry = entries.find((item) => item.id === modeId);
-    if (!entry) continue;
-    pill.textContent = entry.label;
-    pill.title = `${entry.description}${entry.state && entry.state !== '可用' ? ` · ${entry.state}` : ''}`;
-    pill.classList.toggle('is-active', modeId === resolvedModeId);
-    pill.classList.toggle('is-unavailable', !entry.available);
-    pill.setAttribute('aria-selected', modeId === resolvedModeId ? 'true' : 'false');
+  for (const option of select.options) {
+    const entry = entries.find((item) => item.id === option.value);
+    if (entry) {
+      option.textContent = entry.label;
+      option.title = entry.description;
+      option.disabled = !entry.available;
+    }
   }
+  select.value = resolvedModeId;
 }
 
 let promptTemplateMenu = null;

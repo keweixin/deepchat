@@ -17,9 +17,10 @@
     "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run typecheck:strict && npm test && npm run build",
     "preview": "vite preview",
+    "build:electron": "node scripts/build-electron.mjs",
     "electron:dev": "vite build && electron .",
-    "electron:build": "vite build && electron-builder --win --x64",
-    "electron:build:portable": "vite build && electron-builder --win portable",
+    "electron:build": "vite build && npm run build:electron && electron-builder --win --x64",
+    "electron:build:portable": "vite build && npm run build:electron && electron-builder --win portable",
     "test:e2e": "npx playwright test"
   },
   "build": {
@@ -32,7 +33,7 @@
       "dist/**/*",
       "electron.js",
       "preload.js",
-      "electron/**/*",
+      "dist-electron/**/*",
       "build/**/*",
       "skills/**/*"
     ],
