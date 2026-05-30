@@ -8,6 +8,7 @@ import {
   DEFAULT_TOOL_APPROVAL_TIMEOUT_MS,
   buildToolSecurity,
   isParallelSafeToolCall,
+  markToolConfirmed,
 } from './approval-manager.js';
 import { normalizeError } from './provider-adapters.js';
 import { toolCallSignature } from './stream-runner.js';
@@ -93,7 +94,7 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
     return denied;
   }
 
-  const approval = resolveToolApprovalDecision(fn.name, args, settings, security);
+  const approval = resolveToolApprovalDecision(fn.name, args, settings, security, requestId);
   emit(requestId, 'toolRequest', {
     toolCallId: toolCall.id,
     name: fn.name,
@@ -135,13 +136,19 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
     ? { approved: true, autoApproved: true, reason: approval.reason }
     : await waitForApproval(requestId, toolCall.id, signal, resolveToolApprovalTimeout(settings));
 
+  // Mark tool as confirmed for confirm_once policy
+  if (decision.approved && !decision.autoApproved) {
+    markToolConfirmed(requestId, fn.name);
+  }
+
   if (decision.skipped || (controller && controller.skippedToolCallIds.has(toolCall.id))) {
     const skippedMsg = `工具 ${fn.name} 已被用户手动跳过。`;
-    emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: skippedMsg });
+    emit(requestId, 'agentStage', { stage: 'tool_skipped', round, maxRounds, toolName: fn.name, warning: skippedMsg });
     emit(requestId, 'toolResult', {
       toolCallId: toolCall.id,
       name: fn.name,
-      ok: true,
+      status: 'skipped',
+      ok: false,
       output: skippedMsg,
       nextAction: 'continue',
       ...buildToolContextOutput(fn.name, args, skippedMsg),
