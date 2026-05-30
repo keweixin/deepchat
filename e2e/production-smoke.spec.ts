@@ -41,4 +41,21 @@ test.describe('Production Smoke Test', () => {
     expect(settings).toBeTruthy();
     expect(settings.model).toBeDefined();
   });
+
+  test('preload bridge is available in production', async () => {
+    electronApp = await electron.launch({
+      args: [path.join(__dirname, '..', 'electron.js')],
+      env: {
+        ...process.env,
+        DEEPCHAT_DISABLE_GPU: '1',
+        NODE_ENV: 'production',
+      },
+    });
+
+    const window = await electronApp.firstWindow();
+    const hasBridge = await window.evaluate(() => {
+      return typeof (window as any).deepchat !== 'undefined';
+    });
+    expect(hasBridge).toBe(true);
+  });
 });

@@ -87,7 +87,7 @@ async function readJson(fileName, fallback) {
     const raw = await fs.readFile(getFilePath(fileName), 'utf8');
     return JSON.parse(raw);
   } catch (err) {
-    console.error(`[storage] Failed to read ${fileName}:`, (/** @type {any} */ (err)).message || err);
+    console.error(`[storage] Failed to read ${fileName}:`, /** @type {any} */ (err).message || err);
     return fallback;
   }
 }
@@ -361,11 +361,19 @@ async function readSecretMap() {
  * @returns {Promise<Record<string, any>>}
  */
 async function getSettings() {
-  const stored = await readJson('settings.json', { version: DATA_VERSION, settings: /** @type {Record<string, any>} */ ({}) });
+  const stored = await readJson('settings.json', {
+    version: DATA_VERSION,
+    settings: /** @type {Record<string, any>} */ ({}),
+  });
   const secrets = await readSecretMap();
-  const publicSettings = /** @type {Record<string, any>} */ ({ ...(stored.settings || /** @type {Record<string, any>} */ ({})) });
+  const publicSettings = /** @type {Record<string, any>} */ ({
+    ...(stored.settings || /** @type {Record<string, any>} */ ({})),
+  });
   for (const key of SECRET_JSON_KEYS) {
-    publicSettings[key] = decryptSecretJson(secrets.secrets?.[key], publicSettings[key] ?? (/** @type {Record<string, any>} */ (DEFAULT_SETTINGS))[key]);
+    publicSettings[key] = decryptSecretJson(
+      secrets.secrets?.[key],
+      publicSettings[key] ?? /** @type {Record<string, any>} */ (DEFAULT_SETTINGS)[key]
+    );
   }
   const settings = normalizeSettings(publicSettings);
   return {
@@ -414,7 +422,10 @@ async function setSettings(patch = /** @type {Record<string, any>} */ ({})) {
  * @returns {Promise<Record<string, any>[]>}
  */
 async function loadConversations() {
-  const stored = await readJson('conversations.json', { version: DATA_VERSION, conversations: /** @type {Record<string, any>[]} */ ([]) });
+  const stored = await readJson('conversations.json', {
+    version: DATA_VERSION,
+    conversations: /** @type {Record<string, any>[]} */ ([]),
+  });
   return Array.isArray(stored.conversations) ? stored.conversations : [];
 }
 
@@ -473,10 +484,12 @@ async function removeWorkspaceRoot(rootPath) {
   const settings = await getSettings();
   const target = path.resolve(rootPath);
   const targetKey = process.platform === 'win32' ? target.toLowerCase() : target;
-  const roots = /** @type {string[]} */ ((/** @type {string[]} */ (settings.workspaceRoots || [])).filter((root) => {
-    const key = process.platform === 'win32' ? path.resolve(root).toLowerCase() : path.resolve(root);
-    return key !== targetKey;
-  }));
+  const roots = /** @type {string[]} */ (
+    /** @type {string[]} */ (settings.workspaceRoots || []).filter((root) => {
+      const key = process.platform === 'win32' ? path.resolve(root).toLowerCase() : path.resolve(root);
+      return key !== targetKey;
+    })
+  );
   return setSettings({ workspaceRoots: roots });
 }
 
@@ -543,10 +556,16 @@ async function exportBackup(parentWindow, options = /** @type {Record<string, an
 
           // Apply excludeToolOutputs
           if (options.excludeToolOutputs && Array.isArray(toolRuns)) {
-            toolRuns = /** @type {any[]} */ (toolRuns).map((run) => ({ ...run, output: '[工具输出已根据隐私设置排除]' }));
+            toolRuns = /** @type {any[]} */ (toolRuns).map((run) => ({
+              ...run,
+              output: '[工具输出已根据隐私设置排除]',
+            }));
           }
           if (options.excludeToolOutputs && Array.isArray(toolCalls)) {
-            toolCalls = /** @type {any[]} */ (toolCalls).map((call) => ({ ...call, output: '[工具输出已根据隐私设置排除]' }));
+            toolCalls = /** @type {any[]} */ (toolCalls).map((call) => ({
+              ...call,
+              output: '[工具输出已根据隐私设置排除]',
+            }));
           }
 
           // Apply excludeMcpReturns
