@@ -1,4 +1,3 @@
-﻿// @ts-nocheck
 import { isMcpToolName } from './mcp-manager.js';
 import path from 'path';
 import { executeTool } from './tools.js';

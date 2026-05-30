@@ -306,7 +306,7 @@ function extractBalancedJsonSnippets(text: string, allowedNames: Set<string>) {
  * @param {string} raw
  * @returns {{ args: Record<string, any>, error: string, repaired?: boolean, warning?: string }}
  */
-function parseToolArgsDetailed(raw: string) {
+export function parseToolArgsDetailed(raw: string) {
   const text = String(raw || '{}');
   try {
     const parsed = JSON.parse(text);
