@@ -29,12 +29,13 @@ const ALL_12_TOOLS = [
   'git_log',
   'project_map',
   'read_many_files',
+  'edit_file',
 ];
 
 describe('TOOL_REGISTRY', () => {
-  it('registers all 12 tools', () => {
+  it('registers all 13 tools', () => {
     expect(getAllToolNames()).toEqual(expect.arrayContaining(ALL_12_TOOLS));
-    expect(getAllToolNames()).toHaveLength(12);
+    expect(getAllToolNames()).toHaveLength(13);
   });
 
   it.each(ALL_12_TOOLS)('tool %s has all required fields', (name) => {

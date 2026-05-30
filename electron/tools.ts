@@ -9,7 +9,7 @@ import {
   redactRunCodeOutput,
   normalizeLanguage,
 } from './tools-run-code.js';
-import { listFiles, readFile, readManyFiles, parsePathLineCitation } from './tools-file.js';
+import { listFiles, readFile, readManyFiles, editFile, parsePathLineCitation } from './tools-file.js';
 import {
   indexWorkspace,
   searchWorkspace,
@@ -152,6 +152,7 @@ async function executeTool(name: string, args: any, settings: any, signal?: Abor
   else if (name === 'git_log') output = await gitLog(args, settings);
   else if (name === 'project_map') output = await projectMap(args, settings);
   else if (name === 'read_many_files') output = await readManyFiles(args, settings);
+  else if (name === 'edit_file') output = await editFile(args, settings);
   else throw new Error(`不支持的工具：${name}`);
   return redactSensitiveText(output);
 }

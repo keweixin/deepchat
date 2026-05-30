@@ -395,10 +395,81 @@ function createMatcher(pattern) {
   return (value) => value.toLowerCase().includes(lower);
 }
 
+/**
+ * Edit a file using SEARCH/REPLACE pattern.
+ * @param {Record<string, unknown>} args
+ * @param {Record<string, unknown>} settings
+ * @returns {Promise<string>}
+ */
+async function editFile(args, settings) {
+  const filePath = String(args.path || '').trim();
+  const searchText = String(args.search || '');
+  const replaceText = String(args.replace || '');
+
+  if (!filePath) throw new Error('文件路径不能为空。');
+  if (!searchText) throw new Error('搜索文本不能为空。');
+  if (searchText === replaceText) throw new Error('搜索文本和替换文本相同，无需修改。');
+
+  const resolvedPath = await resolveFilePath(filePath, settings.workspaceRoots || []);
+
+  // Read current file content
+  const content = await fs.readFile(resolvedPath, 'utf8');
+
+  // Find all occurrences of search text
+  const occurrences = [];
+  let idx = content.indexOf(searchText);
+  while (idx !== -1) {
+    occurrences.push(idx);
+    idx = content.indexOf(searchText, idx + 1);
+  }
+
+  if (occurrences.length === 0) {
+    throw new Error(
+      `搜索文本在文件中未找到。请检查搜索文本是否完全匹配（包括空格和换行）。\n文件：${resolvedPath}\n搜索文本前50字符：${searchText.slice(0, 50)}`
+    );
+  }
+
+  if (occurrences.length > 1) {
+    throw new Error(
+      `搜索文本匹配到 ${occurrences.length} 处，必须唯一匹配。请提供更多上下文使搜索文本唯一。\n文件：${resolvedPath}`
+    );
+  }
+
+  // Apply replacement
+  const newContent = content.replace(searchText, replaceText);
+
+  // Create backup for rollback
+  const backupDir = path.join(path.dirname(resolvedPath), '.deepchat-backups');
+  await fs.mkdir(backupDir, { recursive: true });
+  const backupPath = path.join(backupDir, `${path.basename(resolvedPath)}.${Date.now()}.bak`);
+  await fs.writeFile(backupPath, content, 'utf8');
+
+  // Write new content
+  await fs.writeFile(resolvedPath, newContent, 'utf8');
+
+  // Generate diff summary
+  const oldLines = content.split('\n');
+  const newLines = newContent.split('\n');
+  const addedLines = newLines.length - oldLines.length;
+
+  const result = [
+    `文件已修改：${resolvedPath}`,
+    `备份位置：${backupPath}`,
+    `行数变化：${oldLines.length} → ${newLines.length}（${addedLines >= 0 ? '+' : ''}${addedLines}）`,
+    '',
+    '修改预览：',
+    `- ${searchText.split('\n').length} 行搜索文本`,
+    `+ ${replaceText.split('\n').length} 行替换文本`,
+  ];
+
+  return result.join('\n');
+}
+
 module.exports = {
   listFiles,
   readFile,
   readManyFiles,
+  editFile,
   walk,
   shouldSkip,
   createMatcher,

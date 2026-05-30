@@ -479,6 +479,37 @@ const TOOL_DEFINITIONS = {
       icon: '📄',
     },
   },
+  edit_file: {
+    name: 'edit_file',
+    category: 'file',
+    riskLevel: 'high',
+    approvalPolicy: 'confirm_always',
+    parallelSafe: false,
+    role: 'coder',
+    schema: {
+      type: 'function',
+      function: {
+        name: 'edit_file',
+        description:
+          'Edit a file using SEARCH/REPLACE pattern. SEARCH text must uniquely match exactly one location in the file. The replacement is applied atomically.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'File path (workspace-relative or absolute).' },
+            search: { type: 'string', description: 'Exact text to find in the file. Must match exactly one location.' },
+            replace: { type: 'string', description: 'Text to replace the search match with.' },
+          },
+          required: ['path', 'search', 'replace'],
+        },
+      },
+    },
+    productCopy: {
+      purpose: '通过精确搜索替换编辑文件内容',
+      scope: '单个文件的指定位置',
+      riskReason: '会直接修改文件内容，必须先确认修改内容',
+      icon: '✏️',
+    },
+  },
 };
 
 module.exports = { TOOL_DEFINITIONS };
