@@ -1,4 +1,3 @@
-// @ts-nocheck
 const fs = require('fs/promises');
 const path = require('path');
 
@@ -35,17 +34,31 @@ const SENSITIVE_FILE_NAMES = new Set([
 ]);
 const SENSITIVE_EXTENSIONS = new Set(['.pem', '.key', '.p12', '.pfx', '.crt', '.der', '.cer', '.jks', '.keystore']);
 
+/**
+ * @param {string[]} roots
+ * @returns {string[]}
+ */
 function normalizeRoots(roots) {
   if (!Array.isArray(roots)) return [];
   return roots.map((root) => path.resolve(String(root))).filter(Boolean);
 }
 
+/**
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
 function pathEquals(a, b) {
   const left = path.resolve(a);
   const right = path.resolve(b);
   return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
 
+/**
+ * @param {string} candidate
+ * @param {string} root
+ * @returns {boolean}
+ */
 function isPathInsideRoot(candidate, root) {
   const resolvedCandidate = path.resolve(candidate);
   const resolvedRoot = path.resolve(root);
@@ -53,6 +66,11 @@ function isPathInsideRoot(candidate, root) {
   return rel === '' || (!!rel && !rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
+/**
+ * @param {string | undefined} inputRoot
+ * @param {string[]} workspaceRoots
+ * @returns {Promise<string>}
+ */
 async function resolveWorkspaceRoot(inputRoot, workspaceRoots) {
   const roots = normalizeRoots(workspaceRoots);
   if (roots.length === 0) throw new Error('请先在设置中添加允许读取的工作区目录。');
@@ -63,6 +81,11 @@ async function resolveWorkspaceRoot(inputRoot, workspaceRoots) {
   return matched;
 }
 
+/**
+ * @param {string} inputPath
+ * @param {string[]} workspaceRoots
+ * @returns {Promise<string>}
+ */
 async function resolveAllowedPath(inputPath, workspaceRoots) {
   const roots = normalizeRoots(workspaceRoots);
   if (roots.length === 0) throw new Error('请先在设置中添加允许读取的工作区目录。');
@@ -91,6 +114,11 @@ async function resolveAllowedPath(inputPath, workspaceRoots) {
   throw new Error('文件路径不在已授权工作区中。');
 }
 
+/**
+ * @param {string | undefined} inputPath
+ * @param {string[]} workspaceRoots
+ * @returns {Promise<string>}
+ */
 async function resolveAllowedDirectory(inputPath, workspaceRoots) {
   const directoryPath = await resolveAllowedPath(inputPath || '.', workspaceRoots);
   const stat = await fs.stat(directoryPath);
@@ -98,6 +126,10 @@ async function resolveAllowedDirectory(inputPath, workspaceRoots) {
   return directoryPath;
 }
 
+/**
+ * @param {string} filePath
+ * @returns {boolean}
+ */
 function isSensitivePath(filePath) {
   const normalized = path.resolve(String(filePath || ''));
   const parts = normalized.split(/[\\/]+/).map((part) => part.toLowerCase());
@@ -109,6 +141,10 @@ function isSensitivePath(filePath) {
   return /(token|secret|password|api[_-]?key|credential|private[_-]?key)/i.test(base);
 }
 
+/**
+ * @param {Buffer} buffer
+ * @returns {boolean}
+ */
 function isProbablyBinary(buffer) {
   if (!buffer || buffer.length === 0) return false;
   const scanLength = Math.min(buffer.length, 4096);

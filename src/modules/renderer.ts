@@ -864,9 +864,9 @@ function firstMeaningfulChild(container: HTMLElement) {
 export function safeSetHTML(el: HTMLElement, html: string, options: { source?: string; sanitize?: boolean } = {}) {
   const { sanitize = true } = options;
   if (sanitize) {
-    el.innerHTML = DOMPurify.sanitize(html, purifyConfig);
+    el.innerHTML = DOMPurify.sanitize(html, purifyConfig); /* safeSetHTML-impl */
   } else {
-    el.innerHTML = html; /* safeSetHTML-exempt: explicit safe set when sanitize is false */
+    el.innerHTML = html; /* safeSetHTML-impl: explicit bypass for unsanitized insertion */
   }
 }
 

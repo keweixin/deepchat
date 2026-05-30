@@ -1,4 +1,3 @@
-// @ts-nocheck
 const { TOOL_DEFINITIONS } = require('./shared/tool-definitions');
 
 const MAX_FILE_BYTES = 100 * 1024;
@@ -7,11 +6,13 @@ const MAX_SEARCH_SCAN_FILES = 700;
 const MAX_READ_MANY_FILES_BYTES = 500 * 1024;
 
 // Build TOOL_SCHEMAS dynamically from TOOL_DEFINITIONS
+/** @type {Record<string, any>} */
 const TOOL_SCHEMAS = {};
 for (const [key, def] of Object.entries(TOOL_DEFINITIONS)) {
-  TOOL_SCHEMAS[key] = def.schema;
+  TOOL_SCHEMAS[key] = def && def.schema;
 }
 
+/** @type {Record<string, string[]>} */
 const MODE_TOOLS = {
   none: [],
   web_search: ['web_search'],
@@ -44,9 +45,14 @@ const MODE_TOOLS = {
   ],
 };
 
+/**
+ * @param {string} activeSkill
+ * @returns {any[]}
+ */
 function getToolDefinitions(activeSkill) {
+  /** @type {string[]} */
   const ids = MODE_TOOLS[activeSkill] || [];
-  return ids.map((id) => TOOL_SCHEMAS[id]).filter(Boolean);
+  return ids.map((/** @type {string} */ id) => TOOL_SCHEMAS[id]).filter(Boolean);
 }
 
 module.exports = {

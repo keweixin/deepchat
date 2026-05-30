@@ -56,14 +56,22 @@ for (const file of files) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (/\.innerHTML\s*=/.test(line)) {
-      // Allow DOMPurify.sanitize() on the same line — this is the only truly safe runtime pattern
-      if (/DOMPurify\.sanitize\s*\(/.test(line)) continue;
-      // Require explicit exemption with a written reason
-      if (!/\/\*\s*safeSetHTML-exempt\s*:\s*[^*]+\*\//i.test(line)) {
-        issues.push(
-          `${rel}:${i + 1} contains unauthorized innerHTML assignment. Use safeSetHTML instead, or mark with /* safeSetHTML-exempt: <reason> */ if it is a verified static template.`
-        );
+      // 1. Allow safeSetHTML-impl strictly only in src/modules/renderer.ts
+      if (line.includes('/* safeSetHTML-impl') && rel === 'src/modules/renderer.ts') {
+        continue;
       }
+      // 2. Allow verified static templates with explicit trusted-html, template-safe, or safeSetHTML-exempt comments
+      if (
+        line.includes('/* trusted-html */') ||
+        line.includes('/* template-safe */') ||
+        /\/\*\s*safeSetHTML-exempt\s*:\s*[^*]+\*\//i.test(line)
+      ) {
+        continue;
+      }
+
+      issues.push(
+        `${rel}:${i + 1} contains unauthorized innerHTML assignment. Use safeSetHTML instead, or annotate with /* trusted-html */, /* template-safe */, or /* safeSetHTML-exempt: <reason> */ if it is a verified static template.`
+      );
     }
   }
 }

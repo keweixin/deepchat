@@ -7,6 +7,7 @@
   "include": [
     "src/types",
     "src/modules/tool-registry.ts",
+    "src/modules/constants.ts",
     "src/modules/shared-utils.ts",
     "src/modules/utils.ts",
     "src/modules/token-budget.ts",

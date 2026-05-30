@@ -32,5 +32,13 @@ test.describe('Production Smoke Test', () => {
 
     const sidebar = window.locator('#sidebar');
     await expect(sidebar).toBeVisible();
+
+    // Verify preload IPC bridge is available and functions correctly
+    const hasApi = await window.evaluate(() => Boolean((window as any).deepchat));
+    expect(hasApi).toBe(true);
+
+    const settings = await window.evaluate(() => (window as any).deepchat.settings.get());
+    expect(settings).toBeTruthy();
+    expect(settings.model).toBeDefined();
   });
 });

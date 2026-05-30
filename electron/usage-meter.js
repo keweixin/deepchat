@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Usage Meter — Token usage normalization, cost estimation, and pricing
  *
  * Responsibilities:
@@ -249,3 +248,4 @@ module.exports = {
   estimateMessagesTokens,
   clampNumber,
 };
+

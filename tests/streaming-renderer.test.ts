@@ -162,4 +162,53 @@ describe('createStreamingRenderer', () => {
     renderer.reset();
     expect(container.innerHTML).toBe('');
   });
+
+  it('prevents duplication during long text stream of 10,000+ words', () => {
+    const container = document.createElement('div');
+
+    // Simulate streaming engine similar to chat-streaming.ts
+    let fullContent = '';
+    let lastFullSyncLen = 0;
+    let lastAppendLen = 0;
+
+    const APPEND_THRESHOLD = 5000;
+    const FULL_SYNC_INTERVAL = 3000;
+
+    // Simulate incoming chunks totaling 12,000 chars
+    const chunk = 'This is a sentence that is repeated in chunks to simulate 10k words stream. ';
+    const chunkCount = 160; // 160 * 76 = 12,160 chars
+
+    for (let step = 0; step < chunkCount; step++) {
+      fullContent += chunk;
+
+      if (fullContent.length < APPEND_THRESHOLD) {
+        // Short content: full sync
+        container.innerHTML = renderStreamingMarkdown(fullContent); /* safeSetHTML-exempt: verified test environment */
+        lastFullSyncLen = fullContent.length;
+        lastAppendLen = fullContent.length;
+      } else if (fullContent.length - lastFullSyncLen > FULL_SYNC_INTERVAL || lastFullSyncLen === 0) {
+        // Full sync
+        container.innerHTML = renderStreamingMarkdown(fullContent); /* safeSetHTML-exempt: verified test environment */
+        lastFullSyncLen = fullContent.length;
+        lastAppendLen = fullContent.length;
+      } else {
+        // Append-only mode: render only new content
+        const newContent = fullContent.slice(lastAppendLen);
+        if (newContent.length > 0) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = renderStreamingMarkdown(newContent); /* safeSetHTML-exempt: verified test environment */
+          while (tempDiv.firstChild) {
+            container.appendChild(tempDiv.firstChild);
+          }
+          lastAppendLen = fullContent.length;
+        }
+      }
+    }
+
+    // The final text inside DOM must be exactly equal to the output text, without duplicate segments
+    const plainText = container.textContent || '';
+    // Ensure all 160 chunks are represented exactly once
+    const occurrenceCount = (plainText.match(/This is a sentence that is repeated in chunks/g) || []).length;
+    expect(occurrenceCount).toBe(chunkCount);
+  });
 });

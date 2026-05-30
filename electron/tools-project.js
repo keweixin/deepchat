@@ -1,4 +1,3 @@
-// @ts-nocheck
 const fs = require('fs/promises');
 const path = require('path');
 const { resolveWorkspaceRoot } = require('./tools-path');
@@ -8,12 +7,24 @@ const PROJECT_MAP_EXCLUDED_DIRS = new Set(['.git', 'node_modules', 'dist', 'buil
 const DEFAULT_MAX_NODES = 800;
 const DEFAULT_MAX_ENTRIES_PER_DIR = 200;
 
+/**
+ * @param {any} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampInt(value, min, max, fallback) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
 }
 
+/**
+ * @param {{ path?: string; maxDepth?: number; maxNodes?: number; maxEntriesPerDir?: number }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
 async function projectMap(args, settings) {
   const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
   const maxDepth = clampInt(args.maxDepth, 1, 10, 4);
@@ -25,6 +36,12 @@ async function projectMap(args, settings) {
   let nodeCount = 0;
   let truncated = false;
 
+  /**
+   * @param {string} current
+   * @param {number} depth
+   * @param {string} prefix
+   * @returns {Promise<void>}
+   */
   async function walkMap(current, depth, prefix) {
     if (depth > maxDepth) return;
     if (nodeCount >= maxNodes) {

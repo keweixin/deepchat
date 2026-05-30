@@ -83,8 +83,9 @@ export function getFreshnessWindow(query) {
 export function buildTavilySearchRequest(rawQuery, settings = {}, explicitMaxResults) {
   const originalQuery = String(rawQuery || '').trim();
   const cleanedQuery = normalizeSearchQuery(originalQuery);
-  const maxResults = deriveSearchMaxResults(originalQuery, explicitMaxResults ?? settings.tavilyMaxResults);
+  const maxResults = deriveSearchMaxResults(originalQuery, explicitMaxResults ?? settings.tavilyMaxResults ?? 5);
   const freshness = getFreshnessWindow(originalQuery);
+  /** @type {{ query: string; max_results: number; search_depth: string; include_answer: boolean; include_raw_content: boolean; topic?: string; time_range?: string; days?: number }} */
   const payload = {
     query: cleanedQuery,
     max_results: maxResults,

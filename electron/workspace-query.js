@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Workspace search query parser with advanced directive support.
  *
  * Supported directives:
@@ -139,3 +138,4 @@ export function buildHighlightedSnippet(lines, centerLine, radius = 2) {
   }
   return result;
 }
+
