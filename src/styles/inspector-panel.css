@@ -12,14 +12,16 @@
   border-left: 1px solid var(--border-color, #e5e7eb);
   box-shadow: -4px 0 16px rgba(0, 0, 0, 0.06);
   transform: translateX(100%);
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, visibility 0.3s ease;
   z-index: 100;
   display: flex;
   flex-direction: column;
+  visibility: hidden;
 }
 
 #right-inspector-panel.is-visible {
   transform: translateX(0);
+  visibility: visible;
 }
 
 .inspector-panel-header {

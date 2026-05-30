@@ -1,4 +1,4 @@
-﻿/* Input Area */
+/* Input Area */
 .input-area {
   padding: 0 var(--space-6) var(--space-4);
   background: transparent;
@@ -51,20 +51,12 @@
 }
 
 .composer-chip-row {
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition:
-    max-height 0.3s ease,
-    opacity 0.2s ease,
-    margin 0.2s ease;
-  margin-top: 0;
+  display: none !important;
 }
 
-.composer-toolbar.is-chip-open .composer-chip-row {
-  max-height: 60px;
-  opacity: 1;
-  margin-top: var(--space-1);
+.composer-toolbar.is-chip-open ~ .composer-chip-row {
+  display: flex !important;
+  animation: fadeIn 0.2s ease;
 }
 
 .composer-advanced-options {

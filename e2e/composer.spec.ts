@@ -18,7 +18,7 @@ test.describe('Composer', () => {
     });
 
     const window = await electronApp.firstWindow();
-    await window.waitForSelector('#composer', { state: 'visible', timeout: 15_000 });
+    await window.waitForSelector('#message-input', { state: 'visible', timeout: 15_000 });
 
     const textarea = window.locator('#message-input');
     await expect(textarea).toBeVisible();
