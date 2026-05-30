@@ -73,7 +73,7 @@ describe('cache stability invariants', () => {
 
   it('all 12 registered tools have stable names', () => {
     const names = getAllToolNames();
-    expect(names).toHaveLength(13);
+    expect(names).toHaveLength(14);
     for (const name of names) {
       const def = TOOL_REGISTRY[name];
       expect(def).toBeDefined();

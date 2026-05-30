@@ -510,6 +510,49 @@ const TOOL_DEFINITIONS = {
       icon: '✏️',
     },
   },
+  multi_edit: {
+    name: 'multi_edit',
+    category: 'file',
+    riskLevel: 'high',
+    approvalPolicy: 'confirm_always',
+    parallelSafe: false,
+    role: 'coder',
+    schema: {
+      type: 'function',
+      function: {
+        name: 'multi_edit',
+        description:
+          'Apply multiple SEARCH/REPLACE edits to a single file atomically. All edits are validated before any are applied.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'File path.' },
+            edits: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  search: { type: 'string', description: 'Text to find.' },
+                  replace: { type: 'string', description: 'Replacement text.' },
+                },
+                required: ['search', 'replace'],
+              },
+              minItems: 1,
+              maxItems: 20,
+              description: 'Array of search/replace edits to apply.',
+            },
+          },
+          required: ['path', 'edits'],
+        },
+      },
+    },
+    productCopy: {
+      purpose: '对单个文件应用多处精确修改',
+      scope: '单个文件的多个位置',
+      riskReason: '会直接修改文件内容，所有修改必须先确认',
+      icon: '✏️',
+    },
+  },
 };
 
 module.exports = { TOOL_DEFINITIONS };

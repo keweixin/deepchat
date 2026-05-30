@@ -465,11 +465,146 @@ async function editFile(args, settings) {
   return result.join('\n');
 }
 
+/**
+ * Apply multiple edits to a file atomically.
+ * @param {Record<string, unknown>} args
+ * @param {Record<string, unknown>} settings
+ * @returns {Promise<string>}
+ */
+async function multiEdit(args, settings) {
+  const filePath = String(args.path || '').trim();
+  const edits = args.edits;
+
+  if (!filePath) throw new Error('文件路径不能为空。');
+  if (!Array.isArray(edits) || edits.length === 0) throw new Error('edits 数组不能为空。');
+
+  const resolvedPath = await resolveFilePath(filePath, settings.workspaceRoots || []);
+  let content = await fs.readFile(resolvedPath, 'utf8');
+
+  // Validate all edits first
+  const results = [];
+  for (let i = 0; i < edits.length; i++) {
+    const edit = edits[i];
+    const searchText = String(edit.search || '');
+    const replaceText = String(edit.replace || '');
+    if (!searchText) throw new Error(`第 ${i + 1} 个编辑的搜索文本不能为空。`);
+
+    const occurrences = [];
+    let idx = content.indexOf(searchText);
+    while (idx !== -1) {
+      occurrences.push(idx);
+      idx = content.indexOf(searchText, idx + 1);
+    }
+
+    if (occurrences.length === 0) {
+      throw new Error(`第 ${i + 1} 个编辑的搜索文本未找到：${searchText.slice(0, 50)}`);
+    }
+    if (occurrences.length > 1) {
+      throw new Error(`第 ${i + 1} 个编辑的搜索文本匹配到 ${occurrences.length} 处，必须唯一匹配。`);
+    }
+    results.push({ searchText, replaceText });
+  }
+
+  // Create backup
+  const backupDir = path.join(path.dirname(resolvedPath), '.deepchat-backups');
+  await fs.mkdir(backupDir, { recursive: true });
+  const backupPath = path.join(backupDir, `${path.basename(resolvedPath)}.${Date.now()}.bak`);
+  await fs.writeFile(backupPath, content, 'utf8');
+
+  // Apply all edits
+  for (const { searchText, replaceText } of results) {
+    content = content.replace(searchText, replaceText);
+  }
+
+  await fs.writeFile(resolvedPath, content, 'utf8');
+
+  const oldLines = (await fs.readFile(backupPath, 'utf8')).split('\n').length;
+  const newLines = content.split('\n').length;
+
+  return [
+    `文件已修改：${resolvedPath}`,
+    `备份位置：${backupPath}`,
+    `编辑数量：${results.length}`,
+    `行数变化：${oldLines} → ${newLines}`,
+  ].join('\n');
+}
+
+/**
+ * Apply a unified diff patch to a file.
+ * @param {Record<string, unknown>} args
+ * @param {Record<string, unknown>} settings
+ * @returns {Promise<string>}
+ */
+async function applyPatch(args, settings) {
+  const filePath = String(args.path || '').trim();
+  const patch = String(args.patch || '');
+
+  if (!filePath) throw new Error('文件路径不能为空。');
+  if (!patch) throw new Error('patch 内容不能为空。');
+
+  const resolvedPath = await resolveFilePath(filePath, settings.workspaceRoots || []);
+  const content = await fs.readFile(resolvedPath, 'utf8');
+
+  // Simple unified diff parser
+  const lines = patch.split('\n');
+  const hunks = [];
+  let currentHunk = null;
+
+  for (const line of lines) {
+    if (line.startsWith('@@')) {
+      const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/);
+      if (match) {
+        currentHunk = { oldStart: parseInt(match[1]), newStart: parseInt(match[2]), lines: [] };
+        hunks.push(currentHunk);
+      }
+    } else if (currentHunk) {
+      currentHunk.lines.push(line);
+    }
+  }
+
+  if (hunks.length === 0) {
+    throw new Error('未找到有效的 hunks。请提供标准 unified diff 格式。');
+  }
+
+  // Create backup
+  const backupDir = path.join(path.dirname(resolvedPath), '.deepchat-backups');
+  await fs.mkdir(backupDir, { recursive: true });
+  const backupPath = path.join(backupDir, `${path.basename(resolvedPath)}.${Date.now()}.bak`);
+  await fs.writeFile(backupPath, content, 'utf8');
+
+  // Apply patches (simplified - works for single hunk)
+  let newContent = content;
+  for (const hunk of hunks) {
+    const oldLines = newContent.split('\n');
+    const start = hunk.oldStart - 1;
+    let result = oldLines.slice(0, start);
+
+    for (const line of hunk.lines) {
+      if (line.startsWith('+')) {
+        result.push(line.slice(1));
+      } else if (line.startsWith('-')) {
+        // Skip removed line
+      } else if (line.startsWith(' ')) {
+        result.push(line.slice(1));
+      }
+    }
+
+    result = result.concat(oldLines.slice(start + hunk.lines.filter((l) => !l.startsWith('+')).length));
+    newContent = result.join('\n');
+  }
+
+  await fs.writeFile(resolvedPath, newContent, 'utf8');
+
+  return [`Patch 已应用：${resolvedPath}`, `备份位置：${backupPath}`, `Hunks 数量：${hunks.length}`].join('\n');
+}
+
 module.exports = {
   listFiles,
   readFile,
   readManyFiles,
   editFile,
+  multiEdit,
+  applyPatch,
   walk,
   shouldSkip,
   createMatcher,

@@ -16,7 +16,7 @@ import {
   RISK_LEVEL_PRODUCT,
 } from '../src/modules/tool-registry.js';
 
-const ALL_12_TOOLS = [
+const ALL_14_TOOLS = [
   'web_search',
   'list_files',
   'search_workspace',
@@ -30,15 +30,16 @@ const ALL_12_TOOLS = [
   'project_map',
   'read_many_files',
   'edit_file',
+  'multi_edit',
 ];
 
 describe('TOOL_REGISTRY', () => {
   it('registers all 13 tools', () => {
-    expect(getAllToolNames()).toEqual(expect.arrayContaining(ALL_12_TOOLS));
-    expect(getAllToolNames()).toHaveLength(13);
+    expect(getAllToolNames()).toEqual(expect.arrayContaining(ALL_14_TOOLS));
+    expect(getAllToolNames()).toHaveLength(14);
   });
 
-  it.each(ALL_12_TOOLS)('tool %s has all required fields', (name) => {
+  it.each(ALL_14_TOOLS)('tool %s has all required fields', (name) => {
     const def = TOOL_REGISTRY[name];
     expect(def).toBeDefined();
     expect(def.name).toBe(name);
@@ -158,7 +159,7 @@ describe('isToolParallelSafe', () => {
 
 describe('getToolCardSummary', () => {
   it('returns meaningful summaries for all tools', () => {
-    for (const name of ALL_12_TOOLS) {
+    for (const name of ALL_14_TOOLS) {
       const summary = getToolCardSummary(name, {});
       expect(summary).toBeTruthy();
       expect(summary.length).toBeGreaterThan(0);
