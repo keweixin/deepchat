@@ -1,11 +1,10 @@
-﻿// @ts-nocheck
-import { normalizeTokenUsage } from './usage-meter.js';
+﻿import { normalizeTokenUsage } from './usage-meter.js';
 import { mergeToolCalls, compactToolCalls } from './stream-runner.js';
 import { repairToolCallsFromText } from './tool-executor.js';
 import { fetchChatCompletionWithFallback } from './provider-adapters.js';
 
 async function streamOnce(requestId, messages, settings, tools, signal, emit) {
-  const baseBody = {
+  const baseBody: any = {
     model: settings.model,
     messages,
     stream: true,

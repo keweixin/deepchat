@@ -1,5 +1,4 @@
-﻿// @ts-nocheck
-/**
+﻿/**
  * Context Manager — Message budgeting, trimming, and context compaction
  *
  * Responsibilities:
@@ -52,7 +51,7 @@ function createContextBudgetMeta({
   retained,
   used,
   prefix = {},
-}) {
+}: any) {
   const retainedSet = new Set(retained);
   const droppedMessages = capped.filter((message) => !retainedSet.has(message));
   const omittedByMessageLimit = Math.max(0, clean.length - capped.length);
@@ -80,7 +79,7 @@ function createContextBudgetMeta({
   };
 }
 
-function buildContextBudgetBundle(messages, options = {}) {
+function buildContextBudgetBundle(messages: any[], options: any = {}) {
   const maxMessages = Math.round(clampNumber(options.maxMessages, 1, 100, 20));
   const maxInputTokens = Math.round(clampNumber(options.maxInputTokens, 1, 262144, DEFAULT_MAX_INPUT_TOKENS));
   const prefixTokens = Math.max(0, toTokenNumber(options.prefixTokens));

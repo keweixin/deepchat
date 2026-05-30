@@ -1,5 +1,4 @@
-﻿// @ts-nocheck
-import { normalizeBaseUrl, buildHeaders, normalizeError } from './provider-adapters.js';
+﻿import { normalizeBaseUrl, buildHeaders, normalizeError } from './provider-adapters.js';
 import { resolveAuxiliaryModel, resolveAgentMaxRounds } from './stream-runner.js';
 import { estimateTokens, estimateMessagesTokens, normalizeTokenUsage } from './usage-meter.js';
 import { formatMessagesForSummary, hashMessages } from './context-manager.js';
@@ -59,7 +58,7 @@ async function maybeBuildContextSummary(
       estimateMessagesTokens([
         { role: 'system', content: 'Summarize conversation context.' },
         { role: 'user', content: `${existingSummary}\n${formatMessagesForSummary(summarySourceMessages)}` },
-      ]) + prefixTokens;
+      ] as any[]) + prefixTokens;
     return {
       summary,
       generated: true,

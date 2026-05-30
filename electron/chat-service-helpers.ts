@@ -1,5 +1,4 @@
-﻿// @ts-nocheck
-import { DEFAULT_AGENT_MAX_ROUNDS } from './agent-planner.js';
+﻿import { DEFAULT_AGENT_MAX_ROUNDS } from './agent-planner.js';
 import { isMcpToolName } from './mcp-manager.js';
 import { parseToolArgsDetailed, compactToolOutputForContext } from './tool-executor.js';
 import { estimateTokens } from './usage-meter.js';
@@ -7,7 +6,7 @@ import { estimateTokens } from './usage-meter.js';
 const DEFAULT_MAX_INPUT_TOKENS = 24000;
 const AGENT_EXECUTION_MODES = new Set(['execute_all', 'single_step']);
 
-function attachPrefixProfile(usage, prefix, settings = {}) {
+function attachPrefixProfile(usage: any, prefix: any, settings: any = {}) {
   usage.prefixFingerprint = prefix.prefixFingerprint;
   usage.prefixBytes = prefix.prefixBytes;
   usage.prefixTokens = prefix.prefixTokens;
@@ -29,7 +28,7 @@ function attachPrefixProfile(usage, prefix, settings = {}) {
   return usage;
 }
 
-function applyRequestOverrides(settings, overrides = {}) {
+function applyRequestOverrides(settings: any, overrides: any = {}) {
   const next = { ...settings };
   if (overrides.thinkingBudget !== undefined) next.thinkingBudget = Number.parseInt(overrides.thinkingBudget, 10) || 0;
   if (overrides.activeSkill !== undefined) next.activeSkill = String(overrides.activeSkill || 'none');
@@ -56,7 +55,7 @@ function buildSingleStepStopReason(toolResults = []) {
   return `${summary}已暂停后续工具轮次；可继续点击"单步执行"推进下一步，或点击"执行全部"让 Agent 按计划继续。`;
 }
 
-function buildToolNextAction(name, args = {}, outcome = {}) {
+function buildToolNextAction(name: string, args: any = {}, outcome: any = {}) {
   const toolName = String(name || 'unknown_tool');
   if (outcome.parseError) {
     return '让模型重新发送合法 JSON 参数；不要执行空参数工具调用。';
