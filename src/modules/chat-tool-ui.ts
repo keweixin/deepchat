@@ -211,7 +211,7 @@ export function buildRunCodeArtifactMarkdown(tool: Record<string, unknown> = {},
 }
 export function renderToolCalls(container: HTMLElement, toolCalls: any[] = [], options: Record<string, any> = {}) {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
   if (!toolCalls || toolCalls.length === 0) {
     container.hidden = true;
     return;

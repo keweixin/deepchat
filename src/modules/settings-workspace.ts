@@ -10,7 +10,7 @@ export function renderWorkspaceList(
   onRemove: (root: string) => void
 ): void {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
   if (!roots || roots.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'workspace-empty';

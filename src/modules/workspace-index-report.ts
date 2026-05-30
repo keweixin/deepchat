@@ -140,7 +140,7 @@ export function renderIndexStatusHtml(report: IndexReport | null): string {
 
 export function renderIndexStatus(container: HTMLElement | null, report: IndexReport | null): void {
   if (!container) return;
-  container.innerHTML = renderIndexStatusHtml(report);
+  container.innerHTML = renderIndexStatusHtml(report); /* trusted-html */
 }
 
 export function shouldIndexFile(

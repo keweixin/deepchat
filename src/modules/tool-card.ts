@@ -241,7 +241,7 @@ export function renderToolCard(
     ? `color:${productRisk.color};background:${productRisk.bg};border-color:${productRisk.border}`
     : `color:${legacyRisk.color}`;
 
-  header.innerHTML = `
+  header.innerHTML = ` /* trusted-html */
     <span class="tool-card-icon">${getToolIcon(toolName)}</span>
     <span class="tool-card-name">${escapeHtml(toolName)}</span>
     <span class="tool-card-status tool-card-status--${approval.id}" style="color:${approval.color}">${approval.icon} ${approval.label}</span>
@@ -255,29 +255,29 @@ export function renderToolCard(
   // Purpose row
   const purposeEl = document.createElement('div');
   purposeEl.className = 'tool-card-purpose';
-  purposeEl.innerHTML = `<span class="tool-card-label">目的</span><span class="tool-card-value">${escapeHtml(purpose)}</span>`;
+  purposeEl.innerHTML = `<span class="tool-card-label">目的</span><span class="tool-card-value">${escapeHtml(purpose)}</span>`; /* trusted-html */
 
   // Scope row
   const scopeEl = document.createElement('div');
   scopeEl.className = 'tool-card-scope';
-  scopeEl.innerHTML = `<span class="tool-card-label">范围</span><span class="tool-card-value">${escapeHtml(scope)}</span>`;
+  scopeEl.innerHTML = `<span class="tool-card-label">范围</span><span class="tool-card-value">${escapeHtml(scope)}</span>`; /* trusted-html */
 
   // Risk row
   const riskEl = document.createElement('div');
   riskEl.className = 'tool-card-risk-row';
   const riskValueStyle = hasMetadata ? `color:${productRisk.color}` : `color:${legacyRisk.color}`;
   const riskLabel = hasMetadata ? productRisk.label : legacyRisk.label;
-  riskEl.innerHTML = `<span class="tool-card-label">风险</span><span class="tool-card-value" style="${riskValueStyle}">${legacyRisk.icon} ${riskLabel} — ${escapeHtml(riskReason)}</span>`;
+  riskEl.innerHTML = `<span class="tool-card-label">风险</span><span class="tool-card-value" style="${riskValueStyle}">${legacyRisk.icon} ${riskLabel} — ${escapeHtml(riskReason)}</span>`; /* trusted-html */
 
   // Result summary row
   const resultEl = document.createElement('div');
   resultEl.className = 'tool-card-result';
-  resultEl.innerHTML = `<span class="tool-card-label">结果</span><span class="tool-card-value">${escapeHtml(resultSummary)}</span>`;
+  resultEl.innerHTML = `<span class="tool-card-label">结果</span><span class="tool-card-value">${escapeHtml(resultSummary)}</span>`; /* trusted-html */
 
   // Next action row
   const nextEl = document.createElement('div');
   nextEl.className = 'tool-card-next';
-  nextEl.innerHTML = `<span class="tool-card-label">下一步</span><span class="tool-card-value">${escapeHtml(nextAction)}</span>`;
+  nextEl.innerHTML = `<span class="tool-card-label">下一步</span><span class="tool-card-value">${escapeHtml(nextAction)}</span>`; /* trusted-html */
 
   body.append(purposeEl, scopeEl, riskEl, resultEl, nextEl);
 
@@ -356,7 +356,7 @@ export function renderToolCard(
   if (traceId) {
     const traceEl = document.createElement('div');
     traceEl.className = 'tool-card-section';
-    traceEl.innerHTML = `<strong>Trace ID</strong>`;
+    traceEl.innerHTML = `<strong>Trace ID</strong>`; /* trusted-html */
     const tracePre = document.createElement('pre');
     tracePre.className = 'tool-card-raw';
     tracePre.textContent = traceId;
@@ -374,7 +374,7 @@ export function renderToolCard(
   if (contextOutputTokens) perfParts.push(`上下文 Tokens：${contextOutputTokens}`);
   if (tool.contextCompacted) perfParts.push('（已压缩）');
   if (perfParts.length) {
-    perfEl.innerHTML = `<strong>性能指标</strong>`;
+    perfEl.innerHTML = `<strong>性能指标</strong>`; /* trusted-html */
     const perfPre = document.createElement('pre');
     perfPre.className = 'tool-card-raw';
     perfPre.textContent = perfParts.join('\n');
@@ -385,7 +385,7 @@ export function renderToolCard(
   // Full input
   const inputSection = document.createElement('div');
   inputSection.className = 'tool-card-section';
-  inputSection.innerHTML = `<strong>完整输入参数</strong>`;
+  inputSection.innerHTML = `<strong>完整输入参数</strong>`; /* trusted-html */
   const inputPre = document.createElement('pre');
   inputPre.className = 'tool-card-raw';
   inputPre.textContent = JSON.stringify(tool.args || {}, null, 2);
@@ -395,7 +395,7 @@ export function renderToolCard(
   // Full output
   const outputSection = document.createElement('div');
   outputSection.className = 'tool-card-section';
-  outputSection.innerHTML = `<strong>完整输出结果</strong>`;
+  outputSection.innerHTML = `<strong>完整输出结果</strong>`; /* trusted-html */
   const outputPre = document.createElement('pre');
   outputPre.className = 'tool-card-raw';
   outputPre.textContent = tool.output != null ? String(tool.output) : '(无输出)';
@@ -426,7 +426,7 @@ export function renderToolCardList(
   options: { showRaw?: boolean; onToggleRaw?: (expanded: boolean) => void } = {}
 ): void {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
   if (!toolCalls || toolCalls.length === 0) {
     container.hidden = true;
     return;

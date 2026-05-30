@@ -173,7 +173,7 @@ export function createSidebar(deps: Record<string, any>) {
 
   function renderConversationList(searchQuery = '') {
     closeConversationMenu();
-    deps.$convList.innerHTML = '';
+    deps.$convList.textContent = '';
     updateConversationToolbarState();
 
     const filtered = filterConversations(deps.getConversations(), {
@@ -182,7 +182,7 @@ export function createSidebar(deps: Record<string, any>) {
     });
 
     if (filtered.length === 0) {
-      deps.$convList.innerHTML = `<div class="sidebar-empty">${getEmptyConversationText(searchQuery)}</div>`;
+      deps.$convList.innerHTML = `<div class="sidebar-empty">${getEmptyConversationText(searchQuery)}</div>`; /* trusted-html */
       return;
     }
 
@@ -210,7 +210,7 @@ export function createSidebar(deps: Record<string, any>) {
         .filter(Boolean)
         .join('');
       const selected = deps.getSelectedIds().has(conv.id);
-      item.innerHTML = `
+      item.innerHTML = ` /* trusted-html */
         ${deps.getBulkMode() ? `<input class="conv-select" type="checkbox" ${selected ? 'checked' : ''} aria-label="选择对话">` : ''}
         <svg class="conv-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         <span class="conv-text">

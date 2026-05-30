@@ -152,7 +152,7 @@ function buildArtifactMetaParts(artifact: Record<string, any>) {
 }
 export function renderAssistantAnswerHeader(container: HTMLElement, message: Record<string, any> = {}) {
   if (!container) return null;
-  container.innerHTML = '';
+  container.textContent = '';
   const items = buildAssistantAnswerHeaderItems(message);
   if (!items.length) {
     container.hidden = true;
@@ -184,7 +184,7 @@ export function renderAssistantAnswerHeader(container: HTMLElement, message: Rec
 
 export function renderAssistantToc(container: HTMLElement, contentEl: HTMLElement, options: Record<string, any> = {}) {
   if (!container || !contentEl) return [];
-  container.innerHTML = '';
+  container.textContent = '';
   const minHeadings = Number.isFinite(options.minHeadings) ? options.minHeadings : 3;
   const headings = Array.from(contentEl.querySelectorAll('h2, h3'))
     .map((heading: Element, index: number) => {
@@ -1023,7 +1023,7 @@ function appendGroundingCard(
   }
 }
 export function renderErrorContent(container: HTMLElement, message: string, onClose?: any, onRetry?: any) {
-  container.innerHTML = '';
+  container.textContent = '';
   const wrap = document.createElement('div');
   wrap.className = 'message-error';
   const text = document.createElement('span');

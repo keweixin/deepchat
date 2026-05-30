@@ -12,33 +12,6 @@ const DANGEROUS_PATTERNS = [
 ];
 const SECURITY_PATTERNS = [
   {
-    name: 'innerHTML assignment',
-    pattern: /\.innerHTML\s*=/,
-    allowlist: [
-      'src/modules/renderer.ts',
-      'src/main.ts',
-      'src/modules/agent-crew.ts',
-      'src/modules/chat.ts',
-      'src/modules/chat-sidebar.ts',
-      'src/modules/chat-message-renderer.ts',
-      'src/modules/reading-navigator.ts',
-      'src/modules/settings.ts',
-      'src/modules/agent-theatre.ts',
-      'src/modules/agent-trace-inspector.ts',
-      'src/modules/inspector-panel.ts',
-      'src/modules/streaming-renderer.ts',
-      'src/modules/tool-card.ts',
-      'src/modules/workspace-index-report.ts',
-      'src/modules/chat-streaming.ts',
-      'src/modules/settings-dom.ts',
-      'src/modules/settings-mcp.ts',
-      'src/modules/settings-skills.ts',
-      'src/modules/settings-workspace.ts',
-      'src/modules/chat-assistant-ui.ts',
-      'src/modules/chat-tool-ui.ts',
-    ],
-  },
-  {
     name: 'shell.openExternal without allowlist',
     pattern: /shell\.openExternal\s*\(/,
     allowlist: ['electron.js', 'electron/main.ts'],
@@ -76,6 +49,21 @@ for (const file of files) {
   }
   if (SENSITIVE_FILE_PATTERNS.test(path.basename(file))) {
     issues.push(`${rel} is a sensitive file type and should not be in source`);
+  }
+
+  // Strict innerHTML check line-by-line (only src/modules/renderer.ts allowed without comment)
+  if (rel !== 'src/modules/renderer.ts') {
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/\.innerHTML\s*=/.test(line)) {
+        if (!/\/\*\s*(?:trusted-html|template-safe|template-only)\s*\*\//i.test(line)) {
+          issues.push(
+            `${rel}:${i + 1} contains unauthorized innerHTML assignment. Use safeSetHTML instead, or mark as safe with a /* trusted-html */ trailing comment if it is a pure static template.`
+          );
+        }
+      }
+    }
   }
 }
 

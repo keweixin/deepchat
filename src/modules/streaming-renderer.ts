@@ -9,6 +9,7 @@
  */
 
 import { escapeHtml } from './shared-utils.js';
+import { safeSetHTML } from './renderer.js';
 
 const INLINE_RULES = [
   // Code span: `code`
@@ -122,7 +123,7 @@ export function createStreamingRenderer(container: HTMLElement) {
     // just re-render the whole thing. The lightweight parser is fast enough.
     // For very long text, we could optimize further.
     const html = renderStreamingMarkdown(fullText);
-    container.innerHTML = html;
+    safeSetHTML(container, html);
     ensureCursor();
     lastText = fullText;
   }
@@ -135,14 +136,14 @@ export function createStreamingRenderer(container: HTMLElement) {
   function finalize(fullText: string, renderFull: (text: string) => string) {
     removeCursor();
     const html = renderFull(fullText);
-    container.innerHTML = html;
+    safeSetHTML(container, html);
     lastText = fullText;
   }
 
   function reset() {
     lastText = '';
     removeCursor();
-    container.innerHTML = '';
+    container.textContent = '';
   }
 
   return { update, finalize, reset, removeCursor };

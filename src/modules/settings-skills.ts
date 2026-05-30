@@ -8,7 +8,7 @@ export function renderSkillGrid(
   settings: Record<string, unknown> = getSettings()
 ): void {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
 
   const resolvedActiveSkill = resolveRunnableSkill(settings);
   for (const [id, skill] of Object.entries(SKILLS) as [string, { icon: string; name: string; description: string }][]) {
@@ -18,7 +18,7 @@ export function renderSkillGrid(
     card.disabled = !available;
     card.setAttribute('aria-disabled', String(!available));
     card.className = `skill-card${id === resolvedActiveSkill ? ' active' : ''}${available ? '' : ' unavailable'}`;
-    card.innerHTML = `
+    card.innerHTML = ` /* trusted-html */
       <span class="skill-icon">${skill.icon}</span>
       <span class="skill-name">${skill.name}</span>
       <span class="skill-desc">${skill.description}</span>

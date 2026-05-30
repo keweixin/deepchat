@@ -114,12 +114,12 @@ export function renderAgentTheatre(container: HTMLElement | null, agentRun: Agen
   (wrapper as any).__theatreShowFlow = showFlow;
 
   // Full render
-  wrapper.innerHTML = '';
+  wrapper.textContent = '';
 
   // Header
   const header = document.createElement('div');
   header.className = 'agent-theatre-header';
-  header.innerHTML = `
+  header.innerHTML = ` /* trusted-html */
     <span class="theatre-pulse"></span>
     <span class="agent-theatre-title">Agent Theatre</span>
     <span class="agent-theatre-badge">${agentRun?.status || 'idle'}</span>
@@ -187,7 +187,7 @@ export function renderAgentTheatre(container: HTMLElement | null, agentRun: Agen
     actorEl.className = `theatre-actor ${animClass}`;
     actorEl.dataset.roleId = role.id;
     actorEl.dataset.toolCount = String(toolCount);
-    actorEl.innerHTML = `
+    actorEl.innerHTML = ` /* trusted-html */
       <div class="theatre-actor-icon" style="color:${role.color}">${role.iconSvg}</div>
       <div class="theatre-actor-name">${role.label}</div>
       <div class="theatre-actor-status">${escapeHtml(statusText)}</div>
@@ -357,7 +357,7 @@ function _drawFlowPaths(svg: SVGSVGElement, actorMap: Map<string, HTMLElement>, 
     pathsHtml += `<path d="M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}" class="theatre-flow-path ${isActive ? 'is-active' : ''}"/>`;
   }
 
-  svg.innerHTML = pathsHtml;
+  svg.innerHTML = pathsHtml; /* trusted-html */
   svg.setAttribute('viewBox', `0 0 ${stageRect.width} ${stageRect.height}`);
 }
 

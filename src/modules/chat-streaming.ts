@@ -6,7 +6,7 @@
  */
 
 import { renderStreamingMarkdown } from './streaming-renderer.js';
-import { renderMarkdown, postProcess } from './renderer.js';
+import { renderMarkdown, postProcess, safeSetHTML } from './renderer.js';
 import {
   COPY_FEEDBACK_MS,
   OUTLINE_HIGHLIGHT_MS,
@@ -219,12 +219,12 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         // Tiered rendering strategy
         if (fullContent.length < APPEND_THRESHOLD) {
           // Short content: full re-render (fast enough)
-          contentEl.innerHTML = renderStreamingMarkdown(fullContent);
+          safeSetHTML(contentEl, renderStreamingMarkdown(fullContent));
           lastFullSyncLen = fullContent.length;
           lastAppendLen = fullContent.length;
         } else if (fullContent.length - lastFullSyncLen > FULL_SYNC_INTERVAL || lastFullSyncLen === 0) {
           // Periodic full sync to correct markdown formatting drift
-          contentEl.innerHTML = renderStreamingMarkdown(fullContent);
+          safeSetHTML(contentEl, renderStreamingMarkdown(fullContent));
           lastFullSyncLen = fullContent.length;
           lastAppendLen = fullContent.length;
         } else {
@@ -232,7 +232,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
           const newContent = fullContent.slice(lastAppendLen);
           if (newContent.length > 0) {
             const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = renderStreamingMarkdown(newContent);
+            safeSetHTML(tempDiv, renderStreamingMarkdown(newContent));
             while (tempDiv.firstChild) {
               contentEl.appendChild(tempDiv.firstChild);
             }
@@ -430,7 +430,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         const elapsed = streamStartTime > 0 ? (Date.now() - streamStartTime) / 1000 : 0;
         const finalSpeed = elapsed > 0 ? Math.round(tokenCount / elapsed) : 0;
         const finalHtml = renderMarkdown(fullContent);
-        contentEl.innerHTML = finalHtml;
+        safeSetHTML(contentEl, finalHtml);
         deps.primeMarkdownRenderCache(fullContent, finalHtml);
         contentEl.classList.remove('streaming-cursor');
         msgEl.classList.remove('streaming');
@@ -523,7 +523,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         };
         if (fullContent.trim()) {
           const partialHtml = renderMarkdown(fullContent);
-          contentEl.innerHTML = partialHtml;
+          safeSetHTML(contentEl, partialHtml);
           deps.primeMarkdownRenderCache(fullContent, partialHtml);
           postProcess(contentEl)
             .then(deps.refreshReadingNavigator)

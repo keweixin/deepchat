@@ -202,7 +202,7 @@ export function renderExternalSkillList(
   onChange?: (skills: ExternalSkill[]) => void
 ): void {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
   if (!skills.length) {
     renderEmptyList(container, '尚未导入外部 Skill', '可导入本地 SKILL.md');
     return;
@@ -263,7 +263,7 @@ export function buildSettingsTabs(panel: HTMLElement | null): void {
     if (body) body.insertBefore(tabsContainer, body.firstChild);
   }
 
-  tabsContainer.innerHTML = '';
+  tabsContainer.textContent = '';
   tabsContainer.className = 'settings-tabs settings-subtabs';
 
   const body = panel.querySelector('.settings-body') as HTMLElement | null;

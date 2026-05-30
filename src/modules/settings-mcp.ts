@@ -14,7 +14,7 @@ export function renderMcpServerList(
   statuses: Record<string, any>[] = []
 ) {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
   if (!servers.length) {
     renderEmptyList(container, '尚未配置 MCP Server', '添加 stdio server 后可在 MCP/全工具模式调用');
     return;

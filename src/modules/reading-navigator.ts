@@ -323,7 +323,7 @@ function createNavigatorElement(): HTMLElement {
   nav.className = 'reading-navigator hidden';
   nav.hidden = true;
   nav.setAttribute('aria-label', '回答阅读导航');
-  nav.innerHTML = `
+  nav.innerHTML = ` /* trusted-html */
     <div class="reading-nav-header">
       <span class="reading-nav-title">阅读导航</span>
       <span class="reading-nav-counter"></span>

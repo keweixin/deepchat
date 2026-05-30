@@ -6,7 +6,7 @@ export function renderAgentCrew(container: HTMLElement, agentRun: Record<string,
   if (!container) return;
 
   if (!agentRun || !agentRun.crew || agentRun.crew.length === 0) {
-    container.innerHTML = '';
+    container.textContent = '';
     container.hidden = true;
     return;
   }

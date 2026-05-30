@@ -103,6 +103,8 @@ npm run electron:build:portable
 **计划 (Planned)**
 
 15. `@file` / `@folder` / `@symbol` 显式上下文选择。
-16. Git 工具集成：`git_diff`、`git_status`、`git_blame` 等代码仓库工具。
+16. Git 工具集成：
+    - 已交付：`git_status`、`git_diff`、`git_log`
+    - 计划：`git_blame`、`branch compare`、`PR summary`
 17. 多模态输入扩展：语音输入、截图标注、PDF 解析。
 18. 跨会话知识图谱：基于工具证据的关系抽取和可视化。

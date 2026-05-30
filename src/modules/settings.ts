@@ -142,7 +142,7 @@ export function renderModelCapabilities(container: HTMLElement | null, settings:
     ['思考', Boolean(caps.thinking)],
     ['缓存统计', Boolean(caps.promptCacheUsage)],
   ];
-  container.innerHTML = '';
+  container.textContent = '';
   for (const [label, enabled, suffix] of rows) {
     const pill = document.createElement('span');
     pill.className = `capability-pill ${enabled ? 'is-on' : 'is-off'}`;
@@ -202,7 +202,7 @@ function renderProviderReadinessCard(report: Record<string, any>) {
 
 function renderProviderPresets(container: HTMLElement | null) {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
   for (const provider of PROVIDER_PRESETS) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -227,7 +227,7 @@ function renderProviderPresets(container: HTMLElement | null) {
 
 function renderModelQuickSelect(container: HTMLElement | null) {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
   for (const provider of PROVIDER_PRESETS.filter((item: Record<string, any>) => item.models?.length)) {
     const group = document.createElement('div');
     group.className = 'model-group';

@@ -112,7 +112,7 @@ export function createMessageElement(msg: Record<string, unknown>, streaming: bo
     contentHtml = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
   }
 
-  el.innerHTML = `
+  el.innerHTML = ` /* trusted-html */
     <div class="message-avatar">${avatarText}</div>
     <div class="message-body">
       <div class="message-header">

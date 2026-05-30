@@ -44,7 +44,7 @@ import {
 } from './conversation-utils.js';
 import { exportConversation } from './exporters.js';
 import { enhancePrompt, isEnhanceEnabled } from './settings.js';
-import { renderMarkdown, postProcess } from './renderer.js';
+import { renderMarkdown, postProcess, safeSetHTML } from './renderer.js';
 import { refreshReadingNavigator, resetReadingNavigator } from './reading-navigator.js';
 import { confirmAction, promptText } from './dialogs.ts';
 import { buildArtifactDownloadName, extractArtifacts } from './artifacts.js';
@@ -783,7 +783,7 @@ function showWelcome() {
 }
 
 function renderCompactAssistantMessage(contentEl: HTMLElement, msg: Record<string, any>, idx: number) {
-  contentEl.innerHTML = '';
+  contentEl.textContent = '';
   contentEl.classList.add('is-compact');
   const card = document.createElement('div');
   card.className = 'message-compact-card';
@@ -799,7 +799,7 @@ function renderCompactAssistantMessage(contentEl: HTMLElement, msg: Record<strin
   expand.textContent = '展开完整内容';
   expand.addEventListener('click', async () => {
     contentEl.classList.remove('is-compact');
-    contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
+    safeSetHTML(contentEl, getCachedRenderedMarkdown(msg.content));
     await postProcess(contentEl, true);
     const conv = getActiveConversation();
     const currentMsg = conv?.messages?.[idx] || msg;
@@ -820,7 +820,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
     if (!contentEl) return;
     if (msg.error) {
       if (msg.content) {
-        contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
+        safeSetHTML(contentEl, getCachedRenderedMarkdown(msg.content));
         postProcess(contentEl, true)
           .then(() => {
             renderAssistantToc(el.querySelector('.answer-toc-container') as HTMLElement, contentEl);
@@ -836,7 +836,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
     } else if (shouldCompactHistoricalMessage(totalMessageCount, idx, msg)) {
       renderCompactAssistantMessage(contentEl!, msg, idx);
     } else {
-      contentEl.innerHTML = getCachedRenderedMarkdown(msg.content);
+      safeSetHTML(contentEl, getCachedRenderedMarkdown(msg.content));
       postProcess(contentEl, true)
         .then(() => {
           renderAssistantToc(el.querySelector('.answer-toc-container') as HTMLElement, contentEl);
@@ -1047,7 +1047,7 @@ function renderAttachmentStrip(attachments: any[] = []) {
 
 export function renderAgentTimeline(container: HTMLElement, message: Record<string, any> = {}) {
   if (!container) return;
-  container.innerHTML = '';
+  container.textContent = '';
   const stages = Array.isArray(message.agentStages) ? message.agentStages : [];
   const contextBudget = message.contextBudget;
   if (stages.length === 0 && !contextBudget) {
@@ -1441,15 +1441,15 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
   // Copy user message
   const copyBtn = document.createElement('button');
   copyBtn.className = 'msg-action-btn';
-  copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
+  copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`; /* trusted-html */
   copyBtn.addEventListener('click', async () => {
     const ok = await copyToClipboard(msg.content);
     if (ok) {
       showToast('已复制到剪贴板');
-      copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
+      copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`; /* trusted-html */
       setTimeout(() => {
         if (copyBtn.isConnected)
-          copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
+          copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`; /* trusted-html */
       }, COPY_FEEDBACK_MS);
     }
   });
@@ -1458,13 +1458,13 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
   // Edit user message
   const editBtn = document.createElement('button');
   editBtn.className = 'msg-action-btn';
-  editBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> 编辑`;
+  editBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> 编辑`; /* trusted-html */
   editBtn.addEventListener('click', () => {
     const contentEl = msgEl.querySelector('.message-content') as HTMLElement | null;
     if (!contentEl) return;
     const originalText = msg.content;
 
-    contentEl.innerHTML = '';
+    contentEl.textContent = '';
     const textarea = document.createElement('textarea');
     textarea.className = 'edit-textarea';
     textarea.value = originalText;
@@ -1499,7 +1499,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
   // Delete single message
   const delBtn = document.createElement('button');
   delBtn.className = 'msg-action-btn';
-  delBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> 删除`;
+  delBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> 删除`; /* trusted-html */
   delBtn.addEventListener('click', async () => {
     const ok = await confirmAction({
       title: '删除消息',
@@ -1533,18 +1533,18 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
   // Copy
   const copyBtn = document.createElement('button');
   copyBtn.className = 'msg-action-btn';
-  copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
+  copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`; /* trusted-html */
   copyBtn.addEventListener('click', async () => {
     const plainText = (msgEl.querySelector('.message-content') as HTMLElement | null)?.innerText || content;
     const ok = await copyToClipboard(plainText);
     if (ok) {
       showToast('已复制到剪贴板');
       copyBtn.classList.add('copied');
-      copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
+      copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`; /* trusted-html */
       setTimeout(() => {
         if (copyBtn.isConnected) {
           copyBtn.classList.remove('copied');
-          copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
+          copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`; /* trusted-html */
         }
       }, COPY_FEEDBACK_MS);
     }
@@ -1554,15 +1554,15 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
   // Copy raw Markdown
   const copyMdBtn = document.createElement('button');
   copyMdBtn.className = 'msg-action-btn';
-  copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`;
+  copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`; /* trusted-html */
   copyMdBtn.addEventListener('click', async () => {
     const ok = await copyToClipboard(content);
     if (ok) {
       showToast('已复制 Markdown 源码');
-      copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
+      copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`; /* trusted-html */
       setTimeout(() => {
         if (copyMdBtn.isConnected)
-          copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`;
+          copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`; /* trusted-html */
       }, COPY_FEEDBACK_MS);
     }
   });
@@ -1571,13 +1571,13 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
   // Regenerate
   const regenBtn = document.createElement('button');
   regenBtn.className = 'msg-action-btn';
-  regenBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> 重新生成`;
+  regenBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> 重新生成`; /* trusted-html */
   regenBtn.addEventListener('click', () => regenerateResponseAt(msgIndex));
   actions.appendChild(regenBtn);
 
   const continueBtn = document.createElement('button');
   continueBtn.className = 'msg-action-btn';
-  continueBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg> 继续`;
+  continueBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg> 继续`; /* trusted-html */
   continueBtn.addEventListener('click', () => continueFromResponseAt(msgIndex));
   actions.appendChild(continueBtn);
 
@@ -1621,7 +1621,7 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
 
   const favoriteBtn = document.createElement('button');
   favoriteBtn.className = `msg-action-btn${msg?.favorite ? ' is-favorite' : ''}`;
-  favoriteBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="${msg?.favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 8.5 22 9.3 16.8 14 18.2 21 12 17.4 5.8 21 7.2 14 2 9.3 9 8.5 12 2"/></svg> 收藏`;
+  favoriteBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="${msg?.favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 8.5 22 9.3 16.8 14 18.2 21 12 17.4 5.8 21 7.2 14 2 9.3 9 8.5 12 2"/></svg> 收藏`; /* trusted-html */
   favoriteBtn.addEventListener('click', () => toggleMessageFavorite(msgIndex));
   actions.appendChild(favoriteBtn);
 

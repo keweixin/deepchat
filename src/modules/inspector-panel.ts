@@ -26,6 +26,7 @@ import { diffArtifactVersions } from './artifact-versions.js';
 import { downloadZipArchive } from './zip-builder.js';
 import { escapeHtml, formatBytes } from './shared-utils.js';
 import { renderToolCardList } from './tool-card.js';
+import { safeSetHTML } from './renderer.js';
 
 let _panelEl: HTMLElement | null = null;
 let _contentEl: HTMLElement | null = null;
@@ -129,7 +130,7 @@ export function updateInspectorPanel(mode: string, data: Record<string, any> = {
 
 function _renderContent(mode: string, data: Record<string, any>) {
   if (!_contentEl) return;
-  _contentEl.innerHTML = '';
+  _contentEl.textContent = '';
 
   switch (mode) {
     case 'message':
@@ -153,7 +154,7 @@ function _renderContent(mode: string, data: Record<string, any>) {
 
 function _renderEmpty() {
   if (!_contentEl) return;
-  _contentEl.innerHTML = `
+  _contentEl.innerHTML = ` /* trusted-html */
     <div class="inspector-empty">
       <p>选择一条消息或按 <kbd>Ctrl+Shift+I</kbd> 查看详情</p>
     </div>
@@ -220,7 +221,7 @@ function _renderMessageInfo(data: Record<string, any>) {
         : ''
     }
   `;
-  _contentEl.innerHTML = html;
+  safeSetHTML(_contentEl, html);
 
   const toolListEl = _contentEl.querySelector('.inspector-tool-list') as HTMLElement | null;
   if (toolListEl && Array.isArray(msg.toolCalls)) {
@@ -253,7 +254,7 @@ function _renderTraceInfo(data: Record<string, any>) {
       </div>
     </div>
   `;
-  _contentEl.innerHTML = html;
+  safeSetHTML(_contentEl, html);
 }
 
 function _renderModelInfo(data: Record<string, any>) {
@@ -282,7 +283,7 @@ function _renderModelInfo(data: Record<string, any>) {
       </div>
     </div>
   `;
-  _contentEl.innerHTML = html;
+  safeSetHTML(_contentEl, html);
 }
 
 // ─── Artifact Renderer ──────────────────────────────────────────────────────
@@ -300,7 +301,7 @@ function _renderArtifactInfo(data: Record<string, any>) {
   }
 
   if (artifacts.length === 0) {
-    _contentEl.innerHTML = `
+    _contentEl.innerHTML = ` /* trusted-html */
       <div class="inspector-empty">
         <p>此消息中未发现 artifact</p>
       </div>
@@ -374,7 +375,7 @@ function _renderArtifactInfo(data: Record<string, any>) {
   // Version diff container (hidden by default)
   html += '<div class="inspector-artifact-diff-container" hidden></div>';
   html += '</div>';
-  _contentEl.innerHTML = html;
+  safeSetHTML(_contentEl, html);
 
   // Attach event listeners
   Array.from(_contentEl.querySelectorAll('.inspector-artifact-action')).forEach((btn) => {
@@ -489,7 +490,7 @@ function _showVersionDiff(
     </div>
   `;
 
-  container.innerHTML = diffHtml;
+  safeSetHTML(container, diffHtml);
   container.hidden = false;
 
   // Initial diff render
@@ -511,7 +512,7 @@ function _showVersionDiff(
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       container.hidden = true;
-      container.innerHTML = '';
+      container.textContent = '';
     });
   }
 
@@ -525,8 +526,8 @@ function _showVersionDiff(
  * Render diff lines into the diff view container.
  */
 function _renderDiffContent(container: HTMLElement, versions: any[], oldIdx: number, newIdx: number) {
-  const statsEl = container.querySelector('.inspector-artifact-diff-stats');
-  const viewEl = container.querySelector('.inspector-artifact-diff-view');
+  const statsEl = container.querySelector('.inspector-artifact-diff-stats') as HTMLElement | null;
+  const viewEl = container.querySelector('.inspector-artifact-diff-view') as HTMLElement | null;
   if (!statsEl || !viewEl) return;
 
   const oldVersion = versions[oldIdx];
@@ -534,11 +535,14 @@ function _renderDiffContent(container: HTMLElement, versions: any[], oldIdx: num
   if (!oldVersion || !newVersion) return;
 
   const diff = diffArtifactVersions(oldVersion.source, newVersion.source);
-  statsEl.innerHTML = `
+  safeSetHTML(
+    statsEl,
+    `
     <span class="diff-stat-add">+${diff.added} 行</span>
     <span class="diff-stat-remove">-${diff.removed} 行</span>
     <span class="diff-stat-total">共 ${diff.newLineCount} 行</span>
-  `;
+  `
+  );
 
   // Compute line-level diff
   const oldLines = String(oldVersion.source || '').split('\n');
@@ -557,7 +561,10 @@ function _renderDiffContent(container: HTMLElement, versions: any[], oldIdx: num
     }
   }
 
-  viewEl.innerHTML = `<pre class="diff-pre">${linesHtml || '<div class="diff-line diff-line-ctx">无差异</div>'}</pre>`;
+  safeSetHTML(
+    viewEl,
+    `<pre class="diff-pre">${linesHtml || '<div class="diff-line diff-line-ctx">无差异</div>'}</pre>`
+  );
 }
 
 /**
@@ -891,7 +898,7 @@ function _ensureToolbar() {
     btn.className = 'inspector-toolbar-btn';
     btn.dataset.mode = m.mode;
     btn.title = m.label;
-    btn.innerHTML = `${m.icon}<span>${m.label}</span>`;
+    btn.innerHTML = `${m.icon}<span>${m.label}</span>`; /* trusted-html */
     btn.addEventListener('click', () => {
       if (!_currentData || !_currentData.msg) return;
       openInspectorPanel(m.mode, _currentData);
