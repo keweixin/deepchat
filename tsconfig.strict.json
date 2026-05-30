@@ -71,6 +71,11 @@
     "electron/preload.ts",
     "electron/agent-planner.ts",
     "electron/approval-manager.ts",
-    "electron/memory-manager.ts"
+    "electron/main.ts",
+    "electron/memory-manager.ts",
+    "electron/stream-runner.ts",
+    "electron/system-prompt.ts",
+    "electron/tool-executor.ts",
+    "electron/workspace-index.ts"
   ]
 }

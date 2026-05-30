@@ -28,7 +28,9 @@ const TOOL_ARG_LONG_STRING_THRESHOLD = 300;
  * @param {{ mimeType?: string; type?: string; dataUrl?: string; url?: string } | null | undefined} attachment
  * @returns {boolean}
  */
-export function isImageAttachment(attachment) {
+export function isImageAttachment(
+  attachment: { mimeType?: string; type?: string; dataUrl?: string; url?: string } | null | undefined
+) {
   const mime = String(attachment?.mimeType || attachment?.type || '');
   return Boolean((attachment?.dataUrl || attachment?.url) && mime.startsWith('image/'));
 }
@@ -39,7 +41,9 @@ export function isImageAttachment(attachment) {
  * @param {{ role: string; content?: string | any[]; attachments?: any[] } | null | undefined} msg
  * @returns {{ role: string; content: string | any[] } | null}
  */
-export function normalizeMessage(msg) {
+export function normalizeMessage(
+  msg: { role: string; content?: string | any[]; attachments?: any[] } | null | undefined
+) {
   if (!msg || (msg.role !== 'user' && msg.role !== 'assistant')) return null;
   const content = typeof msg.content === 'string' ? msg.content : '';
   const attachments =
@@ -65,7 +69,7 @@ export function normalizeMessage(msg) {
  * @param {any[]} messages
  * @returns {{ role: string; content: string | any[] }[]}
  */
-export function sanitizeMessages(messages) {
+export function sanitizeMessages(messages: any[]) {
   return messages.map(normalizeMessage).filter(Boolean) as { role: string; content: string | any[] }[];
 }
 
@@ -79,7 +83,7 @@ export function sanitizeMessages(messages) {
  * @param {any[]} target
  * @param {any[]} incoming
  */
-export function mergeToolCalls(target, incoming) {
+export function mergeToolCalls(target: any[], incoming: any[]) {
   for (const tc of incoming) {
     const index = tc.index ?? 0;
     if (!target[index]) {
@@ -101,7 +105,7 @@ export function mergeToolCalls(target, incoming) {
  * @param {any[]} toolCalls
  * @returns {{ id: string; type: string; function: { name: string; arguments: string } }[]}
  */
-export function compactToolCalls(toolCalls) {
+export function compactToolCalls(toolCalls: any[]) {
   return toolCalls
     .filter((tc) => tc?.function?.name)
     .map((tc, index) => ({
@@ -119,7 +123,7 @@ export function compactToolCalls(toolCalls) {
  * @param {string} argsJson
  * @returns {string}
  */
-function compactToolArgumentsForContext(argsJson) {
+function compactToolArgumentsForContext(argsJson: string) {
   const text = String(argsJson || '{}');
   if (estimateTokens(text) <= MAX_TOOL_CONTEXT_TOKENS) return text;
   try {
@@ -146,8 +150,8 @@ function compactToolArgumentsForContext(argsJson) {
  * @param {any[]} toolCalls
  * @returns {any[]}
  */
-export function compactToolCallsForContext(toolCalls = []) {
-  return compactToolCalls(toolCalls).map((call) => ({
+export function compactToolCallsForContext(toolCalls: any[] = []) {
+  return compactToolCalls(toolCalls).map((call: any) => ({
     ...call,
     function: {
       ...call.function,
@@ -165,7 +169,7 @@ export function compactToolCallsForContext(toolCalls = []) {
  * @param {string} name
  * @returns {string}
  */
-function formatDirectiveName(name) {
+function formatDirectiveName(name: string) {
   if (name === 'web') return '@web';
   if (name === 'code') return '@run';
   if (name === 'changed') return '@changed';
@@ -219,7 +223,7 @@ export function buildTurnTailMetadata(intent: any = {}, settings: any = {}, plan
  * @param {string} metadata
  * @returns {any[]}
  */
-export function appendTurnTailMetadata(messages = [], metadata = '') {
+export function appendTurnTailMetadata(messages: any[] = [], metadata = '') {
   const text = String(metadata || '').trim();
   if (!text) return messages;
   const next = messages.map((message) => ({ ...message }));

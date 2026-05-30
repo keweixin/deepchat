@@ -35,7 +35,7 @@ const TOOL_ARG_REPAIR_LIMIT = 12000;
  * @param {string} output
  * @returns {string}
  */
-function compactToolOutputForContext(toolName, args, output) {
+function compactToolOutputForContext(toolName: string, args: any, output: any) {
   const text = String(output || '');
   if (estimateTokens(text) <= MAX_TOOL_CONTEXT_TOKENS) return text;
   const name = String(toolName || '');
@@ -69,7 +69,7 @@ function compactToolOutputForContext(toolName, args, output) {
  * @param {string} text
  * @returns {string}
  */
-function compactSearchOutput(text) {
+function compactSearchOutput(text: string) {
   const lines = text.split('\n');
   const important = lines.filter((/** @type {string} */ line) =>
     /^\s*(搜索时间|用户原始问题|实际搜索 query|Tavily 参数|\d+\.|URL:|Published:|摘要:)/.test(line)
@@ -83,7 +83,7 @@ function compactSearchOutput(text) {
  * @param {string} text
  * @returns {string}
  */
-function compactWorkspaceSearchOutput(text) {
+function compactWorkspaceSearchOutput(text: string) {
   const lines = text.split('\n');
   const important = lines.filter((/** @type {string} */ line) =>
     /^\s*(工作区搜索：|符号：|工作区：|目录：|结果数：|\d+\. |   摘录:|   \d+:)/.test(line)
@@ -99,7 +99,7 @@ function compactWorkspaceSearchOutput(text) {
  * @param {string} text
  * @returns {string}
  */
-function compactSymbolOutput(text) {
+function compactSymbolOutput(text: string) {
   const lines = text.split('\n');
   const important = lines.filter((/** @type {string} */ line) =>
     /^\s*(符号读取：|工作区：|目录：|结果：|类型：|签名：|代码片段:|\d+:)/.test(line)
@@ -115,7 +115,7 @@ function compactSymbolOutput(text) {
  * @param {string} text
  * @returns {string}
  */
-function compactFileOutput(text) {
+function compactFileOutput(text: string) {
   const lines = text.split('\n');
   const meta = lines.filter((/** @type {string} */ line) => /^\s*(文件：|大小：|行范围：)/.test(line));
   const body = lines
@@ -143,7 +143,7 @@ function compactFileOutput(text) {
  * @param {string} text
  * @returns {string}
  */
-function compactCodeOutput(text) {
+function compactCodeOutput(text: string) {
   const stdout = extractSection(text, 'STDOUT:', 'STDERR:');
   const stderr = extractSection(text, 'STDERR:');
   const header = text.split('\n').filter((/** @type {string} */ line) => /^\s*(语言：|退出码：)/.test(line));
@@ -168,7 +168,7 @@ function compactCodeOutput(text) {
  * @param {string} text
  * @returns {string}
  */
-function compactMcpOutput(text) {
+function compactMcpOutput(text: string) {
   const lines = text.split('\n');
   const meta = lines.filter((/** @type {string} */ line) =>
     /^\s*(MCP Server：|Tool：|MCP 工具返回错误|Structured Content:)/.test(line)
@@ -194,11 +194,9 @@ function compactMcpOutput(text) {
  * @param {any[]} tools
  * @returns {{ toolCalls: any[], warning: string }}
  */
-function repairToolCallsFromText(content = '', thinking = '', tools = []) {
+function repairToolCallsFromText(content = '', thinking = '', tools: any[] = []) {
   const allowedNames = new Set(
-    (Array.isArray(tools) ? tools : [])
-      .map((/** @type {any} */ tool) => String(tool?.function?.name || '').trim())
-      .filter(Boolean)
+    (Array.isArray(tools) ? tools : []).map((tool: any) => String(tool?.function?.name || '').trim()).filter(Boolean)
   );
   if (allowedNames.size === 0) return { toolCalls: [], warning: '' };
   const text = [thinking, content].filter(Boolean).join('\n\n').slice(0, TOOL_REPAIR_SCAN_LIMIT);
@@ -237,9 +235,9 @@ function repairToolCallsFromText(content = '', thinking = '', tools = []) {
  * @param {Set<string>} allowedNames
  * @returns {string[]}
  */
-function extractToolRepairCandidates(text, allowedNames) {
-  const candidates = [];
-  const add = (/** @type {any} */ value) => {
+function extractToolRepairCandidates(text: string, allowedNames: Set<string>) {
+  const candidates: string[] = [];
+  const add = (value: any) => {
     const candidate = String(value || '').trim();
     if (!candidate || candidate.length > TOOL_REPAIR_SCAN_LIMIT) return;
     if (!containsAllowedToolName(candidate, allowedNames)) return;
@@ -259,7 +257,7 @@ function extractToolRepairCandidates(text, allowedNames) {
  * @param {Set<string>} allowedNames
  * @returns {string[]}
  */
-function extractBalancedJsonSnippets(text, allowedNames) {
+function extractBalancedJsonSnippets(text: string, allowedNames: Set<string>) {
   const snippets = [];
   const source = String(text || '').slice(0, TOOL_REPAIR_SCAN_LIMIT);
   for (let i = 0; i < source.length; i++) {
@@ -308,7 +306,7 @@ function extractBalancedJsonSnippets(text, allowedNames) {
  * @param {string} raw
  * @returns {{ args: Record<string, any>, error: string, repaired?: boolean, warning?: string }}
  */
-function parseToolArgsDetailed(raw) {
+function parseToolArgsDetailed(raw: string) {
   const text = String(raw || '{}');
   try {
     const parsed = JSON.parse(text);
@@ -316,7 +314,7 @@ function parseToolArgsDetailed(raw) {
       return { args: {}, error: '工具参数必须是 JSON object。' };
     }
     return { args: parsed, error: '' };
-  } catch (/** @type {any} */ error) {
+  } catch (error: any) {
     const repaired = repairTruncatedJsonObject(text);
     if (repaired) {
       try {
@@ -344,7 +342,7 @@ function parseToolArgsDetailed(raw) {
  * @param {string} raw
  * @returns {string} Repaired JSON string, or empty if irreparable.
  */
-function repairTruncatedJsonObject(raw) {
+function repairTruncatedJsonObject(raw: string) {
   const text = String(raw || '').trim();
   if (!text || text.length > TOOL_ARG_REPAIR_LIMIT || !text.startsWith('{')) return '';
   if (/[,:\[]\s*$/.test(text)) return '';
@@ -386,7 +384,7 @@ function repairTruncatedJsonObject(raw) {
  * @param {Set<string>} allowedNames
  * @returns {boolean}
  */
-function containsAllowedToolName(text, allowedNames) {
+function containsAllowedToolName(text: string, allowedNames: Set<string>) {
   const value = String(text || '');
   for (const name of allowedNames) {
     if (value.includes(name)) return true;
@@ -400,7 +398,7 @@ function containsAllowedToolName(text, allowedNames) {
  * @param {string} candidate
  * @returns {any|undefined}
  */
-function parseJsonCandidate(candidate) {
+function parseJsonCandidate(candidate: string) {
   try {
     return JSON.parse(String(candidate || '').trim());
   } catch {
@@ -415,9 +413,9 @@ function parseJsonCandidate(candidate) {
  * @param {Set<string>} allowedNames
  * @returns {Array<{ type: string, function: { name: string, arguments: string } }>}
  */
-function collectToolCallsFromValue(value, allowedNames) {
-  const calls = [];
-  const visit = (/** @type {any} */ item) => {
+function collectToolCallsFromValue(value: any, allowedNames: Set<string>) {
+  const calls: any[] = [];
+  const visit = (item: any) => {
     if (!item) return;
     if (Array.isArray(item)) {
       item.forEach(visit);
@@ -448,7 +446,7 @@ function collectToolCallsFromValue(value, allowedNames) {
  * @param {any} value
  * @returns {string}
  */
-function normalizeScavengedArguments(value) {
+function normalizeScavengedArguments(value: any) {
   if (value === undefined || value === null) return '{}';
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -472,7 +470,7 @@ function normalizeScavengedArguments(value) {
  * @param {string} [endMarker]
  * @returns {string}
  */
-function extractSection(text, startMarker, endMarker?) {
+function extractSection(text: string, startMarker: string, endMarker?: string) {
   const start = text.indexOf(startMarker);
   if (start < 0) return '';
   const from = start + startMarker.length;
@@ -488,7 +486,7 @@ function extractSection(text, startMarker, endMarker?) {
  * @param {number} tailLength
  * @returns {string}
  */
-function compactHeadTail(text, headLength, tailLength) {
+function compactHeadTail(text: string, headLength: number, tailLength: number) {
   const value = String(text || '').trim();
   if (value.length <= headLength + tailLength + 100) return value || '(empty)';
   return `${value.slice(0, headLength)}\n...\n${value.slice(-tailLength)}`;
