@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 
 const MAX_TOOL_OUTPUT = 12000;
 
