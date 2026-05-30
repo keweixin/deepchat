@@ -31,11 +31,11 @@ function copyAndReplace(src, dest) {
     } else if (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) {
       let content = fs.readFileSync(srcPath, 'utf8');
       // Replace relative .ts imports with .js (but not .d.ts or node_modules)
-      content = content.replace(/from\s+(['"])(\.\/[^'"]+)\.ts\1/g, 'from $1$2.js$1');
+      content = content.replace(/from\s+(['"])(\.\.?\/[^'"]+)\.ts\1/g, 'from $1$2.js$1');
       // Also handle dynamic imports
-      content = content.replace(/import\s*\(\s*(['"])(\.\/[^'"]+)\.ts\1\s*\)/g, 'import($1$2.js$1)');
+      content = content.replace(/import\s*\(\s*(['"])(\.\.?\/[^'"]+)\.ts\1\s*\)/g, 'import($1$2.js$1)');
       // Replace relative .ts requires with .js
-      content = content.replace(/require\s*\(\s*(['"])(\.\/[^'"]+)\.ts\1\s*\)/g, 'require($1$2.js$1)');
+      content = content.replace(/require\s*\(\s*(['"])(\.\.?\/[^'"]+)\.ts\1\s*\)/g, 'require($1$2.js$1)');
       fs.writeFileSync(destPath, content);
     } else {
       fs.copyFileSync(srcPath, destPath);
@@ -89,8 +89,8 @@ function scanForResidualTsReferences(dir) {
       scanForResidualTsReferences(fullPath);
     } else if (entry.name.endsWith('.js')) {
       const content = fs.readFileSync(fullPath, 'utf8');
-      // Regex to search for require('./xxx.ts') or from './xxx.ts' or import('./xxx.ts')
-      const importTsRegex = /(?:require|from|import)\s*\(?\s*['"]\.\/[^'"]+\.ts['"]\s*\)?/g;
+      // Regex to search for require('./xxx.ts') or from './xxx.ts' or import('./xxx.ts') across arbitrary path depths and quotes
+      const importTsRegex = /(?:require|from|import)\s*\(?\s*['"`]\.\.?\/[^'"`]+\.ts['"`]\s*\)?/g;
       const matches = content.match(importTsRegex);
       if (matches) {
         console.error(`Build verification failed: Residual .ts reference found in compiled file ${fullPath}:`);
@@ -105,8 +105,11 @@ function scanForResidualTsReferences(dir) {
 
 scanForResidualTsReferences(outDir);
 
+// Ensure dist-electron is treated as CommonJS
+fs.writeFileSync(path.join(outDir, 'package.json'), JSON.stringify({ type: 'commonjs' }, null, 2));
+
 // Verify required output files exist
-const requiredOutputs = ['main.js', 'preload.js', 'chat-service.js'];
+const requiredOutputs = ['main.js', 'preload.js', 'chat-service.js', 'package.json'];
 for (const output of requiredOutputs) {
   const outputPath = path.join(outDir, output);
   if (!fs.existsSync(outputPath)) {
@@ -114,8 +117,5 @@ for (const output of requiredOutputs) {
     process.exit(1);
   }
 }
-
-// Ensure dist-electron is treated as CommonJS
-fs.writeFileSync(path.join(outDir, 'package.json'), JSON.stringify({ type: 'commonjs' }, null, 2));
 
 console.log('dist-electron/ built successfully');

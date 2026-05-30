@@ -88,13 +88,7 @@ async function projectMap(args, settings) {
   if (truncated) {
     metaLines.push('提示：结果已截断，建议缩小目录范围、提高 maxDepth 或增大 maxNodes');
   }
-  return [
-    ...metaLines,
-    '',
-    ...lines,
-  ]
-    .join('\n')
-    .slice(0, MAX_TOOL_OUTPUT);
+  return [...metaLines, '', ...lines].join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
 module.exports = {

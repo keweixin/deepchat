@@ -88,7 +88,7 @@ function describeToolRisk(name, args) {
       `语言：${normalizeLanguage(args.language) || '未知'}`,
       `代码长度：${String(args.code || '').length} chars`,
       `超时：${RUN_CODE_SECURITY_LIMITS.maxTimeoutMs}ms · 进程树终止：${RUN_CODE_SECURITY_LIMITS.killTreeOnTimeout ? '是' : '否'}`,
-      `输出上限：${RUN_CODE_SECURITY_LIMITS.maxOutputBytes / 1024 / 1024}MB · 内存上限：${RUN_CODE_SECURITY_LIMITS.maxMemoryMB}MB`,
+      `输出上限：${RUN_CODE_SECURITY_LIMITS.maxOutputBytes / 1024 / 1024}MB · 内存目标：${RUN_CODE_SECURITY_LIMITS.maxMemoryMB}MB（非硬限制，实际由系统调度决定）`,
       '权限：独立临时 cwd/HOME/TEMP，环境变量已清洗；Windows 轻沙箱不承诺硬网络隔离。',
       '安全：stdout/stderr 含密钥/token 时自动脱敏。',
     ].join('\n');

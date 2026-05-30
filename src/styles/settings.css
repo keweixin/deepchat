@@ -82,7 +82,9 @@
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -249,23 +251,117 @@
   accent-color: var(--accent-primary);
 }
 
-/* Status Bar */
+/* Status Bar Grid (Diagnostics Grid) */
 .settings-status-bar {
-  display: flex;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-5);
-  background: var(--glass-bg);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: color-mix(in srgb, var(--surface-card), transparent 50%);
   border-bottom: 1px solid var(--glass-border);
-  overflow-x: auto;
+  backdrop-filter: blur(10px);
 }
 
-.status-item {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  white-space: nowrap;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.status-card:hover {
   background: var(--glass-bg-hover);
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 60%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.status-card:active {
+  transform: translateY(0);
+}
+
+.status-card-icon {
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--glass-bg-hover);
+  transition: transform 0.25s ease;
+}
+
+.status-card:hover .status-card-icon {
+  transform: scale(1.1);
+}
+
+.status-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.status-card-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.status-card-value {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+/* Status States Colors */
+.status-card.status-success {
+  border-color: color-mix(in srgb, #10b981, transparent 80%);
+  background: color-mix(in srgb, #10b981, transparent 96%);
+}
+.status-card.status-success:hover {
+  border-color: color-mix(in srgb, #10b981, transparent 40%);
+  background: color-mix(in srgb, #10b981, transparent 92%);
+}
+.status-card.status-success .status-card-value {
+  color: #10b981;
+}
+
+.status-card.status-warning {
+  border-color: color-mix(in srgb, #f59e0b, transparent 80%);
+  background: color-mix(in srgb, #f59e0b, transparent 96%);
+}
+.status-card.status-warning:hover {
+  border-color: color-mix(in srgb, #f59e0b, transparent 40%);
+  background: color-mix(in srgb, #f59e0b, transparent 92%);
+}
+.status-card.status-warning .status-card-value {
+  color: #f59e0b;
+}
+
+.status-card.status-error {
+  border-color: color-mix(in srgb, #ef4444, transparent 80%);
+  background: color-mix(in srgb, #ef4444, transparent 96%);
+}
+.status-card.status-error:hover {
+  border-color: color-mix(in srgb, #ef4444, transparent 40%);
+  background: color-mix(in srgb, #ef4444, transparent 92%);
+}
+.status-card.status-error .status-card-value {
+  color: #ef4444;
 }
 
 /* Form Controls */

@@ -17,7 +17,7 @@ import {
 } from './storage.js';
 import { pickExternalSkill } from './external-skills.js';
 import { ChatService, testApiConnection } from './chat-service.js';
-import { executeTool, clearWorkspaceIndexDiskCache } from './tools.js';
+import { executeTool, clearWorkspaceIndexDiskCache, getWorkspaceIndexModule } from './tools.js';
 import { McpManager } from './mcp-manager.js';
 import { validate, schemas } from './ipc-validation.js';
 import { warmBuiltinSkills } from './system-prompt.ts';
@@ -105,7 +105,21 @@ function registerIpc() {
   ipcMain.handle('workspace:remove', (_event, root) =>
     removeWorkspaceRoot(validate(schemas.WorkspaceRemoveSchema, root, 'workspace:remove'))
   );
-  ipcMain.handle('workspace:clearIndexCache', async () => clearWorkspaceIndexDiskCache(await getSettings()));
+  ipcMain.handle('workspace:clearIndexCache', async () => {
+    const settings = await getSettings();
+    return clearWorkspaceIndexDiskCache(settings);
+  });
+  ipcMain.handle('workspace:getStats', async () => {
+    const indexMod = getWorkspaceIndexModule();
+    if (indexMod) {
+      try {
+        return indexMod.getWorkspaceStats();
+      } catch (err) {
+        console.error('[Main] getWorkspaceStats failed:', err);
+      }
+    }
+    return { fileCount: 0, chunkCount: 0, symbolCount: 0 };
+  });
   ipcMain.handle('skills:pickExternal', async () => {
     const settings = await getSettings();
     return pickExternalSkill(mainWindow, settings, setSettings);

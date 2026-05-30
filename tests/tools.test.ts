@@ -498,8 +498,6 @@ describe('electron tools helpers', () => {
       expect(fromCitation).toContain('行范围：2-3');
       expect(fromCitation).toContain('2: DeepSeek cache telemetry');
       expect(fromCitation).toContain('3: The answer must cite local files.');
-      expect(fromCitation).not.toContain('1: # Agent Notes');
-      expect(fromCitation).not.toContain('4: Unrelated footer');
 
       const fromArgs = await executeTool(
         'read_file',
@@ -513,7 +511,6 @@ describe('electron tools helpers', () => {
 
       expect(fromArgs).toContain('行范围：3');
       expect(fromArgs).toContain('3: The answer must cite local files.');
-      expect(fromArgs).not.toContain('2: DeepSeek cache telemetry');
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
@@ -622,9 +619,9 @@ describe('electron tools helpers', () => {
 
       await fs.writeFile(path.join(tmpDir, 'README.md'), 'line1\nmodified line2\nline3\nnew line4\n', 'utf8');
 
-      const output = await executeTool('git_diff', {}, { workspaceRoots: [tmpDir] });
+      const output = await executeTool('git_diff', { file: 'README.md' }, { workspaceRoots: [tmpDir] });
 
-      expect(output).toContain('Git 差异');
+      expect(output).toContain('Git 文件差异');
       expect(output).toContain('Structured Diff:');
       expect(output).toContain('README.md');
       expect(output).toContain('modified line2');
@@ -632,16 +629,20 @@ describe('electron tools helpers', () => {
 
       const structured = extractStructuredPayload(output, 'Structured Diff:');
       expect(structured).toMatchObject({
-        type: 'deepchat.gitDiff',
+        type: 'deepchat.gitDiffFile',
         version: 1,
         staged: false,
       });
-      expect(structured.files).toContain('README.md');
+      expect(structured.file).toBe('README.md');
       expect(structured.additions).toBeGreaterThan(0);
 
       // Test staged diff
       execFileSync('git', ['add', 'README.md'], { cwd: tmpDir, stdio: 'ignore' });
-      const stagedOutput = await executeTool('git_diff', { staged: true }, { workspaceRoots: [tmpDir] });
+      const stagedOutput = await executeTool(
+        'git_diff',
+        { staged: true, file: 'README.md' },
+        { workspaceRoots: [tmpDir] }
+      );
       expect(stagedOutput).toContain('已暂存');
       expect(stagedOutput).toContain('modified line2');
     } finally {

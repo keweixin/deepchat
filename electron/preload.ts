@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('deepchat', {
     pick: () => ipcRenderer.invoke('workspace:pick'),
     remove: (root: any) => ipcRenderer.invoke('workspace:remove', root),
     clearIndexCache: () => ipcRenderer.invoke('workspace:clearIndexCache'),
+    getStats: () => ipcRenderer.invoke('workspace:getStats'),
   },
   skills: {
     pickExternal: () => ipcRenderer.invoke('skills:pickExternal'),

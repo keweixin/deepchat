@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { validate, schemas } from '../electron/ipc-validation.js';
 import { executeTool, isSensitivePath, redactSensitiveText, buildSandboxEnv } from '../electron/tools.js';
 import { sanitizeSettingsForBackup } from '../electron/storage.js';
+import { renderMarkdown } from '../src/modules/renderer.js';
 
 describe('ipc validation schemas', () => {
   it('rejects unknown settings fields and invalid manual tool names', () => {
@@ -242,5 +243,24 @@ describe('backup secret handling', () => {
         enabled: false,
       },
     ]);
+  });
+});
+
+describe('XSS and HTML rendering safety', () => {
+  it('escapes dynamic scripts and handles inline events in Markdown', () => {
+    const html = renderMarkdown('hello <script>alert(1)</script> <img src="x" onerror="alert(2)">');
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('onerror');
+  });
+
+  it('escapes and sanitizes dangerous links', () => {
+    const html = renderMarkdown('[link](javascript:alert(1))');
+    expect(html).toContain('href="#"');
+  });
+
+  it('permits whitelisted layout elements and attributes securely', () => {
+    const html = renderMarkdown('<iframe src="https://example.com" sandbox="allow-scripts"></iframe>');
+    expect(html).toContain('<iframe');
+    expect(html).toContain('sandbox="allow-scripts"');
   });
 });

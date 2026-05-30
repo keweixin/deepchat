@@ -378,24 +378,104 @@ async function pickWorkspaceRoot(parentWindow) {
 }
 
 async function exportBackup(parentWindow, options = {}) {
+  // Show a premium pre-flight privacy alert dialog
+  const warnResult = await dialog.showMessageBox(parentWindow, {
+    type: 'info',
+    title: '导出备份安全提示',
+    message: '您即将导出 DeepChat 本地数据备份。',
+    detail:
+      '请注意，虽然系统配置中的 API 密钥等凭证在导出时会被自动剔除，但您的历史聊天消息、代码块或工具执行日志中，仍可能残留您手动输入或生成过的隐私凭证（如 API Key 或绝对路径）。若您计划将备份分享给第三方或在公共环境导入，建议选择“脱敏”或定制排除过滤选项。',
+    buttons: ['继续导出', '取消'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (warnResult.response === 1) return { canceled: true };
+
   const settings = await getSettings();
   const conversations = await loadConversations();
 
   let safeConversations = conversations;
-  if (options.excludeLogs) {
-    safeConversations = conversations.map((c) => ({ ...c, messages: [] }));
-  } else if (options.excludeCode) {
+
+  if (options.exportMode === 'settings') {
+    safeConversations = [];
+  } else {
     safeConversations = conversations.map((c) => {
       if (!Array.isArray(c.messages)) return c;
       return {
         ...c,
-        messages: c.messages.map((m) => ({
-          ...m,
-          content:
-            typeof m.content === 'string'
-              ? m.content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
-              : m.content,
-        })),
+        messages: c.messages.map((m) => {
+          let content = m.content;
+          let thinking = m.thinking;
+          let toolRuns = m.toolRuns;
+          let toolCalls = m.toolCalls;
+          let attachments = m.attachments;
+
+          // Apply excludeCodeBlocks
+          if (options.excludeCodeBlocks || options.excludeCode) {
+            if (typeof content === 'string') {
+              content = content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]');
+            }
+            if (typeof thinking === 'string') {
+              thinking = thinking.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]');
+            }
+          }
+
+          // Apply excludeToolOutputs
+          if (options.excludeToolOutputs && Array.isArray(toolRuns)) {
+            toolRuns = toolRuns.map((run) => ({ ...run, output: '[工具输出已根据隐私设置排除]' }));
+          }
+          if (options.excludeToolOutputs && Array.isArray(toolCalls)) {
+            toolCalls = toolCalls.map((call) => ({ ...call, output: '[工具输出已根据隐私设置排除]' }));
+          }
+
+          // Apply excludeMcpReturns
+          if (options.excludeMcpReturns) {
+            if (Array.isArray(toolRuns)) {
+              toolRuns = toolRuns.map((run) => {
+                if (run.toolName && run.toolName.includes('/')) {
+                  return { ...run, output: '[MCP工具输出已根据隐私设置排除]' };
+                }
+                return run;
+              });
+            }
+            if (Array.isArray(toolCalls)) {
+              toolCalls = toolCalls.map((call) => {
+                if (call.toolName && call.toolName.includes('/')) {
+                  return { ...call, output: '[MCP工具输出已根据隐私设置排除]' };
+                }
+                return call;
+              });
+            }
+          }
+
+          // Apply excludeAttachments
+          if (options.excludeAttachments) {
+            attachments = [];
+          }
+
+          // Apply deidentified mode: sanitize absolute paths, API keys, etc.
+          if (options.exportMode === 'deidentified') {
+            if (typeof content === 'string') {
+              content = content.replace(/sk-[a-zA-Z0-9\-]{20,}/g, '[已脱敏 API KEY]');
+              content = content.replace(/[a-zA-Z]:\\[\\\w\s\-\.\_]+/g, '[已脱敏绝对路径]');
+              content = content.replace(/\/Users\/[\w\s\-\.\_]+/g, '[已脱敏绝对路径]');
+            }
+            if (typeof thinking === 'string') {
+              thinking = thinking.replace(/sk-[a-zA-Z0-9\-]{20,}/g, '[已脱敏 API KEY]');
+              thinking = thinking.replace(/[a-zA-Z]:\\[\\\w\s\-\.\_]+/g, '[已脱敏绝对路径]');
+              thinking = thinking.replace(/\/Users\/[\w\s\-\.\_]+/g, '[已脱敏绝对路径]');
+            }
+          }
+
+          return {
+            ...m,
+            content,
+            thinking,
+            toolRuns,
+            toolCalls,
+            attachments,
+          };
+        }),
       };
     });
   }
@@ -404,7 +484,7 @@ async function exportBackup(parentWindow, options = {}) {
     version: DATA_VERSION,
     exportedAt: new Date().toISOString(),
     secretsExcluded: BACKUP_SECRETS_EXCLUDED,
-    settings: options.excludeConfigs ? {} : sanitizeSettingsForBackup(settings),
+    settings: options.exportMode === 'sessions' ? {} : sanitizeSettingsForBackup(settings),
     conversations: safeConversations,
   };
 

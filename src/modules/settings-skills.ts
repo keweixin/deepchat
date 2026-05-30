@@ -18,7 +18,7 @@ export function renderSkillGrid(
     card.disabled = !available;
     card.setAttribute('aria-disabled', String(!available));
     card.className = `skill-card${id === resolvedActiveSkill ? ' active' : ''}${available ? '' : ' unavailable'}`;
-    card.innerHTML = ` /* trusted-html */
+    card.innerHTML = ` /* safeSetHTML-exempt: static template */
       <span class="skill-icon">${skill.icon}</span>
       <span class="skill-name">${skill.name}</span>
       <span class="skill-desc">${skill.description}</span>

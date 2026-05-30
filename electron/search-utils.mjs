@@ -1,13 +1,28 @@
+/**
+ * @param {any} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampInt(value, min, max, fallback) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
 }
 
+/**
+ * @param {string} text
+ * @returns {string}
+ */
 function stripExplicitToolDirectives(text) {
   return String(text || '').replace(/(^|[\s([，,;；])@(web|search|run|code|changed|recent|mcp)\s*:?\s*/gi, '$1');
 }
 
+/**
+ * @param {string} query
+ * @returns {string}
+ */
 export function normalizeSearchQuery(query) {
   const trimmed = String(query || '').trim();
   const compact = stripExplicitToolDirectives(trimmed)
@@ -24,11 +39,20 @@ export function normalizeSearchQuery(query) {
   return compact || trimmed || 'latest news';
 }
 
+/**
+ * @param {string} query
+ * @param {number} requested
+ * @returns {number}
+ */
 export function deriveSearchMaxResults(query, requested) {
   if (/一个|一条|一篇|\b1\b|one/i.test(String(query || ''))) return 1;
   return clampInt(requested, 1, 10, 5);
 }
 
+/**
+ * @param {string} query
+ * @returns {{ timeRange: string; days: number } | null}
+ */
 export function getFreshnessWindow(query) {
   const text = String(query || '');
   if (!/最新|新闻|今日|今天|实时|刚刚|本周|recent|latest|news|today|current/i.test(text)) return null;
@@ -36,6 +60,26 @@ export function getFreshnessWindow(query) {
   return { timeRange: 'week', days: 7 };
 }
 
+/**
+ * @param {string} rawQuery
+ * @param {{ tavilyMaxResults?: number }} [settings]
+ * @param {number} [explicitMaxResults]
+ * @returns {{
+ *   originalQuery: string;
+ *   payload: {
+ *     query: string;
+ *     max_results: number;
+ *     search_depth: string;
+ *     include_answer: boolean;
+ *     include_raw_content: boolean;
+ *     topic?: string;
+ *     time_range?: string;
+ *     days?: number;
+ *   };
+ *   freshness: { timeRange: string; days: number } | null;
+ *   requestedAt: string;
+ * }}
+ */
 export function buildTavilySearchRequest(rawQuery, settings = {}, explicitMaxResults) {
   const originalQuery = String(rawQuery || '').trim();
   const cleanedQuery = normalizeSearchQuery(originalQuery);

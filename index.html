@@ -395,10 +395,90 @@
           </button>
         </div>
         <div class="settings-status-bar" id="settings-status-bar">
-          <span class="status-item" id="status-provider">Provider：未配置</span>
-          <span class="status-item" id="status-workspace">工作区：0 个</span>
-          <span class="status-item" id="status-mcp">MCP：0 个</span>
-          <span class="status-item" id="status-code-run">代码运行：关闭</span>
+          <div
+            class="status-card"
+            id="status-provider"
+            data-target="provider"
+            data-tab="tab-connection"
+            data-section="section-provider"
+            title="点击跳转到 Provider 配置"
+          >
+            <span class="status-card-icon">🤖</span>
+            <div class="status-card-info">
+              <span class="status-card-label">Provider 状态</span>
+              <span class="status-card-value" id="status-provider-value">未配置</span>
+            </div>
+          </div>
+          <div
+            class="status-card"
+            id="status-search"
+            data-target="search"
+            data-tab="tab-connection"
+            data-section="section-search"
+            title="点击跳转到 联网搜索 配置"
+          >
+            <span class="status-card-icon">🔍</span>
+            <div class="status-card-info">
+              <span class="status-card-label">联网搜索</span>
+              <span class="status-card-value" id="status-search-value">未配置</span>
+            </div>
+          </div>
+          <div
+            class="status-card"
+            id="status-workspace"
+            data-target="workspace"
+            data-tab="tab-agent"
+            data-section="section-workspace"
+            title="点击跳转到 工作区 配置"
+          >
+            <span class="status-card-icon">📁</span>
+            <div class="status-card-info">
+              <span class="status-card-label">已授权工作区</span>
+              <span class="status-card-value" id="status-workspace-value">0 个</span>
+            </div>
+          </div>
+          <div
+            class="status-card"
+            id="status-mcp"
+            data-target="mcp"
+            data-tab="tab-connection"
+            data-section="section-mcp"
+            title="点击跳转到 MCP 配置"
+          >
+            <span class="status-card-icon">🔌</span>
+            <div class="status-card-info">
+              <span class="status-card-label">MCP 服务</span>
+              <span class="status-card-value" id="status-mcp-value">0 个</span>
+            </div>
+          </div>
+          <div
+            class="status-card"
+            id="status-code-run"
+            data-target="code-run"
+            data-tab="tab-agent"
+            data-section="section-agent"
+            title="点击跳转到 代码运行 配置"
+          >
+            <span class="status-card-icon">⚡</span>
+            <div class="status-card-info">
+              <span class="status-card-label">代码执行权限</span>
+              <span class="status-card-value" id="status-code-run-value">关闭</span>
+            </div>
+          </div>
+          <div
+            class="status-card"
+            id="status-index"
+            data-target="index"
+            data-tab="tab-model"
+            data-section="section-skills"
+            title="点击跳转到 索引缓存 配置"
+          >
+            <span class="status-card-icon">💾</span>
+            <div class="status-card-info">
+              <span class="status-card-label">工作区索引</span>
+              <span class="status-card-value" id="status-index-value">未建立</span>
+            </div>
+          </div>
         </div>
         <div class="settings-body">
           <nav class="settings-nav" aria-label="设置导航">
@@ -408,567 +488,569 @@
             <button class="settings-nav-item" data-target-title="Agent 与 Token">Agent 与工具</button>
             <button class="settings-nav-item" data-target-title="MCP Server">MCP</button>
             <button class="settings-nav-item" data-target-title="外部 Skill">Skills</button>
+            <button class="settings-nav-item" data-target-title="模型设置">模型参数</button>
             <button class="settings-nav-item" data-target-title="回答模式">外观与快捷键</button>
             <button class="settings-nav-item" data-target-title="系统提示词">数据与备份</button>
             <button class="settings-nav-item" data-target-title="智能增强">高级调试</button>
           </nav>
           <div class="settings-content">
-          <div class="settings-tabs" role="tablist" aria-label="设置分类">
-            <button
-              class="settings-tab active"
-              data-tab="tab-connection"
-              role="tab"
-              aria-selected="true"
-              aria-controls="tab-connection"
-            >
-              连接
-            </button>
-            <button
-              class="settings-tab"
-              data-tab="tab-model"
-              role="tab"
-              aria-selected="false"
-              aria-controls="tab-model"
-            >
-              模型
-            </button>
-            <button
-              class="settings-tab"
-              data-tab="tab-agent"
-              role="tab"
-              aria-selected="false"
-              aria-controls="tab-agent"
-            >
-              Agent
-            </button>
-            <button
-              class="settings-tab"
-              data-tab="tab-preference"
-              role="tab"
-              aria-selected="false"
-              aria-controls="tab-preference"
-            >
-              偏好
-            </button>
-          </div>
-
-          <div class="settings-section" id="section-provider" data-tab="tab-connection">
-            <h3>API 配置</h3>
-            <div class="form-group">
-              <label>快速切换服务商</label>
-              <div class="provider-presets">
-                <button
-                  class="provider-btn"
-                  data-provider="deepseek"
-                  data-url="https://api.deepseek.com"
-                  data-model="deepseek-v4-flash"
-                  title="DeepSeek 官方"
-                >
-                  <span class="provider-name">DeepSeek</span>
-                </button>
-                <button
-                  class="provider-btn"
-                  data-provider="openai"
-                  data-url="https://api.openai.com/v1"
-                  data-model="gpt-4o"
-                  title="OpenAI 官方"
-                >
-                  <span class="provider-name">OpenAI</span>
-                </button>
-                <button
-                  class="provider-btn"
-                  data-provider="ollama"
-                  data-url="http://localhost:11434/v1"
-                  data-model="llama3"
-                  title="Ollama 本地"
-                >
-                  <span class="provider-name">Ollama</span>
-                </button>
-                <button
-                  class="provider-btn"
-                  data-provider="openrouter"
-                  data-url="https://openrouter.ai/api/v1"
-                  data-model="deepseek/deepseek-chat"
-                  title="OpenRouter 多模型网关"
-                >
-                  <span class="provider-name">OpenRouter</span>
-                </button>
-                <button
-                  class="provider-btn"
-                  data-provider="siliconflow"
-                  data-url="https://api.siliconflow.cn/v1"
-                  data-model="deepseek-ai/DeepSeek-V3"
-                  title="硅基流动"
-                >
-                  <span class="provider-name">硅基流动</span>
-                </button>
-                <button
-                  class="provider-btn"
-                  data-provider="xiaomimimo"
-                  data-url="https://token-plan-sgp.xiaomimimo.com/v1"
-                  data-model="mimo-v2.5"
-                  title="MiMo Token Plan"
-                >
-                  <span class="provider-name">MiMo</span>
-                </button>
-                <button class="provider-btn" data-provider="custom" data-url="" data-model="" title="自定义 API">
-                  <span class="provider-name">自定义</span>
-                </button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="api-key-input">API Key</label>
-              <div class="password-input-wrap">
-                <input type="password" id="api-key-input" class="form-input" placeholder="sk-xxxxxxxxxxxxxxxx" /><button
-                  id="toggle-key-visibility"
-                  class="icon-btn-sm"
-                  title="显示/隐藏"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </button>
-              </div>
-              <p class="form-hint">桌面版使用系统安全存储加密保存；浏览器预览模式仅本次页面会话保留密钥。</p>
-            </div>
-            <div class="form-group">
-              <label for="api-base-input">API Base URL</label
-              ><input
-                type="text"
-                id="api-base-input"
-                class="form-input"
-                value="https://api.deepseek.com"
-                placeholder="https://api.deepseek.com"
-              />
-            </div>
-            <div class="form-actions">
-              <button id="test-api-btn" class="secondary-btn" type="button">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="20 6 9 17 4 12" /></svg
-                >测试 API 连接</button
-              ><span id="api-test-status" class="inline-status"></span>
-            </div>
-          </div>
-          <div class="settings-section" id="section-search" data-tab="tab-connection">
-            <h3>联网搜索</h3>
-            <div class="form-group">
-              <label for="tavily-key-input">Tavily API Key</label>
-              <div class="password-input-wrap">
-                <input
-                  type="password"
-                  id="tavily-key-input"
-                  class="form-input"
-                  placeholder="tvly-xxxxxxxxxxxxxxxx"
-                /><button id="toggle-tavily-key-visibility" class="icon-btn-sm" title="显示/隐藏">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                </button>
-              </div>
-              <p class="form-hint">启用“联网检索/全工具”模式后，模型会通过 Tavily 工具搜索真实网页。</p>
-            </div>
-            <div class="form-group">
-              <label for="tavily-max-results-input">搜索结果数</label
-              ><input
-                type="number"
-                id="tavily-max-results-input"
-                class="form-input"
-                value="5"
-                min="1"
-                max="10"
-                step="1"
-              />
-            </div>
-            <div class="form-actions">
-              <button id="test-search-btn" class="secondary-btn" type="button">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" /></svg
-                >测试搜索</button
-              ><span id="search-test-status" class="inline-status"></span>
-            </div>
-          </div>
-          <div class="settings-section" id="section-workspace" data-tab="tab-agent">
-            <h3>工作区与备份</h3>
-            <div class="form-group">
-              <label>允许读取的工作区</label>
-              <div id="workspace-list" class="workspace-list"></div>
-              <div class="form-actions">
-                <button id="add-workspace-btn" class="secondary-btn" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" /></svg
-                  >添加工作区
-                </button>
-              </div>
-              <p class="form-hint">文件工具只能读取这些目录内的文本文件，运行代码仍会逐次要求确认。</p>
-            </div>
-            <div class="form-group">
-              <label>数据管理与隐私导出</label>
-              <div
-                class="export-privacy-options"
-                style="margin-top: var(--space-2); margin-bottom: var(--space-3); display: grid; gap: var(--space-2)"
+            <div class="settings-tabs" role="tablist" aria-label="设置分类">
+              <button
+                class="settings-tab active"
+                data-tab="tab-connection"
+                role="tab"
+                aria-selected="true"
+                aria-controls="tab-connection"
               >
-                <label
-                  style="
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    cursor: pointer;
-                    font-size: var(--font-size-xs);
-                    font-weight: 500;
-                    color: var(--text-secondary);
-                  "
-                >
+                连接
+              </button>
+              <button
+                class="settings-tab"
+                data-tab="tab-model"
+                role="tab"
+                aria-selected="false"
+                aria-controls="tab-model"
+              >
+                模型
+              </button>
+              <button
+                class="settings-tab"
+                data-tab="tab-agent"
+                role="tab"
+                aria-selected="false"
+                aria-controls="tab-agent"
+              >
+                Agent
+              </button>
+              <button
+                class="settings-tab"
+                data-tab="tab-preference"
+                role="tab"
+                aria-selected="false"
+                aria-controls="tab-preference"
+              >
+                偏好
+              </button>
+            </div>
+
+            <div class="settings-section" id="section-provider" data-tab="tab-connection">
+              <h3>API 配置</h3>
+              <div class="form-group">
+                <label>快速切换服务商</label>
+                <div class="provider-presets">
+                  <button
+                    class="provider-btn"
+                    data-provider="deepseek"
+                    data-url="https://api.deepseek.com"
+                    data-model="deepseek-v4-flash"
+                    title="DeepSeek 官方"
+                  >
+                    <span class="provider-name">DeepSeek</span>
+                  </button>
+                  <button
+                    class="provider-btn"
+                    data-provider="openai"
+                    data-url="https://api.openai.com/v1"
+                    data-model="gpt-4o"
+                    title="OpenAI 官方"
+                  >
+                    <span class="provider-name">OpenAI</span>
+                  </button>
+                  <button
+                    class="provider-btn"
+                    data-provider="ollama"
+                    data-url="http://localhost:11434/v1"
+                    data-model="llama3"
+                    title="Ollama 本地"
+                  >
+                    <span class="provider-name">Ollama</span>
+                  </button>
+                  <button
+                    class="provider-btn"
+                    data-provider="openrouter"
+                    data-url="https://openrouter.ai/api/v1"
+                    data-model="deepseek/deepseek-chat"
+                    title="OpenRouter 多模型网关"
+                  >
+                    <span class="provider-name">OpenRouter</span>
+                  </button>
+                  <button
+                    class="provider-btn"
+                    data-provider="siliconflow"
+                    data-url="https://api.siliconflow.cn/v1"
+                    data-model="deepseek-ai/DeepSeek-V3"
+                    title="硅基流动"
+                  >
+                    <span class="provider-name">硅基流动</span>
+                  </button>
+                  <button
+                    class="provider-btn"
+                    data-provider="xiaomimimo"
+                    data-url="https://token-plan-sgp.xiaomimimo.com/v1"
+                    data-model="mimo-v2.5"
+                    title="MiMo Token Plan"
+                  >
+                    <span class="provider-name">MiMo</span>
+                  </button>
+                  <button class="provider-btn" data-provider="custom" data-url="" data-model="" title="自定义 API">
+                    <span class="provider-name">自定义</span>
+                  </button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="api-key-input">API Key</label>
+                <div class="password-input-wrap">
                   <input
-                    type="checkbox"
-                    id="exclude-code-chk"
-                    style="width: 14px; height: 14px; accent-color: var(--accent-primary)"
-                  />
-                  <span>排除代码块内容 (保留文本分析)</span>
-                </label>
-                <label
-                  style="
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    cursor: pointer;
-                    font-size: var(--font-size-xs);
-                    font-weight: 500;
-                    color: var(--text-secondary);
-                  "
-                >
+                    type="password"
+                    id="api-key-input"
+                    class="form-input"
+                    placeholder="sk-xxxxxxxxxxxxxxxx"
+                  /><button id="toggle-key-visibility" class="icon-btn-sm" title="显示/隐藏">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+                <p class="form-hint">桌面版使用系统安全存储加密保存；浏览器预览模式仅本次页面会话保留密钥。</p>
+              </div>
+              <div class="form-group">
+                <label for="api-base-input">API Base URL</label
+                ><input
+                  type="text"
+                  id="api-base-input"
+                  class="form-input"
+                  value="https://api.deepseek.com"
+                  placeholder="https://api.deepseek.com"
+                />
+              </div>
+              <div class="form-actions">
+                <button id="test-api-btn" class="secondary-btn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12" /></svg
+                  >测试 API 连接</button
+                ><span id="api-test-status" class="inline-status"></span>
+              </div>
+            </div>
+            <div class="settings-section" id="section-search" data-tab="tab-connection">
+              <h3>联网搜索</h3>
+              <div class="form-group">
+                <label for="tavily-key-input">Tavily API Key</label>
+                <div class="password-input-wrap">
                   <input
-                    type="checkbox"
-                    id="exclude-logs-chk"
-                    style="width: 14px; height: 14px; accent-color: var(--accent-primary)"
-                  />
-                  <span>排除聊天日志/历史消息 (仅导出设置)</span>
-                </label>
-                <label
-                  style="
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    cursor: pointer;
-                    font-size: var(--font-size-xs);
-                    font-weight: 500;
-                    color: var(--text-secondary);
-                  "
+                    type="password"
+                    id="tavily-key-input"
+                    class="form-input"
+                    placeholder="tvly-xxxxxxxxxxxxxxxx"
+                  /><button id="toggle-tavily-key-visibility" class="icon-btn-sm" title="显示/隐藏">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </button>
+                </div>
+                <p class="form-hint">启用“联网检索/全工具”模式后，模型会通过 Tavily 工具搜索真实网页。</p>
+              </div>
+              <div class="form-group">
+                <label for="tavily-max-results-input">搜索结果数</label
+                ><input
+                  type="number"
+                  id="tavily-max-results-input"
+                  class="form-input"
+                  value="5"
+                  min="1"
+                  max="10"
+                  step="1"
+                />
+              </div>
+              <div class="form-actions">
+                <button id="test-search-btn" class="secondary-btn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" /></svg
+                  >测试搜索</button
+                ><span id="search-test-status" class="inline-status"></span>
+              </div>
+            </div>
+            <div class="settings-section" id="section-workspace" data-tab="tab-agent">
+              <h3>工作区与备份</h3>
+              <div class="form-group">
+                <label>允许读取的工作区</label>
+                <div id="workspace-list" class="workspace-list"></div>
+                <div class="form-actions">
+                  <button id="add-workspace-btn" class="secondary-btn" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" /></svg
+                    >添加工作区
+                  </button>
+                </div>
+                <p class="form-hint">文件工具只能读取这些目录内的文本文件，运行代码仍会逐次要求确认。</p>
+              </div>
+              <div class="form-group">
+                <label>数据管理与隐私导出</label>
+                <div
+                  class="export-privacy-options"
+                  style="margin-top: var(--space-2); margin-bottom: var(--space-3); display: grid; gap: var(--space-2)"
                 >
-                  <input
-                    type="checkbox"
-                    id="exclude-configs-chk"
-                    style="width: 14px; height: 14px; accent-color: var(--accent-primary)"
-                  />
-                  <span>排除应用配置与设置 (仅导出聊天记录)</span>
+                  <label
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: var(--space-2);
+                      cursor: pointer;
+                      font-size: var(--font-size-xs);
+                      font-weight: 500;
+                      color: var(--text-secondary);
+                    "
+                  >
+                    <input
+                      type="checkbox"
+                      id="exclude-code-chk"
+                      style="width: 14px; height: 14px; accent-color: var(--accent-primary)"
+                    />
+                    <span>排除代码块内容 (保留文本分析)</span>
+                  </label>
+                  <label
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: var(--space-2);
+                      cursor: pointer;
+                      font-size: var(--font-size-xs);
+                      font-weight: 500;
+                      color: var(--text-secondary);
+                    "
+                  >
+                    <input
+                      type="checkbox"
+                      id="exclude-logs-chk"
+                      style="width: 14px; height: 14px; accent-color: var(--accent-primary)"
+                    />
+                    <span>排除聊天日志/历史消息 (仅导出设置)</span>
+                  </label>
+                  <label
+                    style="
+                      display: flex;
+                      align-items: center;
+                      gap: var(--space-2);
+                      cursor: pointer;
+                      font-size: var(--font-size-xs);
+                      font-weight: 500;
+                      color: var(--text-secondary);
+                    "
+                  >
+                    <input
+                      type="checkbox"
+                      id="exclude-configs-chk"
+                      style="width: 14px; height: 14px; accent-color: var(--accent-primary)"
+                    />
+                    <span>排除应用配置与设置 (仅导出聊天记录)</span>
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button id="export-backup-btn" class="secondary-btn" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" /></svg
+                    >导出全部数据
+                  </button>
+                  <button id="import-backup-btn" class="secondary-btn" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="17 8 12 3 7 8" />
+                      <line x1="12" y1="3" x2="12" y2="15" /></svg
+                    >导入备份
+                  </button>
+                </div>
+                <p id="storage-status" class="form-hint">正在读取存储状态...</p>
+              </div>
+            </div>
+            <div class="settings-section" id="section-skills" data-tab="tab-model">
+              <h3>外部 Skill</h3>
+              <div class="form-group">
+                <label>已导入的 Skill</label>
+                <div id="external-skill-list" class="workspace-list"></div>
+                <div class="form-actions">
+                  <button id="add-external-skill-btn" class="secondary-btn" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" /></svg
+                    >导入 SKILL.md
+                  </button>
+                </div>
+                <p class="form-hint">导入本地 SKILL.md 后，启用的 Skill 会追加到系统提示词中。</p>
+              </div>
+            </div>
+            <div class="settings-section" id="section-mcp" data-tab="tab-connection">
+              <h3>MCP Server</h3>
+              <div class="form-group">
+                <label>添加 stdio MCP</label>
+                <input type="text" id="mcp-name-input" class="form-input" placeholder="名称，例如 filesystem" />
+                <input
+                  type="text"
+                  id="mcp-command-input"
+                  class="form-input compact-input"
+                  placeholder="命令，例如 npx 或 python"
+                />
+                <input
+                  type="text"
+                  id="mcp-args-input"
+                  class="form-input compact-input"
+                  placeholder="参数，例如 -y @modelcontextprotocol/server-filesystem E:\\资料"
+                />
+                <textarea
+                  id="mcp-env-input"
+                  class="form-textarea compact-textarea"
+                  rows="3"
+                  placeholder='环境变量 JSON，可选，例如 {"API_KEY":"..."}'
+                ></textarea>
+                <div class="form-actions">
+                  <button id="add-mcp-server-btn" class="secondary-btn" type="button">添加 MCP</button>
+                  <button id="refresh-mcp-status-btn" class="secondary-btn" type="button">测试 MCP</button>
+                  <span id="mcp-status-text" class="inline-status"></span>
+                </div>
+                <p class="form-hint">MCP 仅桌面版可执行。浏览器预览不能启动外部进程。</p>
+              </div>
+              <div class="form-group">
+                <label>已配置 MCP</label>
+                <div id="mcp-server-list" class="workspace-list"></div>
+              </div>
+            </div>
+            <div class="settings-section" id="section-model" data-tab="tab-model">
+              <h3>模型设置</h3>
+              <div class="form-group">
+                <label for="model-input">模型名称</label>
+                <input
+                  type="text"
+                  id="model-input"
+                  class="form-input"
+                  value="deepseek-v4-flash"
+                  placeholder="输入模型名称，如 deepseek-v4-pro..."
+                />
+                <div class="model-quick-select">
+                  <div class="model-group">
+                    <span class="model-group-title">DeepSeek</span>
+                    <button class="model-tag" data-model="deepseek-v4-pro">v4-pro ✨</button>
+                    <button class="model-tag" data-model="deepseek-v4-flash">v4-flash ⚡</button>
+                    <button class="model-tag" data-model="deepseek-chat">V3 Chat</button>
+                    <button class="model-tag" data-model="deepseek-reasoner">R1 Reasoner</button>
+                  </div>
+                  <div class="model-group">
+                    <span class="model-group-title">OpenAI</span>
+                    <button class="model-tag" data-model="gpt-4o">gpt-4o</button>
+                    <button class="model-tag" data-model="gpt-4o-mini">gpt-4o-mini</button>
+                  </div>
+                  <div class="model-group">
+                    <span class="model-group-title">MiMo</span>
+                    <button class="model-tag" data-model="mimo-v2.5">MiMo v2.5</button>
+                    <button class="model-tag" data-model="mimo-v2.5-pro">MiMo v2.5 Pro</button>
+                  </div>
+                  <div class="model-group">
+                    <span class="model-group-title">其他</span>
+                    <button class="model-tag" data-model="claude-3.5-sonnet">claude-3.5</button>
+                    <button class="model-tag" data-model="qwen-plus">qwen-plus</button>
+                  </div>
+                </div>
+                <p class="form-hint">可直接输入任意 OpenAI 兼容的模型名称；请以服务商当前文档为准。</p>
+                <div id="model-capability-status" class="model-capability-status" aria-live="polite"></div>
+              </div>
+              <div class="form-group">
+                <label for="temperature-input">Temperature: <span id="temperature-value">0.7</span></label
+                ><input type="range" id="temperature-input" class="form-range" min="0" max="2" step="0.1" value="0.7" />
+                <div class="range-labels"><span>精确</span><span>创意</span></div>
+              </div>
+              <div class="form-group">
+                <label for="thinking-budget-input">思考深度: <span id="thinking-budget-value">自动</span></label
+                ><input
+                  type="range"
+                  id="thinking-budget-input"
+                  class="form-range"
+                  min="0"
+                  max="32768"
+                  step="1024"
+                  value="0"
+                />
+                <div class="range-labels"><span>自动/关闭</span><span>深度思考 (32K)</span></div>
+                <p class="form-hint">控制 AI 思考时消耗的 token 数，0=自动。适用于 reasoner 和支持思考的模型</p>
+              </div>
+              <div class="form-group">
+                <label for="max-tokens-input">最大 Tokens</label
+                ><input
+                  type="number"
+                  id="max-tokens-input"
+                  class="form-input"
+                  value="4096"
+                  min="256"
+                  max="65536"
+                  step="256"
+                />
+              </div>
+              <div class="form-group">
+                <label for="max-input-tokens-input">输入 Token 预算</label
+                ><input
+                  type="number"
+                  id="max-input-tokens-input"
+                  class="form-input"
+                  value="24000"
+                  min="1024"
+                  max="262144"
+                  step="1024"
+                />
+                <p class="form-hint">限制每次请求送入模型的系统提示、历史消息和工具上下文，当前用户消息会优先保留。</p>
+              </div>
+              <div class="form-group">
+                <label for="max-context-input">上下文消息数</label
+                ><input type="number" id="max-context-input" class="form-input" value="20" min="2" max="50" step="2" />
+                <p class="form-hint">发送给 API 的历史消息条数上限，越少越省 token</p>
+              </div>
+              <div class="form-group">
+                <label for="agent-max-rounds-input">Agent 最大工具轮数</label
+                ><input
+                  type="number"
+                  id="agent-max-rounds-input"
+                  class="form-input"
+                  value="3"
+                  min="1"
+                  max="10"
+                  step="1"
+                />
+                <p class="form-hint">限制模型连续规划并请求工具的轮数，超过后停止并保留已执行记录。</p>
+              </div>
+            </div>
+            <div class="settings-section" id="section-agent" data-tab="tab-agent">
+              <h3>Agent 与 Token</h3>
+              <div class="form-group">
+                <label class="toggle-row">
+                  <input type="checkbox" id="cache-optimization-toggle" checked />
+                  <span>缓存命中优化</span>
                 </label>
-              </div>
-              <div class="form-actions">
-                <button id="export-backup-btn" class="secondary-btn" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" /></svg
-                  >导出全部数据
-                </button>
-                <button id="import-backup-btn" class="secondary-btn" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="17 8 12 3 7 8" />
-                    <line x1="12" y1="3" x2="12" y2="15" /></svg
-                  >导入备份
-                </button>
-              </div>
-              <p id="storage-status" class="form-hint">正在读取存储状态...</p>
-            </div>
-          </div>
-          <div class="settings-section" id="section-skills" data-tab="tab-model">
-            <h3>外部 Skill</h3>
-            <div class="form-group">
-              <label>已导入的 Skill</label>
-              <div id="external-skill-list" class="workspace-list"></div>
-              <div class="form-actions">
-                <button id="add-external-skill-btn" class="secondary-btn" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" /></svg
-                  >导入 SKILL.md
-                </button>
-              </div>
-              <p class="form-hint">导入本地 SKILL.md 后，启用的 Skill 会追加到系统提示词中。</p>
-            </div>
-          </div>
-          <div class="settings-section" id="section-mcp" data-tab="tab-connection">
-            <h3>MCP Server</h3>
-            <div class="form-group">
-              <label>添加 stdio MCP</label>
-              <input type="text" id="mcp-name-input" class="form-input" placeholder="名称，例如 filesystem" />
-              <input
-                type="text"
-                id="mcp-command-input"
-                class="form-input compact-input"
-                placeholder="命令，例如 npx 或 python"
-              />
-              <input
-                type="text"
-                id="mcp-args-input"
-                class="form-input compact-input"
-                placeholder="参数，例如 -y @modelcontextprotocol/server-filesystem E:\\资料"
-              />
-              <textarea
-                id="mcp-env-input"
-                class="form-textarea compact-textarea"
-                rows="3"
-                placeholder='环境变量 JSON，可选，例如 {"API_KEY":"..."}'
-              ></textarea>
-              <div class="form-actions">
-                <button id="add-mcp-server-btn" class="secondary-btn" type="button">添加 MCP</button>
-                <button id="refresh-mcp-status-btn" class="secondary-btn" type="button">测试 MCP</button>
-                <span id="mcp-status-text" class="inline-status"></span>
-              </div>
-              <p class="form-hint">MCP 仅桌面版可执行。浏览器预览不能启动外部进程。</p>
-            </div>
-            <div class="form-group">
-              <label>已配置 MCP</label>
-              <div id="mcp-server-list" class="workspace-list"></div>
-            </div>
-          </div>
-          <div class="settings-section" id="section-model" data-tab="tab-model">
-            <h3>模型设置</h3>
-            <div class="form-group">
-              <label for="model-input">模型名称</label>
-              <input
-                type="text"
-                id="model-input"
-                class="form-input"
-                value="deepseek-v4-flash"
-                placeholder="输入模型名称，如 deepseek-v4-pro..."
-              />
-              <div class="model-quick-select">
-                <div class="model-group">
-                  <span class="model-group-title">DeepSeek</span>
-                  <button class="model-tag" data-model="deepseek-v4-pro">v4-pro ✨</button>
-                  <button class="model-tag" data-model="deepseek-v4-flash">v4-flash ⚡</button>
-                  <button class="model-tag" data-model="deepseek-chat">V3 Chat</button>
-                  <button class="model-tag" data-model="deepseek-reasoner">R1 Reasoner</button>
+                <p class="form-hint">
+                  保持 system prompt 与工具 schema 前缀稳定，并在 token 统计中展示 prefix 和缓存命中。
+                </p>
+                <label class="toggle-row">
+                  <input type="checkbox" id="privacy-mode-toggle" />
+                  <span>隐私模式</span>
+                </label>
+                <p class="form-hint">隐私模式下不将工作区索引写入磁盘，仅保留内存索引；对话 trace 也不持久化。</p>
+                <div class="form-actions">
+                  <button id="clear-workspace-index-cache-btn" class="secondary-btn" type="button">
+                    清理工作区索引缓存
+                  </button>
                 </div>
-                <div class="model-group">
-                  <span class="model-group-title">OpenAI</span>
-                  <button class="model-tag" data-model="gpt-4o">gpt-4o</button>
-                  <button class="model-tag" data-model="gpt-4o-mini">gpt-4o-mini</button>
-                </div>
-                <div class="model-group">
-                  <span class="model-group-title">MiMo</span>
-                  <button class="model-tag" data-model="mimo-v2.5">MiMo v2.5</button>
-                  <button class="model-tag" data-model="mimo-v2.5-pro">MiMo v2.5 Pro</button>
-                </div>
-                <div class="model-group">
-                  <span class="model-group-title">其他</span>
-                  <button class="model-tag" data-model="claude-3.5-sonnet">claude-3.5</button>
-                  <button class="model-tag" data-model="qwen-plus">qwen-plus</button>
-                </div>
+                <p id="workspace-index-cache-status" class="form-hint">
+                  工作区索引用于加速本地搜索；清理后下次文件工具会按快照重新建立。
+                </p>
               </div>
-              <p class="form-hint">可直接输入任意 OpenAI 兼容的模型名称；请以服务商当前文档为准。</p>
-              <div id="model-capability-status" class="model-capability-status" aria-live="polite"></div>
-            </div>
-            <div class="form-group">
-              <label for="temperature-input">Temperature: <span id="temperature-value">0.7</span></label
-              ><input type="range" id="temperature-input" class="form-range" min="0" max="2" step="0.1" value="0.7" />
-              <div class="range-labels"><span>精确</span><span>创意</span></div>
-            </div>
-            <div class="form-group">
-              <label for="thinking-budget-input">思考深度: <span id="thinking-budget-value">自动</span></label
-              ><input
-                type="range"
-                id="thinking-budget-input"
-                class="form-range"
-                min="0"
-                max="32768"
-                step="1024"
-                value="0"
-              />
-              <div class="range-labels"><span>自动/关闭</span><span>深度思考 (32K)</span></div>
-              <p class="form-hint">控制 AI 思考时消耗的 token 数，0=自动。适用于 reasoner 和支持思考的模型</p>
-            </div>
-            <div class="form-group">
-              <label for="max-tokens-input">最大 Tokens</label
-              ><input
-                type="number"
-                id="max-tokens-input"
-                class="form-input"
-                value="4096"
-                min="256"
-                max="65536"
-                step="256"
-              />
-            </div>
-            <div class="form-group">
-              <label for="max-input-tokens-input">输入 Token 预算</label
-              ><input
-                type="number"
-                id="max-input-tokens-input"
-                class="form-input"
-                value="24000"
-                min="1024"
-                max="262144"
-                step="1024"
-              />
-              <p class="form-hint">限制每次请求送入模型的系统提示、历史消息和工具上下文，当前用户消息会优先保留。</p>
-            </div>
-            <div class="form-group">
-              <label for="max-context-input">上下文消息数</label
-              ><input type="number" id="max-context-input" class="form-input" value="20" min="2" max="50" step="2" />
-              <p class="form-hint">发送给 API 的历史消息条数上限，越少越省 token</p>
-            </div>
-            <div class="form-group">
-              <label for="agent-max-rounds-input">Agent 最大工具轮数</label
-              ><input
-                type="number"
-                id="agent-max-rounds-input"
-                class="form-input"
-                value="3"
-                min="1"
-                max="10"
-                step="1"
-              />
-              <p class="form-hint">限制模型连续规划并请求工具的轮数，超过后停止并保留已执行记录。</p>
-            </div>
-          </div>
-          <div class="settings-section" id="section-agent" data-tab="tab-agent">
-            <h3>Agent 与 Token</h3>
-            <div class="form-group">
-              <label class="toggle-row">
-                <input type="checkbox" id="cache-optimization-toggle" checked />
-                <span>缓存命中优化</span>
-              </label>
-              <p class="form-hint">
-                保持 system prompt 与工具 schema 前缀稳定，并在 token 统计中展示 prefix 和缓存命中。
-              </p>
-              <label class="toggle-row">
-                <input type="checkbox" id="privacy-mode-toggle" />
-                <span>隐私模式</span>
-              </label>
-              <p class="form-hint">隐私模式下不将工作区索引写入磁盘，仅保留内存索引；对话 trace 也不持久化。</p>
-              <div class="form-actions">
-                <button id="clear-workspace-index-cache-btn" class="secondary-btn" type="button">
-                  清理工作区索引缓存
-                </button>
+              <div class="form-group">
+                <label class="toggle-row">
+                  <input type="checkbox" id="auto-context-summary-toggle" checked />
+                  <span>自动摘要长上下文</span>
+                </label>
+                <p class="form-hint">历史消息被预算裁剪或接近输入预算时，自动生成短记忆并计入本轮 token 用量。</p>
               </div>
-              <p id="workspace-index-cache-status" class="form-hint">
-                工作区索引用于加速本地搜索；清理后下次文件工具会按快照重新建立。
-              </p>
-            </div>
-            <div class="form-group">
-              <label class="toggle-row">
-                <input type="checkbox" id="auto-context-summary-toggle" checked />
-                <span>自动摘要长上下文</span>
-              </label>
-              <p class="form-hint">历史消息被预算裁剪或接近输入预算时，自动生成短记忆并计入本轮 token 用量。</p>
-            </div>
-            <div class="form-group">
-              <label for="tool-approval-timeout-input">工具确认超时 (ms)</label
-              ><input
-                type="number"
-                id="tool-approval-timeout-input"
-                class="form-input"
-                value="60000"
-                min="5000"
-                max="300000"
-                step="5000"
-              />
-              <p class="form-hint">超过时间未确认时自动拒绝工具调用，避免请求一直挂起。</p>
-            </div>
-            <div class="form-group">
-              <label for="tool-approval-policy-select">工具审批策略</label>
-              <select id="tool-approval-policy-select" class="form-input">
-                <option value="confirm_all">所有工具都确认</option>
-                <option value="auto_readonly">低风险读取/搜索自动通过</option>
-              </select>
-              <p class="form-hint">
-                默认保持逐次确认。自动通过只适用于联网搜索、列文件、工作区搜索、读符号和读文件；运行代码、MCP
-                和写入类操作仍需确认。
-              </p>
-            </div>
-            <div class="form-group">
-              <label class="toggle-row">
-                <input type="checkbox" id="run-code-enabled-toggle" checked />
-                <span>允许运行代码工具</span>
-              </label>
-              <p class="form-hint">关闭后模型仍可生成代码，但不能通过本机运行。开启时使用轻量隔离环境并逐次确认。</p>
-            </div>
-          </div>
-          <div class="settings-section" id="section-appearance" data-tab="tab-preference">
-            <h3>回答模式</h3>
-            <div class="form-group">
-              <label>调整 AI 的回答边界</label>
-              <div class="skill-grid" id="skill-grid">
-                <!-- Populated by JS -->
+              <div class="form-group">
+                <label for="tool-approval-timeout-input">工具确认超时 (ms)</label
+                ><input
+                  type="number"
+                  id="tool-approval-timeout-input"
+                  class="form-input"
+                  value="60000"
+                  min="5000"
+                  max="300000"
+                  step="5000"
+                />
+                <p class="form-hint">超过时间未确认时自动拒绝工具调用，避免请求一直挂起。</p>
               </div>
-              <p class="form-hint">工具模式会在模型请求执行时弹出确认卡片，确认后才会联网、读文件或运行代码。</p>
+              <div class="form-group">
+                <label for="tool-approval-policy-select">工具审批策略</label>
+                <select id="tool-approval-policy-select" class="form-input">
+                  <option value="confirm_all">所有工具都确认</option>
+                  <option value="auto_readonly">低风险读取/搜索自动通过</option>
+                </select>
+                <p class="form-hint">
+                  默认保持逐次确认。自动通过只适用于联网搜索、列文件、工作区搜索、读符号和读文件；运行代码、MCP
+                  和写入类操作仍需确认。
+                </p>
+              </div>
+              <div class="form-group">
+                <label class="toggle-row">
+                  <input type="checkbox" id="run-code-enabled-toggle" checked />
+                  <span>允许运行代码工具</span>
+                </label>
+                <p class="form-hint">关闭后模型仍可生成代码，但不能通过本机运行。开启时使用轻量隔离环境并逐次确认。</p>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="crew-display-mode-select">Agent Crew 显示策略</label>
-              <select id="crew-display-mode-select" class="form-input">
-                <option value="auto">自动 — 仅复杂任务/工具调用时显示</option>
-                <option value="always">总是 — 所有 Agent 回答都显示</option>
-                <option value="tools_only">仅工具 — 只有真实工具调用时显示</option>
-                <option value="theatre">剧场 — Agent Theatre 可视化</option>
-                <option value="off">关闭 — 不显示 Crew 面板</option>
-              </select>
-              <p class="form-hint">控制 Agent Crew 小人面板的显示时机。"自动"会在模型调用工具时自动展示协作状态。</p>
+            <div class="settings-section" id="section-appearance" data-tab="tab-preference">
+              <h3>回答模式</h3>
+              <div class="form-group">
+                <label>调整 AI 的回答边界</label>
+                <div class="skill-grid" id="skill-grid">
+                  <!-- Populated by JS -->
+                </div>
+                <p class="form-hint">工具模式会在模型请求执行时弹出确认卡片，确认后才会联网、读文件或运行代码。</p>
+              </div>
+              <div class="form-group">
+                <label for="crew-display-mode-select">Agent Crew 显示策略</label>
+                <select id="crew-display-mode-select" class="form-input">
+                  <option value="auto">自动 — 仅复杂任务/工具调用时显示</option>
+                  <option value="always">总是 — 所有 Agent 回答都显示</option>
+                  <option value="tools_only">仅工具 — 只有真实工具调用时显示</option>
+                  <option value="theatre">剧场 — Agent Theatre 可视化</option>
+                  <option value="off">关闭 — 不显示 Crew 面板</option>
+                </select>
+                <p class="form-hint">控制 Agent Crew 小人面板的显示时机。"自动"会在模型调用工具时自动展示协作状态。</p>
+              </div>
+              <div class="form-group">
+                <label for="default-composer-mode-select">默认任务模式</label>
+                <select id="default-composer-mode-select" class="form-input">
+                  <option value="daily">日常 — 普通聊天</option>
+                  <option value="analysis">深析 — 复杂问题分析</option>
+                  <option value="project">项目 — 本地项目分析</option>
+                  <option value="agent">Agent — 工具流规划</option>
+                  <option value="research">研究 — 联网搜索</option>
+                  <option value="code">代码 — 审查与运行</option>
+                  <option value="writing">写作 — 文档整理</option>
+                  <option value="polish">美化 — 摘要与决策</option>
+                </select>
+                <p class="form-hint">新建对话时默认使用的任务模式。每个对话会独立记住你切换后的模式。</p>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="default-composer-mode-select">默认任务模式</label>
-              <select id="default-composer-mode-select" class="form-input">
-                <option value="daily">日常 — 普通聊天</option>
-                <option value="analysis">深析 — 复杂问题分析</option>
-                <option value="project">项目 — 本地项目分析</option>
-                <option value="agent">Agent — 工具流规划</option>
-                <option value="research">研究 — 联网搜索</option>
-                <option value="code">代码 — 审查与运行</option>
-                <option value="writing">写作 — 文档整理</option>
-                <option value="polish">美化 — 摘要与决策</option>
-              </select>
-              <p class="form-hint">新建对话时默认使用的任务模式。每个对话会独立记住你切换后的模式。</p>
+            <div class="settings-section" id="section-data" data-tab="tab-preference">
+              <h3>系统提示词</h3>
+              <div class="form-group">
+                <label for="system-prompt-input">System Prompt</label
+                ><textarea
+                  id="system-prompt-input"
+                  class="form-textarea"
+                  rows="6"
+                  placeholder="定义 AI 的角色、行为准则和回答质量标准..."
+                ></textarea>
+              </div>
+              <div class="prompt-presets">
+                <button class="preset-btn" data-preset="default">🎯 默认</button>
+                <button class="preset-btn" data-preset="coder">💻 编程</button>
+                <button class="preset-btn" data-preset="analyst">📊 分析</button>
+                <button class="preset-btn" data-preset="translator">🌐 翻译</button>
+                <button class="preset-btn" data-preset="writer">✍️ 写作</button>
+                <button class="preset-btn" data-preset="teacher">📚 教学</button>
+              </div>
             </div>
-          </div>
-          <div class="settings-section" id="section-data" data-tab="tab-preference">
-            <h3>系统提示词</h3>
-            <div class="form-group">
-              <label for="system-prompt-input">System Prompt</label
-              ><textarea
-                id="system-prompt-input"
-                class="form-textarea"
-                rows="6"
-                placeholder="定义 AI 的角色、行为准则和回答质量标准..."
-              ></textarea>
+            <div class="settings-section" id="section-debug" data-tab="tab-agent">
+              <h3>智能增强</h3>
+              <div class="form-group enhance-row">
+                <label class="toggle-label enhance-toggle-control" for="enhance-toggle">
+                  <input type="checkbox" id="enhance-toggle" checked />
+                  <span class="toggle-copy">
+                    <span class="toggle-title">提示词自动增强</span>
+                    <span class="toggle-subtitle">短问题自动补充结构、深度和输出格式要求</span>
+                  </span>
+                  <span class="toggle-slider" aria-hidden="true"></span>
+                </label>
+                <p class="form-hint">适合日常问答；需要精确原文提示时可以关闭。</p>
+              </div>
             </div>
-            <div class="prompt-presets">
-              <button class="preset-btn" data-preset="default">🎯 默认</button>
-              <button class="preset-btn" data-preset="coder">💻 编程</button>
-              <button class="preset-btn" data-preset="analyst">📊 分析</button>
-              <button class="preset-btn" data-preset="translator">🌐 翻译</button>
-              <button class="preset-btn" data-preset="writer">✍️ 写作</button>
-              <button class="preset-btn" data-preset="teacher">📚 教学</button>
-            </div>
-          </div>
-          <div class="settings-section" id="section-debug" data-tab="tab-agent">
-            <h3>智能增强</h3>
-            <div class="form-group enhance-row">
-              <label class="toggle-label enhance-toggle-control" for="enhance-toggle">
-                <input type="checkbox" id="enhance-toggle" checked />
-                <span class="toggle-copy">
-                  <span class="toggle-title">提示词自动增强</span>
-                  <span class="toggle-subtitle">短问题自动补充结构、深度和输出格式要求</span>
-                </span>
-                <span class="toggle-slider" aria-hidden="true"></span>
-              </label>
-              <p class="form-hint">适合日常问答；需要精确原文提示时可以关闭。</p>
-            </div>
-          </div>
           </div>
         </div>
       </div>

@@ -389,11 +389,23 @@ function createToolMeta(tool: Record<string, any>) {
 function createToolSecurityMeta(tool: Record<string, any>) {
   if (!tool.security) return null;
   const items = [];
-  if (tool.security.riskLevel) items.push(`风险：${tool.security.riskLevel}`);
-  if (tool.security.sandbox) items.push(`沙箱：${tool.security.sandbox}`);
-  if (tool.security.envPolicy) items.push(`环境：${tool.security.envPolicy}`);
-  if (tool.security.network) items.push(`网络：${tool.security.network}`);
-  if (tool.security.redaction) items.push('输出脱敏');
+  const toolName = String(tool.name || '')
+    .trim()
+    .toLowerCase();
+
+  if (toolName === 'run_code') {
+    items.push('沙箱：轻量目录隔离');
+    items.push('限制：限制执行时间和输出大小；当前不强制限制内存，不承诺硬隔离');
+    items.push('网络：未硬阻断');
+    items.push('输出：已脱敏');
+  } else {
+    if (tool.security.riskLevel) items.push(`风险：${tool.security.riskLevel}`);
+    if (tool.security.sandbox) items.push(`沙箱：${tool.security.sandbox}`);
+    if (tool.security.envPolicy) items.push(`环境：${tool.security.envPolicy}`);
+    if (tool.security.network) items.push(`网络：${tool.security.network}`);
+    if (tool.security.redaction) items.push('输出脱敏');
+  }
+
   if (!items.length) return null;
   const meta = document.createElement('div');
   meta.className = 'tool-security-meta';

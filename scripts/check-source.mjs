@@ -51,17 +51,18 @@ for (const file of files) {
     issues.push(`${rel} is a sensitive file type and should not be in source`);
   }
 
-  // Strict innerHTML check line-by-line (only src/modules/renderer.ts allowed without comment)
-  if (rel !== 'src/modules/renderer.ts') {
-    const lines = text.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (/\.innerHTML\s*=/.test(line)) {
-        if (!/\/\*\s*(?:trusted-html|template-safe|template-only)\s*\*\//i.test(line)) {
-          issues.push(
-            `${rel}:${i + 1} contains unauthorized innerHTML assignment. Use safeSetHTML instead, or mark as safe with a /* trusted-html */ trailing comment if it is a pure static template.`
-          );
-        }
+  // Strict innerHTML check line-by-line
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/\.innerHTML\s*=/.test(line)) {
+      // Allow DOMPurify.sanitize() on the same line — this is the only truly safe runtime pattern
+      if (/DOMPurify\.sanitize\s*\(/.test(line)) continue;
+      // Require explicit exemption with a written reason
+      if (!/\/\*\s*safeSetHTML-exempt\s*:\s*[^*]+\*\//i.test(line)) {
+        issues.push(
+          `${rel}:${i + 1} contains unauthorized innerHTML assignment. Use safeSetHTML instead, or mark with /* safeSetHTML-exempt: <reason> */ if it is a verified static template.`
+        );
       }
     }
   }

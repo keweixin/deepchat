@@ -90,6 +90,12 @@ export interface SettingsElements {
   importBackupBtn: HTMLElement | null;
   enhanceToggle: HTMLInputElement | null;
   skillGrid: HTMLElement | null;
+  statusProviderValue: HTMLElement | null;
+  statusSearchValue: HTMLElement | null;
+  statusWorkspaceValue: HTMLElement | null;
+  statusMcpValue: HTMLElement | null;
+  statusCodeRunValue: HTMLElement | null;
+  statusIndexValue: HTMLElement | null;
 }
 
 export function collectSettingsElements(): SettingsElements {
@@ -148,6 +154,12 @@ export function collectSettingsElements(): SettingsElements {
     importBackupBtn: document.getElementById('import-backup-btn'),
     enhanceToggle: document.getElementById('enhance-toggle') as HTMLInputElement | null,
     skillGrid: document.getElementById('skill-grid'),
+    statusProviderValue: document.getElementById('status-provider-value'),
+    statusSearchValue: document.getElementById('status-search-value'),
+    statusWorkspaceValue: document.getElementById('status-workspace-value'),
+    statusMcpValue: document.getElementById('status-mcp-value'),
+    statusCodeRunValue: document.getElementById('status-code-run-value'),
+    statusIndexValue: document.getElementById('status-index-value'),
   };
 }
 
@@ -312,13 +324,14 @@ export function buildSettingsTabs(panel: HTMLElement | null): void {
     sec.style.opacity = '1';
   });
 
-  body.addEventListener('scroll', () => {
+  const scrollContainer = body.querySelector('.settings-content') as HTMLElement | null;
+  (scrollContainer || body).addEventListener('scroll', () => {
     let activeTitle = segments[0].title;
-    const bodyRect = body.getBoundingClientRect();
+    const containerRect = (scrollContainer || body).getBoundingClientRect();
 
     for (const sec of sections) {
       const rect = sec.getBoundingClientRect();
-      if (rect.top - bodyRect.top < 150) {
+      if (rect.top - containerRect.top < 150) {
         const h3 = sec.querySelector('h3');
         if (h3 && h3.textContent) {
           const matched = segments.find((seg) => seg.title === h3.textContent?.trim());
@@ -330,6 +343,35 @@ export function buildSettingsTabs(panel: HTMLElement | null): void {
     tabsContainer!.querySelectorAll('.settings-tab').forEach((btn) => {
       const el = btn as HTMLElement;
       el.classList.toggle('active', el.dataset.targetTitle === activeTitle);
+    });
+
+    // Sync left nav active state
+    const navItems = panel!.querySelectorAll('.settings-nav-item');
+    navItems.forEach((item) => {
+      const el = item as HTMLElement;
+      el.classList.toggle('active', el.dataset.targetTitle === activeTitle);
+    });
+  });
+
+  // Left nav click handlers
+  const navItems = panel!.querySelectorAll('.settings-nav-item');
+  navItems.forEach((item) => {
+    item.addEventListener('click', () => {
+      const targetTitle = (item as HTMLElement).dataset.targetTitle;
+      const targetSec = sections.find((sec) => {
+        const h3 = sec.querySelector('h3');
+        return h3 && h3.textContent?.trim() === targetTitle;
+      });
+
+      if (targetSec) {
+        navItems.forEach((b) => b.classList.remove('active'));
+        item.classList.add('active');
+        tabsContainer!.querySelectorAll('.settings-tab').forEach((b) => {
+          const el = b as HTMLElement;
+          el.classList.toggle('active', el.dataset.targetTitle === targetTitle);
+        });
+        targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
   });
 }
@@ -405,6 +447,7 @@ export function bindSettingsEvents(
     if (patch.mcpServers !== undefined) {
       setLatestMcpStatuses?.(markMcpStatusStale(els, next));
     }
+    refreshSettingsDiagnostics(els, next);
   });
 
   // ─── Open / Close ───
@@ -721,4 +764,151 @@ export function bindSettingsEvents(
       }
     });
   });
+
+  // ─── Diagnostics status cards click handlers ───
+  document.querySelectorAll('.status-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      let title = '';
+      const target = card.getAttribute('data-target');
+      if (target === 'provider') title = 'API 配置';
+      else if (target === 'search') title = '联网搜索';
+      else if (target === 'workspace') title = '工作区与备份';
+      else if (target === 'mcp') title = 'MCP Server';
+      else if (target === 'code-run') title = 'Agent 与 Token';
+      else if (target === 'index') title = '工作区与备份';
+
+      if (!title) return;
+
+      const sections = [...(settingsBody?.querySelectorAll('.settings-section') ?? [])] as HTMLElement[];
+      const targetSec = sections.find((sec) => {
+        const h3 = sec.querySelector('h3');
+        return h3 && h3.textContent?.trim() === title;
+      });
+
+      if (targetSec) {
+        // Sync active state in top subtabs
+        const tabsContainer = els.panel?.querySelector('.settings-tabs');
+        if (tabsContainer) {
+          tabsContainer.querySelectorAll('.settings-tab').forEach((b) => {
+            const el = b as HTMLElement;
+            el.classList.toggle('active', el.dataset.targetTitle === title);
+          });
+        }
+
+        // Sync left nav active state
+        const navItems = els.panel?.querySelectorAll('.settings-nav-item');
+        if (navItems) {
+          navItems.forEach((b) => {
+            const el = b as HTMLElement;
+            el.classList.toggle('active', el.dataset.targetTitle === title);
+          });
+        }
+
+        targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Highlight the section briefly
+        targetSec.style.outline = '2px solid var(--accent-primary)';
+        targetSec.style.outlineOffset = '4px';
+        targetSec.style.borderRadius = 'var(--radius-md)';
+        setTimeout(() => {
+          targetSec.style.outline = '';
+          targetSec.style.outlineOffset = '';
+        }, 1200);
+      }
+    });
+  });
+}
+
+export async function refreshSettingsDiagnostics(els: SettingsElements, settings: Record<string, any>): Promise<void> {
+  if (!els) return;
+
+  // 1. Provider
+  if (els.statusProviderValue) {
+    const card = els.statusProviderValue.closest('.status-card') as HTMLElement | null;
+    if (settings.apiKey) {
+      const provider = getProviderPreset(settings);
+      els.statusProviderValue.textContent = provider.name || '已配置';
+      if (card) {
+        card.className = 'status-card status-success';
+      }
+    } else {
+      els.statusProviderValue.textContent = '未配置';
+      if (card) {
+        card.className = 'status-card status-warning';
+      }
+    }
+  }
+
+  // 2. Search
+  if (els.statusSearchValue) {
+    const card = els.statusSearchValue.closest('.status-card') as HTMLElement | null;
+    if (settings.tavilyApiKey) {
+      els.statusSearchValue.textContent = '已配置';
+      if (card) {
+        card.className = 'status-card status-success';
+      }
+    } else {
+      els.statusSearchValue.textContent = '未配置';
+      if (card) {
+        card.className = 'status-card status-warning';
+      }
+    }
+  }
+
+  // 3. Workspace
+  if (els.statusWorkspaceValue) {
+    const card = els.statusWorkspaceValue.closest('.status-card') as HTMLElement | null;
+    const count = (settings.workspaceRoots as string[])?.length || 0;
+    els.statusWorkspaceValue.textContent = `${count} 个`;
+    if (card) {
+      card.className = count > 0 ? 'status-card status-success' : 'status-card status-warning';
+    }
+  }
+
+  // 4. MCP
+  if (els.statusMcpValue) {
+    const card = els.statusMcpValue.closest('.status-card') as HTMLElement | null;
+    const count = (settings.mcpServers as any[])?.length || 0;
+    els.statusMcpValue.textContent = `${count} 个`;
+    if (card) {
+      card.className = count > 0 ? 'status-card status-success' : 'status-card';
+    }
+  }
+
+  // 5. Code execution
+  if (els.statusCodeRunValue) {
+    const card = els.statusCodeRunValue.closest('.status-card') as HTMLElement | null;
+    const enabled = settings.runCodeEnabled !== false;
+    els.statusCodeRunValue.textContent = enabled ? '开启 (每次确认)' : '关闭';
+    if (card) {
+      card.className = enabled ? 'status-card status-success' : 'status-card';
+    }
+  }
+
+  // 6. Workspace Index
+  if (els.statusIndexValue && typeof window !== 'undefined' && (window as any).deepchat?.workspace?.getStats) {
+    const card = els.statusIndexValue.closest('.status-card') as HTMLElement | null;
+    try {
+      const stats = await (window as any).deepchat.workspace.getStats();
+      if (stats && stats.fileCount > 0) {
+        els.statusIndexValue.textContent = `${stats.fileCount} 文件`;
+        if (card) {
+          card.className = 'status-card status-success';
+        }
+      } else {
+        els.statusIndexValue.textContent = '未建立';
+        if (card) {
+          card.className = 'status-card status-warning';
+        }
+      }
+    } catch (err) {
+      console.warn('[Settings] Failed to fetch workspace stats:', err);
+      els.statusIndexValue.textContent = '加载失败';
+      if (card) {
+        card.className = 'status-card status-error';
+      }
+    }
+  } else if (els.statusIndexValue) {
+    els.statusIndexValue.textContent = '未知';
+  }
 }

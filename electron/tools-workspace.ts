@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
@@ -83,7 +83,7 @@ async function searchWorkspace(args, settings) {
           },
           results: ftsResults.map((hit, i) => ({
             index: i + 1,
-            file: hit.file.replace(/\\/g, '/'),
+            file: path.join(hit.workspaceRoot, hit.file).replace(/\\/g, '/'),
             startLine: hit.lineStart,
             endLine: hit.lineEnd,
             score: hit.score,
@@ -111,7 +111,8 @@ async function searchWorkspace(args, settings) {
         ].filter(Boolean);
 
         ftsResults.forEach((hit, i) => {
-          lines.push(`${i + 1}. ${hit.file.replace(/\\/g, '/')}:${hit.lineStart}-${hit.lineEnd}`);
+          const absPath = path.join(hit.workspaceRoot, hit.file).replace(/\\/g, '/');
+          lines.push(`${i + 1}. ${absPath}:${hit.lineStart}-${hit.lineEnd}`);
           lines.push(`   score: ${hit.score.toFixed(2)}`);
           lines.push('   摘录:');
           for (const s of hit.snippet) {
@@ -278,7 +279,9 @@ async function readSymbol(args, settings) {
       const pattern = String(args.pattern || '').trim();
 
       const dbSymbols = indexMod.findSymbol(symbol, { root: resolvedRoot });
-      const filtered = pattern ? dbSymbols.filter((s) => s.file.replace(/\\/g, '/').includes(pattern)) : dbSymbols;
+      const filtered = pattern
+        ? dbSymbols.filter((s) => path.join(s.workspaceRoot, s.file).replace(/\\/g, '/').includes(pattern))
+        : dbSymbols;
 
       if (filtered.length > 0) {
         for (const sym of filtered) {
@@ -296,7 +299,7 @@ async function readSymbol(args, settings) {
           const snippet = contentLines.slice(startIdx, endIdx + 1);
 
           matches.push({
-            file: sym.file,
+            file: path.join(sym.workspaceRoot, sym.file).replace(/\\/g, '/'),
             startLine: startIdx + 1,
             endLine: endIdx + 1,
             definitionLine: sym.line,

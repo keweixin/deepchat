@@ -1,7 +1,8 @@
-﻿{
+{
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    "checkJs": true
   },
   "include": [
     "src/types",
@@ -37,8 +38,6 @@
     "src/modules/virtual-message-list.ts",
     "src/modules/settings-prompts.ts",
     "src/modules/chat-message-renderer.ts",
-    "src/modules/streaming-renderer.ts",
-    "src/modules/virtual-message-list.ts",
     "src/modules/exporters.ts",
     "src/modules/tool-detector.ts",
     "src/modules/widgets.ts",
@@ -76,6 +75,28 @@
     "electron/stream-runner.ts",
     "electron/system-prompt.ts",
     "electron/tool-executor.ts",
-    "electron/workspace-index.ts"
+    "electron/workspace-index.ts",
+    "electron/storage.js",
+    "electron/tools.ts",
+    "electron/tools-file.js",
+    "electron/tools-git.js",
+    "electron/tools-project.js",
+    "electron/tools-run-code.js",
+    "electron/tools-schemas.js",
+    "electron/tools-path.js",
+    "electron/tools-search.js",
+    "electron/tools-workspace.ts",
+    "electron/workspace-query.js",
+    "electron/ipc-validation.js",
+    "electron/chat-service.ts",
+    "electron/chat-service-helpers.ts",
+    "electron/chat-streamer.ts",
+    "electron/context-summarizer.ts",
+    "electron/context-manager.ts",
+    "electron/tool-call-handler.ts",
+    "electron/provider-adapters.js",
+    "electron/mcp-manager.js",
+    "electron/external-skills.js",
+    "electron/usage-meter.js"
   ]
 }

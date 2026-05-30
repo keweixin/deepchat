@@ -32,6 +32,7 @@ import {
   highlightActiveProvider,
   highlightActiveModelTag,
   renderExternalSkillList,
+  refreshSettingsDiagnostics,
 } from './settings-dom.js';
 import { renderMcpServerList, refreshMcpStatuses, markMcpStatusStale } from './settings-mcp.js';
 export { renderMcpServerList };
@@ -103,6 +104,7 @@ export function initSettings(onModelChange?: (model: string) => void) {
   highlightActiveProvider(settings);
   highlightActiveModelTag(settings.model as string);
   renderModelCapabilities(els.modelCapabilityStatus, settings);
+  refreshSettingsDiagnostics(els, settings);
 
   bindSettingsEvents(
     els,

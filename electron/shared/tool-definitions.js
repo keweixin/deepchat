@@ -415,6 +415,18 @@ const TOOL_DEFINITIONS = {
               maximum: 10,
               description: 'Maximum directory depth to traverse. Defaults to 4.',
             },
+            maxNodes: {
+              type: 'integer',
+              minimum: 10,
+              maximum: 5000,
+              description: 'Maximum total nodes (files + dirs) to include. Defaults to 800.',
+            },
+            maxEntriesPerDir: {
+              type: 'integer',
+              minimum: 10,
+              maximum: 2000,
+              description: 'Maximum entries to list per directory. Defaults to 200.',
+            },
           },
         },
       },

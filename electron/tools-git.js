@@ -1,6 +1,6 @@
 // @ts-nocheck
 const { execFile } = require('child_process');
-const { resolveWorkspaceRoot } = require('./tools-path');
+const { resolveWorkspaceRoot, isSensitivePath } = require('./tools-path');
 
 const MAX_TOOL_OUTPUT = 12000;
 
@@ -103,47 +103,126 @@ async function gitDiff(args, settings) {
   const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
   const file = String(args.file || '').trim();
   const staged = Boolean(args.staged);
-  const gitArgs = ['diff'];
-  if (staged) gitArgs.push('--staged');
-  if (file) gitArgs.push('--', file);
-  const { stdout: diffOutput } = await execGit(root, gitArgs);
-  const fileRegex = /^diff --git a\/(.+?) b\/(.+)$/gm;
-  const files = [];
-  let match;
-  while ((match = fileRegex.exec(diffOutput)) !== null) {
-    if (!files.includes(match[2])) files.push(match[2]);
-  }
-  const additionLines = (diffOutput.match(/^\+[^+]/gm) || []).length;
-  const deletionLines = (diffOutput.match(/^-[^-]/gm) || []).length;
-  const structured = {
-    type: 'deepchat.gitDiff',
-    version: 1,
-    root,
-    staged,
-    file: file || null,
-    files,
-    additions: additionLines,
-    deletions: deletionLines,
-  };
-  const outputLines = [
-    'Git 差异',
-    `工作区：${root}`,
-    `模式：${staged ? '已暂存' : '未暂存'}`,
-    file ? `文件：${file}` : '范围：所有更改文件',
-    `更改文件数：${files.length}`,
-    `新增行：${additionLines}`,
-    `删除行：${deletionLines}`,
-    'Structured Diff:',
-    JSON.stringify(structured, null, 2),
-    '',
-  ];
-  if (diffOutput.trim()) {
-    outputLines.push('差异详情：');
-    outputLines.push(diffOutput);
+
+  if (file) {
+    // Return detailed diff only for the specified file
+    const gitArgs = ['diff'];
+    if (staged) gitArgs.push('--staged');
+    gitArgs.push('--', file);
+    const { stdout: diffOutput } = await execGit(root, gitArgs);
+    const additionLines = (diffOutput.match(/^\+[^+]/gm) || []).length;
+    const deletionLines = (diffOutput.match(/^-[^-]/gm) || []).length;
+    const hunkCount = (diffOutput.match(/^@@/gm) || []).length;
+
+    const structured = {
+      type: 'deepchat.gitDiffFile',
+      version: 1,
+      root,
+      staged,
+      file,
+      additions: additionLines,
+      deletions: deletionLines,
+      hunks: hunkCount,
+      diff: truncate(diffOutput, 8000), // Prevent massive file diff overflows
+    };
+
+    const outputLines = [
+      `Git 文件差异：${file}`,
+      `工作区：${root}`,
+      `模式：${staged ? '已暂存' : '未暂存'}`,
+      `新增行：${additionLines} · 删除行：${deletionLines} · Hunks数：${hunkCount}`,
+      'Structured Diff:',
+      JSON.stringify(structured, null, 2),
+      '',
+    ];
+
+    if (diffOutput.trim()) {
+      outputLines.push('差异详情：');
+      outputLines.push(structured.diff);
+    } else {
+      outputLines.push('该文件无未提交更改。');
+    }
+    return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
   } else {
-    outputLines.push(staged ? '没有已暂存的更改。' : '没有未提交的更改。');
+    // Return a structured numstat summary of all changed files
+    const gitArgs = ['diff', '--numstat'];
+    if (staged) gitArgs.push('--staged');
+    const { stdout: numstatOutput } = await execGit(root, gitArgs);
+
+    const fullGitArgs = ['diff'];
+    if (staged) fullGitArgs.push('--staged');
+    const { stdout: fullDiffOutput } = await execGit(root, fullGitArgs);
+
+    const files = [];
+    let totalAdditions = 0;
+    let totalDeletions = 0;
+    const numstatLines = numstatOutput.split(/\r?\n/).filter((l) => l.trim());
+
+    for (const line of numstatLines) {
+      const parts = line.split(/\s+/);
+      if (parts.length < 3) continue;
+      const additions = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10) || 0;
+      const deletions = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10) || 0;
+      const filePath = parts.slice(2).join(' ');
+
+      // Count hunks in full diff output segment
+      const fileDiffStart = fullDiffOutput.indexOf(`diff --git a/${filePath} b/${filePath}`);
+      let hunks = 0;
+      if (fileDiffStart !== -1) {
+        let nextDiffStart = fullDiffOutput.indexOf('diff --git a/', fileDiffStart + 1);
+        if (nextDiffStart === -1) nextDiffStart = fullDiffOutput.length;
+        const fileDiffContent = fullDiffOutput.slice(fileDiffStart, nextDiffStart);
+        hunks = (fileDiffContent.match(/^@@/gm) || []).length;
+      }
+
+      const isHighRisk = isSensitivePath(filePath) || additions > 500 || deletions > 500;
+      files.push({
+        path: filePath,
+        additions,
+        deletions,
+        hunks,
+        isHighRisk,
+      });
+
+      totalAdditions += additions;
+      totalDeletions += deletions;
+    }
+
+    const structured = {
+      type: 'deepchat.gitDiffSummary',
+      version: 1,
+      root,
+      staged,
+      files,
+      totalAdditions,
+      totalDeletions,
+    };
+
+    const outputLines = [
+      'Git 差异摘要',
+      `工作区：${root}`,
+      `模式：${staged ? '已暂存' : '未暂存'}`,
+      `更改文件数：${files.length}`,
+      `总新增行：${totalAdditions}`,
+      `总删除行：${totalDeletions}`,
+      'Structured Diff Summary:',
+      JSON.stringify(structured, null, 2),
+      '',
+      '修改文件列表：',
+    ];
+
+    if (files.length === 0) {
+      outputLines.push(staged ? '没有已暂存的更改。' : '没有未提交的更改。');
+    } else {
+      files.forEach((f, index) => {
+        const riskLabel = f.isHighRisk ? ' [⚠️高风险]' : '';
+        outputLines.push(`${index + 1}. ${f.path} (+${f.additions} -${f.deletions}, hunks: ${f.hunks})${riskLabel}`);
+      });
+      outputLines.push('\n提示：若需查看特定文件的详细代码差异，请调用 git_diff({ "file": "文件名" })。');
+    }
+
+    return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
   }
-  return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
 async function gitLog(args, settings) {

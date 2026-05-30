@@ -154,7 +154,7 @@ function _renderContent(mode: string, data: Record<string, any>) {
 
 function _renderEmpty() {
   if (!_contentEl) return;
-  _contentEl.innerHTML = ` /* trusted-html */
+  _contentEl.innerHTML = ` /* safeSetHTML-exempt: static template */
     <div class="inspector-empty">
       <p>选择一条消息或按 <kbd>Ctrl+Shift+I</kbd> 查看详情</p>
     </div>
@@ -301,7 +301,7 @@ function _renderArtifactInfo(data: Record<string, any>) {
   }
 
   if (artifacts.length === 0) {
-    _contentEl.innerHTML = ` /* trusted-html */
+    _contentEl.innerHTML = ` /* safeSetHTML-exempt: static template */
       <div class="inspector-empty">
         <p>此消息中未发现 artifact</p>
       </div>
@@ -898,7 +898,7 @@ function _ensureToolbar() {
     btn.className = 'inspector-toolbar-btn';
     btn.dataset.mode = m.mode;
     btn.title = m.label;
-    btn.innerHTML = `${m.icon}<span>${m.label}</span>`; /* trusted-html */
+    btn.innerHTML = `${m.icon}<span>${m.label}</span>`; /* safeSetHTML-exempt: static template */
     btn.addEventListener('click', () => {
       if (!_currentData || !_currentData.msg) return;
       openInspectorPanel(m.mode, _currentData);

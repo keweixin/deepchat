@@ -5,7 +5,7 @@
  * Stored at {userData}/data/workspace.db
  *
  * Tables:
- *   - files: id, path, size, mtime, hash, language
+ *   - files: id, workspace_root, relative_path, size, mtime, hash, language
  *   - chunks: file_id, chunk_index, line_start, line_end, content
  *   - symbols: file_id, name, kind, line, column
  *   - chunks_fts: FTS5 virtual table on chunks.content
@@ -95,11 +95,13 @@ export async function initWorkspaceIndex(dbPath?: string): Promise<void> {
   db.exec(`
     CREATE TABLE IF NOT EXISTS files (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      path TEXT NOT NULL UNIQUE,
+      workspace_root TEXT NOT NULL DEFAULT '',
+      relative_path TEXT NOT NULL,
       size INTEGER DEFAULT 0,
       mtime REAL DEFAULT 0,
       hash TEXT DEFAULT '',
-      language TEXT DEFAULT ''
+      language TEXT DEFAULT '',
+      UNIQUE(workspace_root, relative_path)
     );
 
     CREATE TABLE IF NOT EXISTS chunks (
@@ -145,7 +147,7 @@ export async function initWorkspaceIndex(dbPath?: string): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_chunks_file_id ON chunks(file_id);
     CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id);
     CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
-    CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
+    CREATE INDEX IF NOT EXISTS idx_files_workspace_path ON files(workspace_root, relative_path);
   `);
 }
 
@@ -171,13 +173,18 @@ export async function indexWorkspace(
 
   const maxFiles = Math.min(options.maxFiles || 700, 700);
   const resolvedRoot = path.resolve(rootPath);
+  const normalizedRoot = resolvedRoot.replace(/\\/g, '/');
 
   const filePaths: string[] = [];
   await walkDir(resolvedRoot, resolvedRoot, filePaths, maxFiles);
 
-  const deleteFile = db.prepare('DELETE FROM files WHERE path = ?');
-  const selectFile = db.prepare('SELECT id, path, size, mtime, hash FROM files WHERE path = ?');
-  const insertFile = db.prepare('INSERT INTO files (path, size, mtime, hash, language) VALUES (?, ?, ?, ?, ?)');
+  const deleteFile = db.prepare('DELETE FROM files WHERE workspace_root = ? AND relative_path = ?');
+  const selectFile = db.prepare(
+    'SELECT id, relative_path, size, mtime, hash FROM files WHERE workspace_root = ? AND relative_path = ?'
+  );
+  const insertFile = db.prepare(
+    'INSERT INTO files (workspace_root, relative_path, size, mtime, hash, language) VALUES (?, ?, ?, ?, ?, ?)'
+  );
   const updateFile = db.prepare('UPDATE files SET size = ?, mtime = ?, hash = ?, language = ? WHERE id = ?');
   const deleteChunks = db.prepare('DELETE FROM chunks WHERE file_id = ?');
   const deleteSymbols = db.prepare('DELETE FROM symbols WHERE file_id = ?');
@@ -213,7 +220,7 @@ export async function indexWorkspace(
 
       if (stat.size === 0 || stat.size > MAX_FILE_BYTES) continue;
 
-      const existing = selectFile.get(normalizedPath) as any;
+      const existing = selectFile.get(normalizedRoot, normalizedPath) as any;
       const fileHash = quickHash(stat.size, stat.mtimeMs);
 
       if (existing && existing.hash === fileHash && existing.size === stat.size) {
@@ -250,7 +257,7 @@ export async function indexWorkspace(
         }
         updated++;
       } else {
-        const info = insertFile.run(normalizedPath, stat.size, stat.mtimeMs, contentHash, language);
+        const info = insertFile.run(normalizedRoot, normalizedPath, stat.size, stat.mtimeMs, contentHash, language);
         const fileId = info.lastInsertRowid;
         for (let i = 0; i < chunks.length; i++) {
           const c = chunks[i];
@@ -264,13 +271,15 @@ export async function indexWorkspace(
       }
     }
 
-    // Remove files that no longer exist
-    const allFiles = db.prepare('SELECT id, path FROM files').all() as any[];
+    // Remove files that no longer exist in this workspace
+    const allFiles = db
+      .prepare('SELECT id, relative_path FROM files WHERE workspace_root = ?')
+      .all(normalizedRoot) as any[];
     for (const file of allFiles) {
-      if (!seenPaths.has(file.path)) {
+      if (!seenPaths.has(file.relative_path)) {
         deleteChunks.run(file.id);
         deleteSymbols.run(file.id);
-        deleteFile.run(file.path);
+        deleteFile.run(normalizedRoot, file.relative_path);
       }
     }
   });
@@ -319,12 +328,12 @@ export function searchWorkspace(
 
   if (options.root) {
     const normalizedRoot = options.root.replace(/\\/g, '/');
-    conditions.push("f.path LIKE ? || '%'");
+    conditions.push('f.workspace_root = ?');
     params.push(normalizedRoot);
   }
 
   if (options.pattern) {
-    conditions.push('f.path LIKE ?');
+    conditions.push('f.relative_path LIKE ?');
     params.push(`%${options.pattern}%`);
   }
 
@@ -340,7 +349,7 @@ export function searchWorkspace(
       c.line_start,
       c.line_end,
       c.content,
-      f.path as file_path,
+      f.relative_path as file_path,
       bm25(chunks_fts, 1.0) as rank
     FROM chunks_fts
     JOIN chunks c ON c.id = chunks_fts.rowid
@@ -406,7 +415,7 @@ export function findSymbol(
 
   if (options.root) {
     const normalizedRoot = options.root.replace(/\\/g, '/');
-    conditions.push("f.path LIKE ? || '%'");
+    conditions.push('f.workspace_root = ?');
     params.push(normalizedRoot);
   }
 
@@ -420,7 +429,7 @@ export function findSymbol(
       s.kind,
       s.line,
       s.column,
-      f.path as file_path,
+      f.relative_path as file_path,
       s.file_id
     FROM symbols s
     JOIN files f ON f.id = s.file_id

@@ -1,5 +1,7 @@
 // @ts-nocheck
 const fs = require('fs/promises');
+const fsSync = require('fs');
+const readline = require('readline');
 const path = require('path');
 const {
   resolveWorkspaceRoot,
@@ -66,29 +68,89 @@ async function readFile(args, settings) {
   if (isSensitivePath(filePath)) throw new Error('该文件路径看起来包含密钥、凭证或敏感配置，已拒绝读取。');
   const stat = await fs.stat(filePath);
   if (!stat.isFile()) throw new Error('只能读取文件，不能读取目录。');
-  const maxBytes = clampInt(args.max_bytes, 1024, MAX_FILE_BYTES, DEFAULT_FILE_BYTES);
+
   const explicitStart = clampInt(args.start_line, 1, Number.MAX_SAFE_INTEGER, 0);
   const explicitEnd = clampInt(args.end_line, 1, Number.MAX_SAFE_INTEGER, 0);
   const lineRange = normalizeLineRange(explicitStart || citation.startLine, explicitEnd || citation.endLine);
-  const bytesToRead = Math.min(stat.size, maxBytes);
-  const handle = await fs.open(filePath, 'r');
-  try {
-    const buffer = Buffer.alloc(bytesToRead);
-    await handle.read(buffer, 0, bytesToRead, 0);
-    if (isProbablyBinary(buffer)) throw new Error('该文件看起来是二进制文件，已拒绝读取。');
-    const text = redactSensitiveText(buffer.toString('utf8'));
-    const truncated = stat.size > maxBytes;
-    if (lineRange) return formatLineRangeFileOutput(filePath, stat.size, maxBytes, text, truncated, lineRange);
+
+  if (lineRange) {
+    // Stream large files line-by-line using readline to avoid reading the whole file into buffer
+    const start = Math.max(1, lineRange.start - 20);
+    const end = lineRange.end + 20;
+
+    const fileStream = fsSync.createReadStream(filePath, { encoding: 'utf8' });
+    const rl = readline.createInterface({
+      input: fileStream,
+      crlfDelay: Infinity,
+    });
+
+    let currentLine = 0;
+    const lines = [];
+    let isBinary = false;
+    let sampleBuffer = Buffer.alloc(0);
+
+    try {
+      for await (const line of rl) {
+        currentLine++;
+        if (currentLine <= 10) {
+          sampleBuffer = Buffer.concat([sampleBuffer, Buffer.from(line)]);
+        }
+        if (currentLine === 10) {
+          if (isProbablyBinary(sampleBuffer)) {
+            isBinary = true;
+            rl.close();
+            break;
+          }
+        }
+
+        if (currentLine >= start && currentLine <= end) {
+          lines.push(`${currentLine}: ${redactSensitiveText(line)}`);
+        }
+        if (currentLine > end) {
+          rl.close();
+          break;
+        }
+      }
+    } finally {
+      fileStream.destroy();
+    }
+
+    if (isBinary) throw new Error('该文件看起来是二进制文件，已拒绝读取。');
+
+    const rangeText =
+      lineRange.start === lineRange.end ? String(lineRange.start) : `${lineRange.start}-${lineRange.end}`;
+    const formattedLines = lines.length > 0 ? lines : [`请求的行范围 ${lineRange.start}-${lineRange.end} 不在文件内。`];
     return [
       `文件：${filePath}`,
-      `大小：${stat.size} bytes${truncated ? `（仅读取前 ${maxBytes} bytes）` : ''}`,
+      `大小：${stat.size} bytes`,
+      `行范围：${rangeText}（仅读取 ${start}-${Math.min(currentLine, end)}，包含前后 20 行上下文）`,
       '',
-      text,
+      ...formattedLines,
     ]
       .join('\n')
       .slice(0, MAX_TOOL_OUTPUT);
-  } finally {
-    await handle.close();
+  } else {
+    // Fallback: read standard max_bytes header buffer
+    const maxBytes = clampInt(args.max_bytes, 1024, MAX_FILE_BYTES, DEFAULT_FILE_BYTES);
+    const bytesToRead = Math.min(stat.size, maxBytes);
+    const handle = await fs.open(filePath, 'r');
+    try {
+      const buffer = Buffer.alloc(bytesToRead);
+      await handle.read(buffer, 0, bytesToRead, 0);
+      if (isProbablyBinary(buffer)) throw new Error('该文件看起来是二进制文件，已拒绝读取。');
+      const text = redactSensitiveText(buffer.toString('utf8'));
+      const truncated = stat.size > maxBytes;
+      return [
+        `文件：${filePath}`,
+        `大小：${stat.size} bytes${truncated ? `（仅读取前 ${maxBytes} bytes）` : ''}`,
+        '',
+        text,
+      ]
+        .join('\n')
+        .slice(0, MAX_TOOL_OUTPUT);
+    } finally {
+      await handle.close();
+    }
   }
 }
 

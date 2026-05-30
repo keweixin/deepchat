@@ -332,7 +332,7 @@ function bindEvents() {
   const $chatMessages = document.getElementById('chat-messages');
   const scrollFab = document.createElement('button');
   scrollFab.className = 'scroll-to-bottom-fab hidden';
-  scrollFab.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`; /* trusted-html */
+  scrollFab.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`; /* safeSetHTML-exempt: static template */
   scrollFab.title = '回到底部';
   document.getElementById('main-content').appendChild(scrollFab);
 
@@ -802,7 +802,7 @@ function toggleComposerToolMenu(anchor, onChange, openSettings) {
     item.setAttribute('role', 'menuitemradio');
     item.setAttribute('aria-checked', String(entry.active));
     item.setAttribute('aria-disabled', String(!entry.available));
-    item.innerHTML = ` /* trusted-html */
+    item.innerHTML = ` /* safeSetHTML-exempt: static template */
       <span class="composer-tool-item-icon">${entry.icon}</span>
       <span class="composer-tool-item-body">
         <span class="composer-tool-item-title">${entry.name}</span>
@@ -868,7 +868,7 @@ function toggleContextShortcutMenu(anchor, openSettings) {
     item.className = `context-shortcut-item${entry.available ? '' : ' unavailable'}`;
     item.setAttribute('role', 'menuitem');
     item.setAttribute('aria-disabled', String(!entry.available));
-    item.innerHTML = ` /* trusted-html */
+    item.innerHTML = ` /* safeSetHTML-exempt: static template */
       <span class="context-shortcut-title">${entry.title}</span>
       <span class="context-shortcut-desc">${entry.description}</span>
       <code class="context-shortcut-code">${entry.insertText}</code>
@@ -1061,7 +1061,7 @@ function toggleKeyboardHelp() {
 
   const overlay = document.createElement('div');
   overlay.className = 'keyboard-help-overlay';
-  overlay.innerHTML = ` /* trusted-html */
+  overlay.innerHTML = ` /* safeSetHTML-exempt: static template */
     <div class="keyboard-help-panel">
       <div class="keyboard-help-header">
         <h3>⌨️ 快捷键速查</h3>
@@ -1129,7 +1129,7 @@ function toggleChatSearch() {
 
   const bar = document.createElement('div');
   bar.className = 'chat-search-bar';
-  bar.innerHTML = ` /* trusted-html */
+  bar.innerHTML = ` /* safeSetHTML-exempt: static template */
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
     <input type="text" class="chat-search-input" placeholder="搜索对话内容…" autofocus />
     <span class="chat-search-count"></span>
@@ -1225,7 +1225,7 @@ function toggleMarkdownPreview(text) {
 
   const overlay = document.createElement('div');
   overlay.className = 'markdown-preview-overlay';
-  overlay.innerHTML = ` /* trusted-html */
+  overlay.innerHTML = ` /* safeSetHTML-exempt: static template */
     <div class="markdown-preview-panel">
       <div class="markdown-preview-header">
         <h3>📝 Markdown 预览</h3>

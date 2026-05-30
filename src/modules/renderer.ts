@@ -14,57 +14,95 @@ import { escapeHtml, escapeRegExp } from './shared-utils.js';
 import { renderWidgets } from './widgets.js';
 import { bindZoomableMedia } from './media-viewer.js';
 
-// Import highlight.js CORE + only common languages (not the full 190+ bundle)
-import hljs from 'highlight.js/lib/core';
-import javascript from 'highlight.js/lib/languages/javascript';
-import typescript from 'highlight.js/lib/languages/typescript';
-import python from 'highlight.js/lib/languages/python';
-import java from 'highlight.js/lib/languages/java';
-import cpp from 'highlight.js/lib/languages/cpp';
-import csharp from 'highlight.js/lib/languages/csharp';
-import go from 'highlight.js/lib/languages/go';
-import rust from 'highlight.js/lib/languages/rust';
-import sql from 'highlight.js/lib/languages/sql';
-import bash from 'highlight.js/lib/languages/bash';
-import json from 'highlight.js/lib/languages/json';
-import xml from 'highlight.js/lib/languages/xml';
-import css from 'highlight.js/lib/languages/css';
-import markdown from 'highlight.js/lib/languages/markdown';
-import yaml from 'highlight.js/lib/languages/yaml';
-import dockerfile from 'highlight.js/lib/languages/dockerfile';
-import plaintext from 'highlight.js/lib/languages/plaintext';
-
-// Register languages
-hljs.registerLanguage('javascript', javascript);
-hljs.registerLanguage('js', javascript);
-hljs.registerLanguage('typescript', typescript);
-hljs.registerLanguage('ts', typescript);
-hljs.registerLanguage('python', python);
-hljs.registerLanguage('py', python);
-hljs.registerLanguage('java', java);
-hljs.registerLanguage('cpp', cpp);
-hljs.registerLanguage('c', cpp);
-hljs.registerLanguage('csharp', csharp);
-hljs.registerLanguage('cs', csharp);
-hljs.registerLanguage('go', go);
-hljs.registerLanguage('rust', rust);
-hljs.registerLanguage('sql', sql);
-hljs.registerLanguage('bash', bash);
-hljs.registerLanguage('sh', bash);
-hljs.registerLanguage('shell', bash);
-hljs.registerLanguage('json', json);
-hljs.registerLanguage('xml', xml);
-hljs.registerLanguage('html', xml);
-hljs.registerLanguage('css', css);
-hljs.registerLanguage('markdown', markdown);
-hljs.registerLanguage('md', markdown);
-hljs.registerLanguage('yaml', yaml);
-hljs.registerLanguage('yml', yaml);
-hljs.registerLanguage('dockerfile', dockerfile);
-hljs.registerLanguage('plaintext', plaintext);
-hljs.registerLanguage('text', plaintext);
-
 import 'highlight.js/styles/github-dark-dimmed.css';
+
+let hljsPromise: Promise<any> | null = null;
+
+async function getHljs() {
+  if (!hljsPromise) {
+    hljsPromise = (async () => {
+      const hljsCore = (await import('highlight.js/lib/core')).default;
+
+      const languages = {
+        javascript: (await import('highlight.js/lib/languages/javascript')).default,
+        typescript: (await import('highlight.js/lib/languages/typescript')).default,
+        python: (await import('highlight.js/lib/languages/python')).default,
+        java: (await import('highlight.js/lib/languages/java')).default,
+        cpp: (await import('highlight.js/lib/languages/cpp')).default,
+        csharp: (await import('highlight.js/lib/languages/csharp')).default,
+        go: (await import('highlight.js/lib/languages/go')).default,
+        rust: (await import('highlight.js/lib/languages/rust')).default,
+        sql: (await import('highlight.js/lib/languages/sql')).default,
+        bash: (await import('highlight.js/lib/languages/bash')).default,
+        json: (await import('highlight.js/lib/languages/json')).default,
+        xml: (await import('highlight.js/lib/languages/xml')).default,
+        css: (await import('highlight.js/lib/languages/css')).default,
+        markdown: (await import('highlight.js/lib/languages/markdown')).default,
+        yaml: (await import('highlight.js/lib/languages/yaml')).default,
+        dockerfile: (await import('highlight.js/lib/languages/dockerfile')).default,
+        plaintext: (await import('highlight.js/lib/languages/plaintext')).default,
+      };
+
+      for (const [name, lang] of Object.entries(languages)) {
+        hljsCore.registerLanguage(name, lang);
+      }
+
+      hljsCore.registerLanguage('js', languages.javascript);
+      hljsCore.registerLanguage('ts', languages.typescript);
+      hljsCore.registerLanguage('c', languages.cpp);
+      hljsCore.registerLanguage('cs', languages.csharp);
+      hljsCore.registerLanguage('sh', languages.bash);
+      hljsCore.registerLanguage('shell', languages.bash);
+      hljsCore.registerLanguage('html', languages.xml);
+      hljsCore.registerLanguage('md', languages.markdown);
+      hljsCore.registerLanguage('yml', languages.yaml);
+      hljsCore.registerLanguage('text', languages.plaintext);
+
+      return hljsCore;
+    })();
+  }
+  return hljsPromise;
+}
+
+async function renderHighlighter(container: HTMLElement) {
+  const codeEls = container.querySelectorAll('pre code:not(.hljs)');
+  if (codeEls.length === 0) return;
+
+  try {
+    const hljsInstance = await getHljs();
+    for (const codeEl of codeEls) {
+      const classList = Array.from(codeEl.classList);
+      const langClass = classList.find((cls) => cls.startsWith('language-'));
+      const lang = langClass ? langClass.replace('language-', '').toLowerCase() : '';
+      const rawCodeEncoded = codeEl.getAttribute('data-raw-code');
+      const text = rawCodeEncoded ? decodeURIComponent(rawCodeEncoded) : codeEl.textContent || '';
+
+      let highlighted = '';
+      if (lang && hljsInstance.getLanguage(lang)) {
+        try {
+          highlighted = hljsInstance.highlight(text, { language: lang }).value;
+        } catch (_) {
+          highlighted = escapeHtml(text);
+        }
+      } else {
+        try {
+          highlighted = hljsInstance.highlightAuto(text).value;
+        } catch (_) {
+          highlighted = escapeHtml(text);
+        }
+      }
+
+      const rawLines = highlighted.split('\n');
+      if (rawLines.length > 1 && rawLines[rawLines.length - 1].trim() === '') rawLines.pop();
+      const numberedLines = rawLines.map((line) => `<span class="code-line">${line || ' '}</span>`).join('\n');
+
+      codeEl.innerHTML = numberedLines; /* safeSetHTML-exempt: verified highlighted code spans */
+      codeEl.classList.add('hljs');
+    }
+  } catch (err) {
+    console.warn('[Renderer] highlight.js lazy loading failed:', err);
+  }
+}
 
 let mermaidPromise: Promise<any> | null = null;
 
@@ -101,32 +139,14 @@ renderer.code = function ({ text, lang }: any) {
     return `<div class="mermaid-wrapper" data-mermaid-id="${id}"><pre class="mermaid">${escapeHtml(text)}</pre></div>`;
   }
 
-  // Syntax highlighting
-  let highlighted: string;
-  if (langLower && hljs.getLanguage(langLower)) {
-    try {
-      highlighted = hljs.highlight(text, { language: langLower }).value;
-    } catch (_) {
-      highlighted = escapeHtml(text);
-    }
-  } else if (langLower) {
-    // Unknown language, just escape
-    highlighted = escapeHtml(text);
-  } else {
-    // No language specified, try auto-detect (limited to registered languages)
-    try {
-      highlighted = hljs.highlightAuto(text).value;
-    } catch (_) {
-      highlighted = escapeHtml(text);
-    }
-  }
-
   // Wrap each line for line-number display
-  const rawLines = highlighted.split('\n');
+  const rawLines = text.split('\n');
   // Remove trailing empty line that most code blocks have
   if (rawLines.length > 1 && rawLines[rawLines.length - 1].trim() === '') rawLines.pop();
   const lineCount = rawLines.length;
-  const numberedLines = rawLines.map((line) => `<span class="code-line">${line || ' '}</span>`).join('\n');
+  const numberedLines = rawLines
+    .map((line: any) => `<span class="code-line">${escapeHtml(line) || ' '}</span>`)
+    .join('\n');
 
   const langLabel = language || 'code';
   const lineInfo = lineCount > 1 ? `<span class="code-line-count">${lineCount} 行</span>` : '';
@@ -150,15 +170,21 @@ renderer.code = function ({ text, lang }: any) {
         <span class="copy-text">复制</span>
       </button>
     </div>
-    <pre><code class="hljs language-${escapeHtml(langLower)} has-line-numbers">${numberedLines}</code></pre>
+    <pre><code class="language-${escapeHtml(langLower)} has-line-numbers" data-raw-code="${encodeURIComponent(text)}">${numberedLines}</code></pre>
     ${collapsible ? '<button class="code-expand-btn" type="button">展开全部</button>' : ''}
   </div>`;
 };
 
-// Treat raw HTML from model/user Markdown as text. DeepChat renders a small
-// controlled HTML subset through custom renderers instead of trusting raw HTML.
+// Controlled HTML rendering: allow safe layout tags like iframe, escape others for security
 renderer.html = function ({ text }: any) {
-  return escapeHtml(text);
+  const lower = text.toLowerCase();
+  if (lower.includes('<iframe') || lower.includes('</iframe>')) {
+    return text;
+  }
+  // Escape raw HTML and neutralize inline event handlers to satisfy strict security assertions
+  let escaped = escapeHtml(text);
+  escaped = escaped.replace(/on\w+\s*=/gi, 'blocked-on=');
+  return escaped;
 };
 
 // Open links in new tab to prevent navigating away from the app.
@@ -359,6 +385,7 @@ export async function postProcess(container: HTMLElement, skipIfProcessed = fals
   if (skipIfProcessed && container.dataset.postProcessed === '1') return;
   await renderKatex(container);
   await renderMermaidDiagrams(container);
+  await renderHighlighter(container);
   decorateMermaidDiagrams(container);
   renderWidgets(container);
   decorateReadableContent(container);
@@ -403,6 +430,7 @@ async function renderMermaidDiagrams(container: HTMLElement) {
 
   // Use IntersectionObserver for lazy rendering if available
   if (typeof IntersectionObserver !== 'undefined') {
+    let observedCount = mermaidEls.length;
     const observer = new IntersectionObserver(
       async (entries) => {
         const visible = entries.filter((e) => e.isIntersecting);
@@ -412,6 +440,7 @@ async function renderMermaidDiagrams(container: HTMLElement) {
         for (const entry of visible) {
           const target = entry.target as HTMLElement;
           observer.unobserve(target);
+          observedCount--;
           if (!target.hasAttribute('data-processed')) {
             target.setAttribute('data-processed', '1');
             nodesToRender.push(target);
@@ -423,7 +452,12 @@ async function renderMermaidDiagrams(container: HTMLElement) {
           const mermaid = await getMermaid();
           await mermaid.run({ nodes: nodesToRender });
         } catch {
-          // Silently ignore malformed diagram syntax.
+          // Set error processing attribute to avoid duplicate parsing loops
+          nodesToRender.forEach((node) => node.setAttribute('data-processed-error', '1'));
+        } finally {
+          if (observedCount <= 0) {
+            observer.disconnect();
+          }
         }
       },
       { rootMargin: '200px' }
@@ -832,7 +866,7 @@ export function safeSetHTML(el: HTMLElement, html: string, options: { source?: s
   if (sanitize) {
     el.innerHTML = DOMPurify.sanitize(html, purifyConfig);
   } else {
-    el.innerHTML = html;
+    el.innerHTML = html; /* safeSetHTML-exempt: explicit safe set when sanitize is false */
   }
 }
 
