@@ -7,6 +7,7 @@
  * - Estimate cost from model pricing tables
  */
 
+/** @type {Record<string, { inputCacheHit: number; inputCacheMiss: number; output: number }>} */
 const DEEPSEEK_PRICING = {
   'deepseek-v4-flash': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
   'deepseek-v4-pro': { inputCacheHit: 0.003625, inputCacheMiss: 0.435, output: 0.87 },
@@ -14,17 +15,27 @@ const DEEPSEEK_PRICING = {
   'deepseek-reasoner': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
 };
 
+/** @type {Record<string, { inputCacheHit: number; inputCacheMiss: number; output: number }>} */
 const MIMO_PRICING = {
   'mimo-v2.5': { inputCacheHit: 0.0028, inputCacheMiss: 0.14, output: 0.28 },
   'mimo-v2.5-pro': { inputCacheHit: 0.0036, inputCacheMiss: 0.435, output: 0.87 },
 };
 
+/**
+ * @param {any} value
+ * @param {number} [fallback]
+ * @returns {number}
+ */
 function toTokenNumber(value, fallback = 0) {
   const number = Number(value);
   if (!Number.isFinite(number) || number < 0) return Math.max(0, Math.round(Number(fallback) || 0));
   return Math.round(number);
 }
 
+/**
+ * @param {string | any[]} text
+ * @returns {number}
+ */
 function estimateTokens(text) {
   if (!text) return 0;
   if (Array.isArray(text)) {
@@ -39,20 +50,39 @@ function estimateTokens(text) {
   return Math.ceil(cjk * 1.5 + rest * 0.4);
 }
 
+/**
+ * @param {{ content?: string }[]} messages
+ * @returns {number}
+ */
 function estimateMessagesTokens(messages) {
   return messages.reduce((total, msg) => total + estimateTokens(msg.content || '') + 4, 0);
 }
 
+/**
+ * @param {any} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
 }
 
+/**
+ * @param {any} value
+ * @returns {number}
+ */
 function roundCost(value) {
   return Math.round(Number(value || 0) * 1000000000) / 1000000000;
 }
 
+/**
+ * @param {string} model
+ * @returns {{ inputCacheHit: number; inputCacheMiss: number; output: number } | null}
+ */
 function pricingForModel(model) {
   const id = String(model || '').trim();
   if (DEEPSEEK_PRICING[id]) return DEEPSEEK_PRICING[id];
@@ -64,6 +94,11 @@ function pricingForModel(model) {
   return null;
 }
 
+/**
+ * @param {string} model
+ * @param {{ cacheHit: number; cacheMiss: number; output: number }} usage
+ * @returns {{ model: string; estimatedCostUsd: number; estimatedSavingsUsd: number; inputCacheHitCostUsd: number; inputCacheMissCostUsd: number; outputCostUsd: number } | null}
+ */
 function estimateUsageCost(model, usage) {
   const pricing = pricingForModel(model);
   if (!pricing) return null;
@@ -82,6 +117,11 @@ function estimateUsageCost(model, usage) {
   };
 }
 
+/**
+ * @param {any} left
+ * @param {any} right
+ * @returns {any}
+ */
 function mergeUsageCost(left, right) {
   if (!left && !right) return null;
   const out = {
@@ -103,8 +143,13 @@ function mergeUsageCost(left, right) {
   return out;
 }
 
+/**
+ * @param {any} value
+ * @returns {Record<string, number>}
+ */
 function normalizePurposeUsage(value) {
   if (!value || typeof value !== 'object') return {};
+  /** @type {Record<string, number>} */
   const out = {};
   for (const [key, amount] of Object.entries(value)) {
     const safeKey = String(key || '')
@@ -115,7 +160,13 @@ function normalizePurposeUsage(value) {
   return out;
 }
 
+/**
+ * @param {Record<string, number>} [left]
+ * @param {Record<string, number>} [right]
+ * @returns {Record<string, number>}
+ */
 function mergePurposeUsage(left = {}, right = {}) {
+  /** @type {Record<string, number>} */
   const out = { ...(left || {}) };
   for (const [key, amount] of Object.entries(right || {})) {
     out[key] = toTokenNumber(out[key]) + toTokenNumber(amount);

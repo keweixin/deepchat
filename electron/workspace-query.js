@@ -11,13 +11,17 @@
 
 const DIRECTIVE_PATTERN = /(?:^|[\s([，,;；])@(\w+)(?::([^\s@]+))?/gi;
 
+/**
+ * @param {string} [query]
+ * @returns {{ textQuery: string; file: string[]; folder: string[]; symbol: string; changedDays: number | null; recentOnly: boolean }}
+ */
 export function parseWorkspaceQuery(query = '') {
   const text = String(query || '').trim();
   const directives = {
-    file: [],
-    folder: [],
+    file: /** @type {string[]} */ ([]),
+    folder: /** @type {string[]} */ ([]),
     symbol: '',
-    changedDays: null,
+    changedDays: /** @type {number | null} */ (null),
     recentOnly: false,
   };
   let cleaned = text;
@@ -56,6 +60,11 @@ export function parseWorkspaceQuery(query = '') {
   return { textQuery, ...directives };
 }
 
+/**
+ * @param {string} filePath
+ * @param {{ file: string[]; folder: string[] }} directives
+ * @returns {boolean}
+ */
 export function matchesFileDirective(filePath, directives) {
   const normalized = String(filePath || '')
     .replace(/\\/g, '/')
@@ -75,6 +84,11 @@ export function matchesFileDirective(filePath, directives) {
   return true;
 }
 
+/**
+ * @param {number} mtimeMs
+ * @param {{ changedDays: number | null; recentOnly: boolean }} directives
+ * @returns {boolean}
+ */
 export function matchesChangedDirective(mtimeMs, directives) {
   const days = directives.changedDays ?? (directives.recentOnly ? 7 : null);
   if (days === null) return true;
@@ -83,6 +97,13 @@ export function matchesChangedDirective(mtimeMs, directives) {
   return ageMs >= 0 && ageMs <= days * 24 * 60 * 60 * 1000;
 }
 
+/**
+ * @param {string} text
+ * @param {string[]} [terms]
+ * @param {string} [queryLower]
+ * @param {string} [symbol]
+ * @returns {{ line: number; text: string; score: number }[]}
+ */
 export function highlightWorkspaceSnippet(text, terms = [], queryLower = '', symbol = '') {
   const lines = String(text || '').split(/\r?\n/);
   const symbolPattern = symbol ? createSymbolPattern(symbol) : null;
@@ -129,6 +150,12 @@ function looksLikeSymbolDefinition(line, symbol) {
   return defPatterns.some((p) => p.test(lower));
 }
 
+/**
+ * @param {string[]} lines
+ * @param {number} centerLine
+ * @param {number} [radius]
+ * @returns {{ line: number; text: string }[]}
+ */
 export function buildHighlightedSnippet(lines, centerLine, radius = 2) {
   const result = [];
   const start = Math.max(0, centerLine - radius - 1);
