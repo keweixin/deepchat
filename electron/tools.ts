@@ -1,5 +1,4 @@
-﻿// @ts-nocheck
-import { resolveAllowedPath, isSensitivePath, isPathInsideRoot } from './tools-path.js';
+﻿import { resolveAllowedPath, isSensitivePath, isPathInsideRoot } from './tools-path.js';
 import { gitStatus, gitDiff, gitLog } from './tools-git.js';
 import { webSearch, normalizeSearchQueries, normalizeTavilyResults, formatTavilyResults } from './tools-search.js';
 import { projectMap } from './tools-project.js';
@@ -30,7 +29,14 @@ const RUN_CODE_SECURITY_LIMITS = {
 
 const PROJECT_MAP_EXCLUDED_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', '.cache', 'release']);
 
-function getToolModeStatus(settings) {
+/**
+ * @param {{ workspaceRoots?: string[]; tavilyApiKey?: string; runCodeEnabled?: boolean | string }} settings
+ */
+function getToolModeStatus(settings: {
+  workspaceRoots?: string[];
+  tavilyApiKey?: string;
+  runCodeEnabled?: boolean | string;
+}) {
   const roots = settings.workspaceRoots || [];
   return {
     web_search: Boolean(settings.tavilyApiKey),
@@ -40,7 +46,11 @@ function getToolModeStatus(settings) {
   };
 }
 
-function describeToolRisk(name, args) {
+/**
+ * @param {string} name
+ * @param {any} args
+ */
+function describeToolRisk(name: string, args: any) {
   if (name === 'web_search') {
     const queries = normalizeSearchQueries(args);
     const preview =
@@ -122,7 +132,13 @@ function describeToolRisk(name, args) {
   return '未知工具调用。';
 }
 
-async function executeTool(name, args, settings, signal?) {
+/**
+ * @param {string} name
+ * @param {any} args
+ * @param {any} settings
+ * @param {AbortSignal} [signal]
+ */
+async function executeTool(name: string, args: any, settings: any, signal?: AbortSignal) {
   let output;
   if (name === 'web_search') output = await webSearch(args, settings);
   else if (name === 'list_files') output = await listFiles(args, settings);
@@ -140,7 +156,14 @@ async function executeTool(name, args, settings, signal?) {
   return redactSensitiveText(output);
 }
 
-function clampInt(value, min, max, fallback) {
+/**
+ * @param {any} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} fallback
+ * @returns {number}
+ */
+function clampInt(value: any, min: number, max: number, fallback: number): number {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);

@@ -33,6 +33,7 @@ import './styles/animations.css';
 import './styles/agent-crew.css';
 import './styles/agent-theatre.css';
 import './styles/inspector-panel.css';
+import './styles/artifact-panel.css';
 import './styles/tool-card.css';
 import './styles/agent-trace.css';
 
@@ -63,6 +64,7 @@ import { renderMarkdown, safeSetHTML } from './modules/renderer.js';
 import { onMenuNewChat, onMenuOpenSettings } from './modules/client-store.js';
 import { initReadingNavigator } from './modules/reading-navigator.js';
 import { initInspectorPanel } from './modules/inspector-panel.js';
+import { initArtifactPanel, openArtifactPanel } from './modules/artifact-panel.js';
 import { autoResize, debounce, showToast } from './modules/utils.js';
 import {
   applyComposerModeToPrompt,
@@ -112,6 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initReadingNavigator();
     initSettings(onModelChange);
     initInspectorPanel();
+    initArtifactPanel();
   });
 });
 

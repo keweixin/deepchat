@@ -26,6 +26,7 @@ import { openTraceInspector } from './agent-trace-inspector.js';
 import { isAgentSkill, ROLE_TOOL_MAP } from './tool-registry.js';
 import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
 import { setInspectorToggleBadge, openInspectorPanel, updateInspectorPanel } from './inspector-panel.js';
+import { openArtifactPanel } from './artifact-panel.js';
 import { extractArtifacts } from './artifacts.js';
 
 /**
@@ -466,6 +467,10 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         );
         deps.renderAssistantEvidence(msgEl.querySelector('.message-body'), assistantMsg);
         setInspectorToggleBadge(extractArtifacts(fullContent).length > 0);
+        // Auto-show artifact panel when new assistant message contains artifacts
+        if (extractArtifacts(fullContent).length > 0) {
+          openArtifactPanel(conv.messages.length - 1, assistantMsg);
+        }
         deps.setIsStreaming(false);
         deps.setAbortController(null);
         deps.setUserScrolledUp(false);

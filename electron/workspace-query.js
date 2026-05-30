@@ -174,4 +174,3 @@ export function buildHighlightedSnippet(lines, centerLine, radius = 2) {
   }
   return result;
 }
-

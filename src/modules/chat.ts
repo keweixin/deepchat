@@ -101,6 +101,7 @@ import { renderStreamingMarkdown } from './streaming-renderer.js';
 import { TraceRecorder, migrateLegacyAgentRun } from './agent-trace.js';
 import { openTraceInspector } from './agent-trace-inspector.js';
 import { openInspectorPanel, setInspectorToggleBadge } from './inspector-panel.js';
+import { openArtifactPanel } from './artifact-panel.js';
 import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
 import { COPY_FEEDBACK_MS, OUTLINE_HIGHLIGHT_MS } from './constants.js';
 import { createVirtualList } from './virtual-message-list.js';
@@ -451,6 +452,8 @@ export async function initChat() {
     const msg = conv.messages[msgIndex];
     if (!msg) return;
     openInspectorPanel('artifact', { msg, messages: conv.messages, index: msgIndex });
+    // Also open the artifact workspace panel
+    openArtifactPanel(msgIndex, msg);
   };
   document.addEventListener('deepchat:open-artifact-inspector', artifactInspectorHandler);
   _chatCleanupFns.push(() =>

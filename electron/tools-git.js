@@ -1,20 +1,36 @@
-// @ts-nocheck
 const { execFile } = require('child_process');
 const { resolveWorkspaceRoot, isSensitivePath } = require('./tools-path');
 
 const MAX_TOOL_OUTPUT = 12000;
 
+/**
+ * @param {any} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampInt(value, min, max, fallback) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
 }
 
+/**
+ * @param {any} value
+ * @param {number} max
+ * @returns {string}
+ */
 function truncate(value, max) {
   const text = String(value || '');
   return text.length > max ? `${text.slice(0, max)}\n...` : text;
 }
 
+/**
+ * @param {string} cwd
+ * @param {string[]} args
+ * @returns {Promise<{ stdout: string; stderr: string }>}
+ */
 function execGit(cwd, args) {
   return new Promise((resolve, reject) => {
     execFile(
@@ -32,6 +48,11 @@ function execGit(cwd, args) {
   });
 }
 
+/**
+ * @param {string} indexStatus
+ * @param {string} worktreeStatus
+ * @returns {string}
+ */
 function mapGitStatus(indexStatus, worktreeStatus) {
   if (indexStatus === '?' && worktreeStatus === '?') return 'untracked';
   if (indexStatus === '!' && worktreeStatus === '!') return 'ignored';
@@ -47,6 +68,11 @@ function mapGitStatus(indexStatus, worktreeStatus) {
   return 'unchanged';
 }
 
+/**
+ * @param {{ path?: string }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
 async function gitStatus(args, settings) {
   const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
   let branch = '';
@@ -64,7 +90,17 @@ async function gitStatus(args, settings) {
   const { stdout } = await execGit(root, ['status', '--porcelain=v1']);
   const statusLines = stdout.split(/\r?\n/).filter((line) => line.trim());
   const files = [];
-  const summary = { modified: 0, added: 0, deleted: 0, untracked: 0, renamed: 0, copied: 0, conflict: 0 };
+  const summary = {
+    modified: 0,
+    added: 0,
+    deleted: 0,
+    untracked: 0,
+    renamed: 0,
+    copied: 0,
+    conflict: 0,
+    ignored: 0,
+    unchanged: 0,
+  };
   for (const line of statusLines) {
     if (line.length < 3) continue;
     const indexStatus = line[0];
@@ -76,7 +112,7 @@ async function gitStatus(args, settings) {
     }
     const status = mapGitStatus(indexStatus, worktreeStatus);
     files.push({ path: filePath, indexStatus, worktreeStatus, status });
-    if (status in summary) summary[status] += 1;
+    if (status in summary) /** @type {Record<string, number>} */ (summary)[status] += 1;
   }
   const structured = { type: 'deepchat.gitStatus', version: 1, root, branch, files, summary };
   const outputLines = [
@@ -99,6 +135,11 @@ async function gitStatus(args, settings) {
   return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
+/**
+ * @param {{ path?: string; file?: string; staged?: boolean }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
 async function gitDiff(args, settings) {
   const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
   const file = String(args.file || '').trim();
@@ -225,6 +266,11 @@ async function gitDiff(args, settings) {
   }
 }
 
+/**
+ * @param {{ path?: string; count?: number; file?: string }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
 async function gitLog(args, settings) {
   const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
   const count = clampInt(args.count, 1, 100, 10);
@@ -245,7 +291,7 @@ async function gitLog(args, settings) {
         message: parts.slice(4).join('|'),
       };
     })
-    .filter(Boolean);
+    .filter((c) => c !== null);
   const structured = { type: 'deepchat.gitLog', version: 1, root, count, file: file || null, commits };
   const outputLines = [
     'Git 提交历史',

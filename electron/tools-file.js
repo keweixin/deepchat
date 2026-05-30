@@ -1,4 +1,3 @@
-// @ts-nocheck
 const fs = require('fs/promises');
 const fsSync = require('fs');
 const readline = require('readline');
@@ -18,12 +17,24 @@ const DEFAULT_FILE_BYTES = 30 * 1024;
 const MAX_READ_MANY_FILES_BYTES = 500 * 1024;
 const MAX_SEARCH_FILE_BYTES = 64 * 1024;
 
+/**
+ * @param {any} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampInt(value, min, max, fallback) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
 }
 
+/**
+ * @param {{ root?: string; directory?: string; pattern?: string; recent_days?: number; sort_by?: string }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
 async function listFiles(args, settings) {
   const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
   const directory = String(args.directory || '').trim();
@@ -37,6 +48,7 @@ async function listFiles(args, settings) {
     .toLowerCase();
   const sortByModified = sortBy === 'modified' || recentDays > 0;
   const cutoff = recentDays > 0 ? Date.now() - recentDays * 24 * 60 * 60 * 1000 : 0;
+  /** @type {{ path: string; fullPath: string; size: number; mtimeMs: number }[]} */
   const files = [];
   await walk(scanRoot, scanRoot, files, matcher);
   const matchedFiles = files
@@ -61,6 +73,11 @@ async function listFiles(args, settings) {
     .slice(0, MAX_TOOL_OUTPUT);
 }
 
+/**
+ * @param {{ path: string; start_line?: number; end_line?: number; max_bytes?: number }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
 async function readFile(args, settings) {
   const citation = parsePathLineCitation(args.path);
   const requestedPath = citation.path || args.path;
@@ -154,6 +171,11 @@ async function readFile(args, settings) {
   }
 }
 
+/**
+ * @param {{ paths?: string[]; maxTotalBytes?: number }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
 async function readManyFiles(args, settings) {
   const paths_ = Array.isArray(args.paths) ? args.paths : [];
   if (paths_.length === 0) throw new Error('文件路径列表不能为空。');
@@ -203,7 +225,7 @@ async function readManyFiles(args, settings) {
         await handle.close();
       }
     } catch (error) {
-      results.push({ path: label, error: error?.message || String(error) });
+      results.push({ path: label, error: (/** @type {any} */ (error))?.message || String(error) });
     }
   }
 
@@ -221,13 +243,21 @@ async function readManyFiles(args, settings) {
     } else {
       outputLines.push(`大小：${result.size} bytes${result.truncated ? `（仅读取前 ${result.bytesRead} bytes）` : ''}`);
       outputLines.push('');
-      outputLines.push(result.content);
+      outputLines.push(/** @type {{ content: string }} */ (result).content);
     }
     outputLines.push('');
   }
   return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
+/**
+ * @param {string} root
+ * @param {string} current
+ * @param {{ path: string; fullPath: string; size: number; mtimeMs: number }[]} files
+ * @param {(value: string) => boolean} matcher
+ * @param {number} [maxFiles]
+ * @returns {Promise<void>}
+ */
 async function walk(root, current, files, matcher, maxFiles = 220) {
   if (files.length >= maxFiles) return;
   let entries;
@@ -256,17 +286,30 @@ async function walk(root, current, files, matcher, maxFiles = 220) {
   }
 }
 
+/**
+ * @param {{ path: string; size: number; mtimeMs: number }} file
+ * @param {boolean} [includeMeta]
+ * @returns {string}
+ */
 function formatListedFile(file, includeMeta = false) {
   if (!includeMeta) return `- ${file.path}`;
   return `- ${file.path} (mtime ${formatMtime(file.mtimeMs)}, ${file.size} bytes)`;
 }
 
+/**
+ * @param {any} ms
+ * @returns {string}
+ */
 function formatMtime(ms) {
   const date = new Date(Number(ms) || 0);
   if (Number.isNaN(date.getTime())) return 'unknown';
   return date.toISOString().replace('T', ' ').slice(0, 16);
 }
 
+/**
+ * @param {any} value
+ * @returns {{ path: string; startLine: number; endLine: number }}
+ */
 function parsePathLineCitation(value) {
   const raw = String(value || '').trim();
   const match = raw.match(/^(.*):(\d+)(?:-(\d+))?$/);
@@ -278,6 +321,11 @@ function parsePathLineCitation(value) {
   };
 }
 
+/**
+ * @param {any} startLine
+ * @param {any} endLine
+ * @returns {{ start: number; end: number } | null}
+ */
 function normalizeLineRange(startLine, endLine) {
   const start = Number.parseInt(startLine, 10);
   const end = Number.parseInt(endLine || startLine, 10);
@@ -289,6 +337,15 @@ function normalizeLineRange(startLine, endLine) {
   };
 }
 
+/**
+ * @param {string} filePath
+ * @param {number} fileSize
+ * @param {number} maxBytes
+ * @param {string} text
+ * @param {boolean} truncated
+ * @param {{ start: number; end: number }} range
+ * @returns {string}
+ */
 function formatLineRangeFileOutput(filePath, fileSize, maxBytes, text, truncated, range) {
   const lines = text.split(/\r?\n/);
   const cappedEnd = Math.min(lines.length, Math.min(range.end, range.start + 399));
@@ -315,10 +372,18 @@ function formatLineRangeFileOutput(filePath, fileSize, maxBytes, text, truncated
     .slice(0, MAX_TOOL_OUTPUT);
 }
 
+/**
+ * @param {string} name
+ * @returns {boolean}
+ */
 function shouldSkip(name) {
   return ['.git', 'node_modules', 'dist', 'release', 'build', '.cache'].includes(name);
 }
 
+/**
+ * @param {string} pattern
+ * @returns {(value: string) => boolean}
+ */
 function createMatcher(pattern) {
   if (!pattern) return () => true;
   if (pattern.includes('*')) {
