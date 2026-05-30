@@ -22,7 +22,7 @@ import { TOOL_SCHEMAS, MODE_TOOLS, getToolDefinitions, MAX_READ_MANY_FILES_BYTES
 
 const RUN_CODE_SECURITY_LIMITS = {
   maxOutputBytes: 1024 * 1024, // 1MB
-  maxMemoryMB: 512,
+  maxMemoryMB: 512, // informational only; not enforced at OS level
   maxTimeoutMs: 5000,
   killTreeOnTimeout: true,
 };
