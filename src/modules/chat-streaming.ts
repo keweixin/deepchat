@@ -197,7 +197,8 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
     // Append-only rendering for long content
     const APPEND_THRESHOLD = STREAMING_APPEND_THRESHOLD;
     const FULL_SYNC_INTERVAL = STREAMING_FULL_SYNC_INTERVAL;
-    let lastFullRenderLen = 0;
+    let lastFullSyncLen = 0;
+    let lastAppendLen = 0;
 
     function getThrottleMs() {
       if (fullContent.length < 200) return 50;
@@ -219,19 +220,23 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         if (fullContent.length < APPEND_THRESHOLD) {
           // Short content: full re-render (fast enough)
           contentEl.innerHTML = renderStreamingMarkdown(fullContent);
-        } else if (fullContent.length - lastFullRenderLen > FULL_SYNC_INTERVAL || lastFullRenderLen === 0) {
+          lastFullSyncLen = fullContent.length;
+          lastAppendLen = fullContent.length;
+        } else if (fullContent.length - lastFullSyncLen > FULL_SYNC_INTERVAL || lastFullSyncLen === 0) {
           // Periodic full sync to correct markdown formatting drift
           contentEl.innerHTML = renderStreamingMarkdown(fullContent);
-          lastFullRenderLen = fullContent.length;
+          lastFullSyncLen = fullContent.length;
+          lastAppendLen = fullContent.length;
         } else {
           // Append-only mode: render only new content
-          const newContent = fullContent.slice(lastFullRenderLen);
-          if (newContent.trim()) {
+          const newContent = fullContent.slice(lastAppendLen);
+          if (newContent.length > 0) {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = renderStreamingMarkdown(newContent);
             while (tempDiv.firstChild) {
               contentEl.appendChild(tempDiv.firstChild);
             }
+            lastAppendLen = fullContent.length;
           }
         }
 
