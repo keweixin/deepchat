@@ -251,7 +251,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
           const artifactData = {
             msg: { content: fullContent, role: 'assistant', timestamp: Date.now() },
             index: conv.messages.length,
-            messages: [...conv.messages, { content: fullContent, role: 'assistant' }]
+            messages: [...conv.messages, { content: fullContent, role: 'assistant' }],
           };
           if (!artifactFocused) {
             artifactFocused = true;

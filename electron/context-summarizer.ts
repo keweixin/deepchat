@@ -127,9 +127,4 @@ async function summarizeContext(settings, existingSummary, droppedMessages, sign
   return String(content).trim().slice(0, 1200);
 }
 
-export {
-  SUMMARY_TRIGGER_RATIO,
-  COMPACTION_SUMMARY_MARKER,
-  maybeBuildContextSummary,
-  summarizeContext,
-};
+export { SUMMARY_TRIGGER_RATIO, COMPACTION_SUMMARY_MARKER, maybeBuildContextSummary, summarizeContext };

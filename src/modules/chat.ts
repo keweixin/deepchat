@@ -463,16 +463,16 @@ export async function initChat() {
     const mode = detail.mode || 'message';
     const msgIndex = Number(detail.msgIndex ?? -1);
     const conv = getActiveConversation();
-    console.log(`[openInspectorHandler] mode: ${mode}, msgIndex: ${msgIndex}, conv: ${conv ? 'exists' : 'null'}, messages.length: ${conv ? conv.messages.length : 0}, all conversations: ${JSON.stringify(conversations)}`);
+    console.log(
+      `[openInspectorHandler] mode: ${mode}, msgIndex: ${msgIndex}, conv: ${conv ? 'exists' : 'null'}, messages.length: ${conv ? conv.messages.length : 0}, all conversations: ${JSON.stringify(conversations)}`
+    );
     if (!conv || msgIndex < 0 || msgIndex >= conv.messages.length) return;
     const msg = conv.messages[msgIndex];
     if (!msg) return;
     openInspectorPanel(mode, { msg, messages: conv.messages, index: msgIndex });
   };
   document.addEventListener('deepchat:open-inspector', openInspectorHandler);
-  _chatCleanupFns.push(() =>
-    document.removeEventListener('deepchat:open-inspector', openInspectorHandler)
-  );
+  _chatCleanupFns.push(() => document.removeEventListener('deepchat:open-inspector', openInspectorHandler));
 }
 
 export function destroyChat() {

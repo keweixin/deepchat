@@ -114,7 +114,7 @@ export function saveConversations(conversations: any[]): Promise<void> {
 
 export async function exportBackup(options?: any): Promise<any> {
   if (hasNativeBridge()) return (window as any).deepchat.conversations.exportBackup(options);
-  
+
   const settings = getSettings();
   const conversations = await loadConversations(true);
 
@@ -128,10 +128,11 @@ export async function exportBackup(options?: any): Promise<any> {
         ...c,
         messages: c.messages.map((m: any) => ({
           ...m,
-          content: typeof m.content === 'string'
-            ? m.content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
-            : m.content
-        }))
+          content:
+            typeof m.content === 'string'
+              ? m.content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
+              : m.content,
+        })),
       };
     });
   }

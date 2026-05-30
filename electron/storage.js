@@ -383,18 +383,19 @@ async function exportBackup(parentWindow, options = {}) {
 
   let safeConversations = conversations;
   if (options.excludeLogs) {
-    safeConversations = conversations.map(c => ({ ...c, messages: [] }));
+    safeConversations = conversations.map((c) => ({ ...c, messages: [] }));
   } else if (options.excludeCode) {
-    safeConversations = conversations.map(c => {
+    safeConversations = conversations.map((c) => {
       if (!Array.isArray(c.messages)) return c;
       return {
         ...c,
-        messages: c.messages.map(m => ({
+        messages: c.messages.map((m) => ({
           ...m,
-          content: typeof m.content === 'string'
-            ? m.content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
-            : m.content
-        }))
+          content:
+            typeof m.content === 'string'
+              ? m.content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
+              : m.content,
+        })),
       };
     });
   }

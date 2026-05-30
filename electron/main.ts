@@ -39,9 +39,10 @@ function createWindow() {
     title: 'DeepChat',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: {
-      preload: process.env.NODE_ENV === 'development'
-        ? path.join(__dirname, '..', 'dist-electron', 'preload.js')
-        : path.join(__dirname, 'preload.js'),
+      preload:
+        process.env.NODE_ENV === 'development'
+          ? path.join(__dirname, '..', 'dist-electron', 'preload.js')
+          : path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,

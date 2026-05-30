@@ -820,11 +820,7 @@ function firstMeaningfulChild(container: HTMLElement) {
  * Use for HTML that may contain user-controlled content.
  * For renderMarkdown() output (already sanitized), direct innerHTML is acceptable.
  */
-export function safeSetHTML(
-  el: HTMLElement,
-  html: string,
-  options: { source?: string; sanitize?: boolean } = {}
-) {
+export function safeSetHTML(el: HTMLElement, html: string, options: { source?: string; sanitize?: boolean } = {}) {
   const { sanitize = true } = options;
   if (sanitize) {
     el.innerHTML = DOMPurify.sanitize(html, purifyConfig);
