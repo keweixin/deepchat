@@ -158,9 +158,9 @@ function buildSystemPrompt(settings: Settings, intent: any = detectAgentIntent([
  * @param label - Section label (defaults to '外部 Skill').
  */
 function formatExternalSkills(skills: ExternalSkill[], label: string = '外部 Skill'): string {
-  const enabled = (Array.isArray(skills) ? skills : []).filter(
-    (skill: ExternalSkill) => skill.enabled && skill.content
-  );
+  const enabled = (Array.isArray(skills) ? skills : [])
+    .filter((skill: ExternalSkill) => skill.enabled && skill.content)
+    .sort((a: ExternalSkill, b: ExternalSkill) => String(a.name || '').localeCompare(String(b.name || '')));
   if (enabled.length === 0) return '';
   const sections = enabled.map((skill: ExternalSkill, index: number) =>
     [

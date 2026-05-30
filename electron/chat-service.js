@@ -431,7 +431,15 @@ class ChatService {
         : getToolDefinitions(activeSkill);
     if (activeSkill !== 'mcp_tool' && activeSkill !== 'multi_tool') return builtIn;
     const mcpTools = await this.mcpManager.getToolDefinitions(settings);
-    return [...builtIn, ...mcpTools];
+    const combined = [...builtIn, ...mcpTools];
+    if (settings.cacheOptimization !== false) {
+      combined.sort((a, b) => {
+        const nameA = a.function?.name || a.name || '';
+        const nameB = b.function?.name || b.name || '';
+        return nameA.localeCompare(nameB);
+      });
+    }
+    return combined;
   }
 
   describeRisk(name, args, settings) {

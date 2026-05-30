@@ -69,6 +69,8 @@
     "src/modules/settings-mcp.ts",
     "src/modules/chat.ts",
     "electron/preload.ts",
+    "electron/agent-planner.ts",
+    "electron/approval-manager.ts",
     "electron/memory-manager.ts"
   ]
 }

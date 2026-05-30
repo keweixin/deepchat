@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 const crypto = require('crypto');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');

@@ -22,7 +22,10 @@ async function maybeBuildContextSummary(
     droppedMessages.length > 0
       ? droppedMessages
       : contextBundle.messages.slice(0, Math.max(0, contextBundle.messages.length - 1));
-  const shouldSummarize = droppedMessages.length > 0 || contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO;
+  const shouldSummarize =
+    settings.cacheOptimization !== false
+      ? droppedMessages.length > 0
+      : droppedMessages.length > 0 || contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO;
   if (!shouldSummarize) return existingSummary ? { summary: existingSummary, generated: false } : null;
   if (summarySourceMessages.length === 0)
     return existingSummary ? { summary: existingSummary, generated: false } : null;

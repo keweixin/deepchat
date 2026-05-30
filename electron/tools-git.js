@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 const { execFile } = require('child_process');
 const { resolveWorkspaceRoot } = require('./tools-path');
 

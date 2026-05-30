@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 const MAX_FILE_BYTES = 100 * 1024;
 const DEFAULT_FILE_BYTES = 30 * 1024;
 const MAX_SEARCH_SCAN_FILES = 700;

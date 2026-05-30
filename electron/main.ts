@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { app, BrowserWindow, Menu, shell, ipcMain, session } from 'electron';
 import path from 'path';
 import {
@@ -24,9 +22,9 @@ if (process.env.DEEPCHAT_DISABLE_GPU === '1') {
   app.disableHardwareAcceleration();
 }
 
-let mainWindow;
-let chatService;
-let mcpManager;
+let mainWindow: BrowserWindow | null;
+let chatService: InstanceType<typeof ChatService> | null;
+let mcpManager: InstanceType<typeof McpManager> | null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -48,24 +46,24 @@ function createWindow() {
     show: false,
   });
 
-  mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+  mainWindow!.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+  mainWindow!.once('ready-to-show', () => {
+    mainWindow!.show();
   });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow!.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url) || /^mailto:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  mainWindow.webContents.on('will-navigate', (event, url) => {
+  mainWindow!.webContents.on('will-navigate', (event, url) => {
     if (isAllowedAppNavigation(url)) return;
     event.preventDefault();
     if (isSafeExternalUrl(url)) shell.openExternal(url);
   });
 
-  mainWindow.on('closed', () => {
+  mainWindow!.on('closed', () => {
     mainWindow = null;
   });
 }
@@ -107,19 +105,19 @@ function registerIpc() {
   });
   ipcMain.handle('mcp:listStatus', async () => {
     const settings = await getSettings();
-    return mcpManager.listStatus(settings);
+    return mcpManager!.listStatus(settings);
   });
 
   ipcMain.on('chat:start', (_event, request) => {
     try {
-      chatService.start(validate(schemas.ChatStartSchema, request, 'chat:start'));
+      chatService!.start(validate(schemas.ChatStartSchema, request, 'chat:start'));
     } catch (error) {
       emitChatValidationError(request?.requestId, error);
     }
   });
   ipcMain.on('chat:cancel', (_event, requestId) => {
     try {
-      chatService.cancel(validate(schemas.RequestIdSchema, requestId, 'chat:cancel'));
+      chatService!.cancel(validate(schemas.RequestIdSchema, requestId, 'chat:cancel'));
     } catch {
       // Invalid cancel payloads should not crash the main process.
     }
@@ -127,7 +125,7 @@ function registerIpc() {
   ipcMain.on('tools:approve', (_event, payload) => {
     try {
       const safePayload = validate(schemas.ToolApprovalSchema, payload, 'tools:approve');
-      chatService.approve(safePayload.requestId, safePayload.toolCallId, safePayload.approved);
+      chatService!.approve(safePayload.requestId, safePayload.toolCallId, safePayload.approved);
     } catch {
       // Renderer-originated invalid approvals are ignored at the trust boundary.
     }
@@ -139,11 +137,11 @@ function registerIpc() {
   });
 }
 
-function sendMenuEvent(channel) {
+function sendMenuEvent(channel: string) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel);
 }
 
-const menuTemplate = [
+const menuTemplate: Electron.MenuItemConstructorOptions[] = [
   {
     label: 'DeepChat',
     submenu: [
@@ -176,7 +174,7 @@ const menuTemplate = [
       { label: '重置缩放', accelerator: 'CmdOrCtrl+0', role: 'resetZoom' },
       { type: 'separator' },
       { label: '全屏', accelerator: 'F11', role: 'togglefullscreen' },
-      ...(isDevToolsAllowed() ? [{ label: '开发者工具', accelerator: 'F12', role: 'toggleDevTools' }] : []),
+      ...(isDevToolsAllowed() ? [{ label: '开发者工具', accelerator: 'F12', role: 'toggleDevTools' as const }] : []),
     ],
   },
 ];
@@ -220,7 +218,7 @@ app.on('activate', () => {
   if (mainWindow === null) createWindow();
 });
 
-function emitChatValidationError(requestId, error) {
+function emitChatValidationError(requestId: string, error: any) {
   const safeRequestId = typeof requestId === 'string' && requestId.length <= 160 ? requestId : '';
   if (!safeRequestId || !mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('chat:event', {
@@ -230,7 +228,7 @@ function emitChatValidationError(requestId, error) {
   });
 }
 
-function isAllowedAppNavigation(url) {
+function isAllowedAppNavigation(url: string) {
   try {
     const parsed = new URL(url);
     if (parsed.protocol === 'file:') {
@@ -245,7 +243,7 @@ function isAllowedAppNavigation(url) {
   return false;
 }
 
-function isSafeExternalUrl(url) {
+function isSafeExternalUrl(url: string) {
   return /^(https?:|mailto:)/i.test(String(url || ''));
 }
 

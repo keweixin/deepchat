@@ -490,8 +490,8 @@ export function buildAgentPlanSummary(
   const missingPrerequisites = Array.isArray(intent.missingPrerequisites) ? intent.missingPrerequisites : [];
   const availableToolNames = (tools || [])
     .map((tool) => tool?.function?.name)
-    .filter(Boolean)
-    .sort((a: string, b: string) => a.localeCompare(b)) as string[];
+    .filter((x): x is string => typeof x === 'string')
+    .sort((a, b) => a.localeCompare(b));
   const toolMode = intent.toolMode || 'none';
   const explicitDirectives = Array.isArray(intent.explicitDirectives) ? intent.explicitDirectives : [];
   const wantsChangedContext = explicitDirectives.includes('changed');

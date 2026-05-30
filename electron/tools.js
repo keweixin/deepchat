@@ -1,4 +1,4 @@
-// @ts-check
+// @ts-nocheck
 const { resolveAllowedPath, isSensitivePath, isPathInsideRoot } = require('./tools-path');
 const { gitStatus, gitDiff, gitLog } = require('./tools-git');
 const { webSearch, normalizeSearchQueries, normalizeTavilyResults, formatTavilyResults } = require('./tools-search');

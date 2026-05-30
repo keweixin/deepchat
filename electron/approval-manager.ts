@@ -26,10 +26,10 @@ const CODE_RUN_TIMEOUT_MS = 5000;
  * @returns {Promise<ApprovalDecision>}
  */
 function waitForApproval(
-  requestId,
-  toolCallId,
-  signal,
-  pendingApprovals,
+  requestId: string,
+  toolCallId: string,
+  signal: AbortSignal,
+  pendingApprovals: Map<string, any>,
   timeoutMs = DEFAULT_TOOL_APPROVAL_TIMEOUT_MS
 ) {
   return new Promise((resolve) => {
@@ -45,7 +45,7 @@ function waitForApproval(
       signal.removeEventListener('abort', onAbort);
       clearTimeout(timer);
     };
-    const finish = (/** @type {ApprovalDecision} */ decision) => {
+    const finish = (decision: any) => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -66,7 +66,7 @@ function waitForApproval(
  * @param {string} value
  * @returns {string}
  */
-function normalizeToolApprovalPolicy(value) {
+function normalizeToolApprovalPolicy(value: any) {
   return String(value || DEFAULT_TOOL_APPROVAL_POLICY) === 'auto_readonly'
     ? 'auto_readonly'
     : DEFAULT_TOOL_APPROVAL_POLICY;
@@ -95,7 +95,7 @@ const DEFAULT_TOOL_POLICIES = [
  * Keyed by `${requestId}:${toolName}`.
  * @type {Set<string>}
  */
-const confirmedOnceTools = new Set();
+const confirmedOnceTools = new Set<string>();
 
 /**
  * Build a session key for confirm_once tracking.
@@ -104,7 +104,7 @@ const confirmedOnceTools = new Set();
  * @param {string} toolName
  * @returns {string}
  */
-function buildSessionKey(requestId, toolName) {
+function buildSessionKey(requestId: string, toolName: string) {
   return `${requestId}:${toolName}`;
 }
 
@@ -114,7 +114,7 @@ function buildSessionKey(requestId, toolName) {
  * @param {string} requestId
  * @param {string} toolName
  */
-function markToolConfirmed(requestId, toolName) {
+function markToolConfirmed(requestId: string, toolName: string) {
   confirmedOnceTools.add(buildSessionKey(requestId, toolName));
 }
 
@@ -125,7 +125,7 @@ function markToolConfirmed(requestId, toolName) {
  * @param {string} toolName
  * @returns {boolean}
  */
-function isToolConfirmedInSession(requestId, toolName) {
+function isToolConfirmedInSession(requestId: string, toolName: string) {
   return confirmedOnceTools.has(buildSessionKey(requestId, toolName));
 }
 
@@ -143,12 +143,12 @@ function clearSessionConfirmations() {
  * @param {any} [settings]
  * @returns {boolean}
  */
-function isPathInWorkspace(filePath, settings) {
+function isPathInWorkspace(filePath: string, settings: any) {
   if (!filePath) return false;
   const roots = (settings && settings.workspaceRoots) || [];
   if (roots.length === 0) return false;
   const normalized = String(filePath).replace(/\\/g, '/');
-  return roots.some((/** @type {string} */ root) => {
+  return roots.some((root: string) => {
     const normalizedRoot = String(root).replace(/\\/g, '/');
     return normalized.startsWith(normalizedRoot + '/') || normalized === normalizedRoot;
   });
@@ -164,7 +164,7 @@ function isPathInWorkspace(filePath, settings) {
  * @param {any} security
  * @returns {boolean}
  */
-function matchesConditions(conditions, name, args, settings, security) {
+function matchesConditions(conditions: Record<string, unknown>, name: string, args: any, settings: any, security: any) {
   if (conditions.workspaceOnly !== undefined) {
     const inWorkspace = isPathInWorkspace(String(args.path || ''), settings);
     if (conditions.workspaceOnly && !inWorkspace) return false;
@@ -191,7 +191,7 @@ function matchesConditions(conditions, name, args, settings, security) {
  * @param {ToolSecurity} [security]
  * @returns {ToolPolicy | null}
  */
-function resolveToolPolicy(name, args, settings, security) {
+function resolveToolPolicy(name: string, args?: any, settings?: any, security?: any) {
   const _args = args || {};
   const _settings = settings || {};
   const _security = security || {};
@@ -213,7 +213,7 @@ function resolveToolPolicy(name, args, settings, security) {
  * @param {Record<string, unknown>} conditions
  * @returns {string}
  */
-function formatConditionsLabel(conditions) {
+function formatConditionsLabel(conditions: Record<string, unknown>) {
   const parts = [];
   if (conditions.workspaceOnly === true) parts.push('仅工作区内');
   if (conditions.workspaceOnly === false) parts.push('工作区外');
@@ -228,7 +228,7 @@ function formatConditionsLabel(conditions) {
  * @param {any} [settings]
  * @returns {string[]}
  */
-function getToolPolicySummary(settings) {
+function getToolPolicySummary(settings?: any) {
   /** @type {string[]} */
   const lines = [];
   const seen = new Set();
@@ -238,7 +238,7 @@ function getToolPolicySummary(settings) {
     if (seen.has(label)) continue;
     seen.add(label);
 
-    const actionLabels = {
+    const actionLabels: Record<string, string> = {
       always_allow: '始终允许',
       confirm_once: '每会话确认一次',
       confirm_always: '每次确认',
@@ -265,7 +265,7 @@ function getToolPolicySummary(settings) {
  * @param {string} [requestId]
  * @returns {ApprovalResult}
  */
-function resolveToolApprovalDecision(name, args, settings, security, requestId) {
+function resolveToolApprovalDecision(name: string, args?: any, settings?: any, security?: any, requestId?: string) {
   const _args = args || {};
   const _settings = settings || {};
   const _security = security !== undefined ? security : buildToolSecurity(name, _args, _settings);
@@ -326,7 +326,7 @@ function resolveToolApprovalDecision(name, args, settings, security, requestId) 
  * @param {any} [security]
  * @returns {boolean}
  */
-function isAutoApprovableReadOnlyTool(name, security) {
+function isAutoApprovableReadOnlyTool(name: string, security?: any) {
   const _security = security || {};
   if (isMcpToolName(name) || name === 'run_code') return false;
   return (
@@ -353,10 +353,10 @@ function isAutoApprovableReadOnlyTool(name, security) {
  * @param {any} [settings]
  * @returns {Record<string, unknown>}
  */
-function buildToolSecurity(name, args, settings) {
+function buildToolSecurity(name: string, args?: any, settings?: any) {
   const _args = args || {};
   const _settings = settings || {};
-  let base;
+  let base: Record<string, any>;
   if (name === 'run_code') {
     base = {
       riskLevel: 'high',
@@ -451,7 +451,7 @@ function buildToolSecurity(name, args, settings) {
  * @param {any} [toolCall]
  * @returns {boolean}
  */
-function isParallelSafeToolCall(toolCall) {
+function isParallelSafeToolCall(toolCall?: any) {
   const _toolCall = toolCall || {};
   const name = String(_toolCall.function?.name || '');
   return [
@@ -473,7 +473,7 @@ function isParallelSafeToolCall(toolCall) {
  * @param {any} [settings]
  * @returns {number}
  */
-function resolveToolApprovalTimeout(settings) {
+function resolveToolApprovalTimeout(settings?: any) {
   const _settings = settings || {};
   return Math.round(clampNumber(_settings.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_TOOL_APPROVAL_TIMEOUT_MS));
 }
