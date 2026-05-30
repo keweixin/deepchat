@@ -7,7 +7,7 @@
 # Test info
 
 - Name: composer.spec.ts >> Composer >> composer advanced options toggle works
-- Location: e2e\composer.spec.ts:32:7
+- Location: e2e\composer.spec.ts:29:7
 
 # Error details
 

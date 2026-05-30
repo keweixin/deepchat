@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: inspector.spec.ts >> Inspector Panel >> inspector panel toggle is visible
-- Location: e2e\inspector.spec.ts:11:7
+- Name: app-launch.spec.ts >> App Launch >> welcome screen is visible
+- Location: e2e\app-launch.spec.ts:27:7
 
 # Error details
 

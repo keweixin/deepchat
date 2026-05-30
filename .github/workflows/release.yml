@@ -33,6 +33,9 @@ jobs:
       - name: Verify
         run: npm run verify
 
+      - name: E2E Smoke Test
+        run: npm run test:e2e
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --registry=https://registry.npmjs.org
 

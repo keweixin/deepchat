@@ -20,10 +20,7 @@ test.describe('Composer', () => {
     const window = await electronApp.firstWindow();
     await window.waitForSelector('#composer', { state: 'visible', timeout: 15_000 });
 
-    const composer = window.locator('#composer');
-    await expect(composer).toBeVisible();
-
-    const textarea = window.locator('#composer-textarea');
+    const textarea = window.locator('#message-input');
     await expect(textarea).toBeVisible();
     await textarea.fill('Hello DeepChat');
     await expect(textarea).toHaveValue('Hello DeepChat');
@@ -52,7 +49,7 @@ test.describe('Composer', () => {
     await expect(advancedOptions).toBeVisible();
   });
 
-  test('composer context chips are visible', async () => {
+  test('composer chip toggle expands and collapses chip row', async () => {
     electronApp = await electron.launch({
       args: [path.join(__dirname, '..', 'electron.js')],
       env: {
@@ -62,10 +59,52 @@ test.describe('Composer', () => {
     });
 
     const window = await electronApp.firstWindow();
-    await window.waitForSelector('.composer-chip-row', { state: 'visible', timeout: 15_000 });
+    await window.waitForSelector('#composer-chip-toggle', { state: 'visible', timeout: 15_000 });
+
+    const chipToggle = window.locator('#composer-chip-toggle');
+    await expect(chipToggle).toBeVisible();
+
+    // Chip row should be collapsed initially
+    const chipRow = window.locator('.composer-chip-row');
+    await expect(chipRow).not.toBeVisible();
+
+    // Click toggle to expand
+    await chipToggle.click();
+    await expect(chipRow).toBeVisible();
 
     const chips = window.locator('.composer-context-chip');
     const count = await chips.count();
     expect(count).toBeGreaterThan(0);
+
+    // Click toggle again to collapse
+    await chipToggle.click();
+    await expect(chipRow).not.toBeVisible();
+  });
+
+  test('composer mode select changes active mode', async () => {
+    electronApp = await electron.launch({
+      args: [path.join(__dirname, '..', 'electron.js')],
+      env: {
+        ...process.env,
+        DEEPCHAT_DISABLE_GPU: '1',
+      },
+    });
+
+    const window = await electronApp.firstWindow();
+    await window.waitForSelector('#composer-mode-select', { state: 'visible', timeout: 15_000 });
+
+    const modeSelect = window.locator('#composer-mode-select');
+    await expect(modeSelect).toBeVisible();
+
+    // Should default to 'daily'
+    await expect(modeSelect).toHaveValue('daily');
+
+    // Change to 'project' mode
+    await modeSelect.selectOption('project');
+    await expect(modeSelect).toHaveValue('project');
+
+    // Change to 'agent' mode
+    await modeSelect.selectOption('agent');
+    await expect(modeSelect).toHaveValue('agent');
   });
 });

@@ -1,11 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 /** Allowed IPC channels for renderer → main event listening. */
-const VALID_ON_CHANNELS = [
-  'chat:event',
-  'menu:openSettings',
-  'menu:newChat',
-] as const;
+const VALID_ON_CHANNELS = ['chat:event', 'menu:openSettings', 'menu:newChat'] as const;
 
 function on(channel: string, callback: (payload: any) => void) {
   if (!VALID_ON_CHANNELS.includes(channel as any)) {

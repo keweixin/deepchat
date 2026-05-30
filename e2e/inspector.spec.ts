@@ -37,7 +37,7 @@ test.describe('Inspector Panel', () => {
     await window.waitForSelector('#inspector-toggle-btn', { state: 'visible', timeout: 15_000 });
 
     const toggleBtn = window.locator('#inspector-toggle-btn');
-    const panel = window.locator('#inspector-panel');
+    const panel = window.locator('#right-inspector-panel');
 
     await toggleBtn.click();
     await expect(panel).toBeVisible();

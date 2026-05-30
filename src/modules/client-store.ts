@@ -94,9 +94,7 @@ export function saveConversations(conversations: any[]): Promise<void> {
             localStorage.setItem(CONVERSATIONS_KEY, serialized);
             lastSavedSnapshot = serialized;
           }
-          await saveAllMessages(
-            safe.map((c) => ({ conversationId: c.id, messages: c.messages || [] }))
-          );
+          await saveAllMessages(safe.map((c) => ({ conversationId: c.id, messages: c.messages || [] })));
         }
         resolve();
       } catch (err) {

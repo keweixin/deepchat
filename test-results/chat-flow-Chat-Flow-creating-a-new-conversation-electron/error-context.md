@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: inspector.spec.ts >> Inspector Panel >> inspector panel toggle is visible
-- Location: e2e\inspector.spec.ts:11:7
+- Name: chat-flow.spec.ts >> Chat Flow >> creating a new conversation
+- Location: e2e\chat-flow.spec.ts:11:7
 
 # Error details
 

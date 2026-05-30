@@ -18,6 +18,7 @@ import { extractContextMentions, renderContextMentionStrip } from './context-men
 import { getSettings } from './settings-core.js';
 import { normalizeTokenUsage, getConversationUsageSummary } from './token-budget.js';
 import { loadConversations, saveConversations } from './client-store.ts';
+import { loadMessages, saveMessages } from './conversation-db.js';
 import {
   SIDEBAR_FILTERS,
   filterConversations,
@@ -37,10 +38,7 @@ import { enhancePrompt, isEnhanceEnabled } from './settings.js';
 import { renderMarkdown, postProcess } from './renderer.js';
 import { refreshReadingNavigator, resetReadingNavigator } from './reading-navigator.js';
 import { confirmAction, promptText } from './dialogs.ts';
-import {
-  buildArtifactDownloadName,
-  extractArtifacts,
-} from './artifacts.js';
+import { buildArtifactDownloadName, extractArtifacts } from './artifacts.js';
 import {
   applyToolResult,
   applyToolDecision,
@@ -93,6 +91,7 @@ function renderCrewOrTheatre(container: HTMLElement | null, agentRun: any) {
 import { renderStreamingMarkdown } from './streaming-renderer.js';
 import { TraceRecorder, migrateLegacyAgentRun } from './agent-trace.js';
 import { openTraceInspector } from './agent-trace-inspector.js';
+import { openInspectorPanel, setInspectorToggleBadge } from './inspector-panel.js';
 import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
 import { COPY_FEEDBACK_MS, OUTLINE_HIGHLIGHT_MS } from './constants.js';
 import { createVirtualList } from './virtual-message-list.js';
@@ -411,6 +410,21 @@ export async function initChat() {
   };
   document.addEventListener('keydown', traceKeyHandler);
   _chatCleanupFns.push(() => document.removeEventListener('keydown', traceKeyHandler));
+
+  // Open Inspector artifact mode when artifact card requests it
+  const artifactInspectorHandler = (e: Event) => {
+    const detail = (e as CustomEvent).detail || {};
+    const msgIndex = Number(detail.msgIndex ?? -1);
+    const conv = getActiveConversation();
+    if (!conv || msgIndex < 0 || msgIndex >= conv.messages.length) return;
+    const msg = conv.messages[msgIndex];
+    if (!msg) return;
+    openInspectorPanel('artifact', { msg, messages: conv.messages, index: msgIndex });
+  };
+  document.addEventListener('deepchat:open-artifact-inspector', artifactInspectorHandler);
+  _chatCleanupFns.push(() =>
+    document.removeEventListener('deepchat:open-artifact-inspector', artifactInspectorHandler)
+  );
 }
 
 export function destroyChat() {
@@ -465,20 +479,38 @@ export function createConversation() {
   return conv;
 }
 
-function switchConversation(id: string) {
+async function switchConversation(id: string) {
   if (isStreaming) stopStreaming();
+
+  // Persist and unload messages for the outgoing conversation
+  const outgoingId = activeConvId;
+  if (outgoingId && outgoingId !== id) {
+    const outgoingConv = conversations.find((c) => c.id === outgoingId);
+    if (outgoingConv && outgoingConv.messages && outgoingConv.messages.length > 0) {
+      await saveMessages(outgoingId, outgoingConv.messages);
+      outgoingConv.messages = [];
+    }
+  }
+
   activeConvId = id;
   userScrolledUp = false;
   resetReadingNavigator();
+
+  // Load messages for the incoming conversation if not already in memory
+  const incomingConv = conversations.find((c) => c.id === id);
+  if (incomingConv && (!incomingConv.messages || incomingConv.messages.length === 0)) {
+    const loaded = await loadMessages(id);
+    incomingConv.messages = loaded;
+  }
+
   sidebar.renderConversationList();
   renderMessages();
   updateHeader();
   refreshReadingNavigator();
-  const conv = conversations.find((c) => c.id === id);
-  if (conv) {
+  if (incomingConv) {
     window.dispatchEvent(
       new CustomEvent('deepchat:conversation-switched', {
-        detail: { conversationId: id, composerModeId: conv.composerModeId || '' },
+        detail: { conversationId: id, composerModeId: incomingConv.composerModeId || '' },
       })
     );
   }
@@ -839,7 +871,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
       });
     }
 
-    renderAssistantArtifacts(el.querySelector('.artifact-container') as HTMLElement, msg);
+    renderAssistantArtifacts(el.querySelector('.artifact-container') as HTMLElement, msg, idx);
     renderAssistantEvidence(el.querySelector('.message-body') as HTMLElement, msg);
   }
 }
@@ -892,7 +924,8 @@ function renderMessages() {
 
     // Render earlier messages during idle time
     if (startImmediate > 0) {
-      const schedule = typeof requestIdleCallback !== 'undefined' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 0);
+      const schedule =
+        typeof requestIdleCallback !== 'undefined' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 0);
       let batchStart = startImmediate - 1;
       const renderBatch = () => {
         if (batchStart < 0) return;
@@ -916,6 +949,12 @@ function renderMessages() {
 
   scrollToBottom($messages!, false);
   refreshReadingNavigator();
+
+  // Highlight inspector toggle if any message has artifacts
+  const hasArtifacts = conv.messages.some(
+    (m: any) => m.role === 'assistant' && extractArtifacts(m.content || '').length > 0
+  );
+  setInspectorToggleBadge(hasArtifacts);
 }
 
 function appendMessageDOM(msg: Record<string, any>, streaming = false) {
@@ -1150,7 +1189,6 @@ function shouldAutoSendAgentPlanAction(action: string) {
   return Boolean(conversations.find((conv) => conv.id === activeConvId));
 }
 
-
 function appendAgentSearchPlan(card: HTMLElement, searchPlan: any[] = []) {
   const items = Array.isArray(searchPlan) ? searchPlan.filter((item) => item?.query) : [];
   if (!items.length) return;
@@ -1361,7 +1399,8 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
       showToast('已复制到剪贴板');
       copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
       setTimeout(() => {
-        if (copyBtn.isConnected) copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
+        if (copyBtn.isConnected)
+          copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`;
       }, COPY_FEEDBACK_MS);
     }
   });
@@ -1473,7 +1512,8 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
       showToast('已复制 Markdown 源码');
       copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`;
       setTimeout(() => {
-        if (copyMdBtn.isConnected) copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`;
+        if (copyMdBtn.isConnected)
+          copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`;
       }, COPY_FEEDBACK_MS);
     }
   });

@@ -127,9 +127,7 @@ export async function loadAllMessages(): Promise<Record<string, any[]>> {
 }
 
 /** Batch-save messages for multiple conversations in one transaction */
-export async function saveAllMessages(
-  entries: Array<{ conversationId: string; messages: any[] }>
-): Promise<void> {
+export async function saveAllMessages(entries: Array<{ conversationId: string; messages: any[] }>): Promise<void> {
   try {
     const db = await getDB();
     if (!db) return;

@@ -200,6 +200,19 @@ export function needsCode(text: string, lower: string): boolean {
   );
 }
 
+export function needsGit(text: string, lower: string): boolean {
+  const value = String(text || '');
+  return (
+    /\b(git|github|gitlab|commit|提交|暂存|分支|merge|合并|rebase|checkout|diff|变更|修改记录|changelog|版本历史|回滚|还原|blame|tag|标签|pr|pull request|mr|merge request)\b/i.test(
+      value
+    ) ||
+    /(查看|比较|分析|检查|显示|列出|最近|最新).{0,10}(变更|修改|diff|提交|commit|历史|history|状态|status)/i.test(
+      value
+    ) ||
+    /(变更|修改|diff|提交|commit|历史|history|状态|status).{0,10}(查看|比较|分析|检查|显示|列出)/i.test(value)
+  );
+}
+
 export function needsMcp(text: string, lower: string): boolean {
   const value = String(text || '');
   const normalized = String(lower || value.toLowerCase());
@@ -252,6 +265,8 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
     else selected.add('run_code');
   }
   if (directives.changed) {
+    candidates.add('git_status');
+    candidates.add('git_diff');
     candidates.add('index_workspace');
     candidates.add('list_files');
     candidates.add('search_workspace');
@@ -260,6 +275,8 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
     reasons.push('explicit_changed_context');
     score += 0.65;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('git_status');
+      selected.add('git_diff');
       selected.add('index_workspace');
       selected.add('list_files');
       selected.add('search_workspace');
@@ -288,6 +305,7 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
     else missing.add('Tavily API Key');
   }
   if (!candidates.has('list_files') && needsFiles(text, lower)) {
+    candidates.add('project_map');
     candidates.add('index_workspace');
     candidates.add('list_files');
     candidates.add('search_workspace');
@@ -296,11 +314,26 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
     reasons.push('local_files');
     score += 0.35;
     if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('project_map');
       selected.add('index_workspace');
       selected.add('list_files');
       selected.add('search_workspace');
       selected.add('read_symbol');
       selected.add('read_file');
+    } else {
+      missing.add('工作区目录');
+    }
+  }
+  if (!candidates.has('git_status') && needsGit(text, lower)) {
+    candidates.add('git_status');
+    candidates.add('git_diff');
+    candidates.add('git_log');
+    reasons.push('git_context');
+    score += 0.35;
+    if (Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0) {
+      selected.add('git_status');
+      selected.add('git_diff');
+      selected.add('git_log');
     } else {
       missing.add('工作区目录');
     }
@@ -334,7 +367,11 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
       selected.has('list_files') ||
       selected.has('search_workspace') ||
       selected.has('read_symbol') ||
-      selected.has('read_file')) &&
+      selected.has('read_file') ||
+      selected.has('project_map') ||
+      selected.has('git_status') ||
+      selected.has('git_diff') ||
+      selected.has('git_log')) &&
     !selected.has('web_search') &&
     !selected.has('run_code')
   )
@@ -363,7 +400,18 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
 export function buildPlanApprovalPolicy(selectedTools: string[], settings: AgentSettings = {}): string[] {
   const policy: string[] = [];
   const hasReadOnly = selectedTools.some((name) =>
-    ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name)
+    [
+      'web_search',
+      'index_workspace',
+      'list_files',
+      'search_workspace',
+      'read_symbol',
+      'read_file',
+      'project_map',
+      'git_status',
+      'git_diff',
+      'git_log',
+    ].includes(name)
   );
   if (hasReadOnly) {
     policy.push(
@@ -453,6 +501,19 @@ export function buildAgentPlanSummary(
   if (selectedTools.includes('web_search')) {
     steps.push('检索外部资料，优先保留可引用来源。');
   }
+  if (selectedTools.includes('project_map')) {
+    steps.push('生成项目结构地图，快速了解整体目录布局和关键入口文件。');
+  }
+  if (selectedTools.includes('git_status') || selectedTools.includes('git_diff')) {
+    steps.push(
+      wantsChangedContext
+        ? '查看 Git 状态和变更差异，聚焦最近修改的文件和代码。'
+        : '查看 Git 状态和变更差异，确认当前工作区的版本控制情况。'
+    );
+  }
+  if (selectedTools.includes('git_log')) {
+    steps.push('查看最近提交历史，了解代码演进和作者变更脉络。');
+  }
   if (selectedTools.includes('index_workspace')) {
     steps.push(
       wantsChangedContext
@@ -463,7 +524,11 @@ export function buildAgentPlanSummary(
   if (wantsChangedContext && selectedTools.includes('list_files')) {
     steps.push('先列出最近 7 天修改的工作区文件，按修改时间筛出候选变更。');
   }
-  if (selectedTools.some((name) => ['list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name))) {
+  if (
+    selectedTools.some((name) =>
+      ['list_files', 'search_workspace', 'read_symbol', 'read_file', 'read_many_files'].includes(name)
+    )
+  ) {
     steps.push(
       wantsChangedContext
         ? '读取关键变更文件或相关符号，收集 file:line 证据并区分已验证与待确认。'

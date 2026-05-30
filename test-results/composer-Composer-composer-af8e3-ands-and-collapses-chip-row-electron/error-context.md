@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: inspector.spec.ts >> Inspector Panel >> inspector panel toggle is visible
-- Location: e2e\inspector.spec.ts:11:7
+- Name: composer.spec.ts >> Composer >> composer chip toggle expands and collapses chip row
+- Location: e2e\composer.spec.ts:52:7
 
 # Error details
 

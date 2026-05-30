@@ -650,4 +650,3 @@ function formatToolTime(value: unknown): string {
   const date = new Date(value as any);
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleTimeString('zh-CN', { hour12: false });
 }
-

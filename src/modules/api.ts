@@ -522,10 +522,14 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = API_
   const timer = setTimeout(() => controller.abort(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs);
 
   if (init.signal) {
-    init.signal.addEventListener('abort', () => {
-      clearTimeout(timer);
-      controller.abort();
-    }, { once: true });
+    init.signal.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        controller.abort();
+      },
+      { once: true }
+    );
   }
 
   try {

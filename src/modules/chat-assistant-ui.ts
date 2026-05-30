@@ -38,7 +38,7 @@ import { normalizeTokenUsage } from './token-budget.js';
 import { copyToClipboard, escapeHtml, showToast, truncate } from './utils.js';
 import { escapeRegExp, formatBytes } from './shared-utils.js';
 
-export function renderAssistantArtifacts(container: HTMLElement, message: any) {
+export function renderAssistantArtifacts(container: HTMLElement, message: any, msgIndex?: number) {
   if (!container) return [];
   container.replaceChildren();
   const artifacts = extractArtifacts(message?.content || '');
@@ -61,14 +61,14 @@ export function renderAssistantArtifacts(container: HTMLElement, message: any) {
   section.appendChild(header);
 
   for (const [index, artifact] of artifacts.entries()) {
-    section.appendChild(renderArtifactCard(artifact, index));
+    section.appendChild(renderArtifactCard(artifact, index, msgIndex));
   }
 
   container.appendChild(section);
   return artifacts;
 }
 
-function renderArtifactCard(artifact: Record<string, any>, index: number) {
+function renderArtifactCard(artifact: Record<string, any>, index: number, msgIndex?: number) {
   const card = document.createElement('div');
   card.className = 'artifact-card';
   card.dataset.artifactType = artifact.type;
@@ -89,6 +89,20 @@ function renderArtifactCard(artifact: Record<string, any>, index: number) {
   const actions = document.createElement('div');
   actions.className = 'artifact-actions';
 
+  const inspectorBtn = document.createElement('button');
+  inspectorBtn.type = 'button';
+  inspectorBtn.className = 'artifact-action-btn';
+  inspectorBtn.title = '在 Inspector 中查看、对比版本和下载';
+  inspectorBtn.textContent = 'Inspector';
+  inspectorBtn.addEventListener('click', () => {
+    document.dispatchEvent(
+      new CustomEvent('deepchat:open-artifact-inspector', {
+        detail: { msgIndex: msgIndex ?? -1 },
+        bubbles: true,
+      })
+    );
+  });
+
   const previewBtn = document.createElement('button');
   previewBtn.type = 'button';
   previewBtn.className = 'artifact-action-btn primary';
@@ -101,7 +115,7 @@ function renderArtifactCard(artifact: Record<string, any>, index: number) {
   downloadBtn.textContent = '导出';
   downloadBtn.addEventListener('click', () => downloadArtifact(artifact, index));
 
-  actions.append(previewBtn, downloadBtn);
+  actions.append(inspectorBtn, previewBtn, downloadBtn);
   card.append(main, actions);
   return card;
 }

@@ -56,9 +56,9 @@ const tsconfig = {
     allowSyntheticDefaultImports: true,
     resolveJsonModule: true,
     strict: false,
-    noEmitOnError: false,
+    noEmitOnError: true,
     allowJs: true,
-    checkJs: false,
+    checkJs: true,
     declaration: false,
     sourceMap: true,
   },
@@ -84,4 +84,8 @@ if (!fs.existsSync(mainJs)) {
   console.error('Build failed: dist-electron/main.js not found');
   process.exit(1);
 }
+
+// Ensure dist-electron is treated as CommonJS
+fs.writeFileSync(path.join(outDir, 'package.json'), JSON.stringify({ type: 'commonjs' }, null, 2));
+
 console.log('dist-electron/ built successfully');

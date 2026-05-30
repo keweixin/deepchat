@@ -149,6 +149,20 @@
             <span class="header-usage-badge hidden" id="chat-usage-badge" title=""></span>
           </div>
           <div class="chat-header-actions">
+            <button
+              id="inspector-toggle-btn"
+              class="icon-btn"
+              title="打开 Inspector 面板 (Ctrl+Shift+I)"
+              aria-expanded="false"
+              aria-controls="right-inspector-panel"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="18" rx="2" ry="2" />
+                <line x1="8" y1="21" x2="8" y2="3" />
+                <line x1="3" y1="9" x2="8" y2="9" />
+                <line x1="3" y1="15" x2="8" y2="15" />
+              </svg>
+            </button>
             <button id="evidence-panel-btn" class="icon-btn evidence-panel-btn hidden" title="查看最近工具证据">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 11l3 3L22 4" />
@@ -219,97 +233,25 @@
         </div>
         <div class="input-area">
           <div class="composer-toolbar" aria-label="发送选项">
-            <div class="composer-mode-pills" id="composer-mode-pills" role="tablist" aria-label="任务模式">
-              <button
-                type="button"
-                class="composer-mode-pill"
-                data-mode="daily"
-                role="tab"
-                aria-selected="false"
-                title="日常回答，默认不调用工具"
-              >
-                日常
-              </button>
-              <button
-                type="button"
-                class="composer-mode-pill"
-                data-mode="analysis"
-                role="tab"
-                aria-selected="false"
-                title="复杂问题深度分析"
-              >
-                深析
-              </button>
-              <button
-                type="button"
-                class="composer-mode-pill"
-                data-mode="project"
-                role="tab"
-                aria-selected="false"
-                title="分析本地项目，保留文件证据"
-              >
-                项目
-              </button>
-              <button
-                type="button"
-                class="composer-mode-pill"
-                data-mode="agent"
-                role="tab"
-                aria-selected="false"
-                title="规划工具流，按证据推进"
-              >
-                Agent
-              </button>
-              <button
-                type="button"
-                class="composer-mode-pill"
-                data-mode="research"
-                role="tab"
-                aria-selected="false"
-                title="联网搜索并带来源回答"
-              >
-                研究
-              </button>
-              <button
-                type="button"
-                class="composer-mode-pill"
-                data-mode="code"
-                role="tab"
-                aria-selected="false"
-                title="代码审查、符号读取、运行验证"
-              >
-                代码
-              </button>
-              <button
-                type="button"
-                class="composer-mode-pill"
-                data-mode="writing"
-                role="tab"
-                aria-selected="false"
-                title="整理成文档、报告或清单"
-              >
-                写作
-              </button>
-              <button
-                type="button"
-                class="composer-mode-pill"
-                data-mode="polish"
-                role="tab"
-                aria-selected="false"
-                title="升级为摘要、决策和 TODO"
-              >
-                美化
-              </button>
-            </div>
+            <select id="composer-mode-select" class="composer-select composer-mode-select" title="选择本轮任务模式">
+              <option value="daily">日常</option>
+              <option value="analysis">深析</option>
+              <option value="project">项目</option>
+              <option value="agent">Agent</option>
+              <option value="research">研究</option>
+              <option value="code">代码</option>
+              <option value="writing">写作</option>
+              <option value="polish">美化</option>
+            </select>
             <button
-              id="composer-context-btn"
-              class="composer-context-btn"
+              id="composer-chip-toggle"
+              class="composer-chip-toggle"
               type="button"
-              aria-haspopup="menu"
               aria-expanded="false"
-              title="插入 @file / @folder / @symbol 等显式上下文"
+              aria-controls="composer-chip-row"
+              title="展开上下文快捷选择"
             >
-              上下文
+              +上下文
             </button>
             <button id="composer-template-btn" class="composer-settings-shortcut" type="button" title="插入常用提示词">
               模板

@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: composer.spec.ts >> Composer >> composer context chips are visible
-- Location: e2e\composer.spec.ts:55:7
+- Name: chat-flow.spec.ts >> Chat Flow >> typing in the composer
+- Location: e2e\chat-flow.spec.ts:32:7
 
 # Error details
 

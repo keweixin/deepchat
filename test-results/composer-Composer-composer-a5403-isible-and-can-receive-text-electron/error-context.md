@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: inspector.spec.ts >> Inspector Panel >> inspector panel toggle is visible
-- Location: e2e\inspector.spec.ts:11:7
+- Name: composer.spec.ts >> Composer >> composer input is visible and can receive text
+- Location: e2e\composer.spec.ts:11:7
 
 # Error details
 

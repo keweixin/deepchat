@@ -27,10 +27,12 @@ describe('composer layout', () => {
     const end = html.indexOf('<div id="composer-advanced-options"', start);
     const toolbar = html.slice(start, end > start ? end : undefined);
 
+    expect(toolbar).toContain('composer-mode-select');
+    expect(toolbar).toContain('composer-chip-toggle');
     expect(toolbar).toContain('composer-tool-drawer-btn');
-    expect(toolbar).toContain('composer-context-btn');
     expect(toolbar).toContain('composer-template-btn');
     expect(toolbar).toContain('composer-advanced-toggle');
+    expect(toolbar).not.toContain('composer-mode-pills');
   });
 
   it('exposes high-frequency context chips in the first composer row', () => {

@@ -7,7 +7,12 @@
 
 import { renderStreamingMarkdown } from './streaming-renderer.js';
 import { renderMarkdown, postProcess } from './renderer.js';
-import { COPY_FEEDBACK_MS, OUTLINE_HIGHLIGHT_MS, STREAMING_APPEND_THRESHOLD, STREAMING_FULL_SYNC_INTERVAL } from './constants.js';
+import {
+  COPY_FEEDBACK_MS,
+  OUTLINE_HIGHLIGHT_MS,
+  STREAMING_APPEND_THRESHOLD,
+  STREAMING_FULL_SYNC_INTERVAL,
+} from './constants.js';
 import { showToast, scrollToBottom } from './utils.js';
 import {
   createAgentRun,
@@ -20,6 +25,8 @@ import { TraceRecorder } from './agent-trace.js';
 import { openTraceInspector } from './agent-trace-inspector.js';
 import { isAgentSkill, ROLE_TOOL_MAP } from './tool-registry.js';
 import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
+import { setInspectorToggleBadge } from './inspector-panel.js';
+import { extractArtifacts } from './artifacts.js';
 
 /**
  * @param {Object} deps
@@ -431,8 +438,13 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         deps.addMessageActions(msgEl, fullContent, assistantMsg.tokens, finalSpeed, conv.messages.length - 1);
         if (assistantMsg.stopped)
           deps.renderStoppedNotice(msgEl.querySelector('.message-body'), conv.messages.length - 1);
-        deps.renderAssistantArtifacts(msgEl.querySelector('.artifact-container'), assistantMsg);
+        deps.renderAssistantArtifacts(
+          msgEl.querySelector('.artifact-container'),
+          assistantMsg,
+          conv.messages.length - 1
+        );
         deps.renderAssistantEvidence(msgEl.querySelector('.message-body'), assistantMsg);
+        setInspectorToggleBadge(extractArtifacts(fullContent).length > 0);
         deps.setIsStreaming(false);
         deps.setAbortController(null);
         deps.setUserScrolledUp(false);

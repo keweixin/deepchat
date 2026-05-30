@@ -57,6 +57,12 @@ function _ensurePanel() {
   _toolbarEl = null;
   if (!_panelEl) return;
   _contentEl = _panelEl.querySelector('.inspector-panel-content');
+  // Bind close button once
+  const closeBtn = _panelEl.querySelector('.inspector-panel-close');
+  if (closeBtn && !(closeBtn as any).__inspectorCloseBound) {
+    (closeBtn as any).__inspectorCloseBound = true;
+    closeBtn.addEventListener('click', closeInspectorPanel);
+  }
 }
 
 /**
@@ -916,4 +922,31 @@ export function bindInspectorPanelShortcut() {
   };
   document.addEventListener('keydown', handler);
   return () => document.removeEventListener('keydown', handler);
+}
+
+/**
+ * Initialize Inspector Panel — bind toggle button and keyboard shortcut.
+ * Call once during app startup.
+ */
+export function initInspectorPanel() {
+  const toggleBtn = document.getElementById('inspector-toggle-btn');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      toggleInspectorPanel('empty');
+      toggleBtn.setAttribute('aria-expanded', String(_isOpen));
+      // Clear badge on open
+      toggleBtn.classList.remove('has-badge');
+    });
+  }
+  bindInspectorPanelShortcut();
+}
+
+/**
+ * Highlight the Inspector toggle button to indicate new content (e.g. artifacts).
+ */
+export function setInspectorToggleBadge(hasBadge: boolean) {
+  const toggleBtn = document.getElementById('inspector-toggle-btn');
+  if (toggleBtn) {
+    toggleBtn.classList.toggle('has-badge', hasBadge);
+  }
 }

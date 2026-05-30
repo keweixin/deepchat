@@ -77,8 +77,15 @@ const DEFAULT_TOOL_POLICIES = [
   { tool: 'search_workspace', action: 'always_allow' },
   { tool: 'list_files', action: 'always_allow' },
   { tool: 'index_workspace', action: 'always_allow' },
+  { tool: 'project_map', action: 'always_allow' },
+  { tool: 'git_status', action: 'always_allow' },
+  { tool: 'git_diff', action: 'always_allow' },
+  { tool: 'git_log', action: 'always_allow' },
   { tool: 'read_file', action: 'confirm_once', conditions: { workspaceOnly: true } },
   { tool: 'read_file', action: 'confirm_always', conditions: { workspaceOnly: false } },
+  { tool: 'read_symbol', action: 'confirm_once', conditions: { workspaceOnly: true } },
+  { tool: 'read_many_files', action: 'confirm_once', conditions: { workspaceOnly: true } },
+  { tool: 'read_many_files', action: 'confirm_always', conditions: { workspaceOnly: false } },
   { tool: 'run_code', action: 'confirm_always' },
   { tool: '__mcp__', action: 'confirm_always' },
 ];
@@ -323,8 +330,18 @@ function isAutoApprovableReadOnlyTool(name, security) {
   const _security = security || {};
   if (isMcpToolName(name) || name === 'run_code') return false;
   return (
-    ['web_search', 'index_workspace', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name) &&
-    ['low', 'medium'].includes(String(_security.riskLevel || 'unknown'))
+    [
+      'web_search',
+      'index_workspace',
+      'list_files',
+      'search_workspace',
+      'read_symbol',
+      'read_file',
+      'project_map',
+      'git_status',
+      'git_diff',
+      'git_log',
+    ].includes(name) && ['low', 'medium'].includes(String(_security.riskLevel || 'unknown'))
   );
 }
 
@@ -378,6 +395,38 @@ function buildToolSecurity(name, args, settings) {
       sensitiveDenylist: true,
       redaction: true,
     };
+  } else if (name === 'project_map') {
+    base = {
+      riskLevel: 'low',
+      directory: String(_args.directory || ''),
+      maxDepth: _args.maxDepth || 4,
+      sensitiveDenylist: true,
+    };
+  } else if (name === 'git_status') {
+    base = { riskLevel: 'low', readOnly: true, vcs: 'git' };
+  } else if (name === 'git_diff') {
+    base = {
+      riskLevel: 'low',
+      readOnly: true,
+      vcs: 'git',
+      file: String(_args.file || ''),
+      staged: Boolean(_args.staged),
+    };
+  } else if (name === 'git_log') {
+    base = {
+      riskLevel: 'low',
+      readOnly: true,
+      vcs: 'git',
+      file: String(_args.file || ''),
+      count: _args.count || 10,
+    };
+  } else if (name === 'read_many_files') {
+    base = {
+      riskLevel: 'medium',
+      paths: Array.isArray(_args.paths) ? _args.paths : [],
+      sensitiveDenylist: true,
+      redaction: true,
+    };
   } else if (name === 'web_search') {
     base = { riskLevel: 'low', network: 'https', query: String(_args.query || '') };
   } else if (isMcpToolName(name)) {
@@ -405,7 +454,17 @@ function buildToolSecurity(name, args, settings) {
 function isParallelSafeToolCall(toolCall) {
   const _toolCall = toolCall || {};
   const name = String(_toolCall.function?.name || '');
-  return ['web_search', 'list_files', 'search_workspace', 'read_symbol', 'read_file'].includes(name);
+  return [
+    'web_search',
+    'list_files',
+    'search_workspace',
+    'read_symbol',
+    'read_file',
+    'project_map',
+    'git_status',
+    'git_diff',
+    'git_log',
+  ].includes(name);
 }
 
 /**

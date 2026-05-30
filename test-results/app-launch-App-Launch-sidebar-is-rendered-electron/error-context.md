@@ -6,8 +6,8 @@
 
 # Test info
 
-- Name: inspector.spec.ts >> Inspector Panel >> inspector panel toggle is visible
-- Location: e2e\inspector.spec.ts:11:7
+- Name: app-launch.spec.ts >> App Launch >> sidebar is rendered
+- Location: e2e\app-launch.spec.ts:43:7
 
 # Error details
 
