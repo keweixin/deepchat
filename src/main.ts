@@ -144,8 +144,8 @@ function bindEvents() {
     settingsOverlay.classList.remove('hidden');
   }
 
-  function triggerNewChat() {
-    createConversation();
+  async function triggerNewChat() {
+    await createConversation();
     const settings = getSettings();
     composerModeId = getComposerMode(settings.defaultComposerMode || 'daily').id;
     composerOverrides = {

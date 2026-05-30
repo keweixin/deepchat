@@ -16,30 +16,30 @@ function on(channel: string, callback: (payload: any) => void) {
 contextBridge.exposeInMainWorld('deepchat', {
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
-    set: (patch) => ipcRenderer.invoke('settings:set', patch),
-    migrateLegacy: (payload) => ipcRenderer.invoke('settings:migrateLegacy', payload),
+    set: (patch: any) => ipcRenderer.invoke('settings:set', patch),
+    migrateLegacy: (payload: any) => ipcRenderer.invoke('settings:migrateLegacy', payload),
     testApi: () => ipcRenderer.invoke('settings:testApi'),
-    testSearch: (query) => ipcRenderer.invoke('settings:testSearch', query),
+    testSearch: (query: any) => ipcRenderer.invoke('settings:testSearch', query),
   },
   conversations: {
     load: () => ipcRenderer.invoke('conversations:load'),
-    save: (conversations) => ipcRenderer.invoke('conversations:save', conversations),
+    save: (conversations: any) => ipcRenderer.invoke('conversations:save', conversations),
     exportBackup: () => ipcRenderer.invoke('conversations:exportBackup'),
     importBackup: () => ipcRenderer.invoke('conversations:importBackup'),
   },
   chat: {
-    start: (request) => ipcRenderer.send('chat:start', request),
-    cancel: (requestId) => ipcRenderer.send('chat:cancel', requestId),
-    onEvent: (callback) => on('chat:event', callback),
+    start: (request: any) => ipcRenderer.send('chat:start', request),
+    cancel: (requestId: any) => ipcRenderer.send('chat:cancel', requestId),
+    onEvent: (callback: any) => on('chat:event', callback),
   },
   tools: {
-    approve: (requestId, toolCallId, approved) =>
+    approve: (requestId: any, toolCallId: any, approved: any) =>
       ipcRenderer.send('tools:approve', { requestId, toolCallId, approved }),
-    run: (name, args) => ipcRenderer.invoke('tools:runManual', { name, args }),
+    run: (name: any, args: any) => ipcRenderer.invoke('tools:runManual', { name, args }),
   },
   workspace: {
     pick: () => ipcRenderer.invoke('workspace:pick'),
-    remove: (root) => ipcRenderer.invoke('workspace:remove', root),
+    remove: (root: any) => ipcRenderer.invoke('workspace:remove', root),
     clearIndexCache: () => ipcRenderer.invoke('workspace:clearIndexCache'),
   },
   skills: {
@@ -49,7 +49,7 @@ contextBridge.exposeInMainWorld('deepchat', {
     listStatus: () => ipcRenderer.invoke('mcp:listStatus'),
   },
   menu: {
-    onOpenSettings: (callback) => on('menu:openSettings', callback),
-    onNewChat: (callback) => on('menu:newChat', callback),
+    onOpenSettings: (callback: any) => on('menu:openSettings', callback),
+    onNewChat: (callback: any) => on('menu:newChat', callback),
   },
 });

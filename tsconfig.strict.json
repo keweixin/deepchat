@@ -67,6 +67,8 @@
     "src/modules/settings.ts",
     "src/modules/settings-dom.ts",
     "src/modules/settings-mcp.ts",
-    "src/modules/chat.ts"
+    "src/modules/chat.ts",
+    "electron/preload.ts",
+    "electron/memory-manager.ts"
   ]
 }

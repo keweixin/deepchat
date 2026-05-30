@@ -16,7 +16,7 @@ const BACKUP_SECRETS_EXCLUDED = [
 let lastSavedSnapshot: string | null = null;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
-export async function loadConversations(): Promise<any[]> {
+export async function loadConversations(includeMessages = false): Promise<any[]> {
   if (hasNativeBridge()) return (window as any).deepchat.conversations.load();
 
   const saved = localStorage.getItem(CONVERSATIONS_KEY);
@@ -33,11 +33,19 @@ export async function loadConversations(): Promise<any[]> {
       await migrateLegacyStorage(metadataList);
     }
 
-    // Load messages from IndexedDB and merge with metadata
-    const allMessages = await loadAllMessages();
+    if (includeMessages) {
+      // Load messages from IndexedDB and merge with metadata (e.g. for export)
+      const allMessages = await loadAllMessages();
+      return metadataList.map((meta: any) => ({
+        ...meta,
+        messages: allMessages[meta.id] || meta.messages || [],
+      }));
+    }
+
+    // Default: return metadata only; messages are loaded on-demand via switchConversation
     return metadataList.map((meta: any) => ({
       ...meta,
-      messages: allMessages[meta.id] || meta.messages || [],
+      messages: [],
     }));
   } catch {
     return [];
@@ -111,7 +119,7 @@ export async function exportBackup(): Promise<any> {
     exportedAt: new Date().toISOString(),
     secretsExcluded: BACKUP_SECRETS_EXCLUDED,
     settings: sanitizeSettingsForBackup(getSettings()),
-    conversations: await loadConversations(),
+    conversations: await loadConversations(true),
   };
   downloadJson(backup, `deepchat-backup-${new Date().toISOString().slice(0, 10)}.json`);
   return { canceled: false };

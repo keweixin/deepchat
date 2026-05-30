@@ -2,7 +2,6 @@
 
 import { app, BrowserWindow, Menu, shell, ipcMain, session } from 'electron';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import {
   getSettings,
   setSettings,
@@ -20,9 +19,6 @@ import { executeTool, clearWorkspaceIndexDiskCache } from './tools.js';
 import { McpManager } from './mcp-manager.js';
 import { validate, schemas } from './ipc-validation.js';
 import { warmBuiltinSkills } from './system-prompt.ts';
-
-const __dirname =
-  typeof __filename !== 'undefined' ? path.dirname(__filename) : path.dirname(fileURLToPath(import.meta.url));
 
 if (process.env.DEEPCHAT_DISABLE_GPU === '1') {
   app.disableHardwareAcceleration();

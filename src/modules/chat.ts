@@ -331,7 +331,7 @@ export async function initChat() {
 
   sidebar.renderConversationList();
   if (conversations.length > 0) {
-    switchConversation(conversations[0].id);
+    await switchConversation(conversations[0].id);
   }
 
   // Smart scroll: detect when user scrolls up during streaming
@@ -443,7 +443,7 @@ async function reloadConversations() {
   conversations = await loadConversations();
   if (conversations.length > 0) {
     const stillExists = conversations.some((conv) => conv.id === activeConvId);
-    switchConversation(stillExists ? activeConvId : conversations[0].id);
+    await switchConversation(stillExists ? activeConvId : conversations[0].id);
   } else {
     activeConvId = null;
     sidebar.renderConversationList();
@@ -467,7 +467,7 @@ function smartScroll(smooth = true) {
 
 // ─── Conversation Management ───
 
-export function createConversation() {
+export async function createConversation() {
   const conv = normalizeConversation({ id: uid(), title: '新的对话', messages: [], createdAt: Date.now() });
   conversations.unshift(conv);
   sidebarFilter = SIDEBAR_FILTERS.active;
@@ -475,7 +475,7 @@ export function createConversation() {
   selectedConversationIds.clear();
   persist();
   sidebar.renderConversationList();
-  switchConversation(conv.id);
+  await switchConversation(conv.id);
   return conv;
 }
 
@@ -544,7 +544,7 @@ async function deleteConversation(id: string) {
   persist();
   if (activeConvId === id) {
     if (conversations.length > 0) {
-      switchConversation(conversations[0].id);
+      await switchConversation(conversations[0].id);
     } else {
       activeConvId = null;
       sidebar.renderConversationList();
@@ -612,7 +612,7 @@ export async function sendMessage(content: string, options: Record<string, any> 
   if (!content.trim() && attachments.length === 0) return;
 
   let conv = getActiveConversation();
-  if (!conv) conv = createConversation();
+  if (!conv) conv = await createConversation();
 
   if ($welcome!) $welcome!.style.display = 'none';
 
