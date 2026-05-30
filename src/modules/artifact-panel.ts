@@ -20,7 +20,7 @@ import {
 } from './artifacts.js';
 import type { Artifact } from './artifacts.js';
 import { escapeHtml, formatBytes } from './shared-utils.js';
-import { safeSetHTML } from './renderer.js';
+import { safeSetHTML, setTrustedTemplateHTML } from './renderer.js';
 
 let _panelEl: HTMLElement | null = null;
 let _listEl: HTMLElement | null = null;
@@ -267,7 +267,8 @@ function _createPreviewAction(label: string, iconSvg: string): HTMLButtonElement
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'artifact-preview-action';
-  safeSetHTML(btn, `${iconSvg} ${escapeHtml(label)}`, { sanitize: false });
+  // prettier-ignore
+  setTrustedTemplateHTML(btn, `${iconSvg} ${escapeHtml(label)}`); /* trusted-html */
   return btn;
 }
 

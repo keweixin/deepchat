@@ -73,6 +73,25 @@ for (const file of files) {
         `${rel}:${i + 1} contains unauthorized innerHTML assignment. Use safeSetHTML instead, or annotate with /* trusted-html */, /* template-safe */, or /* safeSetHTML-exempt: <reason> */ if it is a verified static template.`
       );
     }
+
+    if (/\bsetTrustedTemplateHTML\s*\(/.test(line)) {
+      // 1. Allow definition inside renderer.ts without extra comments
+      if (rel === 'src/modules/renderer.ts') {
+        continue;
+      }
+      // 2. Require explicit validation comment at call sites
+      if (
+        line.includes('/* trusted-html */') ||
+        line.includes('/* template-safe */') ||
+        /\/\*\s*safeSetHTML-exempt\s*:\s*[^*]+\*\//i.test(line)
+      ) {
+        continue;
+      }
+
+      issues.push(
+        `${rel}:${i + 1} contains setTrustedTemplateHTML without validation comment. You must annotate the call with /* trusted-html */, /* template-safe */, or /* safeSetHTML-exempt: <reason> */ to certify its static safety.`
+      );
+    }
   }
 }
 

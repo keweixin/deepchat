@@ -30,14 +30,8 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Verify
-        run: npm run verify
-
-      - name: Build Electron main/preload
-        run: npm run build:electron
-
-      - name: E2E Smoke Test
-        run: npm run test:e2e
+      - name: Verify production
+        run: npm run verify:prod
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --registry=https://registry.npmjs.org

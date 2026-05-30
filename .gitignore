@@ -41,6 +41,7 @@ coverage/
 *.lcov
 .nyc_output/
 test-results/
+playwright-report/
 
 # OS files
 .DS_Store

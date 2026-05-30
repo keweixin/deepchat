@@ -857,17 +857,19 @@ function firstMeaningfulChild(container: HTMLElement) {
 }
 
 /**
- * Safely set HTML content on an element.
- * Use for HTML that may contain user-controlled content.
- * For renderMarkdown() output (already sanitized), direct innerHTML is acceptable.
+ * Safely set HTML content on an element after running DOMPurify.
+ * Use for any HTML that may contain dynamic or user-controlled content.
  */
-export function safeSetHTML(el: HTMLElement, html: string, options: { source?: string; sanitize?: boolean } = {}) {
-  const { sanitize = true } = options;
-  if (sanitize) {
-    el.innerHTML = DOMPurify.sanitize(html, purifyConfig); /* safeSetHTML-impl */
-  } else {
-    el.innerHTML = html; /* safeSetHTML-impl: explicit bypass for unsanitized insertion */
-  }
+export function safeSetHTML(el: HTMLElement, html: string) {
+  el.innerHTML = DOMPurify.sanitize(html, purifyConfig); /* safeSetHTML-impl */
+}
+
+/**
+ * Directly set HTML content on an element for verified static templates or pre-sanitized strings.
+ * Callers MUST be audited and annotated with trusted-html comments.
+ */
+export function setTrustedTemplateHTML(el: HTMLElement, html: string) {
+  el.innerHTML = html; /* safeSetHTML-impl */
 }
 
 function normalizeWhitespace(value: string | null) {
