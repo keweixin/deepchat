@@ -174,6 +174,23 @@ function mergePurposeUsage(left = {}, right = {}) {
   return out;
 }
 
+/**
+ * @param {{
+ *   input?: number;
+ *   output?: number;
+ *   total?: number;
+ *   reasoning?: number;
+ *   cacheHit?: number;
+ *   cacheMiss?: number;
+ *   byPurpose?: Record<string, number>;
+ *   cost?: any;
+ *   model?: string;
+ *   source?: string;
+ *   rounds?: number;
+ *   warnings?: string[];
+ * }} usage
+ * @returns {any}
+ */
 function finalizeTokenUsage(usage) {
   const input = toTokenNumber(usage.input);
   const output = toTokenNumber(usage.output);
@@ -182,7 +199,7 @@ function finalizeTokenUsage(usage) {
   const cacheHit = toTokenNumber(usage.cacheHit);
   const cacheMiss = toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
   const byPurpose = normalizePurposeUsage(usage.byPurpose);
-  const cost = usage.cost || estimateUsageCost(usage.model, { input, output, cacheHit, cacheMiss });
+  const cost = usage.cost || estimateUsageCost(usage.model || '', { cacheHit, cacheMiss, output });
   return {
     input,
     output,
@@ -199,6 +216,11 @@ function finalizeTokenUsage(usage) {
   };
 }
 
+/**
+ * @param {any} usage
+ * @param {any} [fallback]
+ * @returns {any}
+ */
 function normalizeTokenUsage(usage, fallback = {}) {
   const inputFallback = toTokenNumber(fallback.input ?? fallback.fallbackInput);
   const outputFallback = toTokenNumber(fallback.output ?? fallback.fallbackOutput);
@@ -261,6 +283,11 @@ function normalizeTokenUsage(usage, fallback = {}) {
   });
 }
 
+/**
+ * @param {any[]} [usages]
+ * @param {{ warnings?: string[] }} [options]
+ * @returns {any}
+ */
 function mergeTokenUsage(usages = [], options = {}) {
   const normalized = (Array.isArray(usages) ? usages : []).filter(Boolean).map((usage) => normalizeTokenUsage(usage));
   const totals = normalized.reduce(

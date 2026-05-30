@@ -130,12 +130,21 @@ export function highlightWorkspaceSnippet(text, terms = [], queryLower = '', sym
   return highlighted.slice(0, 6);
 }
 
+/**
+ * @param {string} symbol
+ * @returns {RegExp}
+ */
 function createSymbolPattern(symbol) {
   const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const boundary = '[^\\p{L}\\p{N}_$.-]';
   return new RegExp(`(^|${boundary})${escaped}(?=$|${boundary})`, 'u');
 }
 
+/**
+ * @param {string} line
+ * @param {string} symbol
+ * @returns {boolean}
+ */
 function looksLikeSymbolDefinition(line, symbol) {
   const lower = line.toLowerCase();
   const symLower = symbol.toLowerCase();

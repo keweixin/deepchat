@@ -313,7 +313,7 @@ function buildCacheStablePrefix(
   const toolsHash = nodeCrypto.createHash('sha256').update(canonicalStringify(toolPayload)).digest('hex').slice(0, 16);
   const workspaceSignature = stableWorkspaceSignature(settings);
   const prefixTokens =
-    estimateMessagesTokens([{ role: 'system', content: systemPrompt }]) +
+    estimateMessagesTokens([{ content: systemPrompt }]) +
     estimateTokens(canonicalStringify(tools || [])) +
     16;
   const profile = {
