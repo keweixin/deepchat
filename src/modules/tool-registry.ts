@@ -311,11 +311,33 @@ export interface ToolDefinition {
   purpose: string;
   scope: string;
   riskReason: string;
+  readOnly: boolean;
+  sideEffect: 'none' | 'filesystem-write' | 'process' | 'network' | 'external-mcp';
+  contextPolicy: 'keep-full' | 'summarize' | 'truncate' | 'evidence-only';
 }
 
 export const TOOL_REGISTRY: Readonly<Record<string, ToolDefinition>> = Object.freeze(
   Object.entries(TOOL_DEFINITIONS).reduce(
     (acc, [key, def]) => {
+      const isReadOnly = def.riskLevel === 'low' && !['run_code', 'write_file', 'edit_file'].includes(def.name);
+      const sideEffect =
+        def.name === 'run_code'
+          ? 'process'
+          : ['write_file', 'edit_file'].includes(def.name)
+            ? 'filesystem-write'
+            : def.name.startsWith('mcp__')
+              ? 'external-mcp'
+              : def.name === 'web_search'
+                ? 'network'
+                : 'none';
+      const contextPolicy =
+        def.name === 'run_code'
+          ? 'summarize'
+          : ['read_file', 'read_many_files'].includes(def.name)
+            ? 'evidence-only'
+            : ['web_search', 'search_workspace'].includes(def.name)
+              ? 'truncate'
+              : 'keep-full';
       acc[key] = {
         name: def.name,
         icon: def.productCopy.icon,
@@ -328,6 +350,9 @@ export const TOOL_REGISTRY: Readonly<Record<string, ToolDefinition>> = Object.fr
         purpose: def.productCopy.purpose,
         scope: def.productCopy.scope,
         riskReason: def.productCopy.riskReason,
+        readOnly: isReadOnly,
+        sideEffect,
+        contextPolicy,
       };
       return acc;
     },
@@ -375,4 +400,19 @@ export function getToolScope(name: string): string {
 /** Get the risk reason for a tool */
 export function getToolRiskReason(name: string): string {
   return getToolDefinition(name)?.riskReason || '标准风险等级';
+}
+
+/** Check if a tool is read-only (no side effects) */
+export function isToolReadOnly(name: string): boolean {
+  return getToolDefinition(name)?.readOnly ?? false;
+}
+
+/** Get the side effect type of a tool */
+export function getToolSideEffect(name: string): string {
+  return getToolDefinition(name)?.sideEffect || 'none';
+}
+
+/** Get the context policy for a tool */
+export function getToolContextPolicy(name: string): string {
+  return getToolDefinition(name)?.contextPolicy || 'keep-full';
 }
