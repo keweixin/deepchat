@@ -164,8 +164,8 @@ function _renderList() {
     copyBtn.type = 'button';
     copyBtn.className = 'artifact-workspace-action';
     copyBtn.title = '复制源码';
-    copyBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    // prettier-ignore
+    copyBtn.innerHTML = /* trusted-html */ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
     copyBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       _copyArtifactSource(artifact);
@@ -175,8 +175,8 @@ function _renderList() {
     downloadBtn.type = 'button';
     downloadBtn.className = 'artifact-workspace-action';
     downloadBtn.title = '下载文件';
-    downloadBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+    // prettier-ignore
+    downloadBtn.innerHTML = /* trusted-html */ '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
     downloadBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       _downloadArtifact(artifact, i);
@@ -214,7 +214,8 @@ function _renderPreview(index: number) {
 
   const artifact = _currentArtifacts[index];
   if (!artifact) {
-    _previewEl.innerHTML = '<div class="artifact-panel-preview-empty">点击左侧 artifact 查看预览</div>';
+    // prettier-ignore
+    _previewEl.innerHTML = /* trusted-html */ '<div class="artifact-panel-preview-empty">点击左侧 artifact 查看预览</div>';
     return;
   }
 
@@ -266,7 +267,7 @@ function _createPreviewAction(label: string, iconSvg: string): HTMLButtonElement
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'artifact-preview-action';
-  btn.innerHTML = `${iconSvg} ${escapeHtml(label)}`;
+  safeSetHTML(btn, `${iconSvg} ${escapeHtml(label)}`, { sanitize: false });
   return btn;
 }
 

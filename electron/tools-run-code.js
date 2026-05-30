@@ -1,4 +1,3 @@
-// @ts-nocheck
 const fs = require('fs/promises');
 const path = require('path');
 const os = require('os');
@@ -13,12 +12,25 @@ const RUN_CODE_SECURITY_LIMITS = {
   killTreeOnTimeout: true,
 };
 
+/**
+ * @param {any} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampInt(value, min, max, fallback) {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
 }
 
+/**
+ * @param {{ language?: string; code?: string; stdin?: string }} args
+ * @param {{ runCodeEnabled?: boolean | string }} [settings]
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<string>}
+ */
 async function runCode(args, settings = {}, signal) {
   if (settings.runCodeEnabled === false || settings.runCodeEnabled === 'false') {
     throw new Error('代码运行工具已在设置中关闭。');
@@ -62,7 +74,7 @@ async function runCode(args, settings = {}, signal) {
   try {
     await fs.rm(tempDir, { recursive: true, force: true });
   } catch (err) {
-    console.error('[runCode] Failed to clean up temp dir:', tempDir, err.message);
+    console.error('[runCode] Failed to clean up temp dir:', tempDir, /** @type {any} */ (err).message);
   }
   return [
     `语言：${language}`,
@@ -89,6 +101,19 @@ async function runCode(args, settings = {}, signal) {
     .slice(0, MAX_TOOL_OUTPUT);
 }
 
+/**
+ * @param {{
+ *   language?: string;
+ *   codeLength?: number;
+ *   stdinBytes?: number;
+ *   durationMs?: number;
+ *   exitCode?: number | null;
+ *   timedOut?: boolean;
+ *   stdout?: string;
+ *   stderr?: string;
+ * }} result
+ * @returns {any}
+ */
 function buildRunCodeStructuredResult(result) {
   const stdout = String(result.stdout || '');
   const stderr = String(result.stderr || '');
@@ -106,16 +131,28 @@ function buildRunCodeStructuredResult(result) {
     stderrBytes: Buffer.byteLength(stderr, 'utf8'),
     stdoutPreview: compactHeadTailText(stdout, 1600, 800),
     stderrPreview: compactHeadTailText(stderr, 1200, 600),
-    failureHint: buildRunFailureHint(result.exitCode, result.timedOut, stderr),
+    failureHint: buildRunFailureHint(result.exitCode ?? null, !!result.timedOut, stderr),
   };
 }
 
+/**
+ * @param {any} text
+ * @param {number} headLength
+ * @param {number} tailLength
+ * @returns {string}
+ */
 function compactHeadTailText(text, headLength, tailLength) {
   const value = String(text || '');
   if (value.length <= headLength + tailLength + 80) return value;
   return `${value.slice(0, headLength)}\n\n[中间输出已省略]\n\n${value.slice(-tailLength)}`;
 }
 
+/**
+ * @param {number | null} exitCode
+ * @param {boolean} timedOut
+ * @param {string} stderr
+ * @returns {string}
+ */
 function buildRunFailureHint(exitCode, timedOut, stderr) {
   if (timedOut) return '代码运行超时，可减少输入、拆分任务或检查是否存在死循环。';
   if (exitCode === 0) return '';
@@ -129,7 +166,13 @@ function buildRunFailureHint(exitCode, timedOut, stderr) {
     : '代码运行失败，请查看 stderr 首尾输出定位原因。';
 }
 
+/**
+ * @param {string} language
+ * @param {string} tempDir
+ * @returns {Record<string, string>}
+ */
 function buildSandboxEnv(language, tempDir) {
+  /** @type {Record<string, string>} */
   const env = {};
   const pathValue = process.env.PATH || process.env.Path || '';
   if (pathValue) {
@@ -150,10 +193,18 @@ function buildSandboxEnv(language, tempDir) {
   return Object.fromEntries(Object.entries(env).filter(([key]) => !isSensitiveEnvKey(key)));
 }
 
+/**
+ * @param {string} key
+ * @returns {boolean}
+ */
 function isSensitiveEnvKey(key) {
   return /(key|token|secret|password|credential|cookie|session|auth|bearer)/i.test(String(key || ''));
 }
 
+/**
+ * @param {any} value
+ * @returns {string}
+ */
 function normalizeLanguage(value) {
   const lang = String(value || '')
     .trim()
@@ -163,6 +214,15 @@ function normalizeLanguage(value) {
   return '';
 }
 
+/**
+ * @param {string} command
+ * @param {string[]} args
+ * @param {string} stdin
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {string} [cwd]
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{ stdout: string; stderr: string; exitCode: number | null; timedOut: boolean }>}
+ */
 function spawnWithLimits(command, args, stdin, env = process.env, cwd, signal) {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -185,7 +245,7 @@ function spawnWithLimits(command, args, stdin, env = process.env, cwd, signal) {
         // Windows: taskkill /F /T kills the process tree by PID.
         try {
           const { execSync } = require('child_process');
-          execSync(`taskkill /F /T /PID ${child.pid}`, { stdio: 'ignore' });
+          if (child.pid) execSync(`taskkill /F /T /PID ${child.pid}`, { stdio: 'ignore' });
         } catch {
           // Fallback: direct kill if taskkill fails (e.g. process already exited).
           try {
@@ -195,7 +255,7 @@ function spawnWithLimits(command, args, stdin, env = process.env, cwd, signal) {
       } else {
         // Unix: negative PID sends signal to the entire process group.
         try {
-          process.kill(-child.pid, 'SIGKILL');
+          if (child.pid) process.kill(-child.pid, 'SIGKILL');
         } catch {
           try {
             child.kill('SIGKILL');
@@ -256,6 +316,10 @@ function spawnWithLimits(command, args, stdin, env = process.env, cwd, signal) {
   });
 }
 
+/**
+ * @param {any} value
+ * @returns {string}
+ */
 function redactSensitiveText(value) {
   return String(value || '')
     .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, 'sk-[REDACTED]')
@@ -271,6 +335,10 @@ function redactSensitiveText(value) {
  * Redact secrets from run_code stdout/stderr output.
  * Extends redactSensitiveText with additional patterns common in code execution output
  * (private keys, JWTs, connection strings, generic long hex/base64 blobs that look like secrets).
+ */
+/**
+ * @param {any} value
+ * @returns {string}
  */
 function redactRunCodeOutput(value) {
   return (

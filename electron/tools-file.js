@@ -225,7 +225,7 @@ async function readManyFiles(args, settings) {
         await handle.close();
       }
     } catch (error) {
-      results.push({ path: label, error: (/** @type {any} */ (error))?.message || String(error) });
+      results.push({ path: label, error: /** @type {any} */ (error)?.message || String(error) });
     }
   }
 

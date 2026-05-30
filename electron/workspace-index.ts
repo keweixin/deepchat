@@ -350,6 +350,7 @@ export function searchWorkspace(
       c.line_end,
       c.content,
       f.relative_path as file_path,
+      f.workspace_root as workspace_root,
       bm25(chunks_fts, 1.0) as rank
     FROM chunks_fts
     JOIN chunks c ON c.id = chunks_fts.rowid
@@ -369,6 +370,7 @@ export function searchWorkspace(
     }));
     return {
       file: row.file_path,
+      workspaceRoot: row.workspace_root,
       lineStart: row.line_start,
       lineEnd: row.line_end,
       content: row.content,
@@ -430,6 +432,7 @@ export function findSymbol(
       s.line,
       s.column,
       f.relative_path as file_path,
+      f.workspace_root as workspace_root,
       s.file_id
     FROM symbols s
     JOIN files f ON f.id = s.file_id
@@ -454,6 +457,7 @@ export function findSymbol(
 
     return {
       file: row.file_path,
+      workspaceRoot: row.workspace_root,
       name: row.name,
       kind: row.kind,
       line: row.line,
