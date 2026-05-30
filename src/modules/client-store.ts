@@ -119,9 +119,17 @@ export async function exportBackup(options?: any): Promise<any> {
   const conversations = await loadConversations(true);
 
   let safeConversations = conversations;
-  if (options?.excludeLogs) {
+  if (options?.privacyLevel === 'full') {
+    // 完整备份：保留所有数据
+    safeConversations = conversations;
+  } else if (options?.privacyLevel === 'sanitized' || options?.excludeLogs) {
+    // 脱敏备份：移除所有消息内容
     safeConversations = conversations.map((c: any) => ({ ...c, messages: [] }));
-  } else if (options?.excludeCode) {
+  } else if (options?.privacyLevel === 'settings_only') {
+    // 仅设置：不包含会话
+    safeConversations = [];
+  } else if (options?.privacyLevel === 'conversations_only' || options?.excludeCode) {
+    // 仅会话/排除代码：移除代码块和工具输出
     safeConversations = conversations.map((c: any) => {
       if (!Array.isArray(c.messages)) return c;
       return {
@@ -130,8 +138,12 @@ export async function exportBackup(options?: any): Promise<any> {
           ...m,
           content:
             typeof m.content === 'string'
-              ? m.content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
+              ? m.content
+                  .replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
+                  .replace(/<tool_output>[\s\S]*?<\/tool_output>/g, '[工具输出已排除]')
               : m.content,
+          toolCalls: options?.excludeToolOutput ? undefined : m.toolCalls,
+          toolRuns: options?.excludeToolOutput ? undefined : m.toolRuns,
         })),
       };
     });

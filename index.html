@@ -401,6 +401,18 @@
           <span class="status-item" id="status-code-run">代码运行：关闭</span>
         </div>
         <div class="settings-body">
+          <nav class="settings-nav" aria-label="设置导航">
+            <button class="settings-nav-item active" data-target-title="API 配置">模型与 Provider</button>
+            <button class="settings-nav-item" data-target-title="联网搜索">联网搜索</button>
+            <button class="settings-nav-item" data-target-title="工作区与备份">工作区</button>
+            <button class="settings-nav-item" data-target-title="Agent 与 Token">Agent 与工具</button>
+            <button class="settings-nav-item" data-target-title="MCP Server">MCP</button>
+            <button class="settings-nav-item" data-target-title="外部 Skill">Skills</button>
+            <button class="settings-nav-item" data-target-title="回答模式">外观与快捷键</button>
+            <button class="settings-nav-item" data-target-title="系统提示词">数据与备份</button>
+            <button class="settings-nav-item" data-target-title="智能增强">高级调试</button>
+          </nav>
+          <div class="settings-content">
           <div class="settings-tabs" role="tablist" aria-label="设置分类">
             <button
               class="settings-tab active"
@@ -440,7 +452,7 @@
             </button>
           </div>
 
-          <div class="settings-section" data-tab="tab-connection">
+          <div class="settings-section" id="section-provider" data-tab="tab-connection">
             <h3>API 配置</h3>
             <div class="form-group">
               <label>快速切换服务商</label>
@@ -538,7 +550,7 @@
               ><span id="api-test-status" class="inline-status"></span>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-connection">
+          <div class="settings-section" id="section-search" data-tab="tab-connection">
             <h3>联网搜索</h3>
             <div class="form-group">
               <label for="tavily-key-input">Tavily API Key</label>
@@ -578,7 +590,7 @@
               ><span id="search-test-status" class="inline-status"></span>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-agent">
+          <div class="settings-section" id="section-workspace" data-tab="tab-agent">
             <h3>工作区与备份</h3>
             <div class="form-group">
               <label>允许读取的工作区</label>
@@ -673,7 +685,7 @@
               <p id="storage-status" class="form-hint">正在读取存储状态...</p>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-model">
+          <div class="settings-section" id="section-skills" data-tab="tab-model">
             <h3>外部 Skill</h3>
             <div class="form-group">
               <label>已导入的 Skill</label>
@@ -689,7 +701,7 @@
               <p class="form-hint">导入本地 SKILL.md 后，启用的 Skill 会追加到系统提示词中。</p>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-connection">
+          <div class="settings-section" id="section-mcp" data-tab="tab-connection">
             <h3>MCP Server</h3>
             <div class="form-group">
               <label>添加 stdio MCP</label>
@@ -724,7 +736,7 @@
               <div id="mcp-server-list" class="workspace-list"></div>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-model">
+          <div class="settings-section" id="section-model" data-tab="tab-model">
             <h3>模型设置</h3>
             <div class="form-group">
               <label for="model-input">模型名称</label>
@@ -825,7 +837,7 @@
               <p class="form-hint">限制模型连续规划并请求工具的轮数，超过后停止并保留已执行记录。</p>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-agent">
+          <div class="settings-section" id="section-agent" data-tab="tab-agent">
             <h3>Agent 与 Token</h3>
             <div class="form-group">
               <label class="toggle-row">
@@ -888,7 +900,7 @@
               <p class="form-hint">关闭后模型仍可生成代码，但不能通过本机运行。开启时使用轻量隔离环境并逐次确认。</p>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-preference">
+          <div class="settings-section" id="section-appearance" data-tab="tab-preference">
             <h3>回答模式</h3>
             <div class="form-group">
               <label>调整 AI 的回答边界</label>
@@ -923,7 +935,7 @@
               <p class="form-hint">新建对话时默认使用的任务模式。每个对话会独立记住你切换后的模式。</p>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-preference">
+          <div class="settings-section" id="section-data" data-tab="tab-preference">
             <h3>系统提示词</h3>
             <div class="form-group">
               <label for="system-prompt-input">System Prompt</label
@@ -943,7 +955,7 @@
               <button class="preset-btn" data-preset="teacher">📚 教学</button>
             </div>
           </div>
-          <div class="settings-section" data-tab="tab-agent">
+          <div class="settings-section" id="section-debug" data-tab="tab-agent">
             <h3>智能增强</h3>
             <div class="form-group enhance-row">
               <label class="toggle-label enhance-toggle-control" for="enhance-toggle">
@@ -956,6 +968,7 @@
               </label>
               <p class="form-hint">适合日常问答；需要精确原文提示时可以关闭。</p>
             </div>
+          </div>
           </div>
         </div>
       </div>

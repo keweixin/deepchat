@@ -74,6 +74,7 @@ async function runCode(args, settings = {}, signal) {
     '权限：本地轻沙箱（临时目录隔离）',
     '环境：最小变量白名单（已过滤 token/key/secret/password）',
     '网络：未硬阻断',
+    '内存：未做系统级硬限制（依赖运行时自然约束）',
     '风险：仅运行可信代码',
     'Structured Run:',
     JSON.stringify(structured, null, 2),

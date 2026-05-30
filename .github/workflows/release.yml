@@ -33,6 +33,9 @@ jobs:
       - name: Verify
         run: npm run verify
 
+      - name: Build Electron main/preload
+        run: npm run build:electron
+
       - name: E2E Smoke Test
         run: npm run test:e2e
 
