@@ -75,8 +75,8 @@ for (const file of files) {
     }
 
     if (/\bsetTrustedTemplateHTML\s*\(/.test(line)) {
-      // 1. Allow definition inside renderer.ts without extra comments
-      if (rel === 'src/modules/renderer.ts') {
+      // 1. Allow function definition inside renderer.ts (export function setTrustedTemplateHTML)
+      if (rel === 'src/modules/renderer.ts' && /function\s+setTrustedTemplateHTML/.test(line)) {
         continue;
       }
       // 2. Require explicit validation comment at call sites
