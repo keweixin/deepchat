@@ -10,5 +10,5 @@ if (isDev) {
 } else if (fs.existsSync(distPreload)) {
   require(distPreload);
 } else {
-  throw new Error(`生产构建产物缺失：${distPreload}`);
+  throw new Error(`生产构建产物缺失：${distPreload}\n请先运行构建命令：npm run build:electron`);
 }
