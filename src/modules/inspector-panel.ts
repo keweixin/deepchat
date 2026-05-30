@@ -26,7 +26,7 @@ import { diffArtifactVersions } from './artifact-versions.js';
 import { downloadZipArchive } from './zip-builder.js';
 import { escapeHtml, formatBytes } from './shared-utils.js';
 import { renderToolCardList } from './tool-card.js';
-import { safeSetHTML } from './renderer.js';
+import { safeSetHTML, setTrustedTemplateHTML } from './renderer.js';
 
 let _panelEl: HTMLElement | null = null;
 let _contentEl: HTMLElement | null = null;
@@ -375,7 +375,8 @@ function _renderArtifactInfo(data: Record<string, any>) {
   // Version diff container (hidden by default)
   html += '<div class="inspector-artifact-diff-container" hidden></div>';
   html += '</div>';
-  safeSetHTML(_contentEl, html);
+  // Use setTrustedTemplateHTML for artifact preview since it contains sandboxed iframe
+  setTrustedTemplateHTML(_contentEl, html); /* safeSetHTML-exempt: artifact preview with sandboxed iframe */
 
   // Attach event listeners
   Array.from(_contentEl.querySelectorAll('.inspector-artifact-action')).forEach((btn) => {

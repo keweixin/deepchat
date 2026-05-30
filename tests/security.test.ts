@@ -258,9 +258,10 @@ describe('XSS and HTML rendering safety', () => {
     expect(html).toContain('href="#"');
   });
 
-  it('permits whitelisted layout elements and attributes securely', () => {
+  it('blocks iframe in regular markdown for security', () => {
     const html = renderMarkdown('<iframe src="https://example.com" sandbox="allow-scripts"></iframe>');
-    expect(html).toContain('<iframe');
-    expect(html).toContain('sandbox="allow-scripts"');
+    // iframe should be escaped in regular markdown, only allowed in Artifact sandbox preview
+    expect(html).not.toContain('<iframe');
+    expect(html).toContain('&lt;iframe');
   });
 });

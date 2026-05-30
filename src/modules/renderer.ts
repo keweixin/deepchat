@@ -175,12 +175,9 @@ renderer.code = function ({ text, lang }: any) {
   </div>`;
 };
 
-// Controlled HTML rendering: allow safe layout tags like iframe, escape others for security
+// Controlled HTML rendering: escape raw HTML, block dangerous tags including iframe
+// iframe is only allowed in Artifact HTML sandbox preview (artifact-panel.ts), not in regular markdown
 renderer.html = function ({ text }: any) {
-  const lower = text.toLowerCase();
-  if (lower.includes('<iframe') || lower.includes('</iframe>')) {
-    return text;
-  }
   // Escape raw HTML and neutralize inline event handlers to satisfy strict security assertions
   let escaped = escapeHtml(text);
   escaped = escaped.replace(/on\w+\s*=/gi, 'blocked-on=');
@@ -306,7 +303,6 @@ const purifyConfig = {
     'defs',
     'linearGradient',
     'stop',
-    'iframe',
     'select',
     'option',
     'label',
