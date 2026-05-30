@@ -1,4 +1,3 @@
-// @ts-nocheck
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
@@ -83,7 +82,7 @@ async function searchWorkspace(args, settings) {
           },
           results: ftsResults.map((hit, i) => ({
             index: i + 1,
-            file: path.join(hit.workspaceRoot, hit.file).replace(/\\/g, '/'),
+            file: path.join((hit as any).workspaceRoot, hit.file).replace(/\\/g, '/'),
             startLine: hit.lineStart,
             endLine: hit.lineEnd,
             score: hit.score,
@@ -111,7 +110,7 @@ async function searchWorkspace(args, settings) {
         ].filter(Boolean);
 
         ftsResults.forEach((hit, i) => {
-          const absPath = path.join(hit.workspaceRoot, hit.file).replace(/\\/g, '/');
+          const absPath = path.join((hit as any).workspaceRoot, hit.file).replace(/\\/g, '/');
           lines.push(`${i + 1}. ${absPath}:${hit.lineStart}-${hit.lineEnd}`);
           lines.push(`   score: ${hit.score.toFixed(2)}`);
           lines.push('   摘录:');
@@ -280,7 +279,7 @@ async function readSymbol(args, settings) {
 
       const dbSymbols = indexMod.findSymbol(symbol, { root: resolvedRoot });
       const filtered = pattern
-        ? dbSymbols.filter((s) => path.join(s.workspaceRoot, s.file).replace(/\\/g, '/').includes(pattern))
+        ? dbSymbols.filter((s: any) => path.join(s.workspaceRoot, s.file).replace(/\\/g, '/').includes(pattern))
         : dbSymbols;
 
       if (filtered.length > 0) {
@@ -299,7 +298,7 @@ async function readSymbol(args, settings) {
           const snippet = contentLines.slice(startIdx, endIdx + 1);
 
           matches.push({
-            file: path.join(sym.workspaceRoot, sym.file).replace(/\\/g, '/'),
+            file: path.join((sym as any).workspaceRoot, sym.file).replace(/\\/g, '/'),
             startLine: startIdx + 1,
             endLine: endIdx + 1,
             definitionLine: sym.line,
@@ -392,8 +391,8 @@ function findSymbolDefinitionHits(file, symbol, options = {}) {
     const line = lines[index] || '';
     if (!symbolPattern.test(line) || !looksLikeSymbolDefinition(line, symbol)) continue;
     const definitionEnd = inferSymbolDefinitionEnd(lines, index);
-    const contextLines = clampInt(options.contextLines, 0, 20, 3);
-    const maxLines = clampInt(options.maxLines, 20, 240, 120);
+    const contextLines = clampInt((options as any).contextLines, 0, 20, 3);
+    const maxLines = clampInt((options as any).maxLines, 20, 240, 120);
     const startIndex = Math.max(0, index - contextLines);
     const uncappedEndIndex = Math.min(lines.length - 1, definitionEnd + contextLines);
     const endIndex = Math.min(uncappedEndIndex, startIndex + maxLines - 1);
@@ -527,11 +526,16 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   const realRoot = await fs.realpath(root).catch(() => root);
   const realScanRoot = await fs.realpath(scanRoot).catch(() => scanRoot);
   const pattern = String(args.pattern || '').trim();
-  const maxFiles = clampInt(options.maxFiles ?? args.max_files, 1, MAX_SEARCH_SCAN_FILES, MAX_SEARCH_SCAN_FILES);
+  const maxFiles = clampInt(
+    (options as any).maxFiles ?? args.max_files,
+    1,
+    MAX_SEARCH_SCAN_FILES,
+    MAX_SEARCH_SCAN_FILES
+  );
   const cacheKey = buildWorkspaceIndexCacheKey(realRoot, realScanRoot, pattern, maxFiles);
   const cached = workspaceIndexCache.get(cacheKey);
   const now = Date.now();
-  if (!options.forceRefresh && cached && now - cached.builtAtMs < WORKSPACE_INDEX_TTL_MS) {
+  if (!(options as any).forceRefresh && cached && now - cached.builtAtMs < WORKSPACE_INDEX_TTL_MS) {
     return {
       ...cached,
       fromCache: true,
@@ -545,7 +549,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   await walk(realScanRoot, realScanRoot, rawFiles, matcher, maxFiles);
   const snapshot = buildWorkspaceSnapshot(rawFiles, realRoot);
   if (
-    !options.forceRefresh &&
+    !(options as any).forceRefresh &&
     cached &&
     cached.snapshotHash === snapshot.hash &&
     now - cached.builtAtMs < WORKSPACE_INDEX_DISK_TTL_MS
@@ -561,7 +565,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   }
 
   let incrementalCache = null;
-  if (!options.forceRefresh) {
+  if (!(options as any).forceRefresh) {
     const diskIndex = await readWorkspaceIndexDiskCache(cacheKey, snapshot.hash, settings, now);
     if (diskIndex) {
       const restored = {
@@ -717,7 +721,7 @@ function buildWorkspaceSnapshot(rawFiles = [], realRoot = '') {
   };
 }
 
-function getWorkspaceIndexDiskDir(settings = {}) {
+function getWorkspaceIndexDiskDir(settings: any = {}) {
   const explicit = String(
     settings.workspaceIndexCacheDir || process.env.DEEPCHAT_WORKSPACE_INDEX_CACHE_DIR || ''
   ).trim();
@@ -930,7 +934,7 @@ function formatWorkspaceIndexCacheLabel(index) {
   return '命中缓存';
 }
 
-function formatWorkspaceIndexDiskStatus(diskCache = {}) {
+function formatWorkspaceIndexDiskStatus(diskCache: any = {}) {
   if (!diskCache.enabled) return '磁盘缓存：未启用（缺少应用数据目录）';
   if (diskCache.hit) return '磁盘缓存：已命中';
   if (diskCache.written) return `磁盘缓存：已写入${diskCache.bytes ? `（${diskCache.bytes} bytes）` : ''}`;
@@ -1092,7 +1096,7 @@ function scoreWorkspaceHit(hit) {
   };
 }
 
-function hasFileIdentityMatch(fileRelevance = {}) {
+function hasFileIdentityMatch(fileRelevance: any = {}) {
   return (fileRelevance.reasons || []).some((reason) => reason === 'file_name' || reason === 'path');
 }
 
