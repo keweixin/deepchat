@@ -242,3 +242,56 @@ export function createUsageRow(label: string, value: unknown) {
   row.append(name, content);
   return row;
 }
+
+// ─── Cost Explanation ────────────────────────────────────────────────────────
+
+/**
+ * Generate a human-readable explanation of why a round was expensive or cheap.
+ * Helps users understand cost drivers and optimize their usage.
+ */
+export function explainRoundCost(conversation: Record<string, any>): string[] {
+  const usage = getConversationUsageSummary(conversation);
+  if (!usage || usage.total <= 0) return ['暂无 Token 使用数据。'];
+
+  const explanations: string[] = [];
+
+  // Cache efficiency
+  if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
+    const hitRate = usage.cacheHitRate;
+    if (hitRate > 0.8) {
+      explanations.push('🟢 缓存命中率高（>80%），前缀稳定，成本较低。');
+    } else if (hitRate > 0.5) {
+      explanations.push('🟡 缓存命中率中等（50-80%），部分上下文发生变化导致缓存失效。');
+    } else {
+      explanations.push('🔴 缓存命中率低（<50%），大量上下文变化导致缓存失效，成本较高。');
+    }
+  }
+
+  // Token volume
+  if (usage.total > 100000) {
+    explanations.push('🔴 本轮 Token 用量超过 100K，可能包含大量工具输出或长上下文。');
+  } else if (usage.total > 50000) {
+    explanations.push('🟡 本轮 Token 用量较高（50K+），建议检查是否有不必要的工具调用。');
+  }
+
+  // Reasoning tokens
+  if (usage.reasoning > 10000) {
+    explanations.push('🟡 思考 Token 较多（10K+），可能因为复杂推理或多轮 Agent 规划。');
+  }
+
+  // Multiple rounds
+  if ((usage.rounds || 0) > 3) {
+    explanations.push('🟡 Agent 轮次较多（3+），每轮都会增加上下文长度和成本。');
+  }
+
+  // Cost savings
+  if (usage.cost?.estimatedSavingsUsd > 0.001) {
+    explanations.push(`🟢 缓存节省约 ${formatUsd(usage.cost.estimatedSavingsUsd)}，前缀复用有效。`);
+  }
+
+  if (explanations.length === 0) {
+    explanations.push('本轮 Token 使用正常，无异常成本驱动因素。');
+  }
+
+  return explanations;
+}
