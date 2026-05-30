@@ -98,10 +98,19 @@ function registerIpc() {
   ipcMain.handle('conversations:save', (_event, conversations) =>
     saveConversations(validate(schemas.ConversationsSaveSchema, conversations, 'conversations:save'))
   );
-  ipcMain.handle('conversations:exportBackup', (_event, options) => exportBackup(mainWindow, options));
-  ipcMain.handle('conversations:importBackup', () => importBackup(mainWindow));
+  ipcMain.handle('conversations:exportBackup', (_event, options) => {
+    if (!mainWindow) throw new Error('主窗口未初始化');
+    return exportBackup(mainWindow, options);
+  });
+  ipcMain.handle('conversations:importBackup', () => {
+    if (!mainWindow) throw new Error('主窗口未初始化');
+    return importBackup(mainWindow);
+  });
 
-  ipcMain.handle('workspace:pick', () => pickWorkspaceRoot(mainWindow));
+  ipcMain.handle('workspace:pick', () => {
+    if (!mainWindow) throw new Error('主窗口未初始化');
+    return pickWorkspaceRoot(mainWindow);
+  });
   ipcMain.handle('workspace:remove', (_event, root) =>
     removeWorkspaceRoot(validate(schemas.WorkspaceRemoveSchema, root, 'workspace:remove'))
   );

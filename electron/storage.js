@@ -1,4 +1,3 @@
-// @ts-nocheck
 const fs = require('fs/promises');
 const path = require('path');
 const { app, safeStorage, dialog } = require('electron');
@@ -42,9 +41,9 @@ const DEFAULT_SETTINGS = {
   runCodeEnabled: true,
   enhance: true,
   tavilyMaxResults: 5,
-  workspaceRoots: [],
-  externalSkills: [],
-  mcpServers: [],
+  workspaceRoots: /** @type {string[]} */ ([]),
+  externalSkills: /** @type {Record<string, any>[]} */ ([]),
+  mcpServers: /** @type {Record<string, any>[]} */ ([]),
 };
 
 const SECRET_KEYS = new Set(['apiKey', 'tavilyApiKey']);
@@ -56,28 +55,48 @@ const BACKUP_SECRETS_EXCLUDED = [
   'settings.mcpServers[].args secret-like values',
 ];
 
+/**
+ * @returns {string}
+ */
 function getDataDir() {
   return path.join(app.getPath('userData'), 'data');
 }
 
+/**
+ * @param {string} fileName
+ * @returns {string}
+ */
 function getFilePath(fileName) {
   return path.join(getDataDir(), fileName);
 }
 
+/**
+ * @returns {Promise<void>}
+ */
 async function ensureDataDir() {
   await fs.mkdir(getDataDir(), { recursive: true });
 }
 
+/**
+ * @param {string} fileName
+ * @param {any} fallback
+ * @returns {Promise<any>}
+ */
 async function readJson(fileName, fallback) {
   try {
     const raw = await fs.readFile(getFilePath(fileName), 'utf8');
     return JSON.parse(raw);
   } catch (err) {
-    console.error(`[storage] Failed to read ${fileName}:`, err.message || err);
+    console.error(`[storage] Failed to read ${fileName}:`, (/** @type {any} */ (err)).message || err);
     return fallback;
   }
 }
 
+/**
+ * @param {string} fileName
+ * @param {any} value
+ * @returns {Promise<void>}
+ */
 async function writeJson(fileName, value) {
   await ensureDataDir();
   const target = getFilePath(fileName);
@@ -86,8 +105,13 @@ async function writeJson(fileName, value) {
   await fs.rename(tmp, target);
 }
 
-function normalizeSettings(input = {}) {
-  const next = { ...DEFAULT_SETTINGS, ...input };
+/**
+ * @param {Record<string, any>} [input]
+ * @returns {Record<string, any>}
+ */
+function normalizeSettings(input = /** @type {Record<string, any>} */ ({})) {
+  const next = /** @type {Record<string, any>} */ ({ ...DEFAULT_SETTINGS, ...input });
+  const nextAny = /** @type {any} */ (next);
   next.providerId = input.providerId ? normalizeProviderId(next.providerId) : inferProviderId(next.apiBase);
   next.temperature = clampNumber(next.temperature, 0, 2, DEFAULT_SETTINGS.temperature);
   next.maxTokens = Math.round(clampNumber(next.maxTokens, 256, 65536, DEFAULT_SETTINGS.maxTokens));
@@ -98,8 +122,8 @@ function normalizeSettings(input = {}) {
   next.agentMaxRounds = Math.round(clampNumber(next.agentMaxRounds, 1, 10, DEFAULT_SETTINGS.agentMaxRounds));
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
-  next.autoContextSummary = next.autoContextSummary !== false && next.autoContextSummary !== 'false';
-  next.cacheOptimization = next.cacheOptimization !== false && next.cacheOptimization !== 'false';
+  next.autoContextSummary = nextAny.autoContextSummary !== false && nextAny.autoContextSummary !== 'false';
+  next.cacheOptimization = nextAny.cacheOptimization !== false && nextAny.cacheOptimization !== 'false';
   next.toolApprovalTimeoutMs = Math.round(
     clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs)
   );
@@ -107,14 +131,18 @@ function normalizeSettings(input = {}) {
     String(next.toolApprovalPolicy || DEFAULT_SETTINGS.toolApprovalPolicy) === 'auto_readonly'
       ? 'auto_readonly'
       : DEFAULT_SETTINGS.toolApprovalPolicy;
-  next.runCodeEnabled = next.runCodeEnabled !== false && next.runCodeEnabled !== 'false';
+  next.runCodeEnabled = nextAny.runCodeEnabled !== false && nextAny.runCodeEnabled !== 'false';
   next.workspaceRoots = normalizeWorkspaceRoots(next.workspaceRoots);
   next.externalSkills = normalizeExternalSkills(next.externalSkills);
   next.mcpServers = normalizeMcpServers(next.mcpServers);
-  next.enhance = next.enhance !== false && next.enhance !== 'false';
+  next.enhance = nextAny.enhance !== false && nextAny.enhance !== 'false';
   return next;
 }
 
+/**
+ * @param {any} value
+ * @returns {string}
+ */
 function normalizeProviderId(value) {
   const id = String(value || DEFAULT_SETTINGS.providerId).trim();
   return /^(deepseek|openai|openrouter|siliconflow|dashscope|ollama|lmstudio|custom)$/.test(id)
@@ -122,6 +150,10 @@ function normalizeProviderId(value) {
     : DEFAULT_SETTINGS.providerId;
 }
 
+/**
+ * @param {any} apiBase
+ * @returns {string}
+ */
 function inferProviderId(apiBase) {
   const base = String(apiBase || '')
     .trim()
@@ -137,10 +169,14 @@ function inferProviderId(apiBase) {
   return 'custom';
 }
 
+/**
+ * @param {any} roots
+ * @returns {string[]}
+ */
 function normalizeWorkspaceRoots(roots) {
   if (!Array.isArray(roots)) return [];
-  const seen = new Set();
-  const normalized = [];
+  const seen = /** @type {Set<string>} */ (new Set());
+  const normalized = /** @type {string[]} */ ([]);
   for (const root of roots) {
     if (typeof root !== 'string') continue;
     const value = path.resolve(root.trim());
@@ -152,9 +188,13 @@ function normalizeWorkspaceRoots(roots) {
   return normalized.slice(0, 20);
 }
 
+/**
+ * @param {any} skills
+ * @returns {Record<string, any>[]}
+ */
 function normalizeExternalSkills(skills) {
   if (!Array.isArray(skills)) return [];
-  return skills
+  return /** @type {any[]} */ (skills)
     .filter((skill) => skill && typeof skill === 'object')
     .map((skill) => ({
       id: String(skill.id || '').trim() || randomId('skill'),
@@ -173,9 +213,13 @@ function normalizeExternalSkills(skills) {
     .slice(0, 20);
 }
 
+/**
+ * @param {any} servers
+ * @returns {Record<string, any>[]}
+ */
 function normalizeMcpServers(servers) {
   if (!Array.isArray(servers)) return [];
-  return servers
+  return /** @type {any[]} */ (servers)
     .filter((server) => server && typeof server === 'object')
     .map((server) => ({
       id: String(server.id || '').trim() || randomId('mcp'),
@@ -191,9 +235,13 @@ function normalizeMcpServers(servers) {
     .slice(0, 20);
 }
 
+/**
+ * @param {any} env
+ * @returns {Record<string, string>}
+ */
 function normalizeEnv(env) {
-  if (!env || typeof env !== 'object' || Array.isArray(env)) return {};
-  const next = {};
+  if (!env || typeof env !== 'object' || Array.isArray(env)) return /** @type {Record<string, string>} */ ({});
+  const next = /** @type {Record<string, string>} */ ({});
   for (const [key, value] of Object.entries(env)) {
     const envKey = String(key || '').trim();
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(envKey)) continue;
@@ -202,6 +250,10 @@ function normalizeEnv(env) {
   return next;
 }
 
+/**
+ * @param {any} value
+ * @returns {string[]}
+ */
 function parseArgs(value) {
   if (!value.trim()) return [];
   try {
@@ -211,16 +263,30 @@ function parseArgs(value) {
   return value.split(/\s+/).filter(Boolean).slice(0, 40);
 }
 
+/**
+ * @param {string} prefix
+ * @returns {string}
+ */
 function randomId(prefix) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * @param {any} value
+ * @param {number} min
+ * @param {number} max
+ * @param {number} fallback
+ * @returns {number}
+ */
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);
 }
 
+/**
+ * @returns {boolean}
+ */
 function canEncrypt() {
   try {
     return safeStorage.isEncryptionAvailable();
@@ -229,6 +295,10 @@ function canEncrypt() {
   }
 }
 
+/**
+ * @param {any} value
+ * @returns {Record<string, any> | null}
+ */
 function encryptSecret(value) {
   const text = String(value || '');
   if (!text) return null;
@@ -243,6 +313,10 @@ function encryptSecret(value) {
   };
 }
 
+/**
+ * @param {any} entry
+ * @returns {string}
+ */
 function decryptSecret(entry) {
   if (!entry || entry.provider !== 'safeStorage' || !entry.value) return '';
   if (!canEncrypt()) return '';
@@ -253,10 +327,19 @@ function decryptSecret(entry) {
   }
 }
 
+/**
+ * @param {any} value
+ * @returns {Record<string, any> | null}
+ */
 function encryptSecretJson(value) {
   return encryptSecret(JSON.stringify(value ?? null));
 }
 
+/**
+ * @param {any} entry
+ * @param {any} fallback
+ * @returns {any}
+ */
 function decryptSecretJson(entry, fallback) {
   const text = decryptSecret(entry);
   if (!text) return fallback;
@@ -267,16 +350,22 @@ function decryptSecretJson(entry, fallback) {
   }
 }
 
+/**
+ * @returns {Promise<Record<string, any>>}
+ */
 async function readSecretMap() {
-  return readJson('secrets.json', { version: DATA_VERSION, secrets: {} });
+  return readJson('secrets.json', { version: DATA_VERSION, secrets: /** @type {Record<string, any>} */ ({}) });
 }
 
+/**
+ * @returns {Promise<Record<string, any>>}
+ */
 async function getSettings() {
-  const stored = await readJson('settings.json', { version: DATA_VERSION, settings: {} });
+  const stored = await readJson('settings.json', { version: DATA_VERSION, settings: /** @type {Record<string, any>} */ ({}) });
   const secrets = await readSecretMap();
-  const publicSettings = { ...(stored.settings || {}) };
+  const publicSettings = /** @type {Record<string, any>} */ ({ ...(stored.settings || /** @type {Record<string, any>} */ ({})) });
   for (const key of SECRET_JSON_KEYS) {
-    publicSettings[key] = decryptSecretJson(secrets.secrets?.[key], publicSettings[key] ?? DEFAULT_SETTINGS[key]);
+    publicSettings[key] = decryptSecretJson(secrets.secrets?.[key], publicSettings[key] ?? (/** @type {Record<string, any>} */ (DEFAULT_SETTINGS))[key]);
   }
   const settings = normalizeSettings(publicSettings);
   return {
@@ -287,10 +376,14 @@ async function getSettings() {
   };
 }
 
-async function setSettings(patch = {}) {
+/**
+ * @param {Record<string, any>} [patch]
+ * @returns {Promise<Record<string, any>>}
+ */
+async function setSettings(patch = /** @type {Record<string, any>} */ ({})) {
   const current = await getSettings();
-  const publicPatch = {};
-  const secretPatch = {};
+  const publicPatch = /** @type {Record<string, any>} */ ({});
+  const secretPatch = /** @type {Record<string, any>} */ ({});
 
   for (const [key, value] of Object.entries(patch)) {
     if (SECRET_KEYS.has(key) || SECRET_JSON_KEYS.has(key)) secretPatch[key] = value;
@@ -317,13 +410,20 @@ async function setSettings(patch = {}) {
   return getSettings();
 }
 
+/**
+ * @returns {Promise<Record<string, any>[]>}
+ */
 async function loadConversations() {
-  const stored = await readJson('conversations.json', { version: DATA_VERSION, conversations: [] });
+  const stored = await readJson('conversations.json', { version: DATA_VERSION, conversations: /** @type {Record<string, any>[]} */ ([]) });
   return Array.isArray(stored.conversations) ? stored.conversations : [];
 }
 
+/**
+ * @param {any[]} conversations
+ * @returns {Promise<any[]>}
+ */
 async function saveConversations(conversations) {
-  const safeConversations = Array.isArray(conversations) ? conversations : [];
+  const safeConversations = /** @type {any[]} */ (Array.isArray(conversations) ? conversations : []);
   await writeJson('conversations.json', {
     version: DATA_VERSION,
     updatedAt: new Date().toISOString(),
@@ -332,12 +432,16 @@ async function saveConversations(conversations) {
   return safeConversations;
 }
 
-async function migrateLegacy(payload = {}) {
+/**
+ * @param {Record<string, any>} [payload]
+ * @returns {Promise<Record<string, any>>}
+ */
+async function migrateLegacy(payload = /** @type {Record<string, any>} */ ({})) {
   const currentSettingsFile = await readJson('settings.json', null);
   const currentConversations = await loadConversations();
 
   if (!currentSettingsFile && payload.settings && typeof payload.settings === 'object') {
-    const settingsPatch = {};
+    const settingsPatch = /** @type {Record<string, any>} */ ({});
     for (const [key, value] of Object.entries(payload.settings)) {
       if (value !== undefined && value !== null && value !== '') settingsPatch[key] = value;
     }
@@ -351,23 +455,35 @@ async function migrateLegacy(payload = {}) {
   return { ok: true };
 }
 
+/**
+ * @param {string} rootPath
+ * @returns {Promise<Record<string, any>>}
+ */
 async function addWorkspaceRoot(rootPath) {
   const settings = await getSettings();
   const roots = normalizeWorkspaceRoots([...(settings.workspaceRoots || []), rootPath]);
   return setSettings({ workspaceRoots: roots });
 }
 
+/**
+ * @param {string} rootPath
+ * @returns {Promise<Record<string, any>>}
+ */
 async function removeWorkspaceRoot(rootPath) {
   const settings = await getSettings();
   const target = path.resolve(rootPath);
   const targetKey = process.platform === 'win32' ? target.toLowerCase() : target;
-  const roots = (settings.workspaceRoots || []).filter((root) => {
+  const roots = /** @type {string[]} */ ((/** @type {string[]} */ (settings.workspaceRoots || [])).filter((root) => {
     const key = process.platform === 'win32' ? path.resolve(root).toLowerCase() : path.resolve(root);
     return key !== targetKey;
-  });
+  }));
   return setSettings({ workspaceRoots: roots });
 }
 
+/**
+ * @param {import('electron').BrowserWindow} parentWindow
+ * @returns {Promise<Record<string, any>>}
+ */
 async function pickWorkspaceRoot(parentWindow) {
   const result = await dialog.showOpenDialog(parentWindow, {
     title: '选择 DeepChat 可读取的工作区目录',
@@ -377,7 +493,12 @@ async function pickWorkspaceRoot(parentWindow) {
   return addWorkspaceRoot(result.filePaths[0]);
 }
 
-async function exportBackup(parentWindow, options = {}) {
+/**
+ * @param {import('electron').BrowserWindow} parentWindow
+ * @param {Record<string, any>} [options]
+ * @returns {Promise<Record<string, any>>}
+ */
+async function exportBackup(parentWindow, options = /** @type {Record<string, any>} */ ({})) {
   // Show a premium pre-flight privacy alert dialog
   const warnResult = await dialog.showMessageBox(parentWindow, {
     type: 'info',
@@ -397,18 +518,18 @@ async function exportBackup(parentWindow, options = {}) {
   let safeConversations = conversations;
 
   if (options.exportMode === 'settings') {
-    safeConversations = [];
+    safeConversations = /** @type {any[]} */ ([]);
   } else {
-    safeConversations = conversations.map((c) => {
+    safeConversations = /** @type {any[]} */ (conversations).map((c) => {
       if (!Array.isArray(c.messages)) return c;
       return {
         ...c,
-        messages: c.messages.map((m) => {
-          let content = m.content;
-          let thinking = m.thinking;
-          let toolRuns = m.toolRuns;
-          let toolCalls = m.toolCalls;
-          let attachments = m.attachments;
+        messages: /** @type {any[]} */ (c.messages).map((m) => {
+          let content = /** @type {string} */ (m.content);
+          let thinking = /** @type {string} */ (m.thinking);
+          let toolRuns = /** @type {any[]} */ (m.toolRuns);
+          let toolCalls = /** @type {any[]} */ (m.toolCalls);
+          let attachments = /** @type {any[]} */ (m.attachments);
 
           // Apply excludeCodeBlocks
           if (options.excludeCodeBlocks || options.excludeCode) {
@@ -422,16 +543,16 @@ async function exportBackup(parentWindow, options = {}) {
 
           // Apply excludeToolOutputs
           if (options.excludeToolOutputs && Array.isArray(toolRuns)) {
-            toolRuns = toolRuns.map((run) => ({ ...run, output: '[工具输出已根据隐私设置排除]' }));
+            toolRuns = /** @type {any[]} */ (toolRuns).map((run) => ({ ...run, output: '[工具输出已根据隐私设置排除]' }));
           }
           if (options.excludeToolOutputs && Array.isArray(toolCalls)) {
-            toolCalls = toolCalls.map((call) => ({ ...call, output: '[工具输出已根据隐私设置排除]' }));
+            toolCalls = /** @type {any[]} */ (toolCalls).map((call) => ({ ...call, output: '[工具输出已根据隐私设置排除]' }));
           }
 
           // Apply excludeMcpReturns
           if (options.excludeMcpReturns) {
             if (Array.isArray(toolRuns)) {
-              toolRuns = toolRuns.map((run) => {
+              toolRuns = /** @type {any[]} */ (toolRuns).map((run) => {
                 if (run.toolName && run.toolName.includes('/')) {
                   return { ...run, output: '[MCP工具输出已根据隐私设置排除]' };
                 }
@@ -439,7 +560,7 @@ async function exportBackup(parentWindow, options = {}) {
               });
             }
             if (Array.isArray(toolCalls)) {
-              toolCalls = toolCalls.map((call) => {
+              toolCalls = /** @type {any[]} */ (toolCalls).map((call) => {
                 if (call.toolName && call.toolName.includes('/')) {
                   return { ...call, output: '[MCP工具输出已根据隐私设置排除]' };
                 }
@@ -450,7 +571,7 @@ async function exportBackup(parentWindow, options = {}) {
 
           // Apply excludeAttachments
           if (options.excludeAttachments) {
-            attachments = [];
+            attachments = /** @type {any[]} */ ([]);
           }
 
           // Apply deidentified mode: sanitize absolute paths, API keys, etc.
@@ -498,6 +619,10 @@ async function exportBackup(parentWindow, options = {}) {
   return { canceled: false, path: result.filePath };
 }
 
+/**
+ * @param {import('electron').BrowserWindow} parentWindow
+ * @returns {Promise<Record<string, any>>}
+ */
 async function importBackup(parentWindow) {
   const result = await dialog.showOpenDialog(parentWindow, {
     title: '导入 DeepChat 备份',
@@ -514,17 +639,22 @@ async function importBackup(parentWindow) {
   if (parsed.settings && typeof parsed.settings === 'object')
     await setSettings(sanitizeSettingsForBackup(parsed.settings));
   if (Array.isArray(parsed.conversations)) {
-    const validated = parsed.conversations.filter((c) => c && c.id && Array.isArray(c.messages));
+    const validated = /** @type {any[]} */ (parsed.conversations).filter((c) => c && c.id && Array.isArray(c.messages));
     await saveConversations(validated);
   }
   return { canceled: false, path: result.filePaths[0] };
 }
 
+/**
+ * @param {Record<string, any>} settings
+ * @returns {Record<string, any>}
+ */
 function sanitizeSettingsForBackup(settings) {
-  const copy = { ...(settings || {}) };
+  const copy = /** @type {Record<string, any>} */ ({ ...(settings || /** @type {Record<string, any>} */ ({})) });
   for (const key of SECRET_KEYS) delete copy[key];
-  if (Array.isArray(copy.mcpServers)) {
-    copy.mcpServers = copy.mcpServers
+  const mcpServers = /** @type {any[]} */ (copy.mcpServers);
+  if (Array.isArray(mcpServers)) {
+    copy.mcpServers = mcpServers
       .filter((server) => server && typeof server === 'object')
       .map((server) => ({
         id: String(server.id || ''),
@@ -539,27 +669,44 @@ function sanitizeSettingsForBackup(settings) {
   return copy;
 }
 
+/**
+ * @param {any} args
+ * @returns {string[]}
+ */
 function sanitizeMcpArgs(args) {
   const values = Array.isArray(args) ? args.map(String) : [];
   return values.map((arg, index) => sanitizeMcpArg(arg, values[index - 1]));
 }
 
+/**
+ * @param {any} arg
+ * @param {string} [previousArg]
+ * @returns {string}
+ */
 function sanitizeMcpArg(arg, previousArg = '') {
   const value = String(arg || '');
   const previous = String(previousArg || '');
   if (isSecretLikeArg(previous)) return '[REDACTED]';
   if (/^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)$/i.test(value)) return value;
-  if (/^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)[=:]/i.test(value)) {
+  if (/^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)[=:]*/i.test(value)) {
     return value.replace(/([=:]).*$/, '$1[REDACTED]');
   }
   if (looksLikeSecretValue(value)) return '[REDACTED]';
   return value;
 }
 
+/**
+ * @param {any} value
+ * @returns {boolean}
+ */
 function isSecretLikeArg(value) {
   return /^(--?|\/)(api[-_]?key|token|secret|password|credential|auth|bearer)$/i.test(String(value || ''));
 }
 
+/**
+ * @param {any} value
+ * @returns {boolean}
+ */
 function looksLikeSecretValue(value) {
   const text = String(value || '');
   return (
@@ -569,6 +716,9 @@ function looksLikeSecretValue(value) {
   );
 }
 
+/**
+ * @returns {Record<string, any>}
+ */
 function getStorageStatus() {
   return {
     mode: 'electron',
