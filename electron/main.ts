@@ -39,7 +39,9 @@ function createWindow() {
     title: 'DeepChat',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: {
-      preload: path.join(__dirname, '..', 'preload.js'),
+      preload: process.env.NODE_ENV === 'development'
+        ? path.join(__dirname, '..', 'dist-electron', 'preload.js')
+        : path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -95,7 +97,7 @@ function registerIpc() {
   ipcMain.handle('conversations:save', (_event, conversations) =>
     saveConversations(validate(schemas.ConversationsSaveSchema, conversations, 'conversations:save'))
   );
-  ipcMain.handle('conversations:exportBackup', () => exportBackup(mainWindow));
+  ipcMain.handle('conversations:exportBackup', (_event, options) => exportBackup(mainWindow, options));
   ipcMain.handle('conversations:importBackup', () => importBackup(mainWindow));
 
   ipcMain.handle('workspace:pick', () => pickWorkspaceRoot(mainWindow));
@@ -113,9 +115,11 @@ function registerIpc() {
   });
 
   ipcMain.on('chat:start', (_event, request) => {
+    console.log(`[IPC chat:start] Received request:`, JSON.stringify(request));
     try {
       chatService!.start(validate(schemas.ChatStartSchema, request, 'chat:start'));
     } catch (error) {
+      console.error(`[IPC chat:start] Validation/Start Error:`, error);
       emitChatValidationError(request?.requestId, error);
     }
   });

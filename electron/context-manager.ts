@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 /**
  * Context Manager — Message budgeting, trimming, and context compaction
  *
@@ -216,7 +216,7 @@ function buildMemoryAwareContext(messages, options = {}, query = '') {
   return { ...bundle, memoryContext };
 }
 
-module.exports = {
+export {
   DEFAULT_MAX_INPUT_TOKENS,
   estimateTokens,
   estimateMessagesTokens,

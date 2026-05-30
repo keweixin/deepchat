@@ -6,6 +6,8 @@
  * in UI, trace, or execution modules.
  */
 
+import { TOOL_DEFINITIONS } from '../../electron/shared/tool-definitions.js';
+
 // ─── Tool Names (backend / OpenAI function names) ───────────────────────────
 
 export const TOOL_NAMES = Object.freeze({
@@ -150,6 +152,10 @@ export function getToolSummary(event: ToolSummaryInput): ToolSummaryOutput {
   const name = String(toolName).toLowerCase();
 
   if (name === TOOL_NAMES.webSearch) {
+    const query = String(args.query || '');
+    if (query) {
+      return { label: `在互联网检索「${query}」` };
+    }
     const count = sources.length;
     return { label: count > 0 ? `已找到 ${count} 个联网来源` : '搜索完毕' };
   }
@@ -302,179 +308,32 @@ export interface ToolDefinition {
   parallelSafe: boolean;
   summary: (args: Record<string, unknown>) => string;
   category: 'search' | 'file' | 'code' | 'git' | 'workspace' | 'mcp';
-  /** One-sentence description of what this tool does */
   purpose: string;
-  /** Human-readable scope description */
   scope: string;
-  /** Why this risk level was assigned */
   riskReason: string;
 }
 
-export const TOOL_REGISTRY: Readonly<Record<string, ToolDefinition>> = Object.freeze({
-  web_search: {
-    name: 'web_search',
-    icon: '🔍',
-    role: 'researcher',
-    riskLevel: 'low',
-    approvalPolicy: 'always_allow',
-    parallelSafe: true,
-    category: 'search',
-    summary: (args) => `搜索: ${String(args.query || '').slice(0, 60)}`,
-    purpose: '从互联网获取最新信息和参考来源',
-    scope: '外部网络资源',
-    riskReason: '仅读取公开信息，不修改本地数据',
-  },
-  list_files: {
-    name: 'list_files',
-    icon: '📁',
-    role: 'reader',
-    riskLevel: 'low',
-    approvalPolicy: 'always_allow',
-    parallelSafe: true,
-    category: 'file',
-    summary: (args) => `列出: ${String(args.path || '.')}`,
-    purpose: '查看指定目录的文件列表',
-    scope: '单个目录',
-    riskReason: '仅列出文件名，不读取内容',
-  },
-  search_workspace: {
-    name: 'search_workspace',
-    icon: '🔍',
-    role: 'reader',
-    riskLevel: 'low',
-    approvalPolicy: 'always_allow',
-    parallelSafe: true,
-    category: 'search',
-    summary: (args) => `检索: ${String(args.query || '').slice(0, 60)}`,
-    purpose: '在工作区代码中搜索匹配内容',
-    scope: '整个项目工作区',
-    riskReason: '只读搜索，不修改代码',
-  },
-  index_workspace: {
-    name: 'index_workspace',
-    icon: '🗂',
-    role: 'reader',
-    riskLevel: 'low',
-    approvalPolicy: 'always_allow',
-    parallelSafe: true,
-    category: 'workspace',
-    summary: () => '索引工作区',
-    purpose: '为工作区建立搜索索引以加速后续查询',
-    scope: '整个项目工作区',
-    riskReason: '仅构建索引，不修改源文件',
-  },
-  read_file: {
-    name: 'read_file',
-    icon: '📄',
-    role: 'reader',
-    riskLevel: 'medium',
-    approvalPolicy: 'confirm_once',
-    parallelSafe: true,
-    category: 'file',
-    summary: (args) => {
-      const file = String(args.path || args.file || '');
-      const basename = file.split(/[/\\]/).pop() || file;
-      return basename ? `读取: ${basename}` : '读取文件';
+export const TOOL_REGISTRY: Readonly<Record<string, ToolDefinition>> = Object.freeze(
+  Object.entries(TOOL_DEFINITIONS).reduce(
+    (acc, [key, def]) => {
+      acc[key] = {
+        name: def.name,
+        icon: def.productCopy.icon,
+        role: def.role,
+        riskLevel: def.riskLevel,
+        approvalPolicy: def.approvalPolicy,
+        parallelSafe: def.parallelSafe,
+        summary: (args: Record<string, unknown>) => getToolSummary({ toolName: def.name, args }).label,
+        category: def.category,
+        purpose: def.productCopy.purpose,
+        scope: def.productCopy.scope,
+        riskReason: def.productCopy.riskReason,
+      };
+      return acc;
     },
-    purpose: '读取单个文件的内容',
-    scope: '单个文件',
-    riskReason: '可能访问敏感配置文件',
-  },
-  read_symbol: {
-    name: 'read_symbol',
-    icon: '🔣',
-    role: 'reader',
-    riskLevel: 'medium',
-    approvalPolicy: 'confirm_once',
-    parallelSafe: true,
-    category: 'file',
-    summary: (args) => `符号: ${String(args.name || args.symbol || '')}`,
-    purpose: '查找并读取指定符号（函数/类/变量）的定义',
-    scope: '工作区中匹配的文件',
-    riskReason: '可能暴露内部实现细节',
-  },
-  run_code: {
-    name: 'run_code',
-    icon: '⚡',
-    role: 'coder',
-    riskLevel: 'high',
-    approvalPolicy: 'confirm_always',
-    parallelSafe: false,
-    category: 'code',
-    summary: (args) => `运行 ${String(args.language || 'code')}`,
-    purpose: '执行代码片段并返回运行结果',
-    scope: '隔离执行环境',
-    riskReason: '执行任意代码存在安全风险',
-  },
-  git_status: {
-    name: 'git_status',
-    icon: '📋',
-    role: 'reviewer',
-    riskLevel: 'low',
-    approvalPolicy: 'always_allow',
-    parallelSafe: true,
-    category: 'git',
-    summary: () => 'Git 状态',
-    purpose: '查看当前仓库的 Git 状态',
-    scope: '当前 Git 仓库',
-    riskReason: '只读查询版本控制状态',
-  },
-  git_diff: {
-    name: 'git_diff',
-    icon: '📝',
-    role: 'reviewer',
-    riskLevel: 'low',
-    approvalPolicy: 'always_allow',
-    parallelSafe: true,
-    category: 'git',
-    summary: (args) => (args.file ? `Diff: ${String(args.file)}` : 'Git Diff'),
-    purpose: '查看文件的变更差异',
-    scope: '指定文件或整个仓库',
-    riskReason: '只读查询变更内容',
-  },
-  git_log: {
-    name: 'git_log',
-    icon: '📜',
-    role: 'reviewer',
-    riskLevel: 'low',
-    approvalPolicy: 'always_allow',
-    parallelSafe: true,
-    category: 'git',
-    summary: (args) => `Git Log (${String(args.count || 10)} commits)`,
-    purpose: '查看最近的提交历史',
-    scope: '当前分支提交记录',
-    riskReason: '只读查询提交历史',
-  },
-  project_map: {
-    name: 'project_map',
-    icon: '🌳',
-    role: 'reader',
-    riskLevel: 'low',
-    approvalPolicy: 'always_allow',
-    parallelSafe: true,
-    category: 'workspace',
-    summary: () => '项目结构',
-    purpose: '生成项目整体结构地图',
-    scope: '整个项目工作区',
-    riskReason: '仅扫描文件结构，不读取内容',
-  },
-  read_many_files: {
-    name: 'read_many_files',
-    icon: '📄',
-    role: 'reader',
-    riskLevel: 'medium',
-    approvalPolicy: 'confirm_once',
-    parallelSafe: true,
-    category: 'file',
-    summary: (args) => {
-      const paths = Array.isArray(args.paths) ? args.paths : [];
-      return `批量读取 ${paths.length} 个文件`;
-    },
-    purpose: '批量读取多个文件的内容',
-    scope: '多个文件',
-    riskReason: '可能一次性访问大量敏感文件',
-  },
-});
+    {} as Record<string, ToolDefinition>
+  )
+);
 
 /** Get tool definition from registry, null if not found */
 export function getToolDefinition(name: string): ToolDefinition | null {

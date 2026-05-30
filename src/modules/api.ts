@@ -246,6 +246,28 @@ export function approveToolRequest(requestId: string, toolCallId: string, approv
   if (hasNativeBridge()) (window as any).deepchat.tools.approve(requestId, toolCallId, approved);
 }
 
+let activeRequestId: string | null = null;
+
+export function getActiveRequestId(): string | null {
+  return activeRequestId;
+}
+
+export function pauseAgent(requestId: string): void {
+  if (hasNativeBridge()) (window as any).deepchat.chat.pause(requestId);
+}
+
+export function resumeAgent(requestId: string): void {
+  if (hasNativeBridge()) (window as any).deepchat.chat.resume(requestId);
+}
+
+export function skipToolAgent(requestId: string, toolCallId: string): void {
+  if (hasNativeBridge()) (window as any).deepchat.chat.skipTool(requestId, toolCallId);
+}
+
+export function limitScopeAgent(requestId: string, scopePolicy: string): void {
+  if (hasNativeBridge()) (window as any).deepchat.chat.limitScope(requestId, scopePolicy);
+}
+
 export async function runTool(name: string, args: Record<string, unknown> = {}): Promise<unknown> {
   if (!hasNativeBridge()) throw new Error('工具执行只能在桌面版使用。');
   return (window as any).deepchat.tools.run(name, args);
@@ -253,6 +275,7 @@ export async function runTool(name: string, args: Record<string, unknown> = {}):
 
 function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
   const requestId = opts.requestId || uid();
+  activeRequestId = requestId;
   let settled = false;
   let lastTokenTime = Date.now();
 
@@ -277,6 +300,7 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
     if (event.type === 'contextSummary') opts.onContextSummary?.(event);
     if (event.type === 'done') {
       settled = true;
+      activeRequestId = null;
       unsubscribe();
       clearTimeout(fallbackTimer);
       clearInterval(heartbeatTimer);
@@ -285,6 +309,7 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
     }
     if (event.type === 'error') {
       settled = true;
+      activeRequestId = null;
       unsubscribe();
       clearTimeout(fallbackTimer);
       clearInterval(heartbeatTimer);
@@ -296,6 +321,7 @@ function streamNativeChat(messages: any[], opts: StreamChatOpts): void {
   const abort = () => {
     if (!settled) {
       settled = true;
+      activeRequestId = null;
       unsubscribe();
       clearTimeout(fallbackTimer);
       clearInterval(heartbeatTimer);

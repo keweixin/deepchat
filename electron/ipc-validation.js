@@ -288,7 +288,7 @@ const ChatStartSchema = z
     messages: z.array(MessageSchema).max(200),
     overrides: ComposerOverridesSchema.optional().default({}),
     contextSummary: z.string().max(12000).optional().default(''),
-    contextSummaryMeta: z.record(z.string(), z.unknown()).optional(),
+    contextSummaryMeta: z.record(z.string(), z.unknown()).nullable().optional(),
     cacheProfile: z.record(z.string(), z.unknown()).nullable().optional(),
   })
   .strip()

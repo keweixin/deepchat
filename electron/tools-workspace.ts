@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
@@ -1134,7 +1135,7 @@ function clampInt(value, min, max, fallback) {
   return Math.min(Math.max(number, min), max);
 }
 
-module.exports = {
+export {
   indexWorkspace,
   searchWorkspace,
   readSymbol,

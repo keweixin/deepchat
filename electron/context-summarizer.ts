@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { normalizeBaseUrl, buildHeaders, normalizeError } from './provider-adapters.js';
 import { resolveAuxiliaryModel, resolveAgentMaxRounds } from './stream-runner.js';
 import { estimateTokens, estimateMessagesTokens, normalizeTokenUsage } from './usage-meter.js';
@@ -126,7 +127,7 @@ async function summarizeContext(settings, existingSummary, droppedMessages, sign
   return String(content).trim().slice(0, 1200);
 }
 
-module.exports = {
+export {
   SUMMARY_TRIGGER_RATIO,
   COMPACTION_SUMMARY_MARKER,
   maybeBuildContextSummary,

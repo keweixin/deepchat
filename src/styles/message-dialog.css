@@ -1,0 +1,115 @@
+﻿/* Dialogs */
+.dc-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: rgba(2, 6, 10, 0.62);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.dc-dialog-panel {
+  width: min(440px, 100%);
+  padding: var(--space-5);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-lg);
+}
+.dc-dialog-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+  line-height: 1.35;
+}
+.dc-dialog-message {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+.dc-dialog-input {
+  width: 100%;
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  resize: vertical;
+}
+.dc-dialog-input:focus {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.dc-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+.dc-dialog-btn {
+  min-height: 34px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 650;
+}
+.dc-dialog-btn.secondary {
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+}
+.dc-dialog-btn.primary {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+}
+.dc-dialog-overlay.tone-danger .dc-dialog-btn.primary {
+  background: #ef4444;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .message {
+    padding: var(--space-4);
+    gap: var(--space-2);
+  }
+
+  .message-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .message.user .message-body {
+    flex-basis: min(84%, 620px);
+  }
+
+  .message.assistant .message-content {
+    padding: var(--space-4);
+  }
+
+  .artifact-card,
+  .artifact-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .artifact-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .artifact-preview-overlay {
+    padding: var(--space-3);
+  }
+
+  .artifact-preview-panel {
+    width: 100%;
+    height: 88vh;
+  }
+}

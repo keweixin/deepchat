@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { normalizeTokenUsage } from './usage-meter.js';
 import { mergeToolCalls, compactToolCalls } from './stream-runner.js';
 import { repairToolCallsFromText } from './tool-executor.js';
@@ -106,4 +107,4 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
   }
 }
 
-module.exports = { streamOnce };
+export { streamOnce };

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Chat Module — Conversation management & UI
  *
  * Features:
@@ -13,7 +13,16 @@
  * - Adaptive render throttling
  */
 
-import { approveToolRequest, streamChat, runTool } from './api.js';
+import {
+  approveToolRequest,
+  streamChat,
+  runTool,
+  getActiveRequestId,
+  pauseAgent,
+  resumeAgent,
+  skipToolAgent,
+  limitScopeAgent,
+} from './api.js';
 import { extractContextMentions, renderContextMentionStrip } from './context-mentions.ts';
 import { getSettings } from './settings-core.js';
 import { normalizeTokenUsage, getConversationUsageSummary } from './token-budget.js';
@@ -205,6 +214,7 @@ let conversations: any[] = [];
 let activeConvId: string | null = null;
 let abortController: AbortController | null = null;
 let isStreaming: boolean = false;
+let isAgentPaused: boolean = false;
 let userScrolledUp: boolean = false; // Smart scroll: track if user scrolled up
 let sidebarFilter = SIDEBAR_FILTERS.active;
 let bulkMode: boolean = false;
@@ -278,6 +288,7 @@ export async function initChat() {
     getIsStreaming: () => isStreaming,
     setIsStreaming: (v: any) => {
       isStreaming = v;
+      if (v) isAgentPaused = false;
     },
     getUserScrolledUp: () => userScrolledUp,
     setUserScrolledUp: (v: any) => {
@@ -364,8 +375,21 @@ export async function initChat() {
   // Agent control events
   const agentPauseHandler = () => {
     if (isStreaming) {
-      showToast('Agent 已暂停');
-      stopStreaming();
+      const requestId = getActiveRequestId();
+      if (!requestId) return;
+      if (isAgentPaused) {
+        resumeAgent(requestId);
+        isAgentPaused = false;
+        showToast('Agent 已继续运行');
+        const btn = document.querySelector('.theatre-control-pause');
+        if (btn) btn.textContent = '暂停';
+      } else {
+        pauseAgent(requestId);
+        isAgentPaused = true;
+        showToast('Agent 已暂停');
+        const btn = document.querySelector('.theatre-control-pause');
+        if (btn) btn.textContent = '继续';
+      }
     }
   };
   const agentStopHandler = () => {
@@ -374,16 +398,23 @@ export async function initChat() {
       stopStreaming();
     }
   };
-  const agentSkipToolHandler = () => {
-    showToast('跳过当前工具（功能开发中）');
+  const agentSkipToolHandler = (event: Event) => {
+    if (isStreaming) {
+      const requestId = getActiveRequestId();
+      if (!requestId) return;
+      const detail = (event as CustomEvent).detail || {};
+      const toolCallId = detail.toolCallId || 'current';
+      skipToolAgent(requestId, toolCallId);
+      showToast('已跳过当前工具');
+    }
   };
   document.addEventListener('deepchat:agent-pause', agentPauseHandler);
   document.addEventListener('deepchat:agent-stop', agentStopHandler);
-  document.addEventListener('deepchat:agent-skip-tool', agentSkipToolHandler);
+  document.addEventListener('deepchat:agent-skip-tool', agentSkipToolHandler as EventListener);
   _chatCleanupFns.push(() => {
     document.removeEventListener('deepchat:agent-pause', agentPauseHandler);
     document.removeEventListener('deepchat:agent-stop', agentStopHandler);
-    document.removeEventListener('deepchat:agent-skip-tool', agentSkipToolHandler);
+    document.removeEventListener('deepchat:agent-skip-tool', agentSkipToolHandler as EventListener);
   });
 
   const reloadHandler = () => {
@@ -425,6 +456,23 @@ export async function initChat() {
   _chatCleanupFns.push(() =>
     document.removeEventListener('deepchat:open-artifact-inspector', artifactInspectorHandler)
   );
+
+  // Open Inspector in any mode directly
+  const openInspectorHandler = (e: Event) => {
+    const detail = (e as CustomEvent).detail || {};
+    const mode = detail.mode || 'message';
+    const msgIndex = Number(detail.msgIndex ?? -1);
+    const conv = getActiveConversation();
+    console.log(`[openInspectorHandler] mode: ${mode}, msgIndex: ${msgIndex}, conv: ${conv ? 'exists' : 'null'}, messages.length: ${conv ? conv.messages.length : 0}, all conversations: ${JSON.stringify(conversations)}`);
+    if (!conv || msgIndex < 0 || msgIndex >= conv.messages.length) return;
+    const msg = conv.messages[msgIndex];
+    if (!msg) return;
+    openInspectorPanel(mode, { msg, messages: conv.messages, index: msgIndex });
+  };
+  document.addEventListener('deepchat:open-inspector', openInspectorHandler);
+  _chatCleanupFns.push(() =>
+    document.removeEventListener('deepchat:open-inspector', openInspectorHandler)
+  );
 }
 
 export function destroyChat() {
@@ -452,11 +500,12 @@ async function reloadConversations() {
   }
 }
 
-function persist() {
-  conversations = normalizeConversations(conversations);
-  saveConversations(conversations).catch(() => {
+async function persist(): Promise<void> {
+  try {
+    await saveConversations(conversations);
+  } catch {
     showToast('保存对话失败');
-  });
+  }
 }
 
 function smartScroll(smooth = true) {

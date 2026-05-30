@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { DEFAULT_AGENT_MAX_ROUNDS } from './agent-planner.js';
 import { isMcpToolName } from './mcp-manager.js';
 import { parseToolArgsDetailed, compactToolOutputForContext } from './tool-executor.js';
@@ -99,7 +100,7 @@ function buildToolContextOutput(toolName, args, output) {
   };
 }
 
-module.exports = {
+export {
   DEFAULT_MAX_INPUT_TOKENS,
   AGENT_EXECUTION_MODES,
   attachPrefixProfile,

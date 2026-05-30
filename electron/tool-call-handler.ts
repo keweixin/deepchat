@@ -1,4 +1,6 @@
+﻿// @ts-nocheck
 import { isMcpToolName } from './mcp-manager.js';
+import path from 'path';
 import { executeTool } from './tools.js';
 import {
   resolveToolApprovalDecision,
@@ -62,7 +64,6 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
       const allowedDir = controller.scopePolicy.slice(4);
       const pathArg = args.path || args.filepath || args.dir || args.directory || '';
       if (pathArg && typeof pathArg === 'string') {
-        const path = require('path');
         const relative = path.relative(allowedDir, pathArg);
         const isOutside = relative.startsWith('..') || path.isAbsolute(relative);
         if (isOutside) {
@@ -300,4 +301,4 @@ async function handleToolCallsForRound(
   return results.filter(Boolean);
 }
 
-module.exports = { handleToolCall, handleToolCallsForRound };
+export { handleToolCall, handleToolCallsForRound };

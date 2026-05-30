@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { getSettings } from './storage.js';
 import { getToolDefinitions, describeToolRisk } from './tools.js';
 import { McpManager, isMcpToolName } from './mcp-manager.js';
@@ -544,7 +545,7 @@ class ChatService {
 // buildAgentPlanSummary, buildResearchSearchPlan, normalizeResearchTopic,
 // dedupeSearchPlan, buildPlanApprovalPolicy — extracted to ./agent-planner.ts
 
-module.exports = {
+export {
   ChatService,
   testApiConnection,
   normalizeBaseUrl,

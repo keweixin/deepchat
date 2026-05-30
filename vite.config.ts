@@ -8,15 +8,17 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 650,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Only force-split the mermaid core entry; let Vite auto-code-split
-          // internal diagram chunks (flowchart, gantt, etc.) into their own lazy chunks.
+          // Force-split mermaid core + parser; split heavy shared deps to keep chunks under 500KB.
           if (id.includes('node_modules/mermaid/dist/mermaid.core.mjs')) return 'vendor-mermaid';
+          if (id.includes('node_modules/@mermaid-js/parser')) return 'vendor-mermaid-parser';
           if (id.includes('node_modules/katex')) return 'vendor-katex';
           if (id.includes('node_modules/highlight.js')) return 'vendor-highlight';
+          if (id.includes('node_modules/d3')) return 'vendor-d3';
+          if (id.includes('node_modules/marked')) return 'vendor-marked';
         },
       },
     },

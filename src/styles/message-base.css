@@ -1,0 +1,260 @@
+﻿/* ============================================
+   Message Bubbles
+   ============================================ */
+
+.message {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  max-width: var(--message-max-width);
+  margin: 0 auto;
+  animation: messageIn 0.35s ease;
+}
+
+.message + .message {
+  margin-top: var(--space-2);
+}
+
+.message.user {
+  flex-direction: row-reverse;
+}
+
+@keyframes messageIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Avatars */
+.message-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-top: 2px;
+  transition: transform var(--transition-fast);
+}
+.message:hover .message-avatar {
+  transform: scale(1.05);
+}
+.message.user .message-avatar {
+  background: var(--accent-gradient);
+  color: white;
+  box-shadow: 0 2px 8px rgba(45, 212, 191, 0.25);
+}
+.message.assistant .message-avatar {
+  background: var(--surface-card-strong);
+  border: 1px solid var(--msg-ai-border);
+  color: var(--accent-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+/* Animated gradient ring while streaming */
+.message.assistant.streaming .message-avatar {
+  border-color: transparent;
+  animation: avatarPulse 2s ease-in-out infinite;
+}
+.message.assistant.streaming .message-avatar::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 12px;
+  background: conic-gradient(from 0deg, var(--accent-primary), var(--accent-secondary), #a78bfa, var(--accent-primary));
+  z-index: -1;
+  animation: avatarRingSpin 2.5s linear infinite;
+}
+@keyframes avatarRingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes avatarPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 12px 2px rgba(45, 212, 191, 0.15);
+  }
+}
+
+/* Message Body */
+.message-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.message.user .message-body {
+  display: flex;
+  flex: 0 1 min(72%, 680px);
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.message.assistant .message-body {
+  max-width: 100%;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.message.user .message-header {
+  justify-content: flex-end;
+}
+.message.assistant .message-header {
+  padding-left: var(--space-1);
+}
+.message-role {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.message-time {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.answer-header-container {
+  margin: 0 0 var(--space-2);
+}
+
+.answer-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 84%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 24%);
+}
+
+.answer-header-title {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.answer-header-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.answer-header-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(260px, 100%);
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent-primary), transparent 94%);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.answer-header-chip.chip-model,
+.answer-header-chip.chip-token,
+.answer-header-chip.chip-thinking {
+  font-family: var(--font-mono);
+}
+
+.answer-header-chip.chip-cache {
+  border-color: color-mix(in srgb, #22c55e, transparent 76%);
+  background: color-mix(in srgb, #22c55e, transparent 93%);
+}
+
+.answer-header-chip.chip-tool-warning {
+  border-color: color-mix(in srgb, #ef4444, transparent 72%);
+  background: color-mix(in srgb, #ef4444, transparent 94%);
+}
+
+.answer-header-chip.chip-budget {
+  border-color: color-mix(in srgb, var(--accent-secondary), transparent 76%);
+  background: color-mix(in srgb, var(--accent-secondary), transparent 93%);
+}
+
+.answer-toc-container {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent-secondary), transparent 82%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 30%);
+}
+
+.answer-toc-container[hidden] {
+  display: none;
+}
+
+.answer-toc-title {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.answer-toc-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.answer-toc-item,
+.answer-toc-more {
+  min-width: 0;
+}
+
+.answer-toc-item a,
+.answer-toc-more {
+  display: inline-flex;
+  max-width: 260px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent-secondary), transparent 80%);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--accent-secondary), transparent 94%);
+  font-size: 11px;
+  line-height: 1.35;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.answer-toc-item.level-h3 a {
+  color: var(--text-muted);
+  background: var(--glass-bg);
+}
+
+.answer-toc-item a:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-secondary);
+}
+
+.answer-toc-more {
+  color: var(--text-muted);
+}

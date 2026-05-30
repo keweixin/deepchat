@@ -594,7 +594,21 @@
               <p class="form-hint">文件工具只能读取这些目录内的文本文件，运行代码仍会逐次要求确认。</p>
             </div>
             <div class="form-group">
-              <label>数据管理</label>
+              <label>数据管理与隐私导出</label>
+              <div class="export-privacy-options" style="margin-top:var(--space-2);margin-bottom:var(--space-3);display:grid;gap:var(--space-2)">
+                <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:var(--font-size-xs);font-weight:500;color:var(--text-secondary)">
+                  <input type="checkbox" id="exclude-code-chk" style="width:14px;height:14px;accent-color:var(--accent-primary)" />
+                  <span>排除代码块内容 (保留文本分析)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:var(--font-size-xs);font-weight:500;color:var(--text-secondary)">
+                  <input type="checkbox" id="exclude-logs-chk" style="width:14px;height:14px;accent-color:var(--accent-primary)" />
+                  <span>排除聊天日志/历史消息 (仅导出设置)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:var(--font-size-xs);font-weight:500;color:var(--text-secondary)">
+                  <input type="checkbox" id="exclude-configs-chk" style="width:14px;height:14px;accent-color:var(--accent-primary)" />
+                  <span>排除应用配置与设置 (仅导出聊天记录)</span>
+                </label>
+              </div>
               <div class="form-actions">
                 <button id="export-backup-btn" class="secondary-btn" type="button">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

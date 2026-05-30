@@ -252,54 +252,85 @@ export function highlightActiveModelTag(currentModel: string): void {
   });
 }
 
-interface SettingsTabGroup {
-  id: string;
-  label: string;
-  match: RegExp;
-}
-
 export function buildSettingsTabs(panel: HTMLElement | null): void {
-  if (!panel || panel.querySelector('.settings-tabs')) return;
-  const body = panel.querySelector('.settings-body');
-  const sections = body ? [...body.querySelectorAll('.settings-section')] : [];
-  if (!body || sections.length === 0) return;
-
-  const groups: SettingsTabGroup[] = [
-    { id: 'common', label: '常用', match: /API 配置|联网搜索|工作区与备份|智能增强/ },
-    { id: 'tools', label: '工具', match: /回答模式|Agent 与 Token|外部 Skill|MCP Server/ },
-    { id: 'model', label: '模型', match: /模型设置|系统提示词/ },
+  if (!panel) return;
+  
+  let tabsContainer = panel.querySelector('.settings-tabs') as HTMLElement | null;
+  if (!tabsContainer) {
+    tabsContainer = document.createElement('div');
+    tabsContainer.className = 'settings-tabs';
+    const body = panel.querySelector('.settings-body');
+    if (body) body.insertBefore(tabsContainer, body.firstChild);
+  }
+  
+  tabsContainer.innerHTML = '';
+  tabsContainer.className = 'settings-tabs settings-subtabs';
+  
+  const body = panel.querySelector('.settings-body') as HTMLElement | null;
+  if (!body) return;
+  
+  const sections = [...body.querySelectorAll('.settings-section')] as HTMLElement[];
+  if (sections.length === 0) return;
+  
+  const segments = [
+    { title: 'API 配置', label: '连接' },
+    { title: '联网搜索', label: '搜索' },
+    { title: '工作区与备份', label: '工作区' },
+    { title: '外部 Skill', label: 'Skill' },
+    { title: 'MCP Server', label: 'MCP' },
+    { title: '模型设置', label: '模型' },
+    { title: 'Agent 与 Token', label: 'Agent' },
+    { title: '回答模式', label: '边界' },
+    { title: '系统提示词', label: '提示词' }
   ];
-
-  const tabs = document.createElement('div');
-  tabs.className = 'settings-tabs';
-  const activeGroup = 'common';
-
-  for (const group of groups) {
+  
+  segments.forEach((seg, index) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `settings-tab${group.id === activeGroup ? ' active' : ''}`;
-    (btn as HTMLElement).dataset.settingsGroup = group.id;
-    btn.textContent = group.label;
-    btn.addEventListener('click', () => setActiveSettingsGroup(body as HTMLElement, groups, group.id));
-    tabs.appendChild(btn);
-  }
-
-  for (const section of sections) {
-    const title = section.querySelector('h3')?.textContent || '';
-    const group = groups.find((item) => item.match.test(title)) || groups[0];
-    (section as HTMLElement).dataset.settingsGroup = group.id;
-  }
-
-  body.insertBefore(tabs, body.firstChild);
-  setActiveSettingsGroup(body as HTMLElement, groups, activeGroup);
-}
-
-function setActiveSettingsGroup(body: HTMLElement, groups: SettingsTabGroup[], activeId: string): void {
-  body.querySelectorAll('.settings-tab').forEach((tab) => {
-    tab.classList.toggle('active', (tab as HTMLElement).dataset.settingsGroup === activeId);
+    btn.className = `settings-tab${index === 0 ? ' active' : ''}`;
+    btn.textContent = seg.label;
+    btn.dataset.targetTitle = seg.title;
+    
+    btn.addEventListener('click', () => {
+      const targetSec = sections.find(sec => {
+        const h3 = sec.querySelector('h3');
+        return h3 && h3.textContent?.trim() === seg.title;
+      });
+      
+      if (targetSec) {
+        tabsContainer!.querySelectorAll('.settings-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+    
+    tabsContainer!.appendChild(btn);
   });
-  body.querySelectorAll('.settings-section').forEach((section) => {
-    (section as HTMLElement).hidden = (section as HTMLElement).dataset.settingsGroup !== activeId;
+  
+  sections.forEach(sec => {
+    sec.style.display = 'block';
+    sec.style.opacity = '1';
+  });
+  
+  body.addEventListener('scroll', () => {
+    let activeTitle = segments[0].title;
+    const bodyRect = body.getBoundingClientRect();
+    
+    for (const sec of sections) {
+      const rect = sec.getBoundingClientRect();
+      if (rect.top - bodyRect.top < 150) {
+        const h3 = sec.querySelector('h3');
+        if (h3 && h3.textContent) {
+          const matched = segments.find(seg => seg.title === h3.textContent?.trim());
+          if (matched) activeTitle = matched.title;
+        }
+      }
+    }
+    
+    tabsContainer!.querySelectorAll('.settings-tab').forEach(btn => {
+      const el = btn as HTMLElement;
+      el.classList.toggle('active', el.dataset.targetTitle === activeTitle);
+    });
   });
 }
 
@@ -644,7 +675,11 @@ export function bindSettingsEvents(
   }
   if (els.exportBackupBtn) {
     els.exportBackupBtn.addEventListener('click', async () => {
-      const result = await exportBackup();
+      const excludeCode = (document.getElementById('exclude-code-chk') as HTMLInputElement | null)?.checked || false;
+      const excludeLogs = (document.getElementById('exclude-logs-chk') as HTMLInputElement | null)?.checked || false;
+      const excludeConfigs = (document.getElementById('exclude-configs-chk') as HTMLInputElement | null)?.checked || false;
+
+      const result = await exportBackup({ excludeCode, excludeLogs, excludeConfigs });
       if (!result?.canceled) showToast('备份已导出');
     });
   }

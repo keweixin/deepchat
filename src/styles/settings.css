@@ -878,3 +878,32 @@
   margin-top: var(--space-2);
   min-height: 72px;
 }
+
+/* ============================================
+   Settings Premium 9-Section Indicators
+   ============================================ */
+.settings-panel .settings-subtabs {
+  display: flex !important;
+  flex-direction: row !important;
+  overflow-x: auto !important;
+  gap: var(--space-2) !important;
+  scrollbar-width: none !important; /* Hide scrollbar for Clean UI */
+  padding: var(--space-3) var(--space-6) !important;
+  background: color-mix(in srgb, var(--surface-elevated), transparent 4%) !important;
+  margin: calc(var(--space-6) * -1) calc(var(--space-6) * -1) var(--space-5) !important;
+  grid-template-columns: none !important;
+}
+.settings-panel .settings-subtabs::-webkit-scrollbar {
+  display: none !important;
+}
+.settings-panel .settings-subtabs .settings-tab {
+  flex: 0 0 auto !important;
+  padding: 0 var(--space-4) !important;
+  min-width: max-content !important;
+}
+
+.settings-panel .settings-section {
+  display: block !important;
+  opacity: 1 !important;
+  margin-bottom: var(--space-8) !important;
+}

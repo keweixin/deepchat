@@ -25,6 +25,7 @@ import type { Artifact } from './artifacts.js';
 import { diffArtifactVersions } from './artifact-versions.js';
 import { downloadZipArchive } from './zip-builder.js';
 import { escapeHtml, formatBytes } from './shared-utils.js';
+import { renderToolCardList } from './tool-card.js';
 
 let _panelEl: HTMLElement | null = null;
 let _contentEl: HTMLElement | null = null;
@@ -220,6 +221,11 @@ function _renderMessageInfo(data: Record<string, any>) {
     }
   `;
   _contentEl.innerHTML = html;
+
+  const toolListEl = _contentEl.querySelector('.inspector-tool-list') as HTMLElement | null;
+  if (toolListEl && Array.isArray(msg.toolCalls)) {
+    renderToolCardList(toolListEl, msg.toolCalls, { showRaw: true });
+  }
 }
 
 function _renderTraceInfo(data: Record<string, any>) {

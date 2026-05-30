@@ -40,6 +40,7 @@ conversations.json
 coverage/
 *.lcov
 .nyc_output/
+test-results/
 
 # OS files
 .DS_Store
@@ -72,3 +73,5 @@ CLAUDE.md
 *.bak
 *.bak?
 tmp_*.py
+
+tmp-electron-build/

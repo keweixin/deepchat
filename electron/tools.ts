@@ -1,3 +1,4 @@
+﻿// @ts-nocheck
 import { resolveAllowedPath, isSensitivePath, isPathInsideRoot } from './tools-path.js';
 import { gitStatus, gitDiff, gitLog } from './tools-git.js';
 import { webSearch, normalizeSearchQueries, normalizeTavilyResults, formatTavilyResults } from './tools-search.js';
@@ -121,7 +122,7 @@ function describeToolRisk(name, args) {
   return '未知工具调用。';
 }
 
-async function executeTool(name, args, settings, signal) {
+async function executeTool(name, args, settings, signal?) {
   let output;
   if (name === 'web_search') output = await webSearch(args, settings);
   else if (name === 'list_files') output = await listFiles(args, settings);
@@ -145,7 +146,7 @@ function clampInt(value, min, max, fallback) {
   return Math.min(Math.max(number, min), max);
 }
 
-module.exports = {
+export {
   TOOL_SCHEMAS,
   getToolDefinitions,
   getToolModeStatus,

@@ -13,8 +13,17 @@
 
 // Styles
 import './styles/index.css';
-import './styles/chat.css';
-import './styles/message.css';
+import './styles/chat-evidence.css';
+import './styles/chat-sidebar.css';
+import './styles/chat-header.css';
+import './styles/chat-input.css';
+import './styles/chat-welcome.css';
+import './styles/chat-responsive.css';
+import './styles/chat-extras.css';
+import './styles/message-base.css';
+import './styles/message-content.css';
+import './styles/message-tool-call.css';
+import './styles/message-dialog.css';
 import './styles/code.css';
 import './styles/markdown.css';
 import './styles/widgets.css';

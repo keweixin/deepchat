@@ -25,7 +25,7 @@ import { TraceRecorder } from './agent-trace.js';
 import { openTraceInspector } from './agent-trace-inspector.js';
 import { isAgentSkill, ROLE_TOOL_MAP } from './tool-registry.js';
 import { saveTrace, isTraceRecordingEnabled } from './agent-trace-store.js';
-import { setInspectorToggleBadge } from './inspector-panel.js';
+import { setInspectorToggleBadge, openInspectorPanel, updateInspectorPanel } from './inspector-panel.js';
 import { extractArtifacts } from './artifacts.js';
 
 /**
@@ -192,6 +192,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
     let lastRenderLen = 0;
     let streamStartTime = 0;
     let tokenCount = 0;
+    let artifactFocused = false;
 
     // Append-only rendering for long content
     const APPEND_THRESHOLD = STREAMING_APPEND_THRESHOLD;
@@ -238,6 +239,21 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         // Only attach copy handlers if content may contain code blocks
         if (fullContent.includes('```')) {
           deps.attachCopyHandlersOnly(contentEl);
+        }
+
+        const hasArtifacts = fullContent.includes('```mermaid') || fullContent.includes('```html');
+        if (hasArtifacts) {
+          const artifactData = {
+            msg: { content: fullContent, role: 'assistant', timestamp: Date.now() },
+            index: conv.messages.length,
+            messages: [...conv.messages, { content: fullContent, role: 'assistant' }]
+          };
+          if (!artifactFocused) {
+            artifactFocused = true;
+            openInspectorPanel('artifact', artifactData);
+          } else {
+            updateInspectorPanel('artifact', artifactData);
+          }
         }
         if (streamStartTime > 0) {
           const elapsed = (Date.now() - streamStartTime) / 1000;
@@ -432,7 +448,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         deps.refreshConversationTaskCheckpoint(conv);
         conv.usageTotals = deps.getConversationUsageSummary(conv);
         msgEl.dataset.messageIndex = String(conv.messages.length - 1);
-        deps.persist();
+        await deps.persist();
         deps.updateHeader();
         deps.renderAssistantAnswerHeader(msgEl.querySelector('.answer-header-container'), assistantMsg);
         deps.addMessageActions(msgEl, fullContent, assistantMsg.tokens, finalSpeed, conv.messages.length - 1);
@@ -452,7 +468,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         scrollToBottom(deps.$messages);
         deps.refreshReadingNavigator();
       },
-      onError(err: Error) {
+      async onError(err: Error) {
         clearTimeout(renderTimer ?? undefined);
         contentEl.classList.remove('streaming-cursor');
         const typing = msgEl.querySelector('.typing-indicator');
@@ -490,11 +506,11 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         deps.refreshConversationTaskCheckpoint(conv);
         conv.usageTotals = deps.getConversationUsageSummary(conv);
         msgEl.dataset.messageIndex = String(conv.messages.length - 1);
-        deps.persist();
+        await deps.persist();
         deps.updateHeader();
-        const renderRetry = () => {
+        const renderRetry = async () => {
           conv.messages.pop();
-          deps.persist();
+          await deps.persist();
           msgEl.remove();
           deps.setIsStreaming(false);
           deps.setAbortController(null);

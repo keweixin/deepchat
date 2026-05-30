@@ -112,14 +112,36 @@ export function saveConversations(conversations: any[]): Promise<void> {
   });
 }
 
-export async function exportBackup(): Promise<any> {
-  if (hasNativeBridge()) return (window as any).deepchat.conversations.exportBackup();
+export async function exportBackup(options?: any): Promise<any> {
+  if (hasNativeBridge()) return (window as any).deepchat.conversations.exportBackup(options);
+  
+  const settings = getSettings();
+  const conversations = await loadConversations(true);
+
+  let safeConversations = conversations;
+  if (options?.excludeLogs) {
+    safeConversations = conversations.map((c: any) => ({ ...c, messages: [] }));
+  } else if (options?.excludeCode) {
+    safeConversations = conversations.map((c: any) => {
+      if (!Array.isArray(c.messages)) return c;
+      return {
+        ...c,
+        messages: c.messages.map((m: any) => ({
+          ...m,
+          content: typeof m.content === 'string'
+            ? m.content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
+            : m.content
+        }))
+      };
+    });
+  }
+
   const backup = {
     version: 1,
     exportedAt: new Date().toISOString(),
     secretsExcluded: BACKUP_SECRETS_EXCLUDED,
-    settings: sanitizeSettingsForBackup(getSettings()),
-    conversations: await loadConversations(true),
+    settings: options?.excludeConfigs ? {} : sanitizeSettingsForBackup(settings),
+    conversations: safeConversations,
   };
   downloadJson(backup, `deepchat-backup-${new Date().toISOString().slice(0, 10)}.json`);
   return { canceled: false };

@@ -1,0 +1,75 @@
+﻿/* Responsive */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    z-index: 300;
+    transition: left var(--transition-base);
+  }
+  .sidebar.mobile-open {
+    left: 0;
+  }
+  .mobile-sidebar-toggle {
+    display: flex;
+  }
+  .chat-header {
+    padding-left: 60px;
+  }
+  .welcome-suggestions {
+    grid-template-columns: 1fr;
+  }
+  .composer-toolbar {
+    gap: 4px;
+  }
+  .composer-mode-pills {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .composer-mode-pill {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+  .composer-tool-drawer-btn {
+    padding: 4px 8px;
+    gap: 4px;
+    min-height: 28px;
+  }
+  .composer-tool-drawer-btn .composer-tool-title {
+    display: none;
+  }
+  .composer-settings-shortcut,
+  .composer-context-btn,
+  .composer-advanced-toggle {
+    padding: 0 8px;
+    min-height: 28px;
+    font-size: 11px;
+  }
+  .composer-control,
+  .composer-search-toggle {
+    flex: 1 1 140px;
+    justify-content: space-between;
+  }
+  .composer-run-status {
+    order: 8;
+    flex: 1 1 100%;
+    justify-content: center;
+    font-size: 11px;
+    min-height: 26px;
+  }
+
+  .composer-tool-menu,
+  .context-shortcut-menu {
+    width: calc(100vw - 32px);
+  }
+
+  .context-shortcut-item {
+    grid-template-columns: 1fr;
+  }
+
+  .context-shortcut-code {
+    justify-self: start;
+    max-width: 100%;
+  }
+}

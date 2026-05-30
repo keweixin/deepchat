@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('deepchat', {
   conversations: {
     load: () => ipcRenderer.invoke('conversations:load'),
     save: (conversations: any) => ipcRenderer.invoke('conversations:save', conversations),
-    exportBackup: () => ipcRenderer.invoke('conversations:exportBackup'),
+    exportBackup: (options?: any) => ipcRenderer.invoke('conversations:exportBackup', options),
     importBackup: () => ipcRenderer.invoke('conversations:importBackup'),
   },
   chat: {

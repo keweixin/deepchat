@@ -398,12 +398,23 @@ async function renderMermaidDiagrams(container: HTMLElement) {
   if (typeof IntersectionObserver !== 'undefined') {
     const observer = new IntersectionObserver(
       async (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).map((e) => e.target as HTMLElement);
+        const visible = entries.filter((e) => e.isIntersecting);
         if (visible.length === 0) return;
-        observer.disconnect();
+
+        const nodesToRender: HTMLElement[] = [];
+        for (const entry of visible) {
+          const target = entry.target as HTMLElement;
+          observer.unobserve(target);
+          if (!target.hasAttribute('data-processed')) {
+            target.setAttribute('data-processed', '1');
+            nodesToRender.push(target);
+          }
+        }
+
+        if (nodesToRender.length === 0) return;
         try {
           const mermaid = await getMermaid();
-          await mermaid.run({ nodes: visible });
+          await mermaid.run({ nodes: nodesToRender });
         } catch {
           // Silently ignore malformed diagram syntax.
         }
@@ -415,7 +426,8 @@ async function renderMermaidDiagrams(container: HTMLElement) {
     // Fallback: render immediately
     try {
       const mermaid = await getMermaid();
-      await mermaid.run({ nodes: mermaidEls });
+      mermaidEls.forEach((el) => el.setAttribute('data-processed', '1'));
+      await mermaid.run({ nodes: Array.from(mermaidEls) as HTMLElement[] });
     } catch {
       // Silently ignore malformed diagram syntax.
     }
@@ -808,8 +820,17 @@ function firstMeaningfulChild(container: HTMLElement) {
  * Use for HTML that may contain user-controlled content.
  * For renderMarkdown() output (already sanitized), direct innerHTML is acceptable.
  */
-export function safeSetHTML(el: HTMLElement, html: string) {
-  el.innerHTML = DOMPurify.sanitize(html, purifyConfig);
+export function safeSetHTML(
+  el: HTMLElement,
+  html: string,
+  options: { source?: string; sanitize?: boolean } = {}
+) {
+  const { sanitize = true } = options;
+  if (sanitize) {
+    el.innerHTML = DOMPurify.sanitize(html, purifyConfig);
+  } else {
+    el.innerHTML = html;
+  }
 }
 
 function normalizeWhitespace(value: string | null) {

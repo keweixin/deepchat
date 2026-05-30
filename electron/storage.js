@@ -377,15 +377,34 @@ async function pickWorkspaceRoot(parentWindow) {
   return addWorkspaceRoot(result.filePaths[0]);
 }
 
-async function exportBackup(parentWindow) {
+async function exportBackup(parentWindow, options = {}) {
   const settings = await getSettings();
   const conversations = await loadConversations();
+
+  let safeConversations = conversations;
+  if (options.excludeLogs) {
+    safeConversations = conversations.map(c => ({ ...c, messages: [] }));
+  } else if (options.excludeCode) {
+    safeConversations = conversations.map(c => {
+      if (!Array.isArray(c.messages)) return c;
+      return {
+        ...c,
+        messages: c.messages.map(m => ({
+          ...m,
+          content: typeof m.content === 'string'
+            ? m.content.replace(/```[\s\S]*?```/g, '[代码块已根据隐私设置排除]')
+            : m.content
+        }))
+      };
+    });
+  }
+
   const backup = {
     version: DATA_VERSION,
     exportedAt: new Date().toISOString(),
     secretsExcluded: BACKUP_SECRETS_EXCLUDED,
-    settings: sanitizeSettingsForBackup(settings),
-    conversations,
+    settings: options.excludeConfigs ? {} : sanitizeSettingsForBackup(settings),
+    conversations: safeConversations,
   };
 
   const result = await dialog.showSaveDialog(parentWindow, {
