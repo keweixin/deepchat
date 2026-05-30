@@ -10,8 +10,9 @@
  * - Hash messages for cache comparison
  */
 
-const crypto = require('crypto');
-const { estimateTokens, estimateMessagesTokens, toTokenNumber, clampNumber } = require('./usage-meter');
+import crypto from 'crypto';
+import { estimateTokens, estimateMessagesTokens, toTokenNumber, clampNumber } from './usage-meter.js';
+import * as mm from './memory-manager.js';
 
 const DEFAULT_MAX_INPUT_TOKENS = 24000;
 
@@ -204,7 +205,6 @@ function buildMemoryAwareContext(messages, options = {}, query = '') {
 
   if (query) {
     try {
-      const mm = require('./memory-manager.ts');
       if (mm.isMemoryManagerInitialized()) {
         memoryContext = mm.formatMemoryForContext(query);
       }

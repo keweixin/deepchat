@@ -1,23 +1,40 @@
-// @ts-nocheck
-const { isMcpToolName } = require('./mcp-manager');
-const { executeTool } = require('./tools');
-const {
+import { isMcpToolName } from './mcp-manager.js';
+import { executeTool } from './tools.js';
+import {
   resolveToolApprovalDecision,
   resolveToolApprovalTimeout,
   DEFAULT_TOOL_APPROVAL_TIMEOUT_MS,
   buildToolSecurity,
   isParallelSafeToolCall,
-} = require('./approval-manager.ts');
-const { normalizeError } = require('./provider-adapters');
-const { toolCallSignature } = require('./stream-runner.ts');
-const { parseToolArgsDetailed } = require('./tool-executor.ts');
-const { buildToolNextAction, buildToolContextOutput } = require('./chat-service-helpers');
+} from './approval-manager.js';
+import { normalizeError } from './provider-adapters.js';
+import { toolCallSignature } from './stream-runner.js';
+import { parseToolArgsDetailed } from './tool-executor.js';
+import { buildToolNextAction, buildToolContextOutput } from './chat-service-helpers.js';
 
 async function handleToolCall(requestId, toolCall, settings, signal, round = 0, maxRounds = 0, deps) {
-  const { emit, waitForApproval, describeRisk, mcpManager } = deps;
+  const { emit, waitForApproval, describeRisk, mcpManager, controller } = deps;
   const fn = toolCall.function || {};
   const parsedArgs = parseToolArgsDetailed(fn.arguments);
   const args = parsedArgs.args;
+
+  if (controller) {
+    await controller.checkPausePoint();
+    if (controller.skippedToolCallIds.has(toolCall.id)) {
+      const skippedMsg = `工具 ${fn.name} 已被用户手动跳过。`;
+      emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: skippedMsg });
+      emit(requestId, 'toolResult', {
+        toolCallId: toolCall.id,
+        name: fn.name,
+        ok: true,
+        output: skippedMsg,
+        nextAction: 'continue',
+        ...buildToolContextOutput(fn.name, args, skippedMsg),
+      });
+      return skippedMsg;
+    }
+  }
+
   emit(requestId, 'agentStage', { stage: 'tool_pending', round, maxRounds, toolName: fn.name });
   if (parsedArgs.repaired) {
     emit(requestId, 'agentStage', {
@@ -28,7 +45,53 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
       warning: parsedArgs.warning,
     });
   }
-  const security = buildToolSecurity(fn.name, args, settings);
+
+  let security = buildToolSecurity(fn.name, args, settings);
+  if (controller && controller.scopePolicy) {
+    if (controller.scopePolicy === 'read_only') {
+      const isWrite = ['run_code', 'write_file', 'edit_file'].includes(fn.name);
+      if (isWrite) {
+        security = {
+          ...security,
+          riskLevel: 'high',
+          sandboxBlocked: true,
+          restrictionReason: '用户限制读取范围为只读模式。',
+        };
+      }
+    } else if (controller.scopePolicy.startsWith('dir:')) {
+      const allowedDir = controller.scopePolicy.slice(4);
+      const pathArg = args.path || args.filepath || args.dir || args.directory || '';
+      if (pathArg && typeof pathArg === 'string') {
+        const path = require('path');
+        const relative = path.relative(allowedDir, pathArg);
+        const isOutside = relative.startsWith('..') || path.isAbsolute(relative);
+        if (isOutside) {
+          security = {
+            ...security,
+            riskLevel: 'high',
+            sandboxBlocked: true,
+            restrictionReason: `路径超出用户限制范围：${allowedDir}`,
+          };
+        }
+      }
+    }
+  }
+
+  if (security.sandboxBlocked) {
+    const denied = `执行被拒绝：${security.restrictionReason || '受策略限制。'}`;
+    const nextAction = buildToolNextAction(fn.name, args, { denied: true, output: denied });
+    emit(requestId, 'agentStage', { stage: 'tool_denied', round, maxRounds, toolName: fn.name, stopReason: denied });
+    emit(requestId, 'toolResult', {
+      toolCallId: toolCall.id,
+      name: fn.name,
+      ok: false,
+      output: denied,
+      nextAction,
+      ...buildToolContextOutput(fn.name, args, denied),
+    });
+    return denied;
+  }
+
   const approval = resolveToolApprovalDecision(fn.name, args, settings, security);
   emit(requestId, 'toolRequest', {
     toolCallId: toolCall.id,
@@ -70,6 +133,21 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
   const decision = approval.autoApproved
     ? { approved: true, autoApproved: true, reason: approval.reason }
     : await waitForApproval(requestId, toolCall.id, signal, resolveToolApprovalTimeout(settings));
+
+  if (decision.skipped || (controller && controller.skippedToolCallIds.has(toolCall.id))) {
+    const skippedMsg = `工具 ${fn.name} 已被用户手动跳过。`;
+    emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: skippedMsg });
+    emit(requestId, 'toolResult', {
+      toolCallId: toolCall.id,
+      name: fn.name,
+      ok: true,
+      output: skippedMsg,
+      nextAction: 'continue',
+      ...buildToolContextOutput(fn.name, args, skippedMsg),
+    });
+    return skippedMsg;
+  }
+
   if (!decision.approved) {
     const denied = decision.timedOut
       ? `工具 ${fn.name} 等待确认超过 ${Math.round(resolveToolApprovalTimeout(settings) / 1000)} 秒，已自动拒绝。`

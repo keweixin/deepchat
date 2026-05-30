@@ -1,25 +1,24 @@
-// @ts-nocheck
-const { resolveAllowedPath, isSensitivePath, isPathInsideRoot } = require('./tools-path');
-const { gitStatus, gitDiff, gitLog } = require('./tools-git');
-const { webSearch, normalizeSearchQueries, normalizeTavilyResults, formatTavilyResults } = require('./tools-search');
-const { projectMap } = require('./tools-project');
-const {
+import { resolveAllowedPath, isSensitivePath, isPathInsideRoot } from './tools-path.js';
+import { gitStatus, gitDiff, gitLog } from './tools-git.js';
+import { webSearch, normalizeSearchQueries, normalizeTavilyResults, formatTavilyResults } from './tools-search.js';
+import { projectMap } from './tools-project.js';
+import {
   runCode,
   buildSandboxEnv,
   redactSensitiveText,
   redactRunCodeOutput,
   normalizeLanguage,
-} = require('./tools-run-code');
-const { listFiles, readFile, readManyFiles, parsePathLineCitation } = require('./tools-file');
-const {
+} from './tools-run-code.js';
+import { listFiles, readFile, readManyFiles, parsePathLineCitation } from './tools-file.js';
+import {
   indexWorkspace,
   searchWorkspace,
   readSymbol,
   clearWorkspaceIndexCache,
   clearWorkspaceIndexDiskCache,
   getWorkspaceIndexModule,
-} = require('./tools-workspace');
-const { TOOL_SCHEMAS, MODE_TOOLS, getToolDefinitions, MAX_READ_MANY_FILES_BYTES } = require('./tools-schemas');
+} from './tools-workspace.js';
+import { TOOL_SCHEMAS, MODE_TOOLS, getToolDefinitions, MAX_READ_MANY_FILES_BYTES } from './tools-schemas.js';
 
 const RUN_CODE_SECURITY_LIMITS = {
   maxOutputBytes: 1024 * 1024, // 1MB

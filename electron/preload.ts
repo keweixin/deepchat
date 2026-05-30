@@ -30,6 +30,10 @@ contextBridge.exposeInMainWorld('deepchat', {
   chat: {
     start: (request: any) => ipcRenderer.send('chat:start', request),
     cancel: (requestId: any) => ipcRenderer.send('chat:cancel', requestId),
+    pause: (requestId: any) => ipcRenderer.send('chat:pause', requestId),
+    resume: (requestId: any) => ipcRenderer.send('chat:resume', requestId),
+    skipTool: (requestId: any, toolCallId: any) => ipcRenderer.send('chat:skipTool', { requestId, toolCallId }),
+    limitScope: (requestId: any, scopePolicy: any) => ipcRenderer.send('chat:limitScope', { requestId, scopePolicy }),
     onEvent: (callback: any) => on('chat:event', callback),
   },
   tools: {

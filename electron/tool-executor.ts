@@ -6,10 +6,10 @@
  * JSON argument parsing/repairing, and related utilities.
  */
 
-const { estimateTokens } = require('./usage-meter');
-const { canonicalStringify } = require('./system-prompt.ts');
-const { isMcpToolName } = require('./mcp-manager');
-const { toolCallSignature } = require('./stream-runner.ts');
+import { estimateTokens } from './usage-meter.js';
+import { canonicalStringify } from './system-prompt.js';
+import { McpManager, isMcpToolName } from './mcp-manager.js';
+import { toolCallSignature } from './stream-runner.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

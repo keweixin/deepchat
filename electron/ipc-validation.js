@@ -307,6 +307,20 @@ const ToolApprovalSchema = z
   })
   .strict();
 
+const ToolSkipSchema = z
+  .object({
+    requestId: stringId,
+    toolCallId: stringId.or(z.literal('current')).optional(),
+  })
+  .strict();
+
+const LimitScopeSchema = z
+  .object({
+    requestId: stringId,
+    scopePolicy: z.string().max(200),
+  })
+  .strict();
+
 const RunCodeArgsSchema = z
   .object({
     language: z.enum(['javascript', 'js', 'python', 'py']),
@@ -342,6 +356,8 @@ module.exports = {
     ConversationsSaveSchema: z.array(ConversationSchema).max(500),
     ChatStartSchema,
     ToolApprovalSchema,
+    ToolSkipSchema,
+    LimitScopeSchema,
     RunManualToolSchema,
     TestSearchSchema,
     WorkspaceRemoveSchema,

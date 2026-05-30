@@ -1,8 +1,7 @@
-// @ts-nocheck
-const { normalizeBaseUrl, buildHeaders, normalizeError } = require('./provider-adapters');
-const { resolveAuxiliaryModel, resolveAgentMaxRounds } = require('./stream-runner.ts');
-const { estimateTokens, estimateMessagesTokens, normalizeTokenUsage } = require('./usage-meter');
-const { formatMessagesForSummary, hashMessages } = require('./context-manager');
+import { normalizeBaseUrl, buildHeaders, normalizeError } from './provider-adapters.js';
+import { resolveAuxiliaryModel, resolveAgentMaxRounds } from './stream-runner.js';
+import { estimateTokens, estimateMessagesTokens, normalizeTokenUsage } from './usage-meter.js';
+import { formatMessagesForSummary, hashMessages } from './context-manager.js';
 
 const SUMMARY_TRIGGER_RATIO = 0.8;
 const COMPACTION_SUMMARY_MARKER = '[CONVERSATION HISTORY SUMMARY — earlier turns folded for context efficiency]\n\n';

@@ -2,18 +2,46 @@
 
 import { isMcpToolName } from './mcp-manager.js';
 import { clampNumber } from './usage-meter.js';
+import { TOOL_DEFINITIONS } from './shared/tool-definitions.js';
 
 const DEFAULT_TOOL_APPROVAL_TIMEOUT_MS = 60000;
 const DEFAULT_TOOL_APPROVAL_POLICY = 'confirm_all';
 const CODE_RUN_TIMEOUT_MS = 5000;
 
-/**
- * @typedef {{ approved: boolean; timedOut?: boolean }} ApprovalDecision
- * @typedef {{ resolve: (decision: ApprovalDecision) => void; cleanup: () => void }} PendingApproval
- * @typedef {{ riskLevel?: string }} ToolSecurity
- * @typedef {{ policy: string; autoApproved: boolean; reason: string }} ApprovalResult
- * @typedef {{ tool: string; action: 'always_allow' | 'confirm_once' | 'confirm_always' | 'deny'; conditions?: Record<string, unknown> }} ToolPolicy
- */
+export interface ApprovalDecision {
+  approved: boolean;
+  timedOut?: boolean;
+}
+
+export interface PendingApproval {
+  resolve: (decision: ApprovalDecision) => void;
+  cleanup: () => void;
+}
+
+export interface ToolSecurity {
+  riskLevel?: string;
+  sandboxBlocked?: boolean;
+  sandbox?: string;
+  envPolicy?: string;
+  network?: string;
+  redaction?: boolean;
+}
+
+export interface ApprovalResult {
+  policy: string;
+  autoApproved: boolean;
+  reason: string;
+}
+
+export interface ToolPolicy {
+  tool: string;
+  action: 'always_allow' | 'confirm_once' | 'confirm_always' | 'deny';
+  conditions?: {
+    workspaceOnly?: boolean;
+    readOnly?: boolean;
+    riskLevel?: string;
+  };
+}
 
 /**
  * Wait for a user's tool-call approval, with timeout and abort support.
@@ -32,7 +60,7 @@ function waitForApproval(
   pendingApprovals: Map<string, any>,
   timeoutMs = DEFAULT_TOOL_APPROVAL_TIMEOUT_MS
 ) {
-  return new Promise((resolve) => {
+  return new Promise<ApprovalDecision>((resolve) => {
     if (signal.aborted) {
       resolve({ approved: false });
       return;
@@ -45,7 +73,7 @@ function waitForApproval(
       signal.removeEventListener('abort', onAbort);
       clearTimeout(timer);
     };
-    const finish = (decision: any) => {
+    const finish = (decision: ApprovalDecision) => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -72,23 +100,20 @@ function normalizeToolApprovalPolicy(value: any) {
     : DEFAULT_TOOL_APPROVAL_POLICY;
 }
 
-/** @type {ToolPolicy[]} */
-const DEFAULT_TOOL_POLICIES = [
-  { tool: 'search_workspace', action: 'always_allow' },
-  { tool: 'list_files', action: 'always_allow' },
-  { tool: 'index_workspace', action: 'always_allow' },
-  { tool: 'project_map', action: 'always_allow' },
-  { tool: 'git_status', action: 'always_allow' },
-  { tool: 'git_diff', action: 'always_allow' },
-  { tool: 'git_log', action: 'always_allow' },
-  { tool: 'read_file', action: 'confirm_once', conditions: { workspaceOnly: true } },
-  { tool: 'read_file', action: 'confirm_always', conditions: { workspaceOnly: false } },
-  { tool: 'read_symbol', action: 'confirm_once', conditions: { workspaceOnly: true } },
-  { tool: 'read_many_files', action: 'confirm_once', conditions: { workspaceOnly: true } },
-  { tool: 'read_many_files', action: 'confirm_always', conditions: { workspaceOnly: false } },
-  { tool: 'run_code', action: 'confirm_always' },
-  { tool: '__mcp__', action: 'confirm_always' },
-];
+const DEFAULT_TOOL_POLICIES: ToolPolicy[] = (
+  Object.entries(TOOL_DEFINITIONS).flatMap(([name, def]) => {
+    if (name === 'web_search') {
+      return [];
+    }
+    if (name === 'read_file' || name === 'read_many_files') {
+      return [
+        { tool: name, action: 'confirm_once' as const, conditions: { workspaceOnly: true } },
+        { tool: name, action: 'confirm_always' as const, conditions: { workspaceOnly: false } },
+      ];
+    }
+    return [{ tool: name, action: def.approvalPolicy as any }];
+  }) as ToolPolicy[]
+).concat([{ tool: '__mcp__', action: 'confirm_always' as const }]);
 
 /**
  * Session-scoped store for tools that have been confirmed once.
@@ -454,17 +479,8 @@ function buildToolSecurity(name: string, args?: any, settings?: any) {
 function isParallelSafeToolCall(toolCall?: any) {
   const _toolCall = toolCall || {};
   const name = String(_toolCall.function?.name || '');
-  return [
-    'web_search',
-    'list_files',
-    'search_workspace',
-    'read_symbol',
-    'read_file',
-    'project_map',
-    'git_status',
-    'git_diff',
-    'git_log',
-  ].includes(name);
+  const def = TOOL_DEFINITIONS[name];
+  return def ? def.parallelSafe : false;
 }
 
 /**

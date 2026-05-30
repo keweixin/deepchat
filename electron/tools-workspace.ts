@@ -1,11 +1,11 @@
-// @ts-nocheck
-const fs = require('fs/promises');
-const path = require('path');
-const crypto = require('crypto');
-const { parseWorkspaceQuery, matchesFileDirective, matchesChangedDirective } = require('./workspace-query');
-const { resolveWorkspaceRoot, resolveAllowedDirectory, isSensitivePath, isProbablyBinary } = require('./tools-path');
-const { walk, createMatcher } = require('./tools-file');
-const { redactSensitiveText } = require('./tools-run-code');
+import fs from 'fs/promises';
+import path from 'path';
+import crypto from 'crypto';
+import { parseWorkspaceQuery, matchesFileDirective, matchesChangedDirective } from './workspace-query.js';
+import { resolveWorkspaceRoot, resolveAllowedDirectory, isSensitivePath, isProbablyBinary } from './tools-path.js';
+import { walk, createMatcher } from './tools-file.js';
+import { redactSensitiveText } from './tools-run-code.js';
+import * as indexMod from './workspace-index.js';
 
 const MAX_SEARCH_FILE_BYTES = 64 * 1024;
 const MAX_SEARCH_SCAN_FILES = 700;
@@ -17,14 +17,8 @@ const WORKSPACE_INDEX_DISK_VERSION = 1;
 const WORKSPACE_INDEX_CACHE_MAX = 8;
 
 /** @type {import('./workspace-index')} */
-let workspaceIndexModule = null;
+let workspaceIndexModule = indexMod;
 function getWorkspaceIndexModule() {
-  if (workspaceIndexModule !== null) return workspaceIndexModule;
-  try {
-    workspaceIndexModule = require('./workspace-index');
-  } catch {
-    workspaceIndexModule = null;
-  }
   return workspaceIndexModule;
 }
 

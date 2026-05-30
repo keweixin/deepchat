@@ -1,8 +1,7 @@
-// @ts-nocheck
-const { normalizeTokenUsage } = require('./usage-meter');
-const { mergeToolCalls, compactToolCalls } = require('./stream-runner.ts');
-const { repairToolCallsFromText } = require('./tool-executor.ts');
-const { fetchChatCompletionWithFallback } = require('./provider-adapters');
+import { normalizeTokenUsage } from './usage-meter.js';
+import { mergeToolCalls, compactToolCalls } from './stream-runner.js';
+import { repairToolCallsFromText } from './tool-executor.js';
+import { fetchChatCompletionWithFallback } from './provider-adapters.js';
 
 async function streamOnce(requestId, messages, settings, tools, signal, emit) {
   const baseBody = {

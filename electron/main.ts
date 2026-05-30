@@ -1,5 +1,9 @@
 import { app, BrowserWindow, Menu, shell, ipcMain, session } from 'electron';
 import path from 'path';
+
+if (process.env.DEEPCHAT_TEST_USER_DATA_DIR) {
+  app.setPath('userData', process.env.DEEPCHAT_TEST_USER_DATA_DIR);
+}
 import {
   getSettings,
   setSettings,
@@ -120,6 +124,36 @@ function registerIpc() {
       chatService!.cancel(validate(schemas.RequestIdSchema, requestId, 'chat:cancel'));
     } catch {
       // Invalid cancel payloads should not crash the main process.
+    }
+  });
+  ipcMain.on('chat:pause', (_event, requestId) => {
+    try {
+      chatService!.pause(validate(schemas.RequestIdSchema, requestId, 'chat:pause'));
+    } catch {
+      // Ignore invalid payloads.
+    }
+  });
+  ipcMain.on('chat:resume', (_event, requestId) => {
+    try {
+      chatService!.resume(validate(schemas.RequestIdSchema, requestId, 'chat:resume'));
+    } catch {
+      // Ignore invalid payloads.
+    }
+  });
+  ipcMain.on('chat:skipTool', (_event, payload) => {
+    try {
+      const safePayload = validate(schemas.ToolSkipSchema, payload, 'chat:skipTool');
+      chatService!.skipTool(safePayload.requestId, safePayload.toolCallId);
+    } catch {
+      // Ignore invalid payloads.
+    }
+  });
+  ipcMain.on('chat:limitScope', (_event, payload) => {
+    try {
+      const safePayload = validate(schemas.LimitScopeSchema, payload, 'chat:limitScope');
+      chatService!.limitScope(safePayload.requestId, safePayload.scopePolicy);
+    } catch {
+      // Ignore invalid payloads.
     }
   });
   ipcMain.on('tools:approve', (_event, payload) => {

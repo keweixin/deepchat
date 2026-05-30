@@ -1,8 +1,7 @@
-// @ts-nocheck
-const { DEFAULT_AGENT_MAX_ROUNDS } = require('./agent-planner.ts');
-const { isMcpToolName } = require('./mcp-manager');
-const { parseToolArgsDetailed, compactToolOutputForContext } = require('./tool-executor.ts');
-const { estimateTokens } = require('./usage-meter');
+import { DEFAULT_AGENT_MAX_ROUNDS } from './agent-planner.js';
+import { isMcpToolName } from './mcp-manager.js';
+import { parseToolArgsDetailed, compactToolOutputForContext } from './tool-executor.js';
+import { estimateTokens } from './usage-meter.js';
 
 const DEFAULT_MAX_INPUT_TOKENS = 24000;
 const AGENT_EXECUTION_MODES = new Set(['execute_all', 'single_step']);
