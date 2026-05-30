@@ -1,4 +1,3 @@
-﻿// @ts-nocheck
 import { getSettings } from './storage.js';
 import { getToolDefinitions, describeToolRisk } from './tools.js';
 import { McpManager, isMcpToolName } from './mcp-manager.js';
@@ -122,7 +121,13 @@ import { streamOnce } from './chat-streamer.js';
 import { handleToolCall, handleToolCallsForRound } from './tool-call-handler.js';
 
 class ChatService {
-  constructor(getWindow) {
+  getWindow: () => any;
+  sessions: Map<string, AbortController>;
+  pendingApprovals: Map<string, any>;
+  mcpManager: any;
+  controllers: Map<string, any>;
+
+  constructor(getWindow: () => any) {
     this.getWindow = getWindow;
     this.sessions = new Map();
     this.pendingApprovals = new Map();
@@ -264,8 +269,8 @@ class ChatService {
 
   async runWithSettings(request, settings, abortController) {
     const requestId = request.requestId;
-    const messages = sanitizeMessages(request.messages || []);
-    const intent = detectAgentIntent(messages, settings);
+    const messages = sanitizeMessages(request.messages || []) as any[];
+    const intent = detectAgentIntent(messages as any, settings);
     const toolSupport = getProviderToolSupport(settings);
     const toolSettings = toolSupport.supported ? settings : { ...settings, activeSkill: 'none' };
     const tools = toolSupport.supported ? await this.getAvailableTools(settings, intent) : [];
@@ -289,7 +294,7 @@ class ChatService {
     if (prefixWarnings.length > 0) warnings.push(...prefixWarnings);
 
     let workingMessages = [{ role: 'system', content: systemPrompt }];
-    const latestUserText = getLastUserText(messages);
+    const latestUserText = getLastUserText(messages as any);
     const planSummary = buildAgentPlanSummary(intent, tools, settings, maxToolRounds, latestUserText);
 
     this.emit(requestId, 'agentStage', {
@@ -343,7 +348,7 @@ class ChatService {
             ...contextBundle.meta,
             summaryUsed: true,
             summaryGenerated: summaryResult.generated,
-          },
+          } as any,
         };
         this.emit(requestId, 'contextSummary', {
           summary: summaryResult.summary,
@@ -408,7 +413,7 @@ class ChatService {
         content: result.content || '',
         tool_calls: compactToolCallsForContext(result.toolCalls),
         ...buildReasoningRoundTrip(result, settings),
-      });
+      } as any);
 
       if (controller) {
         await controller.checkPausePoint();
@@ -536,9 +541,9 @@ class ChatService {
     return combined;
   }
 
-  describeRisk(name, args, settings) {
+  describeRisk(name: string, args: any, settings: any) {
     if (isMcpToolName(name)) return `将调用外部 MCP 工具：${name}。参数：${JSON.stringify(args || {}).slice(0, 300)}`;
-    return describeToolRisk(name, args, settings);
+    return describeToolRisk(name, args);
   }
 }
 

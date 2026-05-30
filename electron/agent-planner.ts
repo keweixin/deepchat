@@ -87,20 +87,20 @@ const DIRECTIVE_TEXT_PATTERN = /```[\s\S]*?```/g;
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-function stripVolatileContextBlocks(content: string): string {
+export function stripVolatileContextBlocks(content: string): string {
   return String(content || '')
     .replace(/<related_memory>[\s\S]*?<\/related_memory>/gi, ' ')
     .replace(/<selected_context>[\s\S]*?<\/selected_context>/gi, ' ')
     .replace(/<task_checkpoint>[\s\S]*?<\/task_checkpoint>/gi, ' ');
 }
 
-function needsYearScopedExternalLookup(text: string): boolean {
+export function needsYearScopedExternalLookup(text: string): boolean {
   return /价格|版本|政策|法规|官网|资料|数据|统计|趋势|报告|来源|引用|发布|名单|榜单|排名|current|latest|news|price|version|release|source|data|report|trend|ranking|schedule|score/i.test(
     text
   );
 }
 
-function normalizeResearchTopic(text: string): string {
+export function normalizeResearchTopic(text: string): string {
   const stripped = stripVolatileContextBlocks(String(text || ''))
     .replace(DIRECTIVE_TEXT_PATTERN, ' ')
     .replace(/@[a-zA-Z_:-]+/g, ' ')
@@ -112,7 +112,7 @@ function normalizeResearchTopic(text: string): string {
   return stripped.slice(0, 96);
 }
 
-function dedupeSearchPlan(plan: SearchPlanItem[]): SearchPlanItem[] {
+export function dedupeSearchPlan(plan: SearchPlanItem[]): SearchPlanItem[] {
   const seen = new Set<string>();
   const next: SearchPlanItem[] = [];
   for (const item of plan) {

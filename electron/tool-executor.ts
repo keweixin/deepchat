@@ -14,7 +14,7 @@ import { toolCallSignature } from './stream-runner.js';
 // ── Constants ────────────────────────────────────────────────────────────────
 
 /** @type {number} Max tokens before tool output is compacted for context. */
-const MAX_TOOL_CONTEXT_TOKENS = 3500;
+export const MAX_TOOL_CONTEXT_TOKENS = 3500;
 
 /** @type {number} Max characters scanned when repairing tool calls from text. */
 const TOOL_REPAIR_SCAN_LIMIT = 24000;
@@ -35,7 +35,7 @@ const TOOL_ARG_REPAIR_LIMIT = 12000;
  * @param {string} output
  * @returns {string}
  */
-function compactToolOutputForContext(toolName: string, args: any, output: any) {
+export function compactToolOutputForContext(toolName: string, args: any, output: any) {
   const text = String(output || '');
   if (estimateTokens(text) <= MAX_TOOL_CONTEXT_TOKENS) return text;
   const name = String(toolName || '');
@@ -194,7 +194,7 @@ function compactMcpOutput(text: string) {
  * @param {any[]} tools
  * @returns {{ toolCalls: any[], warning: string }}
  */
-function repairToolCallsFromText(content = '', thinking = '', tools: any[] = []) {
+export function repairToolCallsFromText(content = '', thinking = '', tools: any[] = []) {
   const allowedNames = new Set(
     (Array.isArray(tools) ? tools : []).map((tool: any) => String(tool?.function?.name || '').trim()).filter(Boolean)
   );
