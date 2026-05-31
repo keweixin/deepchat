@@ -19,6 +19,9 @@ function fail(msg) {
   console.error(`  ❌ ${msg}`);
   failed += 1;
 }
+function escapeRegex(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 console.log('🔍 Release Verification\n');
 
@@ -82,12 +85,15 @@ if (fs.existsSync(distElectronMain)) {
 const releaseDir = path.join(root, 'release');
 if (fs.existsSync(releaseDir)) {
   const artifacts = fs.readdirSync(releaseDir);
-  const setup = artifacts.find((f) => f.match(/^DeepChat-Setup-v\d+\.\d+\.\d+\.exe$/));
-  const portable = artifacts.find((f) => f.match(/^DeepChat-Portable-v\d+\.\d+\.\d+-\d{8}-\d{6}\.exe$/));
+  const escapedVersion = escapeRegex(version);
+  const setup = artifacts.find((f) => f.match(new RegExp(`^DeepChat-Setup-v${escapedVersion}\\.exe$`)));
+  const portable = artifacts.find((f) =>
+    f.match(new RegExp(`^DeepChat-Portable-v${escapedVersion}-\\d{8}-?\\d{6}\\.exe$`))
+  );
   if (setup) ok(`Setup artifact: ${setup}`);
-  else ok('No setup artifact in release/ (may not have built yet)');
+  else ok(`No setup artifact for v${version} in release/ (may not have built yet)`);
   if (portable) ok(`Portable artifact: ${portable}`);
-  else ok('No portable artifact in release/ (may not have built yet)');
+  else ok(`No portable artifact for v${version} in release/ (may not have built yet)`);
 } else {
   ok('release/ directory does not exist yet');
 }
@@ -100,6 +106,18 @@ if (versionExeFiles.length > 0) {
   const shaSums = path.join(releaseDir, 'SHA256SUMS.txt');
   if (fs.existsSync(shaSums)) {
     ok('release/SHA256SUMS.txt exists');
+    const shaText = fs.readFileSync(shaSums, 'utf8');
+    const filesToChecksum = fs
+      .readdirSync(releaseDir)
+      .filter((fileName) => {
+        const ext = path.extname(fileName).toLowerCase();
+        return ['.exe', '.blockmap', '.yml'].includes(ext) || fileName === 'sbom.cdx.json';
+      })
+      .sort();
+    for (const fileName of filesToChecksum) {
+      if (shaText.includes(`  ${fileName}`)) ok(`SHA256SUMS.txt includes ${fileName}`);
+      else fail(`SHA256SUMS.txt missing ${fileName}`);
+    }
   } else {
     fail('release/SHA256SUMS.txt missing');
   }

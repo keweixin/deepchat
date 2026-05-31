@@ -66,7 +66,7 @@ npm run electron:build:portable
 ## CI 与发布
 
 - Pull Request、`main`、`master` 和 `codex/**` 分支会运行 `.github/workflows/verify.yml`：`npm ci` + `npm run verify`。
-- 推送 `v*` tag 会运行 `.github/workflows/release.yml`：校验、production audit、Windows Setup/Portable 构建、SHA256 checksums、GitHub artifact provenance attestation，并创建 draft GitHub Release。
+- 推送 `v*` tag 会运行 `.github/workflows/release.yml`：校验、production audit、Windows Setup/Portable 构建、CycloneDX SBOM、SHA256 checksums、portable 启动 smoke、GitHub artifact provenance attestation，并创建 draft GitHub Release。
 - 手动触发 Release workflow 时只上传构建 artifacts，不会创建正式 Release，适合发布前 smoke test。
 
 ## 目录
