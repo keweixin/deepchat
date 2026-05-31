@@ -40,14 +40,25 @@ describe('electron tools helpers', () => {
     );
 
     expect(results).toEqual([
-      { index: 1, title: 'First', url: 'https://example.com/1', content: 'Alpha', publishedDate: '', score: 0.9 },
+      {
+        index: 1,
+        title: 'First',
+        url: 'https://example.com/1',
+        content: 'Alpha',
+        rawContent: '',
+        publishedDate: '',
+        score: 0.9,
+        favicon: '',
+      },
       {
         index: 2,
         title: 'https://example.com/2',
         url: 'https://example.com/2',
         content: 'Beta',
+        rawContent: '',
         publishedDate: '2026-05-18',
         score: null,
+        favicon: '',
       },
     ]);
   });
@@ -126,6 +137,102 @@ describe('electron tools helpers', () => {
       'https://example.com/shared',
       'https://github.com/example/issue',
     ]);
+  });
+
+  it('passes Tavily depth, domain filters, and focused extract options', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          request_id: 'search-req-1',
+          response_time: 0.12,
+          usage: { credits: 2 },
+          results: [
+            {
+              title: 'Tavily Docs',
+              url: 'https://docs.tavily.com/docs/search',
+              content: 'Search API overview.',
+              score: 0.91,
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          request_id: 'extract-req-1',
+          response_time: 0.21,
+          usage: { credits: 1 },
+          results: [
+            {
+              url: 'https://docs.tavily.com/docs/search',
+              raw_content: 'Focused extract chunk for Tavily search depth and domain filtering.',
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const output = await executeTool(
+      'web_search',
+      {
+        query: 'Tavily Search API official docs',
+        max_results: 2,
+        search_depth: 'advanced',
+        include_domains: ['https://docs.tavily.com/docs'],
+        extract_top_results: 1,
+        chunks_per_source: 2,
+      },
+      { tavilyApiKey: 'tvly-test', tavilyMaxResults: 2, tavilyCacheTtlMinutes: 0 }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const searchBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(searchBody).toMatchObject({
+      search_depth: 'advanced',
+      chunks_per_source: 2,
+      include_domains: ['docs.tavily.com'],
+      include_raw_content: false,
+      include_usage: true,
+    });
+    const extractBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(extractBody).toMatchObject({
+      urls: ['https://docs.tavily.com/docs/search'],
+      chunks_per_source: 2,
+      format: 'markdown',
+      include_usage: true,
+    });
+    expect(output).toContain('search_depth=advanced');
+    expect(output).toContain('抽取片段');
+    expect(output).toContain('credits≈3');
+    const structured = extractStructuredResults(output, 'Structured Search:');
+    expect(structured).toMatchObject({
+      provider: 'tavily',
+      telemetry: { usageCredits: 3 },
+      extraction: {
+        requestId: 'extract-req-1',
+      },
+    });
+  });
+
+  it('reuses Tavily search cache within the configured TTL', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        request_id: 'cache-req-1',
+        results: [{ title: 'Cached', url: 'https://example.com/cache', content: 'Cached result.' }],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const args = { query: 'DeepChat Tavily cache unique test 20260531', max_results: 1 };
+    const settings = { tavilyApiKey: 'tvly-test', tavilyMaxResults: 1, tavilyCacheTtlMinutes: 10 };
+    await executeTool('web_search', args, settings);
+    const second = await executeTool('web_search', args, settings);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(second).toContain('缓存：1 命中 / 0 未命中');
   });
 
   it('lists files inside a selected workspace subdirectory only', async () => {

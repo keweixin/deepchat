@@ -64,6 +64,12 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   enhance: true,
   tavilyApiKey: '',
   tavilyMaxResults: 5,
+  tavilySearchDepth: 'basic',
+  tavilyIncludeAnswer: false,
+  tavilyIncludeRawContent: false,
+  tavilyExtractTopResults: 0,
+  tavilyChunksPerSource: 3,
+  tavilyCacheTtlMinutes: 10,
   workspaceRoots: [],
   externalSkills: [],
   mcpServers: [],
@@ -136,6 +142,12 @@ async function migrateLegacyStorage(): Promise<void> {
     dc_enhance: 'enhance',
     dc_tavilyApiKey: 'tavilyApiKey',
     dc_tavilyMaxResults: 'tavilyMaxResults',
+    dc_tavilySearchDepth: 'tavilySearchDepth',
+    dc_tavilyIncludeAnswer: 'tavilyIncludeAnswer',
+    dc_tavilyIncludeRawContent: 'tavilyIncludeRawContent',
+    dc_tavilyExtractTopResults: 'tavilyExtractTopResults',
+    dc_tavilyChunksPerSource: 'tavilyChunksPerSource',
+    dc_tavilyCacheTtlMinutes: 'tavilyCacheTtlMinutes',
   };
   for (const [storageKey, settingKey] of Object.entries(map)) {
     const value = localStorage.getItem(storageKey);
@@ -195,6 +207,21 @@ function loadBrowserSettings(): Record<string, unknown> {
       localStorage.getItem('dc_tavilyMaxResults') || String(DEFAULT_SETTINGS.tavilyMaxResults),
       10
     ),
+    tavilySearchDepth: localStorage.getItem('dc_tavilySearchDepth') || DEFAULT_SETTINGS.tavilySearchDepth,
+    tavilyIncludeAnswer: localStorage.getItem('dc_tavilyIncludeAnswer') === 'true',
+    tavilyIncludeRawContent: localStorage.getItem('dc_tavilyIncludeRawContent') === 'true',
+    tavilyExtractTopResults: parseInt(
+      localStorage.getItem('dc_tavilyExtractTopResults') || String(DEFAULT_SETTINGS.tavilyExtractTopResults),
+      10
+    ),
+    tavilyChunksPerSource: parseInt(
+      localStorage.getItem('dc_tavilyChunksPerSource') || String(DEFAULT_SETTINGS.tavilyChunksPerSource),
+      10
+    ),
+    tavilyCacheTtlMinutes: parseInt(
+      localStorage.getItem('dc_tavilyCacheTtlMinutes') || String(DEFAULT_SETTINGS.tavilyCacheTtlMinutes),
+      10
+    ),
     workspaceRoots: safeJsonArray(localStorage.getItem('dc_workspaceRoots')),
     externalSkills: safeJsonArray(localStorage.getItem('dc_externalSkills')),
     mcpServers: [],
@@ -224,6 +251,12 @@ function saveBrowserSettings(patch: Record<string, unknown>): void {
     runCodeEnabled: 'dc_runCodeEnabled',
     enhance: 'dc_enhance',
     tavilyMaxResults: 'dc_tavilyMaxResults',
+    tavilySearchDepth: 'dc_tavilySearchDepth',
+    tavilyIncludeAnswer: 'dc_tavilyIncludeAnswer',
+    tavilyIncludeRawContent: 'dc_tavilyIncludeRawContent',
+    tavilyExtractTopResults: 'dc_tavilyExtractTopResults',
+    tavilyChunksPerSource: 'dc_tavilyChunksPerSource',
+    tavilyCacheTtlMinutes: 'dc_tavilyCacheTtlMinutes',
     workspaceRoots: 'dc_workspaceRoots',
     externalSkills: 'dc_externalSkills',
   };
@@ -260,6 +293,20 @@ function normalizeSettings(input: Record<string, unknown> = {}): Record<string, 
   );
   next.tavilyMaxResults = Math.round(
     clampNumber(next.tavilyMaxResults as number, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults as number)
+  );
+  next.tavilySearchDepth = ['ultra-fast', 'fast', 'basic', 'advanced'].includes(String(next.tavilySearchDepth))
+    ? next.tavilySearchDepth
+    : DEFAULT_SETTINGS.tavilySearchDepth;
+  next.tavilyIncludeAnswer = next.tavilyIncludeAnswer === true || next.tavilyIncludeAnswer === 'true';
+  next.tavilyIncludeRawContent = next.tavilyIncludeRawContent === true || next.tavilyIncludeRawContent === 'true';
+  next.tavilyExtractTopResults = Math.round(
+    clampNumber(next.tavilyExtractTopResults as number, 0, 5, DEFAULT_SETTINGS.tavilyExtractTopResults as number)
+  );
+  next.tavilyChunksPerSource = Math.round(
+    clampNumber(next.tavilyChunksPerSource as number, 1, 5, DEFAULT_SETTINGS.tavilyChunksPerSource as number)
+  );
+  next.tavilyCacheTtlMinutes = Math.round(
+    clampNumber(next.tavilyCacheTtlMinutes as number, 0, 1440, DEFAULT_SETTINGS.tavilyCacheTtlMinutes as number)
   );
   next.toolApprovalTimeoutMs = Math.round(
     clampNumber(next.toolApprovalTimeoutMs as number, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs as number)
@@ -303,6 +350,9 @@ function parseStoredValue(key: string, value: string): unknown {
       'agentMaxRounds',
       'thinkingBudget',
       'tavilyMaxResults',
+      'tavilyExtractTopResults',
+      'tavilyChunksPerSource',
+      'tavilyCacheTtlMinutes',
       'toolApprovalTimeoutMs',
     ].includes(key)
   )
@@ -313,6 +363,8 @@ function parseStoredValue(key: string, value: string): unknown {
     key === 'cacheOptimization' ||
     key === 'contextFoldEconomicsEnabled' ||
     key === 'codingEditsEnabled' ||
+    key === 'tavilyIncludeAnswer' ||
+    key === 'tavilyIncludeRawContent' ||
     key === 'runCodeEnabled'
   )
     return value !== 'false';

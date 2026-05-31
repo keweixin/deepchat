@@ -48,6 +48,29 @@ const TokenUsageSchema = z
   })
   .strip();
 
+const ToolJobSchema = z
+  .object({
+    id: z.string().max(160),
+    requestId: z.string().max(160).optional(),
+    toolCallId: z.string().max(160).optional(),
+    toolName: z.string().max(160).optional(),
+    status: z.enum(['queued', 'running', 'cancelling', 'completed', 'failed', 'cancelled', 'timed_out', 'orphaned']),
+    createdAt: z.string().max(80).optional(),
+    updatedAt: z.string().max(80).optional(),
+    startedAt: z.string().max(80).optional(),
+    finishedAt: z.string().max(80).optional(),
+    timeoutMs: z.number().int().nonnegative().optional(),
+    cancelGraceMs: z.number().int().nonnegative().optional(),
+    durationMs: z.number().nonnegative().optional(),
+    outputPreview: z.string().max(12000).optional(),
+    error: z.string().max(4000).optional(),
+    stale: z.boolean().optional(),
+    staleResult: z.string().max(4000).optional(),
+    orphaned: z.boolean().optional(),
+    rollbackError: z.string().max(4000).optional(),
+  })
+  .strip();
+
 const ToolRunSchema = z
   .object({
     id: z.string().max(160).optional(),
@@ -93,6 +116,7 @@ const ToolRunSchema = z
     contextCompactionReason: z.string().max(300).optional(),
     contextCompactionType: z.string().max(80).optional(),
     expiresAt: z.string().max(80).optional(),
+    job: ToolJobSchema.nullable().optional(),
   })
   .strip();
 
@@ -282,6 +306,12 @@ const SettingsPatchSchema = z
     enhance: z.boolean().optional(),
     tavilyApiKey: z.string().max(8000).optional(),
     tavilyMaxResults: z.number().int().min(1).max(10).optional(),
+    tavilySearchDepth: z.enum(['ultra-fast', 'fast', 'basic', 'advanced']).optional(),
+    tavilyIncludeAnswer: z.boolean().optional(),
+    tavilyIncludeRawContent: z.boolean().optional(),
+    tavilyExtractTopResults: z.number().int().min(0).max(5).optional(),
+    tavilyChunksPerSource: z.number().int().min(1).max(5).optional(),
+    tavilyCacheTtlMinutes: z.number().int().min(0).max(1440).optional(),
     workspaceRoots: z.array(z.string().max(2000)).max(20).optional(),
     externalSkills: z.array(ExternalSkillSchema).max(20).optional(),
     mcpServers: z.array(McpServerSchema).max(20).optional(),
@@ -310,7 +340,7 @@ const ChatStartSchema = z
     contextSummaryMeta: z.record(z.string(), z.unknown()).nullable().optional(),
     cacheProfile: z.record(z.string(), z.unknown()).nullable().optional(),
   })
-  .strip()
+  .strict()
   .superRefine((value, ctx) => {
     const bytes = Buffer.byteLength(JSON.stringify(value), 'utf8');
     if (bytes > 8 * 1024 * 1024) {
@@ -367,8 +397,44 @@ function validate(schema, value, label) {
   throw new Error(`${label} 入参无效${path}: ${issue?.message || 'invalid payload'}`);
 }
 
+function summarizeChatStartForLog(request) {
+  const messages = Array.isArray(request?.messages) ? request.messages : [];
+  const overrides =
+    request?.overrides && typeof request.overrides === 'object' && !Array.isArray(request.overrides)
+      ? request.overrides
+      : {};
+  return {
+    requestId: typeof request?.requestId === 'string' ? request.requestId.slice(0, 160) : undefined,
+    messageCount: messages.length,
+    roles: messages.map((message) => (typeof message?.role === 'string' ? message.role.slice(0, 20) : 'unknown')),
+    attachmentCount: messages.reduce(
+      (total, message) => total + (Array.isArray(message?.attachments) ? message.attachments.length : 0),
+      0
+    ),
+    contentBytes: messages.reduce(
+      (total, message) =>
+        total + Buffer.byteLength(typeof message?.content === 'string' ? message.content : '', 'utf8'),
+      0
+    ),
+    hasContextSummary: Boolean(request?.contextSummary),
+    contextSummaryBytes: Buffer.byteLength(
+      typeof request?.contextSummary === 'string' ? request.contextSummary : '',
+      'utf8'
+    ),
+    hasCacheProfile: Boolean(request?.cacheProfile),
+    overrides: {
+      activeSkill: typeof overrides.activeSkill === 'string' ? overrides.activeSkill.slice(0, 80) : undefined,
+      agentExecutionMode:
+        typeof overrides.agentExecutionMode === 'string' ? overrides.agentExecutionMode.slice(0, 80) : undefined,
+      enhance: typeof overrides.enhance === 'boolean' ? overrides.enhance : undefined,
+      thinkingBudget: Number.isFinite(overrides.thinkingBudget) ? overrides.thinkingBudget : undefined,
+    },
+  };
+}
+
 module.exports = {
   validate,
+  summarizeChatStartForLog,
   schemas: {
     SettingsPatchSchema,
     MigrateLegacySchema,

@@ -72,6 +72,12 @@ export interface SettingsElements {
   tavilyKey: HTMLInputElement | null;
   toggleTavilyKeyVis: HTMLElement | null;
   tavilyMaxResults: HTMLInputElement | null;
+  tavilySearchDepth: HTMLSelectElement | null;
+  tavilyIncludeAnswer: HTMLInputElement | null;
+  tavilyIncludeRawContent: HTMLInputElement | null;
+  tavilyExtractTopResults: HTMLInputElement | null;
+  tavilyChunksPerSource: HTMLInputElement | null;
+  tavilyCacheTtlMinutes: HTMLInputElement | null;
   testApiBtn: HTMLElement | null;
   apiTestStatus: HTMLElement | null;
   testSearchBtn: HTMLElement | null;
@@ -139,6 +145,12 @@ export function collectSettingsElements(): SettingsElements {
     tavilyKey: document.getElementById('tavily-key-input') as HTMLInputElement | null,
     toggleTavilyKeyVis: document.getElementById('toggle-tavily-key-visibility'),
     tavilyMaxResults: document.getElementById('tavily-max-results-input') as HTMLInputElement | null,
+    tavilySearchDepth: document.getElementById('tavily-search-depth-select') as HTMLSelectElement | null,
+    tavilyIncludeAnswer: document.getElementById('tavily-include-answer-toggle') as HTMLInputElement | null,
+    tavilyIncludeRawContent: document.getElementById('tavily-include-raw-content-toggle') as HTMLInputElement | null,
+    tavilyExtractTopResults: document.getElementById('tavily-extract-top-results-input') as HTMLInputElement | null,
+    tavilyChunksPerSource: document.getElementById('tavily-chunks-per-source-input') as HTMLInputElement | null,
+    tavilyCacheTtlMinutes: document.getElementById('tavily-cache-ttl-input') as HTMLInputElement | null,
     testApiBtn: document.getElementById('test-api-btn'),
     apiTestStatus: document.getElementById('api-test-status'),
     testSearchBtn: document.getElementById('test-search-btn'),
@@ -176,6 +188,12 @@ export function applySettingsToInputs(els: SettingsElements, settings: Record<st
   if (els.modelInput) els.modelInput.value = (settings.model as string) || '';
   if (els.tavilyKey) els.tavilyKey.value = (settings.tavilyApiKey as string) || '';
   if (els.tavilyMaxResults) els.tavilyMaxResults.value = String(settings.tavilyMaxResults ?? '');
+  if (els.tavilySearchDepth) els.tavilySearchDepth.value = String(settings.tavilySearchDepth || 'basic');
+  if (els.tavilyIncludeAnswer) els.tavilyIncludeAnswer.checked = settings.tavilyIncludeAnswer === true;
+  if (els.tavilyIncludeRawContent) els.tavilyIncludeRawContent.checked = settings.tavilyIncludeRawContent === true;
+  if (els.tavilyExtractTopResults) els.tavilyExtractTopResults.value = String(settings.tavilyExtractTopResults ?? '');
+  if (els.tavilyChunksPerSource) els.tavilyChunksPerSource.value = String(settings.tavilyChunksPerSource ?? '');
+  if (els.tavilyCacheTtlMinutes) els.tavilyCacheTtlMinutes.value = String(settings.tavilyCacheTtlMinutes ?? '');
   if (els.temperature) els.temperature.value = String(settings.temperature ?? '');
   if (els.temperatureVal) els.temperatureVal.textContent = String(settings.temperature ?? '');
   if (els.maxTokens) els.maxTokens.value = String(settings.maxTokens ?? '');
@@ -685,6 +703,36 @@ export function bindSettingsEvents(
   if (els.tavilyMaxResults) {
     els.tavilyMaxResults.addEventListener('change', () =>
       saveSettings({ tavilyMaxResults: parseInt(els.tavilyMaxResults!.value, 10) })
+    );
+  }
+  if (els.tavilySearchDepth) {
+    els.tavilySearchDepth.addEventListener('change', () =>
+      saveSettings({ tavilySearchDepth: els.tavilySearchDepth!.value })
+    );
+  }
+  if (els.tavilyIncludeAnswer) {
+    els.tavilyIncludeAnswer.addEventListener('change', () =>
+      saveSettings({ tavilyIncludeAnswer: els.tavilyIncludeAnswer!.checked })
+    );
+  }
+  if (els.tavilyIncludeRawContent) {
+    els.tavilyIncludeRawContent.addEventListener('change', () =>
+      saveSettings({ tavilyIncludeRawContent: els.tavilyIncludeRawContent!.checked })
+    );
+  }
+  if (els.tavilyExtractTopResults) {
+    els.tavilyExtractTopResults.addEventListener('change', () =>
+      saveSettings({ tavilyExtractTopResults: parseInt(els.tavilyExtractTopResults!.value, 10) })
+    );
+  }
+  if (els.tavilyChunksPerSource) {
+    els.tavilyChunksPerSource.addEventListener('change', () =>
+      saveSettings({ tavilyChunksPerSource: parseInt(els.tavilyChunksPerSource!.value, 10) })
+    );
+  }
+  if (els.tavilyCacheTtlMinutes) {
+    els.tavilyCacheTtlMinutes.addEventListener('change', () =>
+      saveSettings({ tavilyCacheTtlMinutes: parseInt(els.tavilyCacheTtlMinutes!.value, 10) })
     );
   }
   if (els.testApiBtn) {

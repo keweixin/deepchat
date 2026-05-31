@@ -9,6 +9,8 @@ const root = process.cwd();
 const releaseDir = path.join(root, 'release');
 const checksumFile = path.join(releaseDir, 'SHA256SUMS.txt');
 const requireArtifact = process.argv.includes('--require-artifact');
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+const version = packageJson.version;
 
 function ok(message) {
   console.log(`  ✅ ${message}`);
@@ -21,7 +23,10 @@ function fail(message) {
 
 function shouldChecksum(fileName) {
   const ext = path.extname(fileName).toLowerCase();
-  return ['.exe', '.blockmap', '.yml'].includes(ext) || fileName === 'sbom.cdx.json';
+  if (fileName === 'sbom.cdx.json') return true;
+  if (ext === '.exe' || ext === '.blockmap') return fileName.includes(`v${version}`);
+  if (ext === '.yml') return !/v\d+\.\d+\.\d+/i.test(fileName) || fileName.includes(`v${version}`);
+  return false;
 }
 
 if (!fs.existsSync(releaseDir)) {

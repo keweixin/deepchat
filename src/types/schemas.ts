@@ -76,6 +76,29 @@ export const ToolCitationSchema = z
   })
   .strip();
 
+export const ToolJobSchema = z
+  .object({
+    id: z.string().max(160),
+    requestId: z.string().max(160).optional(),
+    toolCallId: z.string().max(160).optional(),
+    toolName: z.string().max(160).optional(),
+    status: z.enum(['queued', 'running', 'cancelling', 'completed', 'failed', 'cancelled', 'timed_out', 'orphaned']),
+    createdAt: z.string().max(80).optional(),
+    updatedAt: z.string().max(80).optional(),
+    startedAt: z.string().max(80).optional(),
+    finishedAt: z.string().max(80).optional(),
+    timeoutMs: z.number().int().nonnegative().optional(),
+    cancelGraceMs: z.number().int().nonnegative().optional(),
+    durationMs: z.number().nonnegative().optional(),
+    outputPreview: z.string().max(12000).optional(),
+    error: z.string().max(4000).optional(),
+    stale: z.boolean().optional(),
+    staleResult: z.string().max(4000).optional(),
+    orphaned: z.boolean().optional(),
+    rollbackError: z.string().max(4000).optional(),
+  })
+  .strip();
+
 export const ToolRunSchema = z
   .object({
     id: z.string().max(160).optional(),
@@ -111,6 +134,7 @@ export const ToolRunSchema = z
     nextAction: z.string().max(200).optional(),
     localCitations: z.array(ToolCitationSchema).max(50).optional(),
     error: z.string().max(4000).optional(),
+    job: ToolJobSchema.nullable().optional(),
   })
   .strip();
 
@@ -263,6 +287,12 @@ export const SettingsSchema = z
     enhance: z.boolean().optional(),
     tavilyApiKey: z.string().optional(),
     tavilyMaxResults: z.number().int().positive().optional(),
+    tavilySearchDepth: z.enum(['ultra-fast', 'fast', 'basic', 'advanced']).optional(),
+    tavilyIncludeAnswer: z.boolean().optional(),
+    tavilyIncludeRawContent: z.boolean().optional(),
+    tavilyExtractTopResults: z.number().int().min(0).max(5).optional(),
+    tavilyChunksPerSource: z.number().int().min(1).max(5).optional(),
+    tavilyCacheTtlMinutes: z.number().int().min(0).max(1440).optional(),
     workspaceRoots: z.array(z.string().max(500)).optional(),
     externalSkills: z.array(z.record(z.string(), z.unknown())).optional(),
     mcpServers: z.array(z.record(z.string(), z.unknown())).optional(),

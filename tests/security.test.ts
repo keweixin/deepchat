@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { validate, schemas } from '../electron/ipc-validation.js';
+import { validate, schemas, summarizeChatStartForLog } from '../electron/ipc-validation.js';
 import { executeTool, isSensitivePath, redactSensitiveText, buildSandboxEnv } from '../electron/tools.js';
 import { sanitizeSettingsForBackup } from '../electron/storage.js';
 import { renderMarkdown } from '../src/modules/renderer.js';
@@ -63,6 +63,62 @@ describe('ipc validation schemas', () => {
         'chat:start'
       )
     ).toThrow('agentExecutionMode');
+  });
+
+  it('rejects unknown chat:start fields without requiring UUID request ids', () => {
+    const validated = validate(
+      schemas.ChatStartSchema,
+      {
+        requestId: 'req-short-id',
+        messages: [{ role: 'user', content: 'hello' }],
+      },
+      'chat:start'
+    );
+
+    expect(validated.requestId).toBe('req-short-id');
+    expect(() =>
+      validate(
+        schemas.ChatStartSchema,
+        {
+          requestId: 'req-short-id',
+          messages: [{ role: 'user', content: 'hello' }],
+          unsafeExtra: true,
+        },
+        'chat:start'
+      )
+    ).toThrow('unsafeExtra');
+  });
+
+  it('summarizes chat:start logs without leaking message content or attachment data', () => {
+    const summary = summarizeChatStartForLog({
+      requestId: 'req-log',
+      messages: [
+        {
+          role: 'user',
+          content: 'secret prompt sk-should-not-leak',
+          attachments: [{ name: 'secret.txt', text: 'Bearer should-not-leak' }],
+        },
+        { role: 'assistant', content: 'private answer' },
+      ],
+      overrides: { activeSkill: 'agent_auto', agentExecutionMode: 'single_step', enhance: true },
+      contextSummary: 'private summary',
+      cacheProfile: { prefixFingerprint: 'abc' },
+    });
+
+    const serialized = JSON.stringify(summary);
+    expect(summary).toMatchObject({
+      requestId: 'req-log',
+      messageCount: 2,
+      roles: ['user', 'assistant'],
+      attachmentCount: 1,
+      hasContextSummary: true,
+      hasCacheProfile: true,
+      overrides: { activeSkill: 'agent_auto', agentExecutionMode: 'single_step', enhance: true },
+    });
+    expect(serialized).not.toContain('secret prompt');
+    expect(serialized).not.toContain('sk-should-not-leak');
+    expect(serialized).not.toContain('Bearer should-not-leak');
+    expect(serialized).not.toContain('private summary');
   });
 
   it('persists bounded task checkpoints while stripping unknown checkpoint fields', () => {
@@ -139,6 +195,46 @@ describe('ipc validation schemas', () => {
     });
     expect(agentRun.unsafeExtra).toBeUndefined();
     expect(agentRun.crew[0].unsafeExtra).toBeUndefined();
+  });
+
+  it('persists bounded tool job snapshots while stripping unknown job fields', () => {
+    const validated = validate(
+      schemas.ConversationsSaveSchema,
+      [
+        {
+          id: 'c1',
+          messages: [
+            {
+              role: 'assistant',
+              content: '工具超时',
+              toolRuns: [
+                {
+                  id: 'tool1',
+                  name: 'run_code',
+                  status: 'failed',
+                  ok: false,
+                  job: {
+                    id: 'job_tool1',
+                    requestId: 'req1',
+                    toolCallId: 'tool1',
+                    toolName: 'run_code',
+                    status: 'timed_out',
+                    timeoutMs: 7000,
+                    stale: true,
+                    unsafeExtra: 'drop me',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      'conversations:save'
+    );
+
+    const job = validated[0].messages[0].toolRuns[0].job;
+    expect(job).toMatchObject({ id: 'job_tool1', status: 'timed_out', timeoutMs: 7000, stale: true });
+    expect(job.unsafeExtra).toBeUndefined();
   });
 });
 

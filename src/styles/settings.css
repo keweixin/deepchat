@@ -256,6 +256,39 @@
   accent-color: var(--accent-primary);
 }
 
+.form-grid.two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.setting-toggle-row {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.toggle-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.toggle-line input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  accent-color: var(--accent-primary);
+}
+
+@media (max-width: 640px) {
+  .form-grid.two {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Status Bar Grid (Diagnostics Grid) */
 .settings-status-bar {
   display: grid;

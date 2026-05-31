@@ -12,12 +12,18 @@ export interface TavilySearchRequest {
     query: string;
     max_results: number;
     search_depth: string;
-    include_answer: boolean;
-    include_raw_content: boolean;
+    include_answer: boolean | string;
+    include_raw_content: boolean | string;
+    include_favicon?: boolean;
+    include_usage?: boolean;
+    chunks_per_source?: number;
     topic?: string;
     time_range?: string;
     days?: number;
+    include_domains?: string[];
+    exclude_domains?: string[];
   };
+  options?: Record<string, unknown>;
   freshness: { timeRange: string; days: number } | null;
   requestedAt: string;
 }
@@ -27,8 +33,10 @@ export interface TavilySearchResult {
   title: string;
   url: string;
   content: string;
+  rawContent: string;
   publishedDate: string;
   score: number | null;
+  favicon: string;
 }
 
 export async function requestTavilySearch(
@@ -84,8 +92,10 @@ export function normalizeBrowserTavilyResults(
     title: String(item.title || item.url || `Result ${index + 1}`).slice(0, 200),
     url: String(item.url || ''),
     content: String(item.content || item.snippet || '').slice(0, 1000),
+    rawContent: String(item.raw_content || item.rawContent || '').slice(0, 2000),
     publishedDate: String(item.published_date || item.publishedDate || item.date || '').slice(0, 40),
     score: typeof item.score === 'number' ? item.score : null,
+    favicon: String(item.favicon || ''),
   }));
 }
 
@@ -96,14 +106,16 @@ export function formatBrowserSearchResults(request: TavilySearchRequest, results
     `搜索时间：${request.requestedAt}`,
     `用户原始问题：${request.originalQuery}`,
     `实际搜索 query：${request.payload.query}`,
-    `Tavily 参数：topic=${request.payload.topic || 'general'}，time_range=${request.payload.time_range || '未限定'}，days=${request.payload.days || '未限定'}，max_results=${request.payload.max_results}`,
+    `Tavily 参数：topic=${request.payload.topic || 'general'}，time_range=${request.payload.time_range || '未限定'}，days=${request.payload.days || '未限定'}，max_results=${request.payload.max_results}，search_depth=${request.payload.search_depth || 'basic'}，raw=${request.payload.include_raw_content ? 'on' : 'off'}`,
   ];
   const lines = [...meta, '', 'Tavily 返回来源：'];
   for (const item of results) {
     lines.push(`${item.index}. ${item.title}`);
     if (item.url) lines.push(`   URL: ${item.url}`);
     if (item.publishedDate) lines.push(`   Published: ${item.publishedDate}`);
+    if (item.score !== null) lines.push(`   Score: ${item.score}`);
     if (item.content) lines.push(`   摘要: ${item.content}`);
+    if (item.rawContent) lines.push(`   原文片段: ${item.rawContent}`);
     lines.push('');
   }
   return lines.join('\n').slice(0, 12000);

@@ -72,12 +72,19 @@ function getToolModeStatus(settings: {
  * @param {string} name
  * @param {any} args
  */
-function describeToolRisk(name: string, args: any) {
+function describeToolRisk(name: string, args: any, settings: any = {}) {
   if (name === 'web_search') {
     const queries = normalizeSearchQueries(args);
     const preview =
       queries.length > 1 ? `${queries.length} 个 query：${queries.join(' / ')}` : queries[0] || args.query || '';
-    return `将使用 Tavily 搜索网络：${String(preview || '').slice(0, 180)}`;
+    const extractTop = clampInt(args.extract_top_results ?? settings.tavilyExtractTopResults, 0, 5, 0);
+    const depth = String(args.search_depth || settings.tavilySearchDepth || 'basic');
+    return [
+      `将使用 Tavily 搜索网络：${String(preview || '').slice(0, 180)}`,
+      `搜索深度：${depth} · 结果数：${clampInt(args.max_results ?? settings.tavilyMaxResults, 1, 10, 5)}`,
+      `缓存 TTL：${clampInt(settings.tavilyCacheTtlMinutes, 0, 1440, 10)} 分钟 · 深度抽取 Top N：${extractTop}`,
+      '结果会被结构化、去重、压缩后进入上下文，回答需要引用来源 URL。',
+    ].join('\n');
   }
   if (name === 'list_files') {
     const directory = String(args.directory || '').trim();
@@ -187,7 +194,7 @@ function describeToolRisk(name: string, args: any) {
  */
 async function executeTool(name: string, args: any, settings: any, signal?: AbortSignal) {
   let output;
-  if (name === 'web_search') output = await webSearch(args, settings);
+  if (name === 'web_search') output = await webSearch(args, settings, signal);
   else if (name === 'list_files') output = await listFiles(args, settings);
   else if (name === 'index_workspace') output = await indexWorkspace(args, settings);
   else if (name === 'search_workspace') output = await searchWorkspace(args, settings);

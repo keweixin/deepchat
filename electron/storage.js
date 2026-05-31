@@ -44,6 +44,12 @@ const DEFAULT_SETTINGS = {
   runCodeEnabled: true,
   enhance: true,
   tavilyMaxResults: 5,
+  tavilySearchDepth: 'basic',
+  tavilyIncludeAnswer: false,
+  tavilyIncludeRawContent: false,
+  tavilyExtractTopResults: 0,
+  tavilyChunksPerSource: 3,
+  tavilyCacheTtlMinutes: 10,
   workspaceRoots: /** @type {string[]} */ ([]),
   externalSkills: /** @type {Record<string, any>[]} */ ([]),
   mcpServers: /** @type {Record<string, any>[]} */ ([]),
@@ -125,6 +131,20 @@ function normalizeSettings(input = /** @type {Record<string, any>} */ ({})) {
   next.agentMaxRounds = Math.round(clampNumber(next.agentMaxRounds, 1, 10, DEFAULT_SETTINGS.agentMaxRounds));
   next.thinkingBudget = Math.round(clampNumber(next.thinkingBudget, 0, 65536, DEFAULT_SETTINGS.thinkingBudget));
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
+  next.tavilySearchDepth = ['ultra-fast', 'fast', 'basic', 'advanced'].includes(String(next.tavilySearchDepth))
+    ? String(next.tavilySearchDepth)
+    : DEFAULT_SETTINGS.tavilySearchDepth;
+  next.tavilyIncludeAnswer = nextAny.tavilyIncludeAnswer === true || nextAny.tavilyIncludeAnswer === 'true';
+  next.tavilyIncludeRawContent = nextAny.tavilyIncludeRawContent === true || nextAny.tavilyIncludeRawContent === 'true';
+  next.tavilyExtractTopResults = Math.round(
+    clampNumber(next.tavilyExtractTopResults, 0, 5, DEFAULT_SETTINGS.tavilyExtractTopResults)
+  );
+  next.tavilyChunksPerSource = Math.round(
+    clampNumber(next.tavilyChunksPerSource, 1, 5, DEFAULT_SETTINGS.tavilyChunksPerSource)
+  );
+  next.tavilyCacheTtlMinutes = Math.round(
+    clampNumber(next.tavilyCacheTtlMinutes, 0, 1440, DEFAULT_SETTINGS.tavilyCacheTtlMinutes)
+  );
   next.autoContextSummary = nextAny.autoContextSummary !== false && nextAny.autoContextSummary !== 'false';
   next.cacheOptimization = nextAny.cacheOptimization !== false && nextAny.cacheOptimization !== 'false';
   next.contextFoldEconomicsEnabled =

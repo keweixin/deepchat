@@ -154,6 +154,12 @@ export interface SettingsPatch {
   enhance?: boolean;
   tavilyApiKey?: string;
   tavilyMaxResults?: number;
+  tavilySearchDepth?: 'ultra-fast' | 'fast' | 'basic' | 'advanced';
+  tavilyIncludeAnswer?: boolean;
+  tavilyIncludeRawContent?: boolean;
+  tavilyExtractTopResults?: number;
+  tavilyChunksPerSource?: number;
+  tavilyCacheTtlMinutes?: number;
   workspaceRoots?: string[];
   externalSkills?: ExternalSkill[];
   mcpServers?: McpServerConfig[];

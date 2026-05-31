@@ -19,8 +19,10 @@ import { pickExternalSkill } from './external-skills.js';
 import { ChatService, testApiConnection } from './chat-service.js';
 import { executeTool, clearWorkspaceIndexDiskCache, getWorkspaceIndexModule } from './tools.js';
 import { McpManager } from './mcp-manager.js';
-import { validate, schemas } from './ipc-validation.js';
+import { validate, schemas, summarizeChatStartForLog } from './ipc-validation.js';
 import { warmBuiltinSkills } from './system-prompt.ts';
+import { configureDefaultJobRuntime } from './job-runtime.js';
+import { createSqliteJobStore } from './job-stores.js';
 
 if (process.env.DEEPCHAT_DISABLE_GPU === '1') {
   app.disableHardwareAcceleration();
@@ -76,6 +78,7 @@ function createWindow() {
 }
 
 function registerIpc() {
+  configureDefaultJobRuntime(createSqliteJobStore(path.join(app.getPath('userData'), 'data', 'deepchat-jobs.sqlite')));
   chatService = new ChatService(() => mainWindow);
   mcpManager = new McpManager();
 
@@ -139,7 +142,7 @@ function registerIpc() {
   });
 
   ipcMain.on('chat:start', (_event, request) => {
-    console.log(`[IPC chat:start] Received request:`, JSON.stringify(request));
+    console.log(`[IPC chat:start] Received request:`, summarizeChatStartForLog(request));
     try {
       chatService!.start(validate(schemas.ChatStartSchema, request, 'chat:start'));
     } catch (error) {

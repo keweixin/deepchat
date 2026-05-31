@@ -124,6 +124,7 @@ import { streamOnce } from './chat-streamer.js';
 
 import { handleToolCall, handleToolCallsForRound } from './tool-call-handler.js';
 import type { ChatRequest } from './agent-contracts.js';
+import { defaultJobRuntime } from './job-runtime.js';
 
 type AgentRunController = {
   requestId: string;
@@ -211,6 +212,7 @@ class ChatService {
   cancel(requestId: string) {
     const controller = this.sessions.get(requestId);
     if (controller) controller.abort();
+    defaultJobRuntime.cancelRequestJobs(requestId);
     for (const [key, pending] of this.pendingApprovals.entries()) {
       if (key.startsWith(`${requestId}:`)) {
         pending.resolve({ approved: false });
@@ -658,7 +660,7 @@ class ChatService {
 
   describeRisk(name: string, args: any, settings: any) {
     if (isMcpToolName(name)) return `将调用外部 MCP 工具：${name}。参数：${JSON.stringify(args || {}).slice(0, 300)}`;
-    return describeToolRisk(name, args);
+    return describeToolRisk(name, args, settings);
   }
 }
 

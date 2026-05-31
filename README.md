@@ -8,6 +8,7 @@ DeepChat 的定位不是大而全 Web 平台，也不是完整 IDE，而是一�
 
 - 多 Provider：DeepSeek、OpenAI、OpenRouter、硅基流动、DashScope、Ollama、LM Studio、自定义 OpenAI-compatible endpoint。
 - 智能 Agent：自动判断联网搜索、文件读取、代码运行、MCP 或普通聊天；所有工具调用都需要用户确认。
+- Tavily 搜索主线：联网工具固定走 Tavily，支持多 query 计划、搜索深度、新闻 freshness、域名过滤、TTL 缓存、可选 Extract 抽取和 structured citations。
 - 可审计工具：工具请求、审批、拒绝、失败、输出摘要、安全提示和来源会写入消息记录。
 - 上下文透明：工具卡可查看/复制“进入下一轮模型上下文”的压缩输出，并显示原始/压缩 token 估算。
 - 工具调用修复：模型把工具 JSON 写进正文或 reasoning text 时，会保守修复为正常工具调用；截断参数 JSON 会在审批前尝试补齐。
@@ -18,6 +19,7 @@ DeepChat 的定位不是大而全 Web 平台，也不是完整 IDE，而是一�
 - 长上下文处理：按 token 预算裁剪历史，当前用户消息优先保留，必要时生成短摘要并复用摘要 hash。
 - 辅助调用降本：DeepSeek 自动摘要等辅助调用优先使用 `deepseek-v4-flash`，避免主模型为 pro 时把摘要也按 pro 计费。
 - 安全桌面端：Electron sandbox、CSP、IPC schema 校验、敏感文件拒读、输出脱敏、代码运行轻量隔离。
+- 长任务防卡死：`run_code`、MCP、workspace index 等长任务有 watchdog 超时、取消 grace、stale result 忽略和重启 orphan 标记。
 - 内容渲染：Markdown、代码高亮、KaTeX、Mermaid、表格、widget JSON 和导出能力。
 
 ## 安全模型
@@ -45,6 +47,7 @@ Provider 不返回真实 usage 时，界面会标记为估算，不伪装成真�
 ```powershell
 npm ci
 npm run lint
+npm run quality:budget
 npm test
 npm run build
 npm run verify
@@ -74,14 +77,15 @@ npm run electron:build:portable
 - [electron.js](./electron.js)：Electron 启动入口，加载生产编译后的主进程。
 - [electron/main.ts](./electron/main.ts)：Electron 主进程、安全默认值、窗口策略和 IPC 注册。
 - [electron/chat-service.ts](./electron/chat-service.ts)：Agent loop 编排、usage/cache 聚合和会话级上下文处理。
-- [electron/agent-contracts.ts](./electron/agent-contracts.ts)：主进程到渲染层的 Agent 事件、工具运行和 usage 合同。
-- [electron/agent-eval.ts](./electron/agent-eval.ts)：确定性 Agent 场景评估 harness。
+- [electron/agent-contracts.ts](./electron/agent-contracts.ts)：Zod 推导的 Agent 事件、工具运行、job snapshot 和 usage 合同。
+- [electron/agent-eval.ts](./electron/agent-eval.ts)：确定性 Agent 场景评估 harness，基于工具证据判断文件声明真实性。
 - [electron/stream-runner.ts](./electron/stream-runner.ts)：Provider streaming、SSE 解析、工具调用轮次和降级重试。
 - [electron/tool-executor.ts](./electron/tool-executor.ts)：工具参数解析、正文工具调用修复、重复调用抑制。
 - [electron/tool-call-handler.ts](./electron/tool-call-handler.ts)：工具预览、审批、执行、结果证据和上下文输出。
 - [electron/approval-manager.ts](./electron/approval-manager.ts)：审批策略、超时、风险摘要和写入/执行安全元数据。
-- [electron/job-runtime.ts](./electron/job-runtime.ts)：长任务 job 状态、取消和输出摘要模型。
+- [electron/job-runtime.ts](./electron/job-runtime.ts)：长任务 job 状态机、watchdog、取消、持久化、orphan 恢复和 stale result 防护。
 - [electron/tools.ts](./electron/tools.ts) / [electron/tools-git.js](./electron/tools-git.js)：内置工具统一入口、风险描述和只读 Git 证据工具。
+- [electron/tools-search.js](./electron/tools-search.js) / [electron/search-utils.mjs](./electron/search-utils.mjs)：Tavily-only 联网搜索、请求构建、缓存、去重、Extract 抽取和结构化来源证据。
 - [electron/tools-file.js](./electron/tools-file.js)：工作区文件读写、写入预览、敏感路径拒绝、备份与临时文件重命名。
 - [electron/tools-run-code.js](./electron/tools-run-code.js)：代码运行轻隔离、环境变量清洗、超时终止和输出脱敏。
 - [electron/tools-workspace.ts](./electron/tools-workspace.ts) / [electron/workspace-index.ts](./electron/workspace-index.ts)：Workspace Knowledge Lite 索引、搜索和符号读取。
@@ -90,6 +94,7 @@ npm run electron:build:portable
 - [src/modules/chat.ts](./src/modules/chat.ts)：聊天 UI、Agent timeline、工具卡、token/cache 展示。
 - [src/modules/agent-run-store.ts](./src/modules/agent-run-store.ts) / [src/modules/agent-crew.ts](./src/modules/agent-crew.ts)：Agent Crew 状态与消息内协作视图。
 - [src/modules/context-assets.ts](./src/modules/context-assets.ts)：文本附件 context asset 与 bounded prompt block。
+- [scripts/check-quality-budget.mjs](./scripts/check-quality-budget.mjs)：AST 复杂度、函数长度、嵌套、import/export 质量预算门禁。
 - [docs/adr/0001-agent-runtime-boundaries.md](./docs/adr/0001-agent-runtime-boundaries.md)：Agent Runtime Boundaries ADR。
 - [tests](./tests)：Vitest 单元和 UI helper 测试。
 

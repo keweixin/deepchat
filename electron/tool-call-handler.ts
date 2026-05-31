@@ -1,20 +1,25 @@
-import { isMcpToolName } from './mcp-manager.js';
-import path from 'path';
-import { executeTool, previewToolCall } from './tools.js';
 import {
   resolveToolApprovalDecision,
   resolveToolApprovalTimeout,
   DEFAULT_TOOL_APPROVAL_TIMEOUT_MS,
-  buildToolSecurity,
   isParallelSafeToolCall,
   markToolConfirmed,
 } from './approval-manager.js';
 import { normalizeError } from './provider-adapters.js';
 import { toolCallSignature } from './stream-runner.js';
 import { parseToolArgsDetailed } from './tool-executor.js';
-import { buildToolNextAction, buildToolContextOutput } from './chat-service-helpers.js';
 import type { ToolRepairReport } from './agent-contracts.js';
-import { defaultJobRuntime, shouldTrackToolJob } from './job-runtime.js';
+import {
+  buildScopedToolSecurity,
+  createTrackedToolJob,
+  emitPolicyDeniedTool,
+  emitToolParseError,
+  emitUnapprovedToolDecision,
+  executeApprovedToolCall,
+  handleControllerPreflight,
+  prepareEditPreviewOrEmitFailure,
+  serializeToolJob,
+} from './tool-call-lifecycle.js';
 
 type ToolFunctionCall = {
   name?: string;
@@ -78,22 +83,17 @@ async function handleToolCall(
   const parsedArgs = parseToolArgsDetailed(fn.arguments);
   const args = parsedArgs.args;
 
-  if (controller) {
-    await controller.checkPausePoint?.();
-    if (controller.skippedToolCallIds?.has(toolCall.id)) {
-      const skippedMsg = `工具 ${fn.name} 已被用户手动跳过。`;
-      emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: skippedMsg });
-      emit(requestId, 'toolResult', {
-        toolCallId: toolCall.id,
-        name: fn.name,
-        ok: true,
-        output: skippedMsg,
-        nextAction: 'continue',
-        ...buildToolContextOutput(fn.name, args, skippedMsg),
-      });
-      return skippedMsg;
-    }
-  }
+  const preflightResult = await handleControllerPreflight({
+    emit,
+    requestId,
+    toolCall,
+    name: fn.name,
+    args,
+    controller,
+    round,
+    maxRounds,
+  });
+  if (preflightResult) return preflightResult;
 
   emit(requestId, 'agentStage', { stage: 'tool_pending', round, maxRounds, toolName: fn.name });
   if (parsedArgs.repaired) {
@@ -107,85 +107,28 @@ async function handleToolCall(
     });
   }
 
-  let security = buildToolSecurity(fn.name, args, settings);
-  if (controller && controller.scopePolicy) {
-    if (controller.scopePolicy === 'read_only') {
-      const isWrite = ['run_code', 'write_file', 'edit_file', 'multi_edit'].includes(fn.name);
-      if (isWrite) {
-        security = {
-          ...security,
-          riskLevel: 'high',
-          sandboxBlocked: true,
-          restrictionReason: '用户限制读取范围为只读模式。',
-        };
-      }
-    } else if (controller.scopePolicy.startsWith('dir:')) {
-      const allowedDir = controller.scopePolicy.slice(4);
-      const pathArg = args.path || args.filepath || args.dir || args.directory || '';
-      if (pathArg && typeof pathArg === 'string') {
-        const relative = path.relative(allowedDir, pathArg);
-        const isOutside = relative.startsWith('..') || path.isAbsolute(relative);
-        if (isOutside) {
-          security = {
-            ...security,
-            riskLevel: 'high',
-            sandboxBlocked: true,
-            restrictionReason: `路径超出用户限制范围：${allowedDir}`,
-          };
-        }
-      }
-    }
-  }
+  let security = buildScopedToolSecurity(fn.name, args, settings, controller);
 
   if (security.sandboxBlocked) {
-    const denied = `执行被拒绝：${security.restrictionReason || '受策略限制。'}`;
-    const nextAction = buildToolNextAction(fn.name, args, { denied: true, output: denied });
-    emit(requestId, 'agentStage', { stage: 'tool_denied', round, maxRounds, toolName: fn.name, stopReason: denied });
-    emit(requestId, 'toolResult', {
-      toolCallId: toolCall.id,
-      name: fn.name,
-      ok: false,
-      output: denied,
-      nextAction,
-      ...buildToolContextOutput(fn.name, args, denied),
-    });
-    return denied;
+    return emitPolicyDeniedTool(emit, requestId, toolCall, fn.name, args, security, round, maxRounds);
   }
 
-  let editPreview = null;
-  const trackedJob = shouldTrackToolJob(fn.name)
-    ? defaultJobRuntime.createJob({ id: `job_${toolCall.id}`, toolName: fn.name, args })
-    : null;
-  if (!parsedArgs.error && (fn.name === 'edit_file' || fn.name === 'multi_edit')) {
-    try {
-      editPreview = await previewToolCall(fn.name, args, settings);
-      security = {
-        ...security,
-        editPreview,
-      };
-    } catch (error) {
-      const message = `写入工具预检失败：${normalizeError(error)}`;
-      const nextAction = buildToolNextAction(fn.name, args, { failed: true, output: message, error: message });
-      emit(requestId, 'agentStage', {
-        stage: 'tool_failed',
-        round,
-        maxRounds,
-        toolName: fn.name,
-        warning: message,
-      });
-      emit(requestId, 'toolResult', {
-        toolCallId: toolCall.id,
-        name: fn.name,
-        ok: false,
-        output: message,
-        nextAction,
-        security,
-        editPreview: null,
-        ...buildToolContextOutput(fn.name, args, message),
-      });
-      return message;
-    }
-  }
+  const { trackedJob, jobTimeoutMs } = createTrackedToolJob(fn.name, args, requestId, toolCall, parsedArgs.error);
+  const preview = await prepareEditPreviewOrEmitFailure({
+    emit,
+    requestId,
+    toolCall,
+    name: fn.name,
+    args,
+    settings,
+    security,
+    parsedArgsError: parsedArgs.error,
+    round,
+    maxRounds,
+  });
+  security = preview.security;
+  const editPreview = preview.editPreview;
+  if (preview.failedOutput) return preview.failedOutput;
 
   const approval = resolveToolApprovalDecision(fn.name, args, settings, security, requestId);
   const toolRequestPayload: ToolRequestPayload = {
@@ -199,37 +142,25 @@ async function handleToolCall(
     risk: describeRisk(fn.name, args, settings),
     security,
     editPreview,
-    job: trackedJob
-      ? { id: trackedJob.id, status: trackedJob.status, toolName: trackedJob.toolName, createdAt: trackedJob.createdAt }
-      : null,
+    job: trackedJob ? serializeToolJob(trackedJob) : null,
     approvalPolicy: approval.policy,
     autoApproved: approval.autoApproved,
     expiresAt: new Date(Date.now() + resolveToolApprovalTimeout(settings)).toISOString(),
   };
   emit(requestId, 'toolRequest', toolRequestPayload);
   if (parsedArgs.error) {
-    const message = `工具 ${fn.name || 'unknown_tool'} 参数 JSON 解析失败：${parsedArgs.error}`;
-    const nextAction = buildToolNextAction(fn.name, args, { parseError: parsedArgs.error, output: message });
-    emit(requestId, 'agentStage', {
-      stage: 'tool_failed',
+    return emitToolParseError(
+      emit,
+      requestId,
+      toolCall,
+      fn.name,
+      args,
+      fn.arguments || '',
+      parsedArgs.error,
+      parsedArgs.repairReport,
       round,
-      maxRounds,
-      toolName: fn.name,
-      warning: message,
-    });
-    const contextMeta = buildToolContextOutput(fn.name, args, message);
-    emit(requestId, 'toolResult', {
-      toolCallId: toolCall.id,
-      name: fn.name,
-      ok: false,
-      output: message,
-      nextAction,
-      ...contextMeta,
-      rawArguments: fn.arguments || '',
-      parseError: parsedArgs.error,
-      repairReport: parsedArgs.repairReport || null,
-    });
-    return message;
+      maxRounds
+    );
   }
 
   const decision = approval.autoApproved
@@ -241,161 +172,37 @@ async function handleToolCall(
     markToolConfirmed(requestId, fn.name);
   }
 
-  if (decision.skipped || (controller && controller.skippedToolCallIds?.has(toolCall.id))) {
-    const skippedMsg = `工具 ${fn.name} 已被用户手动跳过。`;
-    emit(requestId, 'agentStage', { stage: 'tool_skipped', round, maxRounds, toolName: fn.name, warning: skippedMsg });
-    emit(requestId, 'toolResult', {
-      toolCallId: toolCall.id,
-      name: fn.name,
-      status: 'skipped',
-      ok: false,
-      output: skippedMsg,
-      nextAction: 'continue',
-      ...buildToolContextOutput(fn.name, args, skippedMsg),
-    });
-    return skippedMsg;
-  }
+  const unapprovedResult = emitUnapprovedToolDecision({
+    emit,
+    requestId,
+    toolCall,
+    name: fn.name,
+    args,
+    settings,
+    decision,
+    controller,
+    trackedJob,
+    round,
+    maxRounds,
+  });
+  if (unapprovedResult) return unapprovedResult;
 
-  if (!decision.approved) {
-    const denied = decision.timedOut
-      ? `工具 ${fn.name} 等待确认超过 ${Math.round(resolveToolApprovalTimeout(settings) / 1000)} 秒，已自动拒绝。`
-      : `用户拒绝执行工具 ${fn.name}。`;
-    const nextAction = buildToolNextAction(fn.name, args, {
-      denied: true,
-      timedOut: decision.timedOut,
-      output: denied,
-    });
-    emit(requestId, 'agentStage', {
-      stage: 'tool_denied',
-      round,
-      maxRounds,
-      toolName: fn.name,
-      stopReason: denied,
-    });
-    emit(requestId, 'toolResult', {
-      toolCallId: toolCall.id,
-      name: fn.name,
-      ok: false,
-      output: denied,
-      nextAction,
-      ...buildToolContextOutput(fn.name, args, denied),
-    });
-    return denied;
-  }
-
-  try {
-    emit(requestId, 'agentStage', {
-      stage: decision.autoApproved ? 'tool_auto_approved' : 'tool_approved',
-      round,
-      maxRounds,
-      toolName: fn.name,
-      warning: decision.autoApproved ? decision.reason : undefined,
-    });
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const runTool = async (jobSignal?: AbortSignal) => {
-      const effectiveSignal = jobSignal || signal;
-      return isMcpToolName(fn.name)
-        ? await mcpManager.callOpenAiTool(fn.name, args, settings, effectiveSignal)
-        : await executeTool(fn.name, args, settings, effectiveSignal);
-    };
-    const output = trackedJob ? await defaultJobRuntime.runJob(trackedJob.id, runTool) : await runTool(signal);
-    const finishedJob = trackedJob ? defaultJobRuntime.getJob(trackedJob.id) : null;
-    emit(requestId, 'agentStage', { stage: 'tool_result', round, maxRounds, toolName: fn.name });
-    emit(requestId, 'toolResult', {
-      toolCallId: toolCall.id,
-      name: fn.name,
-      ok: true,
-      output,
-      ...buildToolContextOutput(fn.name, args, output),
-      security: buildToolSecurity(fn.name, args, settings),
-      editPreview,
-      job: finishedJob
-        ? {
-            id: finishedJob.id,
-            status: finishedJob.status,
-            startedAt: finishedJob.startedAt,
-            finishedAt: finishedJob.finishedAt,
-            outputPreview: finishedJob.outputPreview,
-          }
-        : null,
-      ...extractWriteEvidence(output),
-      autoApproved: decision.autoApproved === true,
-    });
-    return output;
-  } catch (error) {
-    const message = normalizeError(error);
-    const returned = `工具 ${fn.name} 执行失败：${message}`;
-    const nextAction = buildToolNextAction(fn.name, args, { failed: true, output: returned, error: message });
-    emit(requestId, 'agentStage', {
-      stage: 'tool_failed',
-      round,
-      maxRounds,
-      toolName: fn.name,
-      warning: message,
-    });
-    emit(requestId, 'toolResult', {
-      toolCallId: toolCall.id,
-      name: fn.name,
-      ok: false,
-      output: message,
-      nextAction,
-      ...buildToolContextOutput(fn.name, args, returned),
-      security: buildToolSecurity(fn.name, args, settings),
-      editPreview,
-      job: trackedJob ? defaultJobRuntime.getJob(trackedJob.id) : null,
-    });
-    return returned;
-  }
-}
-
-function extractWriteEvidence(output: unknown) {
-  const text = String(output || '');
-  const backup = text.match(/^备份位置：(.+)$/m)?.[1]?.trim() || '';
-  const structured = extractStructuredEditEvidence(text);
-  return {
-    backupPath: backup || structured?.backupPath || '',
-    restoreHint: structured?.restoreHint || (backup ? `可用备份文件恢复：${backup}` : ''),
-    editEvidence: structured || null,
-  };
-}
-
-function extractStructuredEditEvidence(text: string) {
-  const marker = 'Structured Edit:';
-  const start = String(text || '').indexOf(marker);
-  if (start < 0) return null;
-  const jsonStart = text.indexOf('{', start + marker.length);
-  if (jsonStart < 0) return null;
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let index = jsonStart; index < text.length; index++) {
-    const char = text[index];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (char === '\\') {
-      escaped = inString;
-      continue;
-    }
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-    if (char === '{') depth += 1;
-    else if (char === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        try {
-          return JSON.parse(text.slice(jsonStart, index + 1));
-        } catch {
-          return null;
-        }
-      }
-    }
-  }
-  return null;
+  return executeApprovedToolCall({
+    emit,
+    requestId,
+    toolCall,
+    name: fn.name,
+    args,
+    settings,
+    signal,
+    mcpManager,
+    decision,
+    editPreview,
+    trackedJob,
+    jobTimeoutMs,
+    round,
+    maxRounds,
+  });
 }
 
 async function handleToolCallsForRound(

@@ -12,7 +12,8 @@ const TOOL_DEFINITIONS = {
       type: 'function',
       function: {
         name: 'web_search',
-        description: 'Search the web through the configured Tavily Search API and return concise sourced results.',
+        description:
+          'Search the web through Tavily and return concise sourced results. Supports multi-query research, Tavily depth/topic/time/domain options, optional focused extraction, and structured citations.',
         parameters: {
           type: 'object',
           properties: {
@@ -25,6 +26,47 @@ const TOOL_DEFINITIONS = {
                 'Optional multiple planned search queries for research mode. Results are merged and de-duplicated by URL.',
             },
             max_results: { type: 'integer', minimum: 1, maximum: 10, description: 'Maximum number of results.' },
+            search_depth: {
+              type: 'string',
+              enum: ['ultra-fast', 'fast', 'basic', 'advanced'],
+              description:
+                'Tavily search depth. Use fast/ultra-fast for latency, basic for default, advanced for high precision.',
+            },
+            topic: {
+              type: 'string',
+              enum: ['general', 'news', 'finance'],
+              description: 'Tavily topic. Use news for recent news-style requests.',
+            },
+            time_range: {
+              type: 'string',
+              enum: ['day', 'week', 'month', 'year'],
+              description: 'Optional freshness window for Tavily search.',
+            },
+            include_domains: {
+              type: 'array',
+              items: { type: 'string' },
+              maxItems: 20,
+              description: 'Optional domains to include, for example official docs domains.',
+            },
+            exclude_domains: {
+              type: 'array',
+              items: { type: 'string' },
+              maxItems: 20,
+              description: 'Optional domains to exclude.',
+            },
+            extract_top_results: {
+              type: 'integer',
+              minimum: 0,
+              maximum: 5,
+              description:
+                'Optionally run Tavily Extract on the top N result URLs for deeper, query-focused chunks. Use 0 for search-only.',
+            },
+            chunks_per_source: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 5,
+              description: 'Tavily Extract chunks per source when extract_top_results is enabled.',
+            },
           },
         },
       },

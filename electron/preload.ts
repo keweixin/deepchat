@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { ChatRequest } from './agent-contracts.js';
 
 /** Allowed IPC channels for renderer → main event listening. */
 const VALID_ON_CHANNELS = ['chat:event', 'menu:openSettings', 'menu:newChat'] as const;
@@ -28,18 +29,19 @@ contextBridge.exposeInMainWorld('deepchat', {
     importBackup: () => ipcRenderer.invoke('conversations:importBackup'),
   },
   chat: {
-    start: (request: any) => ipcRenderer.send('chat:start', request),
-    cancel: (requestId: any) => ipcRenderer.send('chat:cancel', requestId),
-    pause: (requestId: any) => ipcRenderer.send('chat:pause', requestId),
-    resume: (requestId: any) => ipcRenderer.send('chat:resume', requestId),
-    skipTool: (requestId: any, toolCallId: any) => ipcRenderer.send('chat:skipTool', { requestId, toolCallId }),
-    limitScope: (requestId: any, scopePolicy: any) => ipcRenderer.send('chat:limitScope', { requestId, scopePolicy }),
+    start: (request: ChatRequest) => ipcRenderer.send('chat:start', request),
+    cancel: (requestId: string) => ipcRenderer.send('chat:cancel', requestId),
+    pause: (requestId: string) => ipcRenderer.send('chat:pause', requestId),
+    resume: (requestId: string) => ipcRenderer.send('chat:resume', requestId),
+    skipTool: (requestId: string, toolCallId?: string) => ipcRenderer.send('chat:skipTool', { requestId, toolCallId }),
+    limitScope: (requestId: string, scopePolicy: string) =>
+      ipcRenderer.send('chat:limitScope', { requestId, scopePolicy }),
     onEvent: (callback: any) => on('chat:event', callback),
   },
   tools: {
-    approve: (requestId: any, toolCallId: any, approved: any) =>
+    approve: (requestId: string, toolCallId: string, approved: boolean) =>
       ipcRenderer.send('tools:approve', { requestId, toolCallId, approved }),
-    run: (name: any, args: any) => ipcRenderer.invoke('tools:runManual', { name, args }),
+    run: (name: string, args: Record<string, unknown>) => ipcRenderer.invoke('tools:runManual', { name, args }),
   },
   workspace: {
     pick: () => ipcRenderer.invoke('workspace:pick'),

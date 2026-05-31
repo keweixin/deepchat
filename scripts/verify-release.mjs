@@ -22,6 +22,13 @@ function fail(msg) {
 function escapeRegex(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+function shouldChecksumReleaseFile(fileName, version) {
+  const ext = path.extname(fileName).toLowerCase();
+  if (fileName === 'sbom.cdx.json') return true;
+  if (ext === '.exe' || ext === '.blockmap') return fileName.includes(`v${version}`);
+  if (ext === '.yml') return !/v\d+\.\d+\.\d+/i.test(fileName) || fileName.includes(`v${version}`);
+  return false;
+}
 
 console.log('🔍 Release Verification\n');
 
@@ -107,16 +114,15 @@ if (versionExeFiles.length > 0) {
   if (fs.existsSync(shaSums)) {
     ok('release/SHA256SUMS.txt exists');
     const shaText = fs.readFileSync(shaSums, 'utf8');
-    const filesToChecksum = fs
-      .readdirSync(releaseDir)
-      .filter((fileName) => {
-        const ext = path.extname(fileName).toLowerCase();
-        return ['.exe', '.blockmap', '.yml'].includes(ext) || fileName === 'sbom.cdx.json';
-      })
-      .sort();
+    const releaseFiles = fs.readdirSync(releaseDir);
+    const filesToChecksum = releaseFiles.filter((fileName) => shouldChecksumReleaseFile(fileName, version)).sort();
     for (const fileName of filesToChecksum) {
       if (shaText.includes(`  ${fileName}`)) ok(`SHA256SUMS.txt includes ${fileName}`);
       else fail(`SHA256SUMS.txt missing ${fileName}`);
+    }
+    const staleChecksumFiles = releaseFiles.filter((fileName) => !shouldChecksumReleaseFile(fileName, version));
+    for (const fileName of staleChecksumFiles) {
+      if (shaText.includes(`  ${fileName}`)) fail(`SHA256SUMS.txt includes stale artifact ${fileName}`);
     }
   } else {
     fail('release/SHA256SUMS.txt missing');

@@ -11,6 +11,7 @@ import type {
   TokenUsageSchema,
   UsageCostSchema,
   ToolRunSchema,
+  ToolJobSchema,
   ToolSourceSchema,
   ToolCitationSchema,
   AgentStageSchema,
@@ -28,6 +29,7 @@ export type Attachment = z.infer<typeof AttachmentSchema>;
 export type TokenUsage = z.infer<typeof TokenUsageSchema>;
 export type UsageCost = z.infer<typeof UsageCostSchema>;
 export type ToolRun = z.infer<typeof ToolRunSchema>;
+export type ToolJob = z.infer<typeof ToolJobSchema>;
 export type ToolSource = z.infer<typeof ToolSourceSchema>;
 export type ToolCitation = z.infer<typeof ToolCitationSchema>;
 export type AgentStage = z.infer<typeof AgentStageSchema>;

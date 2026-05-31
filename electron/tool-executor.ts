@@ -130,7 +130,9 @@ function buildCompactionMetadata(
 function compactSearchOutput(text: string) {
   const lines = text.split('\n');
   const important = lines.filter((/** @type {string} */ line) =>
-    /^\s*(搜索时间|用户原始问题|实际搜索 query|Tavily 参数|\d+\.|URL:|Published:|摘要:)/.test(line)
+    /^\s*(搜索时间|用户原始问题|实际搜索 query|Tavily 参数|Tavily provider|缓存：|credits|request_id|response_time|抽取：|抽取警告：|\d+\.|URL:|Published:|Score:|摘要:|抽取片段:)/.test(
+      line
+    )
   );
   return ['[联网搜索结果已压缩，完整输出在工具运行卡片中。]', ...important.slice(0, 80)].join('\n').slice(0, 7000);
 }
