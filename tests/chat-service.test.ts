@@ -1268,6 +1268,51 @@ describe('electron chat service token usage and agent loop', () => {
       await fs.rm(dataDir, { recursive: true, force: true });
     }
   });
+
+  it('blocks edit_file before approval or mutation when the agent scope is read_only', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-chat-edit-readonly-'));
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-chat-edit-readonly-data-'));
+    try {
+      const file = path.join(tmpDir, 'README.md');
+      await fs.writeFile(file, 'hello\nworld\n', 'utf8');
+      const events = [];
+      const service = new ChatService(() => fakeWindow(events));
+      service.waitForApproval = vi.fn(async () => ({ approved: true }));
+      service.controllers.set('req-readonly-edit', {
+        checkPausePoint: async () => {},
+        skippedToolCallIds: new Set(),
+        scopePolicy: 'read_only',
+      });
+
+      const output = await service.handleToolCall(
+        'req-readonly-edit',
+        {
+          id: 'tool-edit-readonly',
+          function: {
+            name: 'edit_file',
+            arguments: JSON.stringify({ path: 'README.md', search: 'world', replace: 'DeepChat' }),
+          },
+        },
+        baseSettings({
+          workspaceRoots: [tmpDir],
+          codingEditsEnabled: true,
+          storageStatus: { dataDir },
+        }),
+        new AbortController().signal
+      );
+
+      expect(output).toContain('执行被拒绝');
+      expect(output).toContain('只读模式');
+      expect(service.waitForApproval).not.toHaveBeenCalled();
+      expect(events.some((event) => event.type === 'toolRequest')).toBe(false);
+      expect(events.find((event) => event.type === 'toolResult')).toMatchObject({ ok: false });
+      expect(await fs.readFile(file, 'utf8')).toBe('hello\nworld\n');
+      await expect(fs.readdir(path.join(dataDir, 'file-backups'))).rejects.toThrow();
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  });
 });
 
 function baseSettings(overrides = {}) {
