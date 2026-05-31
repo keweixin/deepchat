@@ -15,15 +15,41 @@ import * as mm from './memory-manager.js';
 
 const DEFAULT_MAX_INPUT_TOKENS = 24000;
 
-function findLatestUserIndex(messages) {
+type ChatMessage = {
+  role: 'system' | 'user' | 'assistant' | 'tool' | string;
+  content?: string;
+  [key: string]: unknown;
+};
+
+type ContextBudgetOptions = {
+  maxMessages?: unknown;
+  maxInputTokens?: unknown;
+  prefixTokens?: unknown;
+  prefix?: Record<string, any>;
+  [key: string]: unknown;
+};
+
+type ContextBudgetMetaInput = {
+  maxMessages: number;
+  maxInputTokens: number;
+  prefixTokens: number;
+  budget: number;
+  clean: ChatMessage[];
+  capped: ChatMessage[];
+  retained: ChatMessage[];
+  used: number;
+  prefix?: Record<string, any>;
+};
+
+function findLatestUserIndex(messages: ChatMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i]?.role === 'user') return i;
   }
   return -1;
 }
 
-function trimByRecentBudget(messages, budget) {
-  const retained = [];
+function trimByRecentBudget(messages: ChatMessage[], budget: number): ChatMessage[] {
+  const retained: ChatMessage[] = [];
   let used = 0;
   for (let i = messages.length - 1; i >= 0; i--) {
     const candidate = messages[i];
@@ -35,7 +61,7 @@ function trimByRecentBudget(messages, budget) {
   return retained;
 }
 
-function dropLeadingAssistant(messages) {
+function dropLeadingAssistant(messages: ChatMessage[]): ChatMessage[] {
   let next = [...messages];
   while (next.length > 0 && next[0]?.role === 'assistant') next = next.slice(1);
   return next;
@@ -51,9 +77,9 @@ function createContextBudgetMeta({
   retained,
   used,
   prefix = {},
-}: any) {
+}: ContextBudgetMetaInput) {
   const retainedSet = new Set(retained);
-  const droppedMessages = capped.filter((message) => !retainedSet.has(message));
+  const droppedMessages = capped.filter((message: ChatMessage) => !retainedSet.has(message));
   const omittedByMessageLimit = Math.max(0, clean.length - capped.length);
   const estimatedInputTokens = used + prefixTokens;
   return {
@@ -79,13 +105,13 @@ function createContextBudgetMeta({
   };
 }
 
-function buildContextBudgetBundle(messages: any[], options: any = {}) {
+function buildContextBudgetBundle(messages: ChatMessage[], options: ContextBudgetOptions = {}) {
   const maxMessages = Math.round(clampNumber(options.maxMessages, 1, 100, 20));
   const maxInputTokens = Math.round(clampNumber(options.maxInputTokens, 1, 262144, DEFAULT_MAX_INPUT_TOKENS));
   const prefixTokens = Math.max(0, toTokenNumber(options.prefixTokens));
   const budget = Math.max(1, maxInputTokens - prefixTokens);
   const clean = (Array.isArray(messages) ? messages : []).filter(
-    (message) => message && ['system', 'user', 'assistant', 'tool'].includes(message.role)
+    (message: ChatMessage) => message && ['system', 'user', 'assistant', 'tool'].includes(message.role)
   );
   if (clean.length === 0) {
     return {
@@ -153,20 +179,20 @@ function buildContextBudgetBundle(messages: any[], options: any = {}) {
   };
 }
 
-function buildContextWithBudget(messages, options = {}) {
+function buildContextWithBudget(messages: ChatMessage[], options: ContextBudgetOptions = {}): ChatMessage[] {
   return buildContextBudgetBundle(messages, options).messages;
 }
 
-function trimContext(messages, maxMessages = 20) {
+function trimContext(messages: ChatMessage[], maxMessages = 20): ChatMessage[] {
   return buildContextWithBudget(messages, {
     maxMessages,
     maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
   });
 }
 
-function formatMessagesForSummary(messages = []) {
+function formatMessagesForSummary(messages: ChatMessage[] = []): string {
   return messages
-    .map((message) => {
+    .map((message: ChatMessage) => {
       const role = message.role === 'assistant' ? '助手' : '用户';
       return `${role}: ${String(message.content || '').slice(0, 1200)}`;
     })
@@ -174,8 +200,8 @@ function formatMessagesForSummary(messages = []) {
     .slice(0, 10000);
 }
 
-function hashMessages(messages = []) {
-  const stable = messages.map((message, index) => ({
+function hashMessages(messages: ChatMessage[] = []): string {
+  const stable = messages.map((message: ChatMessage, index: number) => ({
     index,
     role: message.role,
     content: String(message.content || ''),
@@ -198,9 +224,9 @@ function hashMessages(messages = []) {
  * @param {string} query  - Latest user content used to search memory
  * @returns {{ messages: Array, meta: object, memoryContext: object|null }}
  */
-function buildMemoryAwareContext(messages, options = {}, query = '') {
+function buildMemoryAwareContext(messages: ChatMessage[], options: ContextBudgetOptions = {}, query = '') {
   const bundle = buildContextBudgetBundle(messages, options);
-  let memoryContext = null;
+  let memoryContext: unknown = null;
 
   if (query) {
     try {

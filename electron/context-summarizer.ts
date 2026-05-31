@@ -7,14 +7,51 @@ const SUMMARY_TRIGGER_RATIO = 0.8;
 const COMPACTION_SUMMARY_MARKER = '[CONVERSATION HISTORY SUMMARY — earlier turns folded for context efficiency]\n\n';
 const SUMMARY_FUTURE_ROUNDS = 3;
 
+type ChatMessage = {
+  role: string;
+  content?: string;
+  [key: string]: any;
+};
+
+type ProviderSettings = Record<string, any> & {
+  apiBase?: string;
+  apiKey?: string;
+  model?: string;
+  providerId?: string;
+  cacheOptimization?: boolean | string;
+  contextFoldEconomicsEnabled?: boolean | string;
+};
+
+type ContextSummaryRequest = Record<string, any> & {
+  requestId: string;
+  contextSummary?: string;
+  contextSummaryMeta?: Record<string, any> | null;
+};
+
+type ContextBudgetBundle = {
+  messages: ChatMessage[];
+  meta: Record<string, any> & {
+    droppedMessages?: ChatMessage[];
+    budgetRatio?: number;
+  };
+};
+
+type EmitFn = (requestId: string, type: string, payload: Record<string, any>) => void;
+type SummarizeContextFn = (
+  settings: ProviderSettings,
+  existingSummary: string,
+  droppedMessages: ChatMessage[],
+  signal?: AbortSignal
+) => Promise<string>;
+
 async function maybeBuildContextSummary(
-  request,
-  settings,
-  contextBundle,
-  prefixTokens,
-  signal,
-  emit,
-  summarizeContextFn
+  request: ContextSummaryRequest,
+  settings: ProviderSettings,
+  contextBundle: ContextBudgetBundle,
+  prefixTokens: number,
+  signal: AbortSignal | undefined,
+  emit: EmitFn,
+  summarizeContextFn?: SummarizeContextFn
 ) {
   const existingSummary = String(request.contextSummary || '').trim();
   const droppedMessages = contextBundle.meta.droppedMessages || [];
@@ -24,10 +61,11 @@ async function maybeBuildContextSummary(
       : contextBundle.messages.slice(0, Math.max(0, contextBundle.messages.length - 1));
   const economicsEnabled =
     settings.contextFoldEconomicsEnabled !== false && settings.contextFoldEconomicsEnabled !== 'false';
+  const budgetRatio = Number(contextBundle.meta.budgetRatio || 0);
   const shouldSummarize =
     droppedMessages.length > 0 ||
-    (economicsEnabled && contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO) ||
-    (settings.cacheOptimization === false && contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO);
+    (economicsEnabled && budgetRatio >= SUMMARY_TRIGGER_RATIO) ||
+    (settings.cacheOptimization === false && budgetRatio >= SUMMARY_TRIGGER_RATIO);
   if (!shouldSummarize) return existingSummary ? { summary: existingSummary, generated: false } : null;
   if (summarySourceMessages.length === 0)
     return existingSummary ? { summary: existingSummary, generated: false } : null;
@@ -119,6 +157,13 @@ function buildContextFoldDecision({
   summaryHash = '',
   priorMeta = {},
   summarySourceMessages = [],
+}: {
+  settings?: ProviderSettings;
+  contextBundle?: Partial<ContextBudgetBundle>;
+  existingSummary?: string;
+  summaryHash?: string;
+  priorMeta?: Record<string, any>;
+  summarySourceMessages?: ChatMessage[];
 }) {
   const typedSettings = settings as any;
   const typedPriorMeta = priorMeta as any;
@@ -208,20 +253,25 @@ function buildContextFoldDecision({
   };
 }
 
-function estimateAuxiliarySummaryCost(settings, tokens) {
+function estimateAuxiliarySummaryCost(settings: ProviderSettings, tokens: number): number {
   const provider = String(settings.providerId || settings.apiBase || '').toLowerCase();
   const pricePerMillion =
     provider.includes('deepseek') || String(settings.model || '').includes('deepseek') ? 0.05 : 0.2;
   return Number((((Number(tokens) || 0) * pricePerMillion) / 1_000_000).toFixed(8));
 }
 
-function estimateInputTokenSavings(settings, tokens) {
+function estimateInputTokenSavings(settings: ProviderSettings, tokens: number): number {
   const provider = String(settings.providerId || settings.apiBase || '').toLowerCase();
   const pricePerMillion = provider.includes('deepseek') || String(settings.model || '').includes('deepseek') ? 0.28 : 1;
   return Number((((Number(tokens) || 0) * pricePerMillion) / 1_000_000).toFixed(8));
 }
 
-async function summarizeContext(settings, existingSummary, droppedMessages, signal) {
+async function summarizeContext(
+  settings: ProviderSettings,
+  existingSummary: string,
+  droppedMessages: ChatMessage[],
+  signal?: AbortSignal
+): Promise<string> {
   const prompt = [
     '请把下面较早的对话压缩成 DeepChat 后续回答可用的短记忆。',
     '保留用户目标、关键约束、已确认事实、文件/工具结果、未完成事项。',
