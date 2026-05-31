@@ -22,7 +22,11 @@ test.beforeAll(async () => {
       const bodyText = await readRequestBody(req);
       const body = safeJsonParse(bodyText) || {};
       const messages = Array.isArray(body.messages) ? body.messages : [];
-      const isEditTurn = bodyText.includes('E2E_WRITE_TARGET');
+      const isEditTurn =
+        bodyText.includes('E2E_WRITE_TARGET') ||
+        bodyText.includes('E2E_WRITE_DENY_TARGET') ||
+        bodyText.includes('E2E_WRITE_TIMEOUT_TARGET');
+      const isDeniedOrTimedOut = bodyText.includes('用户拒绝执行工具') || bodyText.includes('自动拒绝');
       const hasToolResult = messages.some((message: any) => message?.role === 'tool');
 
       // Set headers for SSE (Server-Sent Events)
@@ -49,7 +53,11 @@ test.beforeAll(async () => {
                       arguments: JSON.stringify({
                         path: editTargetPath,
                         search: 'world',
-                        replace: 'DeepChatE2E',
+                        replace: bodyText.includes('E2E_WRITE_DENY_TARGET')
+                          ? 'DeniedShouldNotWrite'
+                          : bodyText.includes('E2E_WRITE_TIMEOUT_TARGET')
+                            ? 'TimeoutShouldNotWrite'
+                            : 'DeepChatE2E',
                       }),
                     },
                   },
@@ -67,7 +75,9 @@ test.beforeAll(async () => {
             {
               delta: {
                 role: 'assistant',
-                content: '写入完成，已修改临时文件，并保留了可恢复的备份证据。',
+                content: isDeniedOrTimedOut
+                  ? '写入已取消，没有修改文件。'
+                  : '写入完成，已修改临时文件，并保留了可恢复的备份证据。',
               },
             },
           ],
@@ -149,6 +159,7 @@ test.beforeAll(async () => {
       model: 'deepseek-chat',
       workspaceRoots: [path.resolve(__dirname, '..'), testWorkspaceDir],
       toolApprovalPolicy: 'confirm_all',
+      toolApprovalTimeoutMs: 5000,
     },
   };
   fs.writeFileSync(path.join(testUserDataDir, 'data', 'settings.json'), JSON.stringify(settings, null, 2), 'utf8');
@@ -283,8 +294,9 @@ test.describe('Agent Path End-To-End Integration', () => {
     await sendBtn.click();
 
     await window.waitForSelector('.tool-approve-btn', { state: 'visible', timeout: 15_000 });
-    await expect(window.locator('.tool-edit-preview')).toContainText('写入预览');
-    await expect(window.locator('.tool-edit-preview')).toContainText('唯一匹配');
+    const editPreview = window.locator('.tool-edit-preview').filter({ hasText: '写入预览' }).last();
+    await expect(editPreview).toContainText('写入预览');
+    await expect(editPreview).toContainText('唯一匹配');
     await expect(window.locator('.tool-security-meta').filter({ hasText: '临时文件重命名' })).toBeVisible();
     expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nworld\nomega\n');
 
@@ -297,6 +309,73 @@ test.describe('Agent Path End-To-End Integration', () => {
     expect(fs.readFileSync(backupPath, 'utf8')).toBe('alpha\nworld\nomega\n');
     fs.copyFileSync(backupPath, editTargetPath);
     expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nworld\nomega\n');
+  });
+
+  test('does not write when the user denies an edit_file approval', async () => {
+    fs.writeFileSync(editTargetPath, 'alpha\nworld\nomega\n', 'utf8');
+    fs.rmSync(path.join(testUserDataDir, 'data', 'file-backups'), { recursive: true, force: true });
+
+    electronApp = await electron.launch({
+      args: [path.join(__dirname, '..', 'electron.js')],
+      env: {
+        ...process.env,
+        DEEPCHAT_DISABLE_GPU: '1',
+        DEEPCHAT_TEST_USER_DATA_DIR: testUserDataDir,
+        NODE_ENV: 'development',
+      },
+    });
+
+    const window = await electronApp.firstWindow();
+    await window.waitForSelector('#sidebar', { state: 'visible', timeout: 15_000 });
+    await window.waitForSelector('#message-input', { state: 'visible', timeout: 15_000 });
+
+    await window.locator('#composer-mode-select').selectOption('agent');
+    await window.locator('#message-input').fill('请把 E2E_WRITE_DENY_TARGET 里的 world 改成 DeniedShouldNotWrite');
+    const sendBtn = window.locator('#send-btn');
+    await sendBtn.click();
+
+    await window.waitForSelector('.tool-deny-btn', { state: 'visible', timeout: 15_000 });
+    await expect(window.locator('.tool-edit-preview').filter({ hasText: '写入预览' }).last()).toContainText('写入预览');
+    expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nworld\nomega\n');
+
+    await window.locator('.tool-deny-btn').click();
+    await expect(sendBtn).not.toHaveClass(/hidden/, { timeout: 30_000 });
+    await expect(window.locator('#chat-messages')).toContainText('写入已取消');
+    expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nworld\nomega\n');
+    expect(findBackupFile(path.join(testUserDataDir, 'data', 'file-backups'), path.basename(editTargetPath))).toBe('');
+  });
+
+  test('auto-denies edit_file after approval timeout without writing', async () => {
+    fs.writeFileSync(editTargetPath, 'alpha\nworld\nomega\n', 'utf8');
+    fs.rmSync(path.join(testUserDataDir, 'data', 'file-backups'), { recursive: true, force: true });
+
+    electronApp = await electron.launch({
+      args: [path.join(__dirname, '..', 'electron.js')],
+      env: {
+        ...process.env,
+        DEEPCHAT_DISABLE_GPU: '1',
+        DEEPCHAT_TEST_USER_DATA_DIR: testUserDataDir,
+        NODE_ENV: 'development',
+      },
+    });
+
+    const window = await electronApp.firstWindow();
+    await window.waitForSelector('#sidebar', { state: 'visible', timeout: 15_000 });
+    await window.waitForSelector('#message-input', { state: 'visible', timeout: 15_000 });
+
+    await window.locator('#composer-mode-select').selectOption('agent');
+    await window.locator('#message-input').fill('请把 E2E_WRITE_TIMEOUT_TARGET 里的 world 改成 TimeoutShouldNotWrite');
+    const sendBtn = window.locator('#send-btn');
+    await sendBtn.click();
+
+    await window.waitForSelector('.tool-approve-btn', { state: 'visible', timeout: 15_000 });
+    await expect(window.locator('.tool-edit-preview').filter({ hasText: '写入预览' }).last()).toContainText('写入预览');
+    expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nworld\nomega\n');
+
+    await expect(sendBtn).not.toHaveClass(/hidden/, { timeout: 45_000 });
+    await expect(window.locator('#chat-messages')).toContainText('写入已取消');
+    expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nworld\nomega\n');
+    expect(findBackupFile(path.join(testUserDataDir, 'data', 'file-backups'), path.basename(editTargetPath))).toBe('');
   });
 });
 
