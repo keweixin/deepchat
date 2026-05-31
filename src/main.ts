@@ -74,13 +74,18 @@ import {
   buildComposerContextPreview,
   buildComposerIntentPreview,
   buildComposerToolEntries,
-  getComposerToolApprovalSummary,
   getComposerToolModeLabel,
   resolveActiveSkillForExplicitDirectives,
 } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
-import { applyPromptTemplate, getPromptTemplateEntries } from './modules/prompt-templates.js';
 import { maybeShowProviderSetupHint } from './modules/app-startup.js';
+import {
+  insertIntoComposer,
+  toggleComposerToolMenu,
+  toggleContextShortcutMenu,
+  toggleExportMenu,
+  togglePromptTemplateMenu,
+} from './modules/app-menus.js';
 import { toggleChatSearch, toggleKeyboardHelp, toggleMarkdownPreview } from './modules/app-overlays.js';
 import {
   appendTextAttachmentsToPrompt,
@@ -240,7 +245,7 @@ function bindEvents() {
 
   // Export chat
   if ($exportBtn) {
-    $exportBtn.addEventListener('click', () => toggleExportMenu($exportBtn));
+    $exportBtn.addEventListener('click', () => toggleExportMenu($exportBtn, exportCurrentChat));
   }
 
   // Theme toggle
@@ -614,18 +619,28 @@ function initComposerOptions(openSettings: (() => void) | undefined) {
 
   if ($toolDrawerBtn) {
     $toolDrawerBtn.addEventListener('click', () =>
-      toggleComposerToolMenu(
-        $toolDrawerBtn,
-        () => {
+      toggleComposerToolMenu($toolDrawerBtn, {
+        settings: getSettings(),
+        activeSkill: composerOverrides?.activeSkill || getSettings().activeSkill,
+        onSelect: (entry) => {
+          composerOverrides = { ...composerOverrides, activeSkill: entry.id };
+        },
+        onChange: () => {
           applySettingsToComposer(getSettings());
         },
-        openSettings
-      )
+        openSettings,
+      })
     );
   }
 
   if ($contextBtn) {
-    $contextBtn.addEventListener('click', () => toggleContextShortcutMenu($contextBtn, openSettings));
+    $contextBtn.addEventListener('click', () =>
+      toggleContextShortcutMenu($contextBtn, {
+        settings: getSettings(),
+        openSettings,
+        getPendingAttachmentCount: () => pendingAttachments.length,
+      })
+    );
   }
 
   // Mode select change handler (replaces mode pills)
@@ -643,7 +658,7 @@ function initComposerOptions(openSettings: (() => void) | undefined) {
         return;
       }
       const input = document.getElementById('message-input') as HTMLTextAreaElement | null;
-      insertIntoComposer(input, entry);
+      insertIntoComposer(input, entry, { pendingAttachmentCount: pendingAttachments.length });
       input?.focus();
     });
   });
@@ -696,253 +711,6 @@ function syncComposerModeSelect(select, activeModeId, settings = {}) {
     }
   }
   select.value = resolvedModeId;
-}
-
-let promptTemplateMenu = null;
-let exportMenu = null;
-let composerToolMenu = null;
-let contextShortcutMenu = null;
-
-function togglePromptTemplateMenu(anchor, onApplyTemplate) {
-  if (promptTemplateMenu) {
-    promptTemplateMenu.remove();
-    promptTemplateMenu = null;
-    return;
-  }
-  const menu = document.createElement('div');
-  menu.className = 'prompt-template-menu';
-  for (const template of getPromptTemplateEntries()) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = 'prompt-template-item';
-    item.title = buildPromptTemplateTitle(template);
-    const head = document.createElement('span');
-    head.className = 'prompt-template-head';
-    const title = document.createElement('span');
-    title.className = 'prompt-template-title';
-    title.textContent = template.title;
-    const mode = document.createElement('span');
-    mode.className = 'prompt-template-mode';
-    mode.textContent = template.mode || '模板';
-    head.append(title, mode);
-    const desc = document.createElement('span');
-    desc.className = 'prompt-template-desc';
-    desc.textContent = template.description || template.intent || '插入常用提示词模板';
-    const intent = document.createElement('span');
-    intent.className = 'prompt-template-intent';
-    intent.textContent = template.intent || '';
-    item.append(head, desc);
-    if (intent.textContent) item.appendChild(intent);
-    item.addEventListener('click', () => {
-      const input = document.getElementById('message-input') as HTMLTextAreaElement;
-      input.value = applyPromptTemplate(input.value, template.text);
-      autoResize(input);
-      (document.getElementById('send-btn') as HTMLButtonElement | null)!.disabled = false;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      onApplyTemplate?.(template);
-      promptTemplateMenu?.remove();
-      promptTemplateMenu = null;
-      input.focus();
-    });
-    menu.appendChild(item);
-  }
-  anchor.closest('.composer-toolbar')?.appendChild(menu);
-  promptTemplateMenu = menu;
-}
-
-function buildPromptTemplateTitle(template: any = {}) {
-  return [
-    template.description,
-    template.mode ? `推荐模式：${template.mode}` : '',
-    template.intent ? `上下文/工具：${template.intent}` : '',
-    '',
-    template.text,
-  ]
-    .filter((line) => line !== undefined && line !== null)
-    .join('\n')
-    .trim();
-}
-
-function toggleComposerToolMenu(anchor, onChange, openSettings) {
-  if (composerToolMenu) {
-    composerToolMenu.remove();
-    composerToolMenu = null;
-    anchor?.setAttribute('aria-expanded', 'false');
-    return;
-  }
-
-  const settings = getSettings();
-  const activeSkill = composerOverrides?.activeSkill || settings.activeSkill;
-  const menu = document.createElement('div');
-  menu.className = 'composer-tool-menu';
-  menu.setAttribute('role', 'menu');
-  const entries = buildComposerToolEntries(settings, activeSkill);
-
-  for (const entry of entries) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = `composer-tool-item${entry.active ? ' active' : ''}${entry.available ? '' : ' unavailable'}`;
-    item.setAttribute('role', 'menuitemradio');
-    item.setAttribute('aria-checked', String(entry.active));
-    item.setAttribute('aria-disabled', String(!entry.available));
-    item.innerHTML = ` /* safeSetHTML-exempt: static template */
-      <span class="composer-tool-item-icon">${entry.icon}</span>
-      <span class="composer-tool-item-body">
-        <span class="composer-tool-item-title">${entry.name}</span>
-        <span class="composer-tool-item-desc">${entry.description}</span>
-      </span>
-      <span class="composer-tool-item-state">${entry.available ? entry.risk : entry.state}</span>
-    `;
-    item.addEventListener('click', () => {
-      if (!entry.available) {
-        showToast(entry.state);
-        openSettings?.();
-        return;
-      }
-      composerOverrides.activeSkill = entry.id;
-      composerToolMenu?.remove();
-      composerToolMenu = null;
-      anchor?.setAttribute('aria-expanded', 'false');
-      onChange?.();
-      showToast(`本轮工具：${entry.name}`, 1200);
-    });
-    menu.appendChild(item);
-  }
-
-  const footer = document.createElement('div');
-  footer.className = 'composer-tool-menu-footer';
-  footer.textContent = getComposerToolApprovalSummary(settings);
-  menu.appendChild(footer);
-
-  anchor.closest('.composer-toolbar')?.appendChild(menu);
-  composerToolMenu = menu;
-  anchor?.setAttribute('aria-expanded', 'true');
-
-  const closeOnOutside = (event) => {
-    if (!composerToolMenu) {
-      document.removeEventListener('click', closeOnOutside);
-      return;
-    }
-    if (composerToolMenu.contains(event.target) || anchor.contains(event.target)) return;
-    composerToolMenu.remove();
-    composerToolMenu = null;
-    anchor?.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('click', closeOnOutside);
-  };
-  setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
-}
-
-function toggleContextShortcutMenu(anchor, openSettings) {
-  if (contextShortcutMenu) {
-    contextShortcutMenu.remove();
-    contextShortcutMenu = null;
-    anchor?.setAttribute('aria-expanded', 'false');
-    return;
-  }
-
-  const settings = getSettings();
-  const menu = document.createElement('div');
-  menu.className = 'context-shortcut-menu';
-  menu.setAttribute('role', 'menu');
-
-  for (const entry of buildContextShortcutEntries(settings)) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = `context-shortcut-item${entry.available ? '' : ' unavailable'}`;
-    item.setAttribute('role', 'menuitem');
-    item.setAttribute('aria-disabled', String(!entry.available));
-    item.innerHTML = ` /* safeSetHTML-exempt: static template */
-      <span class="context-shortcut-title">${entry.title}</span>
-      <span class="context-shortcut-desc">${entry.description}</span>
-      <code class="context-shortcut-code">${entry.insertText}</code>
-      <span class="context-shortcut-state">${entry.state}</span>
-    `;
-    item.addEventListener('click', () => {
-      if (!entry.available) {
-        showToast(entry.state);
-        openSettings?.();
-        return;
-      }
-      const input = document.getElementById('message-input') as HTMLTextAreaElement;
-      insertIntoComposer(input, entry);
-      contextShortcutMenu?.remove();
-      contextShortcutMenu = null;
-      anchor?.setAttribute('aria-expanded', 'false');
-      input.focus();
-    });
-    menu.appendChild(item);
-  }
-
-  const footer = document.createElement('div');
-  footer.className = 'context-shortcut-footer';
-  footer.textContent = '显式上下文优先于自动判断，能减少误用工具。';
-  menu.appendChild(footer);
-
-  anchor.closest('.composer-toolbar')?.appendChild(menu);
-  contextShortcutMenu = menu;
-  anchor?.setAttribute('aria-expanded', 'true');
-
-  const closeOnOutside = (event) => {
-    if (!contextShortcutMenu) {
-      document.removeEventListener('click', closeOnOutside);
-      return;
-    }
-    if (contextShortcutMenu.contains(event.target) || anchor.contains(event.target)) return;
-    contextShortcutMenu.remove();
-    contextShortcutMenu = null;
-    anchor?.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('click', closeOnOutside);
-  };
-  setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
-}
-
-function insertIntoComposer(input: HTMLTextAreaElement | null, entry: any) {
-  if (!input || !entry?.insertText) return;
-  const prefix = input.value && !/\s$/.test(input.value) ? ' ' : '';
-  const insertion = `${prefix}${entry.insertText}`;
-  const start = input.selectionStart ?? input.value.length;
-  const end = input.selectionEnd ?? start;
-  input.setRangeText(insertion, start, end, 'end');
-  if (entry.selectStartOffset >= 0 && entry.selectEndOffset >= 0) {
-    const selectionStart = start + prefix.length + entry.selectStartOffset;
-    const selectionEnd = start + prefix.length + entry.selectEndOffset;
-    input.setSelectionRange(selectionStart, selectionEnd);
-  }
-  autoResize(input);
-  (document.getElementById('send-btn') as HTMLButtonElement | null)!.disabled =
-    !input.value.trim() && pendingAttachments.length === 0;
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function toggleExportMenu(anchor) {
-  if (exportMenu) {
-    exportMenu.remove();
-    exportMenu = null;
-    return;
-  }
-  const menu = document.createElement('div');
-  menu.className = 'prompt-template-menu export-format-menu';
-  const formats = [
-    ['markdown', '导出 Markdown'],
-    ['html', '导出 HTML'],
-    ['pdf', '打印 / 另存 PDF'],
-    ['favorites', '只导出收藏'],
-    ['tool-evidence', '导出工具证据'],
-    ['assets', '导出资源索引'],
-  ];
-  for (const [format, label] of formats) {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.textContent = label;
-    item.addEventListener('click', () => {
-      exportCurrentChat(format);
-      exportMenu?.remove();
-      exportMenu = null;
-    });
-    menu.appendChild(item);
-  }
-  document.getElementById('chat-header').appendChild(menu);
-  exportMenu = menu;
 }
 
 function getComposerOverrides() {
