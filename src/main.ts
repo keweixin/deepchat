@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DeepChat — Main Entry Point
  *
@@ -88,19 +87,21 @@ import {
   findChatSearchMatches,
   highlightChatSearchMatches,
 } from './modules/chat-search.js';
+import { maybeShowProviderSetupHint } from './modules/app-startup.js';
 import {
   appendTextAttachmentsToPrompt,
   clearPendingAttachmentPreview,
   handleDroppedFiles,
 } from './modules/composer-attachments.js';
+import { createComposerInputHistory } from './modules/composer-history.js';
 
-let pendingAttachments = [];
-let composerOverrides = null;
+let pendingAttachments: any[] = [];
+let composerOverrides: any = null;
 let composerModeId = 'daily';
-let latestMcpStatuses = [];
+let latestMcpStatuses: any[] = [];
 const INPUT_HISTORY_KEY = 'dc_input_history';
-let inputHistory = [];
-let inputHistoryIndex = -1;
+const inputHistory = createComposerInputHistory({ key: INPUT_HISTORY_KEY });
+let applySettingsToComposerCurrent: (settings?: any) => void = () => {};
 
 // ─── Initialize ───
 
@@ -121,38 +122,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 });
 
-function onModelChange(model) {
+function onModelChange(model: string) {
   updateModelDisplay(model);
 }
 
 function maybeShowOnboardingHint() {
-  const settings = getSettings();
-  const report = getProviderCompatibilityReport(settings);
-  if (report.status === 'blocked') {
-    const keyIssue = report.items.find((i) => i.severity === 'error');
-    const message = keyIssue
-      ? `配置提示：${keyIssue.label}。点击右上角 ⚙️ 打开设置。`
-      : '配置提示：请检查设置中的 Provider 和 API Key。';
-    showToast(message, 5000);
-  }
+  maybeShowProviderSetupHint({
+    getSettings,
+    getProviderCompatibilityReport,
+    showToast,
+  });
 }
 
 // ─── Event Bindings ───
 
 function bindEvents() {
-  const $input = document.getElementById('message-input');
-  const $sendBtn = document.getElementById('send-btn');
-  const $stopBtn = document.getElementById('stop-btn');
-  const $newChatBtn = document.getElementById('new-chat-btn');
-  const $clearBtn = document.getElementById('clear-chat-btn');
-  const $exportBtn = document.getElementById('export-chat-btn');
-  const $themeBtn = document.getElementById('theme-toggle-btn');
-  const $sidebarToggle = document.getElementById('sidebar-toggle');
-  const $mobileSidebarToggle = document.getElementById('mobile-sidebar-toggle');
-  const $sidebar = document.getElementById('sidebar');
+  const $input = document.getElementById('message-input') as HTMLTextAreaElement;
+  const $sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
+  const $stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
+  const $newChatBtn = document.getElementById('new-chat-btn') as HTMLButtonElement;
+  const $clearBtn = document.getElementById('clear-chat-btn') as HTMLButtonElement;
+  const $exportBtn = document.getElementById('export-chat-btn') as HTMLButtonElement | null;
+  const $themeBtn = document.getElementById('theme-toggle-btn') as HTMLButtonElement;
+  const $sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement;
+  const $mobileSidebarToggle = document.getElementById('mobile-sidebar-toggle') as HTMLButtonElement | null;
+  const $sidebar = document.getElementById('sidebar') as HTMLElement;
   const mobileLayoutQuery = window.matchMedia('(max-width: 768px)');
-  const settingsPanel = document.getElementById('settings-panel');
-  const settingsOverlay = document.getElementById('settings-overlay');
+  const settingsPanel = document.getElementById('settings-panel') as HTMLElement;
+  const settingsOverlay = document.getElementById('settings-overlay') as HTMLElement;
 
   function openSettings() {
     settingsPanel.classList.remove('hidden');
@@ -161,13 +158,13 @@ function bindEvents() {
 
   async function triggerNewChat() {
     await createConversation();
-    const settings = getSettings();
+    const settings: any = getSettings();
     composerModeId = getComposerMode(settings.defaultComposerMode || 'daily').id;
     composerOverrides = {
       ...composerOverrides,
       ...getComposerModeOverrides(composerModeId, settings),
     };
-    applySettingsToComposer(settings);
+    applySettingsToComposerCurrent(settings);
     $input.value = '';
     $input.style.height = 'auto';
     $sendBtn.disabled = true;
@@ -196,7 +193,7 @@ function bindEvents() {
   // ─── Input ───
   const badge = document.getElementById('token-badge');
   initComposerOptions(openSettings);
-  inputHistory = loadInputHistory();
+  inputHistory.reload();
 
   const updateTokenHint = debounce(() => {
     if (!badge) return;
@@ -223,7 +220,7 @@ function bindEvents() {
   $input.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault();
-      navigateInputHistory(e.key === 'ArrowUp' ? -1 : 1, $input);
+      $input.value = inputHistory.navigate(e.key === 'ArrowUp' ? -1 : 1);
       autoResize($input);
       $sendBtn.disabled = !$input.value.trim() && pendingAttachments.length === 0;
       updateTokenHint();
@@ -282,10 +279,12 @@ function bindEvents() {
 
   // Close mobile sidebar when clicking outside
   document.addEventListener('click', (e) => {
+    const target = e.target as Node | null;
     if (
       $sidebar.classList.contains('mobile-open') &&
-      !$sidebar.contains(e.target) &&
-      (!$mobileSidebarToggle || (e.target !== $mobileSidebarToggle && !$mobileSidebarToggle.contains(e.target)))
+      target &&
+      !$sidebar.contains(target) &&
+      (!$mobileSidebarToggle || (target !== $mobileSidebarToggle && !$mobileSidebarToggle.contains(target)))
     ) {
       $sidebar.classList.remove('mobile-open');
       syncSidebarToggleState();
@@ -340,13 +339,13 @@ function bindEvents() {
   scrollFab.className = 'scroll-to-bottom-fab hidden';
   scrollFab.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`; /* safeSetHTML-exempt: static template */
   scrollFab.title = '回到底部';
-  document.getElementById('main-content').appendChild(scrollFab);
+  document.getElementById('main-content')?.appendChild(scrollFab);
 
   scrollFab.addEventListener('click', () => {
-    $chatMessages.scrollTo({ top: $chatMessages.scrollHeight, behavior: 'smooth' });
+    $chatMessages?.scrollTo({ top: $chatMessages.scrollHeight, behavior: 'smooth' });
   });
 
-  $chatMessages.addEventListener('scroll', () => {
+  $chatMessages?.addEventListener('scroll', () => {
     const threshold = 200;
     const atBottom = $chatMessages.scrollHeight - $chatMessages.scrollTop - $chatMessages.clientHeight < threshold;
     scrollFab.classList.toggle('hidden', atBottom);
@@ -355,7 +354,7 @@ function bindEvents() {
   // Suggestion cards
   document.querySelectorAll('.suggestion-card').forEach((card) => {
     card.addEventListener('click', () => {
-      const prompt = card.dataset.prompt;
+      const prompt = (card as HTMLElement).dataset.prompt;
       if (prompt) {
         $input.value = prompt;
         autoResize($input);
@@ -382,7 +381,7 @@ function bindEvents() {
     $inputContainer.addEventListener('drop', (e) => {
       e.preventDefault();
       $inputContainer.classList.remove('drag-over');
-      const files = Array.from(e.dataTransfer.files);
+      const files = Array.from((e as DragEvent).dataTransfer?.files || []);
       if (files.length === 0) return;
       handleDroppedFiles(files, $input, {
         getPendingAttachments: () => pendingAttachments,
@@ -414,40 +413,16 @@ async function handleSend() {
   let finalModelContent = applyComposerModeToPrompt(content, composerModeId);
   finalModelContent = appendTextAttachmentsToPrompt(finalModelContent, pendingAttachments);
 
-  rememberInput(content);
+  inputHistory.remember(content);
 
   $input.value = '';
   $input.style.height = 'auto';
-  document.getElementById('send-btn').disabled = true;
+  (document.getElementById('send-btn') as HTMLButtonElement | null)!.disabled = true;
   clearPendingAttachments();
   $input.dispatchEvent(new Event('input', { bubbles: true }));
 
   await sendMessage(content, { attachments, composerOverrides: overrides, modelContent: finalModelContent });
   setActiveConversationComposerMode(composerModeId);
-}
-
-function loadInputHistory() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(INPUT_HISTORY_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed.filter(Boolean).slice(0, 50) : [];
-  } catch {
-    return [];
-  }
-}
-
-function rememberInput(content) {
-  const text = String(content || '').trim();
-  if (!text) return;
-  inputHistory = [text, ...inputHistory.filter((item) => item !== text)].slice(0, 50);
-  inputHistoryIndex = -1;
-  localStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(inputHistory));
-}
-
-function navigateInputHistory(direction, input) {
-  if (inputHistory.length === 0) return;
-  if (direction < 0) inputHistoryIndex = Math.min(inputHistoryIndex + 1, inputHistory.length - 1);
-  else inputHistoryIndex = Math.max(inputHistoryIndex - 1, -1);
-  input.value = inputHistoryIndex >= 0 ? inputHistory[inputHistoryIndex] : '';
 }
 
 const COMPOSER_THINKING_LABELS = new Map([
@@ -458,23 +433,23 @@ const COMPOSER_THINKING_LABELS = new Map([
   ['32768', '极深'],
 ]);
 
-function initComposerOptions(openSettings) {
-  const $toolbar = document.querySelector('.composer-toolbar');
+function initComposerOptions(openSettings: (() => void) | undefined) {
+  const $toolbar = document.querySelector('.composer-toolbar') as HTMLElement | null;
   const $modeSelect = document.getElementById('composer-mode-select') as HTMLSelectElement | null;
-  const $chipToggle = document.getElementById('composer-chip-toggle');
-  const $thinking = document.getElementById('composer-thinking-select');
-  const $webToggle = document.getElementById('composer-web-search-toggle');
-  const $webStatus = document.getElementById('composer-search-status');
-  const $enhanceToggle = document.getElementById('composer-enhance-toggle');
-  const $enhanceStatus = document.getElementById('composer-enhance-status');
-  const $toolDrawerBtn = document.getElementById('composer-tool-drawer-btn');
-  const $toolStatus = document.getElementById('composer-tool-status');
-  const $contextBtn = document.getElementById('composer-context-btn');
-  const $advancedToggle = document.getElementById('composer-advanced-toggle');
-  const $runStatus = document.getElementById('composer-run-status');
-  const $contextPreview = document.getElementById('composer-context-preview');
-  const $templateBtn = document.getElementById('composer-template-btn');
-  const $settingsShortcut = document.getElementById('composer-settings-shortcut');
+  const $chipToggle = document.getElementById('composer-chip-toggle') as HTMLButtonElement | null;
+  const $thinking = document.getElementById('composer-thinking-select') as HTMLSelectElement | null;
+  const $webToggle = document.getElementById('composer-web-search-toggle') as HTMLInputElement | null;
+  const $webStatus = document.getElementById('composer-search-status') as HTMLElement | null;
+  const $enhanceToggle = document.getElementById('composer-enhance-toggle') as HTMLInputElement | null;
+  const $enhanceStatus = document.getElementById('composer-enhance-status') as HTMLElement | null;
+  const $toolDrawerBtn = document.getElementById('composer-tool-drawer-btn') as HTMLButtonElement | null;
+  const $toolStatus = document.getElementById('composer-tool-status') as HTMLElement | null;
+  const $contextBtn = document.getElementById('composer-context-btn') as HTMLButtonElement | null;
+  const $advancedToggle = document.getElementById('composer-advanced-toggle') as HTMLButtonElement | null;
+  const $runStatus = document.getElementById('composer-run-status') as HTMLElement | null;
+  const $contextPreview = document.getElementById('composer-context-preview') as HTMLElement | null;
+  const $templateBtn = document.getElementById('composer-template-btn') as HTMLButtonElement | null;
+  const $settingsShortcut = document.getElementById('composer-settings-shortcut') as HTMLButtonElement | null;
   const $webToggleLabel = $webToggle?.closest('.composer-search-toggle');
   const $enhanceToggleLabel = $enhanceToggle?.closest('.composer-enhance-toggle');
   if (!$thinking || !$webToggle) return;
@@ -486,7 +461,7 @@ function initComposerOptions(openSettings) {
     enhance: getSettings().enhance !== false,
   };
 
-  function applySettingsToComposer(settings = getSettings()) {
+  function applySettingsToComposer(settings: any = getSettings()) {
     syncing = true;
     if (!composerOverrides) {
       composerOverrides = {
@@ -516,15 +491,16 @@ function initComposerOptions(openSettings) {
       $runStatus,
       composedSettings,
       $thinking.value,
-      document.getElementById('message-input')?.value || ''
+      (document.getElementById('message-input') as HTMLTextAreaElement | null)?.value || ''
     );
     renderComposerContextPreview(
       $contextPreview,
-      document.getElementById('message-input')?.value || '',
+      (document.getElementById('message-input') as HTMLTextAreaElement | null)?.value || '',
       composedSettings
     );
     syncing = false;
   }
+  applySettingsToComposerCurrent = applySettingsToComposer;
 
   if ($modeSelect) {
     $modeSelect.addEventListener('change', () => {
@@ -557,7 +533,7 @@ function initComposerOptions(openSettings) {
       composerOverrides.thinkingBudget = budget;
       applySettingsToComposer(getSettings());
       showToast(`思考程度：${getThinkingLabel(String(budget))}`, 1200);
-    } catch (error) {
+    } catch (error: any) {
       applySettingsToComposer();
       showToast(error.message || '思考程度保存失败');
     }
@@ -578,7 +554,7 @@ function initComposerOptions(openSettings) {
         composerOverrides.activeSkill = 'web_search';
         applySettingsToComposer(settings);
         showToast('本轮已开启联网搜索', 1200);
-      } catch (error) {
+      } catch (error: any) {
         applySettingsToComposer();
         showToast(error.message || '联网搜索开启失败');
       }
@@ -590,7 +566,7 @@ function initComposerOptions(openSettings) {
         composerOverrides.activeSkill = 'none';
         applySettingsToComposer(settings);
         showToast('本轮已关闭联网搜索', 1200);
-      } catch (error) {
+      } catch (error: any) {
         applySettingsToComposer();
         showToast(error.message || '联网搜索关闭失败');
       }
@@ -607,7 +583,7 @@ function initComposerOptions(openSettings) {
         composerOverrides.enhance = $enhanceToggle.checked;
         applySettingsToComposer(getSettings());
         showToast($enhanceToggle.checked ? '本轮已开启提示词自动增强' : '本轮已关闭提示词自动增强', 1200);
-      } catch (error) {
+      } catch (error: any) {
         applySettingsToComposer();
         showToast(error.message || '自动增强保存失败');
       }
@@ -663,21 +639,24 @@ function initComposerOptions(openSettings) {
   document.querySelectorAll('[data-context-chip]').forEach((chip) => {
     chip.addEventListener('click', () => {
       const settings = getSettings();
-      const entry = buildContextShortcutEntries(settings).find((item) => item.id === chip.dataset.contextChip);
+      const entry = buildContextShortcutEntries(settings).find(
+        (item) => item.id === (chip as HTMLElement).dataset.contextChip
+      );
       if (!entry) return;
       if (!entry.available) {
         showToast(entry.state);
         if (['需工作区', '需 Tavily Key', '需 MCP'].includes(entry.state)) openSettings?.();
         return;
       }
-      const input = document.getElementById('message-input');
+      const input = document.getElementById('message-input') as HTMLTextAreaElement | null;
       insertIntoComposer(input, entry);
       input?.focus();
     });
   });
 
   window.addEventListener('deepchat:conversation-switched', (event) => {
-    const savedMode = event.detail?.composerModeId;
+    const detail = (event as CustomEvent).detail || {};
+    const savedMode = detail.composerModeId;
     if (savedMode) {
       composerModeId = getComposerMode(savedMode).id;
       const settings = getSettings();
@@ -690,17 +669,19 @@ function initComposerOptions(openSettings) {
   });
 
   window.addEventListener('deepchat:settings-changed', (event) => {
-    applySettingsToComposer(event.detail?.settings || getSettings());
+    const detail = (event as CustomEvent).detail || {};
+    applySettingsToComposer(detail.settings || getSettings());
   });
 
   window.addEventListener('deepchat:mcp-status-changed', (event) => {
-    latestMcpStatuses = Array.isArray(event.detail?.statuses) && !event.detail?.stale ? event.detail.statuses : [];
+    const detail = (event as CustomEvent).detail || {};
+    latestMcpStatuses = Array.isArray(detail.statuses) && !detail.stale ? detail.statuses : [];
     applySettingsToComposer(getSettings());
   });
 
   document.getElementById('message-input')?.addEventListener('input', () => {
     const settings = { ...getSettings(), ...composerOverrides, mcpStatuses: latestMcpStatuses };
-    const inputText = document.getElementById('message-input')?.value || '';
+    const inputText = (document.getElementById('message-input') as HTMLTextAreaElement | null)?.value || '';
     updateComposerRunStatus($runStatus, settings, $thinking.value, inputText);
     renderComposerContextPreview($contextPreview, inputText, settings);
   });
@@ -759,10 +740,10 @@ function togglePromptTemplateMenu(anchor, onApplyTemplate) {
     item.append(head, desc);
     if (intent.textContent) item.appendChild(intent);
     item.addEventListener('click', () => {
-      const input = document.getElementById('message-input');
+      const input = document.getElementById('message-input') as HTMLTextAreaElement;
       input.value = applyPromptTemplate(input.value, template.text);
       autoResize(input);
-      document.getElementById('send-btn').disabled = false;
+      (document.getElementById('send-btn') as HTMLButtonElement | null)!.disabled = false;
       input.dispatchEvent(new Event('input', { bubbles: true }));
       onApplyTemplate?.(template);
       promptTemplateMenu?.remove();
@@ -775,7 +756,7 @@ function togglePromptTemplateMenu(anchor, onApplyTemplate) {
   promptTemplateMenu = menu;
 }
 
-function buildPromptTemplateTitle(template = {}) {
+function buildPromptTemplateTitle(template: any = {}) {
   return [
     template.description,
     template.mode ? `推荐模式：${template.mode}` : '',
@@ -888,7 +869,7 @@ function toggleContextShortcutMenu(anchor, openSettings) {
         openSettings?.();
         return;
       }
-      const input = document.getElementById('message-input');
+      const input = document.getElementById('message-input') as HTMLTextAreaElement;
       insertIntoComposer(input, entry);
       contextShortcutMenu?.remove();
       contextShortcutMenu = null;
@@ -921,7 +902,7 @@ function toggleContextShortcutMenu(anchor, openSettings) {
   setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
 }
 
-function insertIntoComposer(input, entry) {
+function insertIntoComposer(input: HTMLTextAreaElement | null, entry: any) {
   if (!input || !entry?.insertText) return;
   const prefix = input.value && !/\s$/.test(input.value) ? ' ' : '';
   const insertion = `${prefix}${entry.insertText}`;
@@ -934,7 +915,8 @@ function insertIntoComposer(input, entry) {
     input.setSelectionRange(selectionStart, selectionEnd);
   }
   autoResize(input);
-  document.getElementById('send-btn').disabled = !input.value.trim() && pendingAttachments.length === 0;
+  (document.getElementById('send-btn') as HTMLButtonElement | null)!.disabled =
+    !input.value.trim() && pendingAttachments.length === 0;
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -972,7 +954,7 @@ function toggleExportMenu(anchor) {
 function getComposerOverrides() {
   const settings = getSettings();
   const modeOverrides = getComposerModeOverrides(composerModeId, settings);
-  const inputText = document.getElementById('message-input')?.value || '';
+  const inputText = (document.getElementById('message-input') as HTMLTextAreaElement | null)?.value || '';
   const baseActiveSkill = composerOverrides?.activeSkill ?? modeOverrides.activeSkill ?? settings.activeSkill;
   const activeSkill = resolveActiveSkillForExplicitDirectives(inputText, settings, baseActiveSkill);
   return {
@@ -1026,7 +1008,7 @@ function updateComposerRunStatus(target, settings, thinkingValue, inputText = ''
   target.dataset.intentState = preview.state || 'idle';
 }
 
-function renderComposerContextPreview(target, inputText = '', settings = {}) {
+function renderComposerContextPreview(target: HTMLElement | null, inputText = '', settings: any = {}) {
   if (!target) return;
   const preview = buildComposerContextPreview(inputText, {
     ...settings,
@@ -1043,7 +1025,7 @@ function renderComposerContextPreview(target, inputText = '', settings = {}) {
   }
 }
 
-function updateComposerToolButton(button, status, settings) {
+function updateComposerToolButton(button: HTMLElement | null, status: HTMLElement | null, settings: any) {
   if (!button) return;
   const entries = buildComposerToolEntries(settings, settings.activeSkill);
   const current = entries.find((entry) => entry.id === settings.activeSkill) || entries[0];
@@ -1058,7 +1040,7 @@ function updateComposerToolButton(button, status, settings) {
 
 // ─── Keyboard Shortcut Help ───
 
-let keyboardHelpEl = null;
+let keyboardHelpEl: HTMLElement | null = null;
 
 function toggleKeyboardHelp() {
   if (keyboardHelpEl) {
@@ -1127,7 +1109,7 @@ function toggleKeyboardHelp() {
 
 // ─── Ctrl+F Chat Search ───
 
-let chatSearchEl = null;
+let chatSearchEl: HTMLElement | null = null;
 
 function toggleChatSearch() {
   if (chatSearchEl) {
@@ -1146,14 +1128,14 @@ function toggleChatSearch() {
     <button class="chat-search-close" title="关闭">&times;</button>
   `;
 
-  const mainContent = document.getElementById('main-content');
+  const mainContent = document.getElementById('main-content') as HTMLElement;
   mainContent.insertBefore(bar, mainContent.firstChild);
   chatSearchEl = bar;
 
-  const input = bar.querySelector('.chat-search-input');
-  const countEl = bar.querySelector('.chat-search-count');
+  const input = bar.querySelector('.chat-search-input') as HTMLInputElement;
+  const countEl = bar.querySelector('.chat-search-count') as HTMLElement;
   let searchIndex = buildChatSearchIndex(document);
-  let matches = [];
+  let matches: HTMLElement[] = [];
   let currentMatch = -1;
 
   function clearHighlights() {
@@ -1191,7 +1173,7 @@ function toggleChatSearch() {
   }
 
   input.addEventListener('input', debounce(doSearch, 200));
-  input.addEventListener('keydown', (e) => {
+  input.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       jumpTo(e.shiftKey ? currentMatch - 1 : currentMatch + 1);
@@ -1201,10 +1183,10 @@ function toggleChatSearch() {
 
   bar.querySelectorAll('.chat-search-nav').forEach((btn) => {
     btn.addEventListener('click', () => {
-      jumpTo(currentMatch + parseInt(btn.dataset.dir));
+      jumpTo(currentMatch + Number.parseInt((btn as HTMLElement).dataset.dir || '1', 10));
     });
   });
-  bar.querySelector('.chat-search-close').addEventListener('click', closeChatSearch);
+  bar.querySelector('.chat-search-close')?.addEventListener('click', closeChatSearch);
 
   input.focus();
 
@@ -1217,9 +1199,9 @@ function toggleChatSearch() {
 
 // ─── Ctrl+P Markdown Preview ───
 
-let previewOverlayEl = null;
+let previewOverlayEl: HTMLElement | null = null;
 
-function toggleMarkdownPreview(text) {
+function toggleMarkdownPreview(text: string) {
   if (previewOverlayEl) {
     previewOverlayEl.remove();
     previewOverlayEl = null;
@@ -1243,7 +1225,7 @@ function toggleMarkdownPreview(text) {
     </div>
   `;
 
-  const body = overlay.querySelector('.markdown-preview-body');
+  const body = overlay.querySelector('.markdown-preview-body') as HTMLElement | null;
   safeSetHTML(body, renderMarkdown(text));
 
   overlay.addEventListener('click', (e) => {
@@ -1252,7 +1234,7 @@ function toggleMarkdownPreview(text) {
       previewOverlayEl = null;
     }
   });
-  overlay.querySelector('.markdown-preview-close').addEventListener('click', () => {
+  overlay.querySelector('.markdown-preview-close')?.addEventListener('click', () => {
     overlay.remove();
     previewOverlayEl = null;
   });
