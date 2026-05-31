@@ -44,7 +44,6 @@ import {
   getSettings,
   isSkillRunnable,
   supportsVisionModel,
-  getModelCapabilities,
   getProviderCompatibilityReport,
 } from './modules/api.js';
 import { initTheme, toggleTheme } from './modules/theme.js';
@@ -64,19 +63,8 @@ import { initReadingNavigator } from './modules/reading-navigator.js';
 import { initInspectorPanel } from './modules/inspector-panel.js';
 import { initArtifactPanel, openArtifactPanel } from './modules/artifact-panel.js';
 import { autoResize, debounce, showToast } from './modules/utils.js';
-import {
-  applyComposerModeToPrompt,
-  buildComposerModeEntries,
-  getComposerMode,
-  getComposerModeOverrides,
-} from './modules/composer-modes.js';
-import {
-  buildComposerContextPreview,
-  buildComposerIntentPreview,
-  buildComposerToolEntries,
-  getComposerToolModeLabel,
-  resolveActiveSkillForExplicitDirectives,
-} from './modules/composer-tools.js';
+import { applyComposerModeToPrompt, getComposerMode, getComposerModeOverrides } from './modules/composer-modes.js';
+import { resolveActiveSkillForExplicitDirectives } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
 import { maybeShowProviderSetupHint } from './modules/app-startup.js';
 import {
@@ -87,6 +75,15 @@ import {
   togglePromptTemplateMenu,
 } from './modules/app-menus.js';
 import { toggleChatSearch, toggleKeyboardHelp, toggleMarkdownPreview } from './modules/app-overlays.js';
+import {
+  getSearchStatusText,
+  getThinkingLabel,
+  renderComposerContextPreview,
+  syncComposerModeSelect,
+  syncThinkingSelect,
+  updateComposerRunStatus,
+  updateComposerToolButton,
+} from './modules/composer-status.js';
 import {
   appendTextAttachmentsToPrompt,
   clearPendingAttachmentPreview,
@@ -424,14 +421,6 @@ async function handleSend() {
   setActiveConversationComposerMode(composerModeId);
 }
 
-const COMPOSER_THINKING_LABELS = new Map([
-  ['0', '自动'],
-  ['4096', '轻量'],
-  ['8192', '标准'],
-  ['16384', '深度'],
-  ['32768', '极深'],
-]);
-
 function initComposerOptions(openSettings: (() => void) | undefined) {
   const $toolbar = document.querySelector('.composer-toolbar') as HTMLElement | null;
   const $modeSelect = document.getElementById('composer-mode-select') as HTMLSelectElement | null;
@@ -490,12 +479,13 @@ function initComposerOptions(openSettings: (() => void) | undefined) {
       $runStatus,
       composedSettings,
       $thinking.value,
-      (document.getElementById('message-input') as HTMLTextAreaElement | null)?.value || ''
+      (document.getElementById('message-input') as HTMLTextAreaElement | null)?.value || '',
+      composerModeId
     );
     renderComposerContextPreview(
       $contextPreview,
       (document.getElementById('message-input') as HTMLTextAreaElement | null)?.value || '',
-      composedSettings
+      { ...composedSettings, mcpStatuses: latestMcpStatuses }
     );
     syncing = false;
   }
@@ -691,26 +681,11 @@ function initComposerOptions(openSettings: (() => void) | undefined) {
   document.getElementById('message-input')?.addEventListener('input', () => {
     const settings = { ...getSettings(), ...composerOverrides, mcpStatuses: latestMcpStatuses };
     const inputText = (document.getElementById('message-input') as HTMLTextAreaElement | null)?.value || '';
-    updateComposerRunStatus($runStatus, settings, $thinking.value, inputText);
+    updateComposerRunStatus($runStatus, settings, $thinking.value, inputText, composerModeId);
     renderComposerContextPreview($contextPreview, inputText, settings);
   });
 
   applySettingsToComposer();
-}
-
-function syncComposerModeSelect(select, activeModeId, settings = {}) {
-  if (!select) return;
-  const entries = buildComposerModeEntries(settings);
-  const resolvedModeId = getComposerMode(activeModeId).id;
-  for (const option of select.options) {
-    const entry = entries.find((item) => item.id === option.value);
-    if (entry) {
-      option.textContent = entry.label;
-      option.title = entry.description;
-      option.disabled = !entry.available;
-    }
-  }
-  select.value = resolvedModeId;
 }
 
 function getComposerOverrides() {
@@ -725,79 +700,6 @@ function getComposerOverrides() {
     activeSkill,
     enhance: composerOverrides?.enhance ?? modeOverrides.enhance ?? settings.enhance !== false,
   };
-}
-
-function syncThinkingSelect(select, budget) {
-  const normalized = String(Number.parseInt(budget, 10) || 0);
-  const customOption = select.querySelector('[data-custom-thinking="true"]');
-
-  if (COMPOSER_THINKING_LABELS.has(normalized)) {
-    customOption?.remove();
-  } else {
-    const option = customOption || document.createElement('option');
-    option.dataset.customThinking = 'true';
-    option.value = normalized;
-    option.textContent = `自定义 ${normalized}`;
-    if (!customOption) select.appendChild(option);
-  }
-
-  select.value = normalized;
-}
-
-function getThinkingLabel(value) {
-  return COMPOSER_THINKING_LABELS.get(value) || `${value} tokens`;
-}
-
-function getSearchStatusText(settings) {
-  if (!settings.tavilyApiKey) return '需配置';
-  if (settings.activeSkill === 'web_search') return '开启';
-  if (settings.activeSkill === 'multi_tool') return '全工具';
-  return '关闭';
-}
-
-function updateComposerRunStatus(target, settings, thinkingValue, inputText = '') {
-  if (!target) return;
-  const thinking = getThinkingLabel(String(Number.parseInt(thinkingValue, 10) || 0));
-  const tool = getComposerToolModeLabel(settings.activeSkill);
-  const mode = getComposerMode(composerModeId);
-  const search = getSearchStatusText(settings);
-  const enhance = settings.enhance === false ? '增强关闭' : '增强开启';
-  const caps = getModelCapabilities(settings);
-  const preview = buildComposerIntentPreview(inputText, settings);
-  const base = `本轮：${mode.label}模式 · ${tool} · ${thinking}思考 · 搜索${search} · ${enhance} · 图片${caps.vision ? '可用' : '不可用'}`;
-  target.textContent = preview.text ? `${base} · ${preview.text}` : base;
-  target.title = preview.title || '根据当前设置展示本轮模型、工具和输入意图预判。';
-  target.dataset.intentState = preview.state || 'idle';
-}
-
-function renderComposerContextPreview(target: HTMLElement | null, inputText = '', settings: any = {}) {
-  if (!target) return;
-  const preview = buildComposerContextPreview(inputText, {
-    ...settings,
-    mcpStatuses: settings.mcpStatuses || latestMcpStatuses,
-  });
-  target.textContent = '';
-  target.title = preview.title || '';
-  for (const item of preview.items) {
-    const chip = document.createElement('span');
-    chip.className = `composer-context-preview-chip tone-${item.tone || 'muted'} kind-${item.kind || 'item'}`;
-    chip.textContent = item.label;
-    if (item.title) chip.title = item.title;
-    target.appendChild(chip);
-  }
-}
-
-function updateComposerToolButton(button: HTMLElement | null, status: HTMLElement | null, settings: any) {
-  if (!button) return;
-  const entries = buildComposerToolEntries(settings, settings.activeSkill);
-  const current = entries.find((entry) => entry.id === settings.activeSkill) || entries[0];
-  button.classList.toggle('is-unavailable', Boolean(current && !current.available));
-  button.title = current
-    ? `${current.name}：${current.available ? current.description : current.state}`
-    : '选择本轮可用工具';
-  const icon = button.querySelector('.composer-tool-icon');
-  if (icon && current) icon.textContent = current.icon;
-  if (status && current) status.textContent = current.name;
 }
 
 function clearPendingAttachments() {
