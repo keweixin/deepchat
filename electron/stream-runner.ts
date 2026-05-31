@@ -18,6 +18,7 @@ import { DEFAULT_AGENT_MAX_ROUNDS } from './agent-planner.ts';
 
 const MAX_TOOL_CONTEXT_TOKENS = 3500;
 const TOOL_ARG_LONG_STRING_THRESHOLD = 300;
+export const NEEDS_PRO_SIGNAL = 'NEEDS_PRO';
 
 // ---------------------------------------------------------------------------
 // Message normalisation
@@ -309,6 +310,25 @@ export function resolveAuxiliaryModel(settings: any = {}) {
   if (provider === 'deepseek' || /^deepseek-/i.test(model)) return 'deepseek-v4-flash';
   if (provider === 'xiaomimimo' || /^mimo-/i.test(model)) return 'mimo-v2.5';
   return model;
+}
+
+export function hasNeedsProSignal(content: unknown): boolean {
+  return String(content || '').includes(NEEDS_PRO_SIGNAL);
+}
+
+export function stripNeedsProSignal(content: unknown): string {
+  return String(content || '')
+    .replaceAll(NEEDS_PRO_SIGNAL, '')
+    .trim();
+}
+
+export function resolveProUpgradeModel(settings: any = {}, currentModel: unknown = settings.model): string {
+  if (String(settings.agentModelTier || 'auto') !== 'auto') return '';
+  const model = String(currentModel || settings.model || '').trim();
+  if (!model || /pro/i.test(model)) return '';
+  if (/flash/i.test(model)) return model.replace(/flash/gi, 'pro');
+  if (/^deepseek-v4/i.test(model)) return 'deepseek-v4-pro';
+  return '';
 }
 
 /**

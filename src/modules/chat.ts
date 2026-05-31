@@ -1327,6 +1327,7 @@ function formatAgentStageLabel(stage: Record<string, any> = {}) {
     summary: '压缩记忆',
     warning: '配置提示',
     model: '模型思考',
+    model_upgrade: '模型升级',
     tool: '准备工具',
     tool_pending: '等待确认',
     tool_approved: '已确认工具',

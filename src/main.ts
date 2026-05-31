@@ -88,14 +88,17 @@ import {
   findChatSearchMatches,
   highlightChatSearchMatches,
 } from './modules/chat-search.js';
+import {
+  appendTextAttachmentsToPrompt,
+  clearPendingAttachmentPreview,
+  handleDroppedFiles,
+} from './modules/composer-attachments.js';
 
 let pendingAttachments = [];
 let composerOverrides = null;
 let composerModeId = 'daily';
 let latestMcpStatuses = [];
 const INPUT_HISTORY_KEY = 'dc_input_history';
-const MAX_TEXT_ATTACHMENT_BYTES = 256 * 1024;
-const MAX_IMAGE_ATTACHMENTS = 8;
 let inputHistory = [];
 let inputHistoryIndex = -1;
 
@@ -381,7 +384,15 @@ function bindEvents() {
       $inputContainer.classList.remove('drag-over');
       const files = Array.from(e.dataTransfer.files);
       if (files.length === 0) return;
-      handleDroppedFiles(files, $input);
+      handleDroppedFiles(files, $input, {
+        getPendingAttachments: () => pendingAttachments,
+        setPendingAttachments: (attachments) => {
+          pendingAttachments = attachments;
+        },
+        showToast,
+        autoResize,
+        toggleMarkdownPreview,
+      });
     });
   }
 }
@@ -401,11 +412,7 @@ async function handleSend() {
   const overrides = getComposerOverrides();
 
   let finalModelContent = applyComposerModeToPrompt(content, composerModeId);
-  const textAttachments = pendingAttachments.filter((item) => !String(item.mimeType || '').startsWith('image/'));
-  if (textAttachments.length > 0) {
-    const textContext = textAttachments.map((item) => buildTextAttachmentContext(item.name, item.dataUrl)).join('\n\n');
-    finalModelContent = `${finalModelContent}\n\n<uploaded_attachments>\n${textContext}\n</uploaded_attachments>`;
-  }
+  finalModelContent = appendTextAttachmentsToPrompt(finalModelContent, pendingAttachments);
 
   rememberInput(content);
 
@@ -1261,143 +1268,7 @@ function toggleMarkdownPreview(text) {
   previewOverlayEl = overlay;
 }
 
-// ─── Drag-and-Drop File Handler ───
-
-function handleDroppedFiles(files, $input) {
-  const remainingSlots = Math.max(0, MAX_IMAGE_ATTACHMENTS - pendingAttachments.length);
-  const acceptedFiles = files.slice(0, remainingSlots);
-  if (acceptedFiles.length < files.length) {
-    showToast(`最多保留 ${MAX_IMAGE_ATTACHMENTS} 个附件，多余的文件已忽略。`, 2400);
-  }
-
-  acceptedFiles.forEach((file) => {
-    const isImage = file.type.startsWith('image/');
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      let preview = document.querySelector('.attachment-preview');
-      if (!preview) {
-        preview = document.createElement('div');
-        preview.className = 'attachment-preview';
-        const inputArea = document.querySelector('.input-container');
-        inputArea.parentNode.insertBefore(preview, inputArea);
-      }
-
-      const item = document.createElement('div');
-      item.className = 'attachment-item' + (isImage ? ' type-image' : ' type-text');
-
-      if (isImage) {
-        const image = document.createElement('img');
-        image.src = String(reader.result || '');
-        image.alt = file.name || '图片附件';
-        item.appendChild(image);
-      } else {
-        const icon = document.createElement('div');
-        icon.className = 'attachment-text-icon';
-        icon.textContent = '📄';
-        item.appendChild(icon);
-      }
-
-      const name = document.createElement('span');
-      name.className = 'attachment-name';
-      name.textContent = file.name || '附件';
-
-      let previewAction = null;
-      let insertAction = null;
-      if (!isImage) {
-        previewAction = document.createElement('button');
-        previewAction.type = 'button';
-        previewAction.className = 'attachment-preview-action';
-        previewAction.title = '预览文本附件';
-        previewAction.setAttribute('aria-label', `预览 ${file.name || '文本附件'}`);
-        previewAction.textContent = '预览';
-        previewAction.addEventListener('click', () => {
-          const text = String(reader.result || '');
-          toggleMarkdownPreview(`文件：${file.name || '文本附件'}\n\n\`\`\`text\n${text}\n\`\`\``);
-        });
-
-        insertAction = document.createElement('button');
-        insertAction.type = 'button';
-        insertAction.className = 'attachment-preview-action';
-        insertAction.title = '插入到输入框';
-        insertAction.setAttribute('aria-label', `插入 ${file.name || '文本附件'} 到输入框`);
-        insertAction.textContent = '插入';
-        insertAction.addEventListener('click', () => {
-          insertTextAttachmentIntoInput($input, file.name || '文本附件', String(reader.result || ''));
-          pendingAttachments = pendingAttachments.filter((attachment) => attachment.id !== item.dataset.attachmentId);
-          item.remove();
-          if (preview.children.length === 0) preview.remove();
-          document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
-          showToast('已插入文本附件', 1400);
-        });
-      }
-
-      const remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'attachment-remove';
-      remove.title = '移除';
-      remove.setAttribute('aria-label', `移除 ${file.name || '附件'}`);
-      remove.textContent = '×';
-
-      remove.addEventListener('click', () => {
-        pendingAttachments = pendingAttachments.filter((attachment) => attachment.id !== item.dataset.attachmentId);
-        item.remove();
-        if (preview.children.length === 0) preview.remove();
-        document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
-      });
-
-      item.append(name);
-      if (previewAction) item.appendChild(previewAction);
-      if (insertAction) item.appendChild(insertAction);
-      item.appendChild(remove);
-
-      const attachment = {
-        id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-        name: file.name,
-        mimeType: file.type || 'text/plain',
-        size: file.size,
-        dataUrl: reader.result,
-      };
-
-      item.dataset.attachmentId = attachment.id;
-      pendingAttachments.push(attachment);
-      preview.appendChild(item);
-      document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
-    };
-
-    if (isImage) {
-      reader.readAsDataURL(file);
-    } else {
-      if (file.size > MAX_TEXT_ATTACHMENT_BYTES) {
-        showToast(`${file.name} 超过 256KB，已跳过。`, 2600);
-        return;
-      }
-      reader.readAsText(file);
-    }
-  });
-
-  if (acceptedFiles.length > 0) {
-    showToast(`已添加 ${acceptedFiles.length} 个附件`, 1500);
-  }
-}
-
-function buildTextAttachmentContext(name, text) {
-  return `[附件文件: ${name || '文本附件'}]\n\`\`\`\n${String(text || '')}\n\`\`\``;
-}
-
-function insertTextAttachmentIntoInput($input, name, text) {
-  const block = `\n\n${buildTextAttachmentContext(name, text)}`;
-  const start = $input.selectionStart ?? $input.value.length;
-  const end = $input.selectionEnd ?? $input.value.length;
-  $input.value = `${$input.value.slice(0, start)}${block}${$input.value.slice(end)}`;
-  const cursor = start + block.length;
-  $input.setSelectionRange(cursor, cursor);
-  autoResize($input);
-  $input.focus();
-  $input.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
 function clearPendingAttachments() {
   pendingAttachments = [];
-  document.querySelector('.attachment-preview')?.remove();
+  clearPendingAttachmentPreview();
 }

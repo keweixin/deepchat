@@ -105,6 +105,9 @@ import {
   toolCallSignature,
   resolveAuxiliaryModel,
   resolveAgentMaxRounds,
+  hasNeedsProSignal,
+  stripNeedsProSignal,
+  resolveProUpgradeModel,
 } from './stream-runner.js';
 
 import {
@@ -290,6 +293,8 @@ class ChatService {
     const usageRounds = [];
     const warnings = [];
     const seenToolCalls = new Set();
+    let activeModelSettings = settings;
+    let proUpgradeUsed = false;
 
     const prefixWarnings = prefix.cacheStabilityWarnings || [];
     if (prefixWarnings.length > 0) warnings.push(...prefixWarnings);
@@ -380,19 +385,76 @@ class ChatService {
       }
 
       this.emit(requestId, 'agentStage', { stage: 'model', round: round + 1, maxRounds: maxToolRounds });
-      const result = await this.streamOnce(requestId, workingMessages, settings, tools, abortController.signal);
+      const result = await this.streamOnce(
+        requestId,
+        workingMessages,
+        activeModelSettings,
+        tools,
+        abortController.signal
+      );
       if (Array.isArray(result.warnings)) warnings.push(...result.warnings);
       usageRounds.push(
         normalizeTokenUsage(result.usage, {
           input: estimateMessagesTokens(workingMessages),
           output: estimateTokens(result.content),
-          model: settings.model,
+          model: activeModelSettings.model,
           byPurpose: { main: estimateTokens(result.content) },
         })
       );
       if (abortController.signal.aborted) {
         this.emit(requestId, 'done', { aborted: true });
         return;
+      }
+
+      const needsPro = result.needsPro || hasNeedsProSignal(result.content);
+      if (needsPro) {
+        result.content = stripNeedsProSignal(result.content);
+        const currentModel = activeModelSettings.model || settings.model;
+        const upgradedModel = resolveProUpgradeModel(settings, currentModel);
+        if (upgradedModel && !proUpgradeUsed && round < maxToolRounds) {
+          proUpgradeUsed = true;
+          activeModelSettings = { ...activeModelSettings, model: upgradedModel };
+          const warning = `模型输出 NEEDS_PRO，Agent 已从 ${currentModel} 升级到 ${upgradedModel} 继续处理。`;
+          warnings.push(warning);
+          this.emit(requestId, 'agentStage', {
+            stage: 'model_upgrade',
+            round: round + 1,
+            maxRounds: maxToolRounds,
+            warning,
+            fromModel: currentModel,
+            toModel: upgradedModel,
+            stopReason: 'needs_pro',
+          });
+          if (!result.toolCalls.length) {
+            const cleanedContent = stripNeedsProSignal(result.content);
+            workingMessages.push({
+              role: 'assistant',
+              content: cleanedContent || '上一轮模型请求升级到 Pro 继续处理。',
+            });
+            workingMessages.push({
+              role: 'user',
+              content: `DeepChat 已按 NEEDS_PRO 信号升级到 ${upgradedModel}。请继续完成原任务，不要再次输出 NEEDS_PRO；如果需要工具，请正常发起工具调用。`,
+            });
+            continue;
+          }
+        } else {
+          const warning =
+            settings.agentModelTier === 'auto'
+              ? `模型输出 NEEDS_PRO，但当前模型 ${currentModel} 没有可推断的 Pro 升级目标或已达到轮数上限。`
+              : `模型输出 NEEDS_PRO，但 Agent 辅助模型档位为 ${settings.agentModelTier || '固定'}，不会自动升级。`;
+          warnings.push(warning);
+          this.emit(requestId, 'agentStage', {
+            stage: 'warning',
+            round: round + 1,
+            maxRounds: maxToolRounds,
+            warning,
+            stopReason: 'needs_pro_not_upgraded',
+          });
+          if (!result.content.trim()) {
+            result.content = warning;
+            this.emit(requestId, 'token', { token: `\n\n${warning}` });
+          }
+        }
       }
 
       if (!result.toolCalls.length) {
@@ -589,6 +651,9 @@ export {
   toolCallSignature,
   resolveAuxiliaryModel,
   resolveAgentMaxRounds,
+  hasNeedsProSignal,
+  stripNeedsProSignal,
+  resolveProUpgradeModel,
   estimateTokens,
   estimateMessagesTokens,
   finalizeTokenUsage,

@@ -1,5 +1,5 @@
 ﻿import { normalizeTokenUsage } from './usage-meter.js';
-import { mergeToolCalls, compactToolCalls } from './stream-runner.js';
+import { NEEDS_PRO_SIGNAL, mergeToolCalls, compactToolCalls } from './stream-runner.js';
 import { repairToolCallsFromText } from './tool-executor.js';
 import { fetchChatCompletionWithFallback } from './provider-adapters.js';
 
@@ -32,9 +32,50 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
   const decoder = new TextDecoder();
   let buffer = '';
   let content = '';
+  let visibleContent = '';
+  let pendingVisibleContent = '';
+  let needsPro = false;
   let thinking = '';
   let usage = null;
   const toolCalls = [];
+  const watchNeedsPro = String(settings.agentModelTier || 'auto') === 'auto';
+
+  const emitVisibleContent = (token) => {
+    if (!token) return;
+    visibleContent += token;
+    emit(requestId, 'token', { token });
+  };
+
+  const handleContentDelta = (token) => {
+    content += token;
+    if (!watchNeedsPro) {
+      emitVisibleContent(token);
+      return;
+    }
+
+    pendingVisibleContent += token;
+    if (pendingVisibleContent.includes(NEEDS_PRO_SIGNAL)) {
+      needsPro = true;
+      pendingVisibleContent = pendingVisibleContent.replaceAll(NEEDS_PRO_SIGNAL, '');
+    }
+
+    const keepLength = NEEDS_PRO_SIGNAL.length - 1;
+    const flushLength = Math.max(0, pendingVisibleContent.length - keepLength);
+    if (flushLength > 0) {
+      emitVisibleContent(pendingVisibleContent.slice(0, flushLength));
+      pendingVisibleContent = pendingVisibleContent.slice(flushLength);
+    }
+  };
+
+  const finalizeVisibleContent = () => {
+    if (pendingVisibleContent.includes(NEEDS_PRO_SIGNAL)) {
+      needsPro = true;
+      pendingVisibleContent = pendingVisibleContent.replaceAll(NEEDS_PRO_SIGNAL, '');
+    }
+    emitVisibleContent(pendingVisibleContent);
+    pendingVisibleContent = '';
+    return watchNeedsPro ? visibleContent.trim() : content;
+  };
 
   try {
     while (true) {
@@ -49,10 +90,11 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
         if (!trimmed || !trimmed.startsWith('data:')) continue;
         const data = trimmed.slice(5).trim();
         if (data === '[DONE]') {
+          const finalContent = finalizeVisibleContent();
           const nativeToolCalls = compactToolCalls(toolCalls);
           const repaired =
             nativeToolCalls.length === 0
-              ? repairToolCallsFromText(content, thinking, tools)
+              ? repairToolCallsFromText(finalContent, thinking, tools)
               : { toolCalls: [], warning: '', repairReport: null };
           if (repaired.toolCalls.length > 0) {
             warnings.push(repaired.warning);
@@ -64,12 +106,13 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
             });
           }
           return {
-            content,
+            content: finalContent,
             thinking,
             usage,
             toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
             warnings,
             repairReport: repaired.repairReport,
+            needsPro,
           };
         }
 
@@ -79,8 +122,7 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
           const delta = json.choices?.[0]?.delta;
           if (!delta) continue;
           if (delta.content) {
-            content += delta.content;
-            emit(requestId, 'token', { token: delta.content });
+            handleContentDelta(delta.content);
           }
           if (delta.reasoning_content) {
             thinking += delta.reasoning_content;
@@ -93,10 +135,11 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
       }
     }
 
+    const finalContent = finalizeVisibleContent();
     const nativeToolCalls = compactToolCalls(toolCalls);
     const repaired =
       nativeToolCalls.length === 0
-        ? repairToolCallsFromText(content, thinking, tools)
+        ? repairToolCallsFromText(finalContent, thinking, tools)
         : { toolCalls: [], warning: '', repairReport: null };
     if (repaired.toolCalls.length > 0) {
       warnings.push(repaired.warning);
@@ -108,12 +151,13 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
       });
     }
     return {
-      content,
+      content: finalContent,
       thinking,
       usage,
       toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
       warnings,
       repairReport: repaired.repairReport,
+      needsPro,
     };
   } finally {
     reader.releaseLock();

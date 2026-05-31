@@ -63,6 +63,38 @@ describe('electron chat service token usage and agent loop', () => {
     });
   });
 
+  it('suppresses NEEDS_PRO from streamed text while preserving the upgrade signal', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    const response = [
+      sse({ choices: [{ delta: { content: 'NE' } }] }),
+      sse({ choices: [{ delta: { content: 'EDS_PRO' } }] }),
+      sse({ choices: [{ delta: { content: 'Use the pro path.' } }] }),
+      'data: [DONE]\n\n',
+    ].join('');
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      body: streamFromText(response),
+    });
+
+    const result = await service.streamOnce(
+      'req-needs-pro-stream',
+      [{ role: 'user', content: 'hard task' }],
+      baseSettings({ agentModelTier: 'auto' }),
+      [],
+      new AbortController().signal
+    );
+
+    expect(result).toMatchObject({ content: 'Use the pro path.', needsPro: true });
+    expect(
+      events
+        .filter((event) => event.type === 'token')
+        .map((event) => event.token)
+        .join('')
+    ).toBe('Use the pro path.');
+  });
+
   it('aggregates usage across agent tool rounds and emits the total usage', async () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
@@ -99,6 +131,66 @@ describe('electron chat service token usage and agent loop', () => {
       total: 52,
       rounds: 2,
       source: 'provider',
+    });
+  });
+
+  it('upgrades to the inferred pro model only when auto tier sees NEEDS_PRO', async () => {
+    const events = [];
+    const models = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.streamOnce = vi.fn(async (_requestId, _messages, settings) => {
+      models.push(settings.model);
+      if (models.length === 1) {
+        return {
+          content: 'NEEDS_PRO',
+          thinking: '',
+          needsPro: true,
+          usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }),
+          toolCalls: [],
+        };
+      }
+      return {
+        content: 'done',
+        thinking: '',
+        usage: normalizeTokenUsage({ prompt_tokens: 12, completion_tokens: 2, total_tokens: 14 }),
+        toolCalls: [],
+      };
+    });
+
+    await service.runWithSettings(
+      { requestId: 'req-needs-pro-upgrade', messages: [{ role: 'user', content: '复杂任务' }] },
+      baseSettings({ agentModelTier: 'auto', model: 'deepseek-v4-flash', agentMaxRounds: 2 }),
+      new AbortController()
+    );
+
+    expect(models).toEqual(['deepseek-v4-flash', 'deepseek-v4-pro']);
+    expect(events.find((event) => event.type === 'agentStage' && event.stage === 'model_upgrade')).toMatchObject({
+      fromModel: 'deepseek-v4-flash',
+      toModel: 'deepseek-v4-pro',
+      stopReason: 'needs_pro',
+    });
+  });
+
+  it('does not override fixed model tiers when NEEDS_PRO appears', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.streamOnce = vi.fn(async () => ({
+      content: 'NEEDS_PRO',
+      thinking: '',
+      needsPro: true,
+      usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }),
+      toolCalls: [],
+    }));
+
+    await service.runWithSettings(
+      { requestId: 'req-needs-pro-fixed', messages: [{ role: 'user', content: '复杂任务' }] },
+      baseSettings({ agentModelTier: 'flash', model: 'deepseek-v4-flash', agentMaxRounds: 2 }),
+      new AbortController()
+    );
+
+    expect(service.streamOnce).toHaveBeenCalledTimes(1);
+    expect(events.find((event) => event.type === 'agentStage' && event.stage === 'warning')).toMatchObject({
+      stopReason: 'needs_pro_not_upgraded',
     });
   });
 
