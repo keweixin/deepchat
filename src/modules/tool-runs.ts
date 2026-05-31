@@ -62,6 +62,9 @@ export function applyToolResult(toolCalls: any[] = [], event: any = {}, now = ne
   if (event.rawOutputTokens !== undefined) tool.rawOutputTokens = event.rawOutputTokens;
   if (event.contextOutputTokens !== undefined) tool.contextOutputTokens = event.contextOutputTokens;
   if (event.contextCompacted !== undefined) tool.contextCompacted = event.contextCompacted;
+  if (event.contextCompactionRatio !== undefined) tool.contextCompactionRatio = event.contextCompactionRatio;
+  if (event.contextCompactionReason) tool.contextCompactionReason = event.contextCompactionReason;
+  if (event.contextCompactionType) tool.contextCompactionType = event.contextCompactionType;
   if (event.expiresAt) tool.expiresAt = event.expiresAt;
   if (event.risk) tool.risk = event.risk;
   tool.status = event.ok ? 'completed' : tool.status === 'denied' ? 'denied' : 'failed';
@@ -99,6 +102,9 @@ export function buildToolRuns(toolCalls: any[] = []): any[] {
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
     contextOutputTokens: normalizeNumber(tool.contextOutputTokens),
     contextCompacted: Boolean(tool.contextCompacted),
+    contextCompactionRatio: normalizeRatio(tool.contextCompactionRatio),
+    contextCompactionReason: tool.contextCompactionReason || '',
+    contextCompactionType: tool.contextCompactionType || '',
     expiresAt: tool.expiresAt || '',
     evidence: buildToolEvidencePayload(tool),
   }));
@@ -142,6 +148,9 @@ export function buildToolEvidencePayload(tool: any = {}): any {
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
     contextOutputTokens: normalizeNumber(tool.contextOutputTokens),
     contextCompacted: Boolean(tool.contextCompacted),
+    contextCompactionRatio: normalizeRatio(tool.contextCompactionRatio),
+    contextCompactionReason: tool.contextCompactionReason || '',
+    contextCompactionType: tool.contextCompactionType || '',
     rawOutputRef: outputText ? `tool-output:${id || getToolName(tool)}` : '',
   };
 }
@@ -680,4 +689,9 @@ function parseFunctionArgs(value: string): any {
 function normalizeNumber(value: unknown): number {
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? Math.round(number) : 0;
+}
+
+function normalizeRatio(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : 0;
 }

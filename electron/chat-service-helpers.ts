@@ -1,7 +1,6 @@
 ﻿import { DEFAULT_AGENT_MAX_ROUNDS } from './agent-planner.js';
 import { isMcpToolName } from './mcp-manager.js';
-import { parseToolArgsDetailed, compactToolOutputForContext } from './tool-executor.js';
-import { estimateTokens } from './usage-meter.js';
+import { parseToolArgsDetailed, compactToolOutputWithMetadata } from './tool-executor.js';
 
 const DEFAULT_MAX_INPUT_TOKENS = 24000;
 const AGENT_EXECUTION_MODES = new Set(['execute_all', 'single_step']);
@@ -90,13 +89,7 @@ function parseToolArgs(raw) {
 
 function buildToolContextOutput(toolName, args, output) {
   const raw = String(output || '');
-  const contextOutput = compactToolOutputForContext(toolName, args, raw);
-  return {
-    contextOutput,
-    rawOutputTokens: estimateTokens(raw),
-    contextOutputTokens: estimateTokens(contextOutput),
-    contextCompacted: contextOutput !== raw,
-  };
+  return compactToolOutputWithMetadata(toolName, args, raw);
 }
 
 export {

@@ -200,6 +200,16 @@ function inferNextAction(tool: Record<string, unknown>): string {
   return '可继续追问或执行后续操作';
 }
 
+function formatCompactionSummary(tool: Record<string, unknown>): string {
+  if (!tool.contextCompacted) return '';
+  const raw = Number(tool.rawOutputTokens || 0);
+  const context = Number(tool.contextOutputTokens || 0);
+  const ratio = Number(tool.contextCompactionRatio || 0);
+  const percent = ratio > 0 ? `${Math.round(ratio * 100)}%` : raw > 0 ? `${Math.round((context / raw) * 100)}%` : '';
+  const reason = String(tool.contextCompactionReason || '').replace(/^tool_type:/, '');
+  return [percent ? `保留 ${percent}` : '', reason ? `原因 ${reason}` : ''].filter(Boolean).join(' · ');
+}
+
 export function renderToolCard(
   tool: Record<string, unknown>,
   options: { showRaw?: boolean; onToggleRaw?: (expanded: boolean) => void } = {}
@@ -225,6 +235,7 @@ export function renderToolCard(
   const tokens = tool.tokens != null ? String(tool.tokens) : '';
   const rawOutputTokens = tool.rawOutputTokens != null ? String(tool.rawOutputTokens) : '';
   const contextOutputTokens = tool.contextOutputTokens != null ? String(tool.contextOutputTokens) : '';
+  const compactionSummary = formatCompactionSummary(tool);
 
   const card = document.createElement('div');
   card.className = 'tool-card';
@@ -289,6 +300,7 @@ export function renderToolCard(
   if (tokens) metaItems.push(`🔤 ${tokens} tokens`);
   if (rawOutputTokens) metaItems.push(`原始输出 ${rawOutputTokens} tokens`);
   if (contextOutputTokens) metaItems.push(`上下文 ${contextOutputTokens} tokens`);
+  if (compactionSummary) metaItems.push(`压缩 ${compactionSummary}`);
   if (tool.inContext === false) metaItems.push('⛔ 未进入上下文');
   if (isRepair) metaItems.push('🔧 修复生成');
   if ((tool.evidenceIds as any[])?.length) metaItems.push(`📎 ${(tool.evidenceIds as any[]).length} 证据`);
@@ -372,7 +384,13 @@ export function renderToolCard(
   if (tokens) perfParts.push(`Tokens：${tokens}`);
   if (rawOutputTokens) perfParts.push(`原始输出 Tokens：${rawOutputTokens}`);
   if (contextOutputTokens) perfParts.push(`上下文 Tokens：${contextOutputTokens}`);
-  if (tool.contextCompacted) perfParts.push('（已压缩）');
+  if (tool.contextCompacted) {
+    perfParts.push('上下文压缩：已压缩');
+    if (tool.contextCompactionRatio !== undefined)
+      perfParts.push(`压缩比例：${Math.round(Number(tool.contextCompactionRatio || 0) * 100)}%`);
+    if (tool.contextCompactionReason) perfParts.push(`压缩原因：${String(tool.contextCompactionReason)}`);
+    if (tool.contextCompactionType) perfParts.push(`压缩类型：${String(tool.contextCompactionType)}`);
+  }
   if (perfParts.length) {
     perfEl.innerHTML = `<strong>性能指标</strong>`; /* safeSetHTML-exempt: static template */
     const perfPre = document.createElement('pre');

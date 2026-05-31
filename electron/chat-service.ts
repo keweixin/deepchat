@@ -87,6 +87,7 @@ import {
 import {
   MAX_TOOL_CONTEXT_TOKENS,
   compactToolOutputForContext,
+  compactToolOutputWithMetadata,
   repairToolCallsFromText,
   parseToolArgsDetailed,
 } from './tool-executor.js';
@@ -559,6 +560,7 @@ export {
   buildAgentPlanSummary,
   buildResearchSearchPlan,
   compactToolOutputForContext,
+  compactToolOutputWithMetadata,
   detectAgentIntent,
   mergeTokenUsage,
   normalizeTokenUsage,

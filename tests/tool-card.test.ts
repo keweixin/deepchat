@@ -88,6 +88,23 @@ describe('renderToolCard', () => {
     expect(meta).toContain('42 tokens');
   });
 
+  it('shows context compaction reason and ratio', () => {
+    const card = renderToolCard({
+      name: 'read_file',
+      args: {},
+      rawOutputTokens: 800,
+      contextOutputTokens: 200,
+      contextCompacted: true,
+      contextCompactionRatio: 0.25,
+      contextCompactionReason: 'tool_type:read_file',
+      contextCompactionType: 'file',
+      expanded: true,
+    });
+    expect(card.querySelector('.tool-card-meta').textContent).toContain('压缩 保留 25%');
+    expect(card.querySelector('.tool-card-details').textContent).toContain('压缩原因：tool_type:read_file');
+    expect(card.querySelector('.tool-card-details').textContent).toContain('压缩类型：file');
+  });
+
   it('shows evidence count', () => {
     const card = renderToolCard({ name: 'read_file', args: {}, evidenceIds: ['e1', 'e2'] });
     expect(card.querySelector('.tool-card-meta').textContent).toContain('2 证据');

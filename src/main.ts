@@ -403,9 +403,7 @@ async function handleSend() {
   let finalModelContent = applyComposerModeToPrompt(content, composerModeId);
   const textAttachments = pendingAttachments.filter((item) => !String(item.mimeType || '').startsWith('image/'));
   if (textAttachments.length > 0) {
-    const textContext = textAttachments
-      .map((item) => `[附件文件: ${item.name}]\n\`\`\`\n${item.dataUrl}\n\`\`\``)
-      .join('\n\n');
+    const textContext = textAttachments.map((item) => buildTextAttachmentContext(item.name, item.dataUrl)).join('\n\n');
     finalModelContent = `${finalModelContent}\n\n<uploaded_attachments>\n${textContext}\n</uploaded_attachments>`;
   }
 
@@ -1305,6 +1303,7 @@ function handleDroppedFiles(files, $input) {
       name.textContent = file.name || '附件';
 
       let previewAction = null;
+      let insertAction = null;
       if (!isImage) {
         previewAction = document.createElement('button');
         previewAction.type = 'button';
@@ -1315,6 +1314,21 @@ function handleDroppedFiles(files, $input) {
         previewAction.addEventListener('click', () => {
           const text = String(reader.result || '');
           toggleMarkdownPreview(`文件：${file.name || '文本附件'}\n\n\`\`\`text\n${text}\n\`\`\``);
+        });
+
+        insertAction = document.createElement('button');
+        insertAction.type = 'button';
+        insertAction.className = 'attachment-preview-action';
+        insertAction.title = '插入到输入框';
+        insertAction.setAttribute('aria-label', `插入 ${file.name || '文本附件'} 到输入框`);
+        insertAction.textContent = '插入';
+        insertAction.addEventListener('click', () => {
+          insertTextAttachmentIntoInput($input, file.name || '文本附件', String(reader.result || ''));
+          pendingAttachments = pendingAttachments.filter((attachment) => attachment.id !== item.dataset.attachmentId);
+          item.remove();
+          if (preview.children.length === 0) preview.remove();
+          document.getElementById('send-btn').disabled = !$input.value.trim() && pendingAttachments.length === 0;
+          showToast('已插入文本附件', 1400);
         });
       }
 
@@ -1334,6 +1348,7 @@ function handleDroppedFiles(files, $input) {
 
       item.append(name);
       if (previewAction) item.appendChild(previewAction);
+      if (insertAction) item.appendChild(insertAction);
       item.appendChild(remove);
 
       const attachment = {
@@ -1364,6 +1379,22 @@ function handleDroppedFiles(files, $input) {
   if (acceptedFiles.length > 0) {
     showToast(`已添加 ${acceptedFiles.length} 个附件`, 1500);
   }
+}
+
+function buildTextAttachmentContext(name, text) {
+  return `[附件文件: ${name || '文本附件'}]\n\`\`\`\n${String(text || '')}\n\`\`\``;
+}
+
+function insertTextAttachmentIntoInput($input, name, text) {
+  const block = `\n\n${buildTextAttachmentContext(name, text)}`;
+  const start = $input.selectionStart ?? $input.value.length;
+  const end = $input.selectionEnd ?? $input.value.length;
+  $input.value = `${$input.value.slice(0, start)}${block}${$input.value.slice(end)}`;
+  const cursor = start + block.length;
+  $input.setSelectionRange(cursor, cursor);
+  autoResize($input);
+  $input.focus();
+  $input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function clearPendingAttachments() {

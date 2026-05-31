@@ -77,6 +77,12 @@ const ToolRunSchema = z
     security: z.record(z.string(), z.unknown()).optional(),
     parseError: z.string().max(2000).optional(),
     contextOutput: z.string().max(20000).optional(),
+    contextOutputTokens: z.number().nonnegative().optional(),
+    rawOutputTokens: z.number().nonnegative().optional(),
+    contextCompacted: z.boolean().optional(),
+    contextCompactionRatio: z.number().nonnegative().optional(),
+    contextCompactionReason: z.string().max(300).optional(),
+    contextCompactionType: z.string().max(80).optional(),
     expiresAt: z.string().max(80).optional(),
   })
   .strip();

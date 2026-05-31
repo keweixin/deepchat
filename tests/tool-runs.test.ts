@@ -344,6 +344,9 @@ describe('tool run state', () => {
       rawOutputTokens: 800,
       contextOutputTokens: 20,
       contextCompacted: true,
+      contextCompactionRatio: 0.025,
+      contextCompactionReason: 'tool_type:read_file',
+      contextCompactionType: 'file',
     });
 
     const run = buildToolRuns([tool])[0];
@@ -351,11 +354,17 @@ describe('tool run state', () => {
     expect(run.rawOutputTokens).toBe(800);
     expect(run.contextOutputTokens).toBe(20);
     expect(run.contextCompacted).toBe(true);
+    expect(run.contextCompactionRatio).toBe(0.025);
+    expect(run.contextCompactionReason).toBe('tool_type:read_file');
+    expect(run.contextCompactionType).toBe('file');
     expect(run.evidence).toMatchObject({
       contextOutput: 'compacted output',
       rawOutputTokens: 800,
       contextOutputTokens: 20,
       contextCompacted: true,
+      contextCompactionRatio: 0.025,
+      contextCompactionReason: 'tool_type:read_file',
+      contextCompactionType: 'file',
     });
   });
 

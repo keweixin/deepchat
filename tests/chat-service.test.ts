@@ -6,6 +6,7 @@ import {
   buildAgentPlanSummary,
   buildResearchSearchPlan,
   compactToolOutputForContext,
+  compactToolOutputWithMetadata,
   buildCacheStabilityDiagnostics,
   detectAgentIntent,
   mergeTokenUsage,
@@ -988,6 +989,20 @@ describe('electron chat service token usage and agent loop', () => {
     expect(workspaceOutput).toContain('src/modules/api.js:811-812');
   });
 
+  it('reports tool output compaction metadata for token diagnostics', () => {
+    const output = ['文件：E:\\demo\\README.md', '大小：20000 bytes', '行范围：20-40', '', 'A'.repeat(9000)].join('\n');
+
+    const result = compactToolOutputWithMetadata('read_file', { path: 'README.md' }, output);
+
+    expect(result.contextOutput).toContain('文件内容已压缩');
+    expect(result.contextCompacted).toBe(true);
+    expect(result.rawOutputTokens).toBeGreaterThan(result.contextOutputTokens);
+    expect(result.contextCompactionRatio).toBeGreaterThan(0);
+    expect(result.contextCompactionRatio).toBeLessThan(1);
+    expect(result.contextCompactionReason).toBe('tool_type:read_file');
+    expect(result.contextCompactionType).toBe('file');
+  });
+
   it('emits compacted context output metadata with successful tool results', async () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
@@ -1012,6 +1027,8 @@ describe('electron chat service token usage and agent loop', () => {
     expect(result.rawOutputTokens).toBeGreaterThan(0);
     expect(result.contextOutputTokens).toBeGreaterThan(0);
     expect(result.contextCompacted).toBe(false);
+    expect(result.contextCompactionRatio).toBe(1);
+    expect(result.contextCompactionReason).toBe('within_budget');
   });
 
   it('auto-approves read-only tools only when the user selects that approval policy', async () => {

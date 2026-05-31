@@ -28,30 +28,54 @@ const TOOL_ARG_REPAIR_LIMIT = 12000;
 // ── Tool Output Compaction ───────────────────────────────────────────────────
 
 /**
- * Compact tool output to fit within context budget.
+ * Compact tool output to fit within context budget and return diagnostics.
  *
  * @param {string} toolName
  * @param {any} args
  * @param {string} output
- * @returns {string}
+ * @returns {{
+ *   contextOutput: string,
+ *   rawOutputTokens: number,
+ *   contextOutputTokens: number,
+ *   contextCompacted: boolean,
+ *   contextCompactionRatio: number,
+ *   contextCompactionReason: string,
+ *   contextCompactionType: string
+ * }}
  */
-export function compactToolOutputForContext(toolName: string, args: any, output: any) {
+export function compactToolOutputWithMetadata(toolName: string, args: any, output: any) {
   const text = String(output || '');
-  if (estimateTokens(text) <= MAX_TOOL_CONTEXT_TOKENS) return text;
+  const rawOutputTokens = estimateTokens(text);
+  if (rawOutputTokens <= MAX_TOOL_CONTEXT_TOKENS) {
+    return buildCompactionMetadata(text, text, 'within_budget', 'none', rawOutputTokens);
+  }
+
   const name = String(toolName || '');
-  if (name === 'web_search') return compactSearchOutput(text);
-  if (name === 'search_workspace') return compactWorkspaceSearchOutput(text);
-  if (name === 'read_symbol') return compactSymbolOutput(text);
-  if (name === 'read_file') return compactFileOutput(text);
-  if (name === 'run_code') return compactCodeOutput(text);
-  if (isMcpToolName(name)) return compactMcpOutput(text);
+  if (name === 'web_search')
+    return buildCompactionMetadata(text, compactSearchOutput(text), 'tool_type:web_search', 'search', rawOutputTokens);
+  if (name === 'search_workspace')
+    return buildCompactionMetadata(
+      text,
+      compactWorkspaceSearchOutput(text),
+      'tool_type:search_workspace',
+      'workspace_search',
+      rawOutputTokens
+    );
+  if (name === 'read_symbol')
+    return buildCompactionMetadata(text, compactSymbolOutput(text), 'tool_type:read_symbol', 'symbol', rawOutputTokens);
+  if (name === 'read_file')
+    return buildCompactionMetadata(text, compactFileOutput(text), 'tool_type:read_file', 'file', rawOutputTokens);
+  if (name === 'run_code')
+    return buildCompactionMetadata(text, compactCodeOutput(text), 'tool_type:run_code', 'code', rawOutputTokens);
+  if (isMcpToolName(name))
+    return buildCompactionMetadata(text, compactMcpOutput(text), 'tool_type:mcp', 'mcp', rawOutputTokens);
 
   const lines = text.split('\n');
   const important = lines.filter((/** @type {string} */ line) =>
     /^\s*(MCP Server|Tool|URL:|Published:|\d+\.|搜索时间|实际搜索 query|文件：|大小：)/.test(line)
   );
   const head = text.slice(0, 3200);
-  return [
+  const compacted = [
     '[工具输出已为后续上下文压缩，完整输出已记录在工具运行卡片中。]',
     args && Object.keys(args).length ? `参数：${JSON.stringify(args).slice(0, 800)}` : '',
     important.slice(0, 40).join('\n'),
@@ -61,6 +85,40 @@ export function compactToolOutputForContext(toolName: string, args: any, output:
     .filter(Boolean)
     .join('\n')
     .slice(0, 7000);
+  return buildCompactionMetadata(text, compacted, 'generic:over_budget', 'generic', rawOutputTokens);
+}
+
+/**
+ * Compact tool output to fit within context budget.
+ *
+ * @param {string} toolName
+ * @param {any} args
+ * @param {string} output
+ * @returns {string}
+ */
+export function compactToolOutputForContext(toolName: string, args: any, output: any) {
+  return compactToolOutputWithMetadata(toolName, args, output).contextOutput;
+}
+
+function buildCompactionMetadata(
+  rawText: string,
+  contextOutput: string,
+  reason: string,
+  type: string,
+  rawOutputTokens = estimateTokens(rawText)
+) {
+  const contextOutputTokens = estimateTokens(contextOutput);
+  const contextCompacted = contextOutput !== rawText || contextOutputTokens < rawOutputTokens;
+  const ratio = rawOutputTokens > 0 ? Number((contextOutputTokens / rawOutputTokens).toFixed(4)) : 1;
+  return {
+    contextOutput,
+    rawOutputTokens,
+    contextOutputTokens,
+    contextCompacted,
+    contextCompactionRatio: ratio,
+    contextCompactionReason: reason,
+    contextCompactionType: type,
+  };
 }
 
 /**
@@ -501,6 +559,7 @@ module.exports = {
   TOOL_REPAIR_MAX_CALLS,
   TOOL_ARG_REPAIR_LIMIT,
   // Tool output compaction
+  compactToolOutputWithMetadata,
   compactToolOutputForContext,
   compactSearchOutput,
   compactWorkspaceSearchOutput,
