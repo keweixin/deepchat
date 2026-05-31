@@ -11,9 +11,9 @@
  *   - chunks_fts: FTS5 virtual table on chunks.content
  */
 
-import fs from 'fs/promises';
-import path from 'path';
-import crypto from 'crypto';
+const fs = require('fs/promises');
+const path = require('path');
+const cryptoMod = require('crypto');
 
 const CHUNK_LINES = 80;
 const MAX_FILE_BYTES = 64 * 1024;
@@ -80,7 +80,7 @@ let db: any = null;
  * Creates the SQLite database and tables if they don't exist.
  * @param {string} [dbPath] - Custom database path. Defaults to {userData}/data/workspace.db
  */
-export async function initWorkspaceIndex(dbPath?: string): Promise<void> {
+async function initWorkspaceIndex(dbPath?: string): Promise<void> {
   if (db) return;
 
   const resolvedPath = dbPath || getDefaultDbPath();
@@ -158,7 +158,7 @@ export async function initWorkspaceIndex(dbPath?: string): Promise<void> {
  * @param {object} [options]
  * @param {number} [options.maxFiles] - Maximum files to scan (default 700)
  */
-export async function indexWorkspace(
+async function indexWorkspace(
   rootPath: string,
   options: { maxFiles?: number } = {}
 ): Promise<{
@@ -237,7 +237,7 @@ export async function indexWorkspace(
 
       if (!content || content.length === 0) continue;
 
-      const contentHash = crypto.createHash('md5').update(content).digest('hex').slice(0, 16);
+      const contentHash = cryptoMod.createHash('md5').update(content).digest('hex').slice(0, 16);
       const ext = path.extname(fullPath).toLowerCase();
       const language = getLanguage(ext);
       const chunks = splitChunks(content);
@@ -302,7 +302,7 @@ export async function indexWorkspace(
  * @param {string} [options.pattern] - Filter by file path pattern (substring match)
  * @param {number} [options.limit] - Max results (default 8)
  */
-export function searchWorkspace(
+function searchWorkspace(
   query: string,
   options: {
     root?: string;
@@ -388,7 +388,7 @@ export function searchWorkspace(
  * @param {string} [options.root] - Filter by workspace root
  * @param {number} [options.limit] - Max results (default 10)
  */
-export function findSymbol(
+function findSymbol(
   name: string,
   options: {
     kind?: string;
@@ -474,7 +474,7 @@ export function findSymbol(
 /**
  * Get workspace index statistics.
  */
-export function getWorkspaceStats(): {
+function getWorkspaceStats(): {
   fileCount: number;
   chunkCount: number;
   symbolCount: number;
@@ -491,7 +491,7 @@ export function getWorkspaceStats(): {
 /**
  * Clear and recreate the workspace index.
  */
-export async function clearWorkspaceIndex(): Promise<void> {
+async function clearWorkspaceIndex(): Promise<void> {
   if (db) {
     try {
       db.close();
@@ -674,3 +674,12 @@ function buildFtsQuery(query: string): string {
   if (terms.length === 0) return '';
   return terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(' AND ');
 }
+
+module.exports = {
+  initWorkspaceIndex,
+  indexWorkspace,
+  searchWorkspace,
+  findSymbol,
+  getWorkspaceStats,
+  clearWorkspaceIndex,
+};

@@ -1,11 +1,17 @@
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { createRequire } from 'module';
 import { parseWorkspaceQuery, matchesFileDirective, matchesChangedDirective } from './workspace-query.js';
 import { resolveWorkspaceRoot, resolveAllowedDirectory, isSensitivePath, isProbablyBinary } from './tools-path.js';
 import { walk, createMatcher } from './tools-file.js';
 import { redactSensitiveText } from './tools-run-code.js';
-import * as indexMod from './workspace-index.ts';
+const requireFromHere = createRequire(
+  typeof __filename === 'string' ? __filename : path.resolve(process.cwd(), 'electron/tools-workspace.ts')
+);
+const indexMod = requireFromHere(
+  typeof __filename === 'string' && __filename.endsWith('.js') ? './workspace-index.js' : './workspace-index.ts'
+);
 
 const MAX_SEARCH_FILE_BYTES = 64 * 1024;
 const MAX_SEARCH_SCAN_FILES = 700;

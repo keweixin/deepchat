@@ -135,6 +135,7 @@ console.log(`Source check passed (${files.length} files scanned).`);
 function checkToolSurfaceContracts(issues) {
   const toolsFile = fs.readFileSync(path.join(ROOT, 'electron/tools-file.js'), 'utf8');
   const toolDefinitions = fs.readFileSync(path.join(ROOT, 'electron/shared/tool-definitions.js'), 'utf8');
+  const workspaceIndex = fs.readFileSync(path.join(ROOT, 'electron/workspace-index.ts'), 'utf8');
   const missingExports = REQUIRED_FILE_TOOL_EXPORTS.filter((name) => !new RegExp(`\\b${name}\\b`).test(toolsFile));
   if (missingExports.length) {
     issues.push(`electron/tools-file.js is missing required write-tool exports: ${missingExports.join(', ')}`);
@@ -144,6 +145,11 @@ function checkToolSurfaceContracts(issues) {
   }
   if (/\bapplyPatch\b/.test(toolsFile) || /\bapply_patch\b/.test(toolDefinitions)) {
     issues.push('dangerous partial patch tool is still exposed; use edit_file or multi_edit instead');
+  }
+  if (/^\s*(?:import|export)\s/m.test(workspaceIndex)) {
+    issues.push(
+      'electron/workspace-index.ts must stay CommonJS-shaped to avoid Node MODULE_TYPELESS_PACKAGE_JSON warnings'
+    );
   }
 }
 
