@@ -7,6 +7,9 @@
   --font-latin: 'Söhne', 'Sohne', 'Inter';
   --font-cjk: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB';
   --font-sans: var(--font-latin), var(--font-cjk), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif-latin: 'Newsreader', 'Georgia', 'Cambria', 'Times New Roman', serif;
+  --font-serif-cjk: 'Noto Serif CJK SC', 'Source Han Serif SC', 'SimSun', 'Songti SC', serif;
+  --font-serif: var(--font-serif-latin), var(--font-serif-cjk), serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.8125rem;
@@ -296,4 +299,23 @@ textarea {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Serif Typography Mode */
+.use-serif .message-content {
+  font-family: var(--font-serif);
+  letter-spacing: 0.012em;
+}
+.use-serif .message-content p {
+  line-height: 1.88;
+  font-size: 0.96rem;
+  letter-spacing: 0.015em;
+}
+.use-serif .message-content h1,
+.use-serif .message-content h2,
+.use-serif .message-content h3,
+.use-serif .message-content h4,
+.use-serif .message-content h5,
+.use-serif .message-content h6 {
+  font-family: var(--font-sans); /* Keep headings clean and sans-serif for premium editorial design */
 }

@@ -105,7 +105,7 @@ npm run electron:build:portable
 
 **进行中 (In Progress)**
 
-11. 🔄 ChatService 拆分：已将部分职责拆出为 `agent-planner.ts`、`approval-manager.ts`、`tool-executor.ts`、`stream-runner.ts`、`memory-manager.ts`、`workspace-index.ts`，剩余 `chat-service.js` 继续瘦身中。
+11. 🔄 ChatService 拆分：已将部分职责拆出为 `agent-planner.ts`、`approval-manager.ts`、`tool-executor.ts`、`stream-runner.ts`、`memory-manager.ts`、`workspace-index.ts`，剩余 `chat-service.ts` 继续瘦身中。
 12. 🔄 Tool Repair 透明化：区分原生调用 / 文本修复 / 手动触发，修复出的 tool call 默认不自动执行。
 13. 🔄 TypeScript 严格模式：分批启用 `strict: true`，核心路径逐步消除 `@ts-nocheck`。
 14. 🔄 Electron 生产编译：从 tsx 运行时加载迁移为 `tsc` 预编译 `dist-electron/`。

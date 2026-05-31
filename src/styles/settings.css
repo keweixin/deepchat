@@ -986,6 +986,24 @@
   color: var(--accent-primary);
 }
 
+.font-choice-toggle {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.font-choice-btn {
+  flex: 1;
+  min-height: 34px;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.font-choice-serif {
+  font-family: var(--font-serif);
+}
+
 .workspace-list {
   display: flex;
   flex-direction: column;

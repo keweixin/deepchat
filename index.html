@@ -1022,6 +1022,20 @@
             <div class="settings-section" id="section-appearance" data-tab="tab-preference">
               <h3>回答模式</h3>
               <div class="form-group">
+                <label>字体风格 (Font Typography)</label>
+                <div class="font-choice-toggle" role="group" aria-label="消息字体风格">
+                  <button type="button" id="font-sans-btn" class="secondary-btn font-choice-btn active">
+                    无衬线 (Sans-Serif)
+                  </button>
+                  <button type="button" id="font-serif-btn" class="secondary-btn font-choice-btn font-choice-serif">
+                    优雅衬线 (Serif)
+                  </button>
+                </div>
+                <p class="form-hint">
+                  切换 AI 消息文本和 Markdown 阅读区域的字体库，衬线字体非常适合长篇阅读、排版或学术论文分析。
+                </p>
+              </div>
+              <div class="form-group">
                 <label>调整 AI 的回答边界</label>
                 <div class="skill-grid" id="skill-grid">
                   <!-- Populated by JS -->

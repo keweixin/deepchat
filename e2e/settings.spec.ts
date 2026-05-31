@@ -58,4 +58,38 @@ test.describe('Settings', () => {
     expect(sectionTexts.length).toBeGreaterThan(0);
     expect(sectionTexts).toContain('API 配置');
   });
+
+  test('font typography preference toggles message reading mode', async () => {
+    electronApp = await electron.launch({
+      args: [path.join(__dirname, '..', 'electron.js')],
+      env: {
+        ...process.env,
+        DEEPCHAT_DISABLE_GPU: '1',
+      },
+    });
+
+    const window = await electronApp.firstWindow();
+    await window.waitForSelector('#settings-btn', { state: 'visible', timeout: 15_000 });
+    await window.evaluate(() => localStorage.removeItem('dc_font_serif'));
+
+    await window.locator('#settings-btn').click();
+    await window.waitForSelector('#settings-panel:not(.hidden)', { timeout: 5_000 });
+
+    const sansButton = window.locator('#font-sans-btn');
+    const serifButton = window.locator('#font-serif-btn');
+    await expect(sansButton).toBeVisible();
+    await expect(serifButton).toBeVisible();
+
+    await serifButton.click();
+    await expect(serifButton).toHaveClass(/active/);
+    await expect(serifButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(window.locator('body')).toHaveClass(/use-serif/);
+    await expect.poll(() => window.evaluate(() => localStorage.getItem('dc_font_serif'))).toBe('true');
+
+    await sansButton.click();
+    await expect(sansButton).toHaveClass(/active/);
+    await expect(sansButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(window.locator('body')).not.toHaveClass(/use-serif/);
+    await expect.poll(() => window.evaluate(() => localStorage.getItem('dc_font_serif'))).toBe('false');
+  });
 });

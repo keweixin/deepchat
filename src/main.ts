@@ -102,6 +102,11 @@ let applySettingsToComposerCurrent: (settings?: any) => void = () => {};
 // ─── Initialize ───
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Restore serif font choice on startup
+  const useSerif = localStorage.getItem('dc_font_serif') === 'true';
+  if (useSerif) {
+    document.body.classList.add('use-serif');
+  }
   initTheme();
   await initApiSettings();
   await initChat();
@@ -388,6 +393,32 @@ function bindEvents() {
         autoResize,
         toggleMarkdownPreview,
       });
+    });
+  }
+
+  // ─── Font Typography Switcher ───
+  const $fontSansBtn = document.getElementById('font-sans-btn');
+  const $fontSerifBtn = document.getElementById('font-serif-btn');
+  if ($fontSansBtn && $fontSerifBtn) {
+    const currentSerif = localStorage.getItem('dc_font_serif') === 'true';
+    const applyFontChoice = (useSerif: boolean) => {
+      localStorage.setItem('dc_font_serif', String(useSerif));
+      document.body.classList.toggle('use-serif', useSerif);
+      $fontSansBtn.classList.toggle('active', !useSerif);
+      $fontSerifBtn.classList.toggle('active', useSerif);
+      $fontSansBtn.setAttribute('aria-pressed', String(!useSerif));
+      $fontSerifBtn.setAttribute('aria-pressed', String(useSerif));
+    };
+    applyFontChoice(currentSerif);
+
+    $fontSansBtn.addEventListener('click', () => {
+      applyFontChoice(false);
+      showToast('已切换为无衬线字体', 1000);
+    });
+
+    $fontSerifBtn.addEventListener('click', () => {
+      applyFontChoice(true);
+      showToast('已切换为优雅衬线字体', 1000);
     });
   }
 }
