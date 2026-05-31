@@ -41,12 +41,12 @@ function applyRequestOverrides(settings: any, overrides: any = {}) {
   return next;
 }
 
-function normalizeAgentExecutionMode(value) {
+function normalizeAgentExecutionMode(value: unknown) {
   const mode = String(value || 'execute_all');
   return AGENT_EXECUTION_MODES.has(mode) ? mode : 'execute_all';
 }
 
-function buildSingleStepStopReason(toolResults = []) {
+function buildSingleStepStopReason(toolResults: any[] = []) {
   const names = (Array.isArray(toolResults) ? toolResults : [])
     .map(({ toolCall }) => toolCall?.function?.name || 'unknown_tool')
     .filter(Boolean);
@@ -83,11 +83,11 @@ function buildToolNextAction(name: string, args: any = {}, outcome: any = {}) {
   return '检查工具名称、参数和可用配置；必要时修改计划后重试。';
 }
 
-function parseToolArgs(raw) {
-  return parseToolArgsDetailed(raw).args;
+function parseToolArgs(raw: unknown) {
+  return parseToolArgsDetailed(String(raw || '')).args;
 }
 
-function buildToolContextOutput(toolName, args, output) {
+function buildToolContextOutput(toolName: string, args: any, output: unknown) {
   const raw = String(output || '');
   return compactToolOutputWithMetadata(toolName, args, raw);
 }

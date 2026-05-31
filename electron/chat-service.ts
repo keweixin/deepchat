@@ -292,7 +292,7 @@ class ChatService {
     const agentExecutionMode = normalizeAgentExecutionMode(settings.agentExecutionMode);
     const usageRounds = [];
     const warnings = [];
-    const seenToolCalls = new Set();
+    const seenToolCalls = new Set<string>();
     let activeModelSettings = settings;
     let proUpgradeUsed = false;
 
@@ -571,8 +571,8 @@ class ChatService {
     signal,
     round = 0,
     maxRounds = 0,
-    seenToolCalls = new Set(),
-    warnings = []
+    seenToolCalls = new Set<string>(),
+    warnings: string[] = []
   ) {
     return handleToolCallsForRound(requestId, toolCalls, settings, signal, round, maxRounds, seenToolCalls, warnings, {
       emit: this.emit.bind(this),

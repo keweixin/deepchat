@@ -19,15 +19,25 @@ import {
   previewMultiEdit,
   parsePathLineCitation,
 } from './tools-file.js';
-import {
+import { TOOL_SCHEMAS, MODE_TOOLS, getToolDefinitions, MAX_READ_MANY_FILES_BYTES } from './tools-schemas.js';
+
+type WorkspaceToolModule = {
+  indexWorkspace: (args: any, settings: any) => Promise<string>;
+  searchWorkspace: (args: any, settings: any) => Promise<string>;
+  readSymbol: (args: any, settings: any) => Promise<string>;
+  clearWorkspaceIndexCache: () => void;
+  clearWorkspaceIndexDiskCache: (settings: any) => Promise<any>;
+  getWorkspaceIndexModule: () => any;
+};
+
+const {
   indexWorkspace,
   searchWorkspace,
   readSymbol,
   clearWorkspaceIndexCache,
   clearWorkspaceIndexDiskCache,
   getWorkspaceIndexModule,
-} from './tools-workspace.js';
-import { TOOL_SCHEMAS, MODE_TOOLS, getToolDefinitions, MAX_READ_MANY_FILES_BYTES } from './tools-schemas.js';
+} = require('./tools-workspace.ts') as WorkspaceToolModule;
 
 const RUN_CODE_SECURITY_LIMITS = {
   maxOutputBytes: 1024 * 1024, // 1MB

@@ -14,9 +14,61 @@ import { toolCallSignature } from './stream-runner.js';
 import { parseToolArgsDetailed } from './tool-executor.js';
 import { buildToolNextAction, buildToolContextOutput } from './chat-service-helpers.js';
 
-async function handleToolCall(requestId, toolCall, settings, signal, round = 0, maxRounds = 0, deps) {
+type ToolFunctionCall = {
+  name?: string;
+  arguments?: string;
+};
+
+type ToolCall = {
+  id: string;
+  function?: ToolFunctionCall;
+};
+
+type ToolResult = {
+  toolCall: ToolCall;
+  output: unknown;
+};
+
+type ToolController = {
+  checkPausePoint: () => Promise<void>;
+  skippedToolCallIds: Set<string>;
+  scopePolicy?: string;
+};
+
+type ToolHandlerDeps = {
+  emit: (requestId: string, type: string, payload?: Record<string, any>) => void;
+  waitForApproval: (requestId: string, toolCallId: string, signal: AbortSignal, timeoutMs: number) => Promise<any>;
+  describeRisk: (name: string, args: any, settings: any) => string;
+  mcpManager: any;
+  controller?: ToolController | null;
+};
+
+type ToolRoundDeps = {
+  emit: ToolHandlerDeps['emit'];
+  handleToolCall: (
+    requestId: string,
+    toolCall: ToolCall,
+    settings: any,
+    signal: AbortSignal,
+    round?: number,
+    maxRounds?: number
+  ) => Promise<unknown>;
+};
+
+async function handleToolCall(
+  requestId: string,
+  toolCall: ToolCall,
+  settings: any,
+  signal: AbortSignal,
+  round = 0,
+  maxRounds = 0,
+  deps: ToolHandlerDeps
+) {
   const { emit, waitForApproval, describeRisk, mcpManager, controller } = deps;
-  const fn = toolCall.function || {};
+  const fn: Required<ToolFunctionCall> = {
+    name: toolCall.function?.name || 'unknown_tool',
+    arguments: toolCall.function?.arguments || '',
+  };
   const parsedArgs = parseToolArgsDetailed(fn.arguments);
   const args = parsedArgs.args;
 
@@ -268,7 +320,7 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
   }
 }
 
-function extractWriteEvidence(output) {
+function extractWriteEvidence(output: unknown) {
   const text = String(output || '');
   const backup = text.match(/^备份位置：(.+)$/m)?.[1]?.trim() || '';
   const structured = extractStructuredEditEvidence(text);
@@ -279,7 +331,7 @@ function extractWriteEvidence(output) {
   };
 }
 
-function extractStructuredEditEvidence(text) {
+function extractStructuredEditEvidence(text: string) {
   const marker = 'Structured Edit:';
   const start = String(text || '').indexOf(marker);
   if (start < 0) return null;
@@ -319,19 +371,19 @@ function extractStructuredEditEvidence(text) {
 }
 
 async function handleToolCallsForRound(
-  requestId,
-  toolCalls,
-  settings,
-  signal,
+  requestId: string,
+  toolCalls: ToolCall[],
+  settings: any,
+  signal: AbortSignal,
   round = 0,
   maxRounds = 0,
-  seenToolCalls = new Set(),
-  warnings = [],
-  deps
+  seenToolCalls: Set<string> = new Set(),
+  warnings: string[] = [],
+  deps: ToolRoundDeps
 ) {
   const { emit, handleToolCall } = deps;
-  const results = new Array(toolCalls.length);
-  let parallelGroup = [];
+  const results: Array<ToolResult | undefined> = new Array(toolCalls.length);
+  let parallelGroup: Array<{ index: number; toolCall: ToolCall }> = [];
 
   const flushParallelGroup = async () => {
     if (parallelGroup.length === 0) return;

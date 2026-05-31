@@ -15,7 +15,7 @@ const DIRECTIVE_PATTERN = /(?:^|[\s([，,;；])@(\w+)(?::([^\s@]+))?/gi;
  * @param {string} [query]
  * @returns {{ textQuery: string; file: string[]; folder: string[]; symbol: string; changedDays: number | null; recentOnly: boolean }}
  */
-export function parseWorkspaceQuery(query = '') {
+function parseWorkspaceQuery(query = '') {
   const text = String(query || '').trim();
   const directives = {
     file: /** @type {string[]} */ ([]),
@@ -65,7 +65,7 @@ export function parseWorkspaceQuery(query = '') {
  * @param {{ file: string[]; folder: string[] }} directives
  * @returns {boolean}
  */
-export function matchesFileDirective(filePath, directives) {
+function matchesFileDirective(filePath, directives) {
   const normalized = String(filePath || '')
     .replace(/\\/g, '/')
     .toLowerCase();
@@ -89,7 +89,7 @@ export function matchesFileDirective(filePath, directives) {
  * @param {{ changedDays: number | null; recentOnly: boolean }} directives
  * @returns {boolean}
  */
-export function matchesChangedDirective(mtimeMs, directives) {
+function matchesChangedDirective(mtimeMs, directives) {
   const days = directives.changedDays ?? (directives.recentOnly ? 7 : null);
   if (days === null) return true;
   if (!mtimeMs) return false;
@@ -104,7 +104,7 @@ export function matchesChangedDirective(mtimeMs, directives) {
  * @param {string} [symbol]
  * @returns {{ line: number; text: string; score: number }[]}
  */
-export function highlightWorkspaceSnippet(text, terms = [], queryLower = '', symbol = '') {
+function highlightWorkspaceSnippet(text, terms = [], queryLower = '', symbol = '') {
   const lines = String(text || '').split(/\r?\n/);
   const symbolPattern = symbol ? createSymbolPattern(symbol) : null;
   const highlighted = [];
@@ -165,7 +165,7 @@ function looksLikeSymbolDefinition(line, symbol) {
  * @param {number} [radius]
  * @returns {{ line: number; text: string }[]}
  */
-export function buildHighlightedSnippet(lines, centerLine, radius = 2) {
+function buildHighlightedSnippet(lines, centerLine, radius = 2) {
   const result = [];
   const start = Math.max(0, centerLine - radius - 1);
   const end = Math.min(lines.length, centerLine + radius);
@@ -174,3 +174,11 @@ export function buildHighlightedSnippet(lines, centerLine, radius = 2) {
   }
   return result;
 }
+
+module.exports = {
+  parseWorkspaceQuery,
+  matchesFileDirective,
+  matchesChangedDirective,
+  highlightWorkspaceSnippet,
+  buildHighlightedSnippet,
+};

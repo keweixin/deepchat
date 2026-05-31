@@ -1,3 +1,4 @@
+// @ts-check
 // Shared tool definitions single source of truth - CommonJS format
 const TOOL_DEFINITIONS = {
   web_search: {

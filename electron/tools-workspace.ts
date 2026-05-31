@@ -5,7 +5,7 @@ import { parseWorkspaceQuery, matchesFileDirective, matchesChangedDirective } fr
 import { resolveWorkspaceRoot, resolveAllowedDirectory, isSensitivePath, isProbablyBinary } from './tools-path.js';
 import { walk, createMatcher } from './tools-file.js';
 import { redactSensitiveText } from './tools-run-code.js';
-import * as indexMod from './workspace-index.js';
+import * as indexMod from './workspace-index.ts';
 
 const MAX_SEARCH_FILE_BYTES = 64 * 1024;
 const MAX_SEARCH_SCAN_FILES = 700;

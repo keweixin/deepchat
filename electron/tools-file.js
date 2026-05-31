@@ -1,3 +1,4 @@
+// @ts-check
 const fs = require('fs/promises');
 const fsSync = require('fs');
 const readline = require('readline');

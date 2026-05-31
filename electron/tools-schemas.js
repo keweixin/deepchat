@@ -1,3 +1,4 @@
+// @ts-check
 const { TOOL_DEFINITIONS } = require('./shared/tool-definitions');
 
 const MAX_FILE_BYTES = 100 * 1024;
