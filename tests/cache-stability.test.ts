@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildCacheStablePrefix, canonicalStringify } from '../electron/system-prompt.js';
+import { buildCacheStablePrefix, canonicalStringify, formatExternalSkills } from '../electron/system-prompt.js';
 import { TOOL_REGISTRY, getAllToolNames } from '../src/modules/tool-registry.js';
 
 describe('cache stability invariants', () => {
@@ -55,6 +55,41 @@ describe('cache stability invariants', () => {
     const fingerprintA = canonicalStringify(toolA);
     const fingerprintB = canonicalStringify(toolB);
     expect(fingerprintA).toBe(fingerprintB);
+  });
+
+  it('tool prefix ordering is locale-independent', () => {
+    const result1 = buildCacheStablePrefix(baseSettings, [
+      { name: 'zeta', description: 'Z' },
+      { name: 'Alpha', description: 'A' },
+      { name: 'beta', description: 'B' },
+    ]);
+    const result2 = buildCacheStablePrefix(baseSettings, [
+      { name: 'beta', description: 'B' },
+      { name: 'zeta', description: 'Z' },
+      { name: 'Alpha', description: 'A' },
+    ]);
+    expect(result1.toolsHash).toBe(result2.toolsHash);
+    expect(result1.prefixFingerprint).toBe(result2.prefixFingerprint);
+    expect(result1.toolNames).toEqual(['Alpha', 'beta', 'zeta']);
+  });
+
+  it('external skill prefix ordering is stable regardless of import order', () => {
+    const first = formatExternalSkills(
+      [
+        { name: 'zeta', description: 'Z', content: 'Z body', enabled: true },
+        { name: 'Alpha', description: 'A', content: 'A body', enabled: true },
+      ],
+      '外部 Skill'
+    );
+    const second = formatExternalSkills(
+      [
+        { name: 'Alpha', description: 'A', content: 'A body', enabled: true },
+        { name: 'zeta', description: 'Z', content: 'Z body', enabled: true },
+      ],
+      '外部 Skill'
+    );
+    expect(first).toBe(second);
+    expect(first.indexOf('Alpha')).toBeLessThan(first.indexOf('zeta'));
   });
 
   it('workspace signature is deterministic', () => {

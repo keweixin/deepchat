@@ -139,6 +139,29 @@ describe('browser settings fallback', () => {
     expect(getEffectiveSystemPrompt(settings)).toContain('Always format demo output as a checklist.');
   });
 
+  it('keeps browser external skill prompt order stable across import order', async () => {
+    const settingsA = await saveSettings({
+      systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      externalSkills: [
+        { id: 'z', name: 'zeta', description: 'Z', content: 'Z body', enabled: true },
+        { id: 'a', name: 'Alpha', description: 'A', content: 'A body', enabled: true },
+      ],
+    });
+    const promptA = getEffectiveSystemPrompt(settingsA);
+
+    const settingsB = await saveSettings({
+      systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      externalSkills: [
+        { id: 'a', name: 'Alpha', description: 'A', content: 'A body', enabled: true },
+        { id: 'z', name: 'zeta', description: 'Z', content: 'Z body', enabled: true },
+      ],
+    });
+    const promptB = getEffectiveSystemPrompt(settingsB);
+
+    expect(promptA).toBe(promptB);
+    expect(promptA.indexOf('Alpha')).toBeLessThan(promptA.indexOf('zeta'));
+  });
+
   it('advertises safe answer components in the default output contract', () => {
     expect(DEFAULT_SYSTEM_PROMPT).toContain(':::summary');
     expect(DEFAULT_SYSTEM_PROMPT).toContain(':::source');

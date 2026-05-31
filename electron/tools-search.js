@@ -1,5 +1,3 @@
-
-
 const MAX_TOOL_OUTPUT = 12000;
 
 function clampInt(value, min, max, fallback) {

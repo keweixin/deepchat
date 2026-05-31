@@ -393,6 +393,12 @@ function formatProviderCompatibilitySummary(status: string, providerName: string
   return `${target} 已就绪`;
 }
 
+function stableStringCompare(left: unknown, right: unknown): number {
+  const a = String(left || '');
+  const b = String(right || '');
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export function supportsVisionModel(settings: Record<string, unknown> = getSettings()): boolean {
   return getModelCapabilities(settings).vision as boolean;
 }
@@ -431,6 +437,7 @@ export function formatExternalSkills(skills: any[] = []): string {
   const enabled = Array.isArray(skills) ? skills.filter((skill) => skill?.enabled && skill?.content) : [];
   if (enabled.length === 0) return '';
   const body = enabled
+    .sort((a, b) => stableStringCompare(a?.name, b?.name))
     .map((skill, index) =>
       [
         `### Skill ${index + 1}: ${skill.name || '外部 Skill'}`,

@@ -49,6 +49,12 @@ interface CacheProfile {
   [key: string]: any;
 }
 
+function stableStringCompare(left: unknown, right: unknown): number {
+  const a = String(left || '');
+  const b = String(right || '');
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -160,7 +166,7 @@ function buildSystemPrompt(settings: Settings, intent: any = detectAgentIntent([
 function formatExternalSkills(skills: ExternalSkill[], label: string = '外部 Skill'): string {
   const enabled = (Array.isArray(skills) ? skills : [])
     .filter((skill: ExternalSkill) => skill.enabled && skill.content)
-    .sort((a: ExternalSkill, b: ExternalSkill) => String(a.name || '').localeCompare(String(b.name || '')));
+    .sort((a: ExternalSkill, b: ExternalSkill) => stableStringCompare(a.name, b.name));
   if (enabled.length === 0) return '';
   const sections = enabled.map((skill: ExternalSkill, index: number) =>
     [
@@ -193,7 +199,7 @@ function stableToolFingerprintPayload(tools: Tool[] = []): Tool[] {
           }
         : tool
     )
-    .sort((a: Tool, b: Tool) => String(a.name || '').localeCompare(String(b.name || '')));
+    .sort((a: Tool, b: Tool) => stableStringCompare(a.name, b.name));
 }
 
 /**

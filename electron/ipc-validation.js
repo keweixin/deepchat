@@ -1,4 +1,3 @@
-
 const { z } = require('zod');
 
 const MAX_MESSAGE_CONTENT = 200000;

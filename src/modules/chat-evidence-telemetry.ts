@@ -285,8 +285,9 @@ export function explainRoundCost(conversation: Record<string, any>): string[] {
   }
 
   // Cost savings
-  if (Number(usage.cost?.estimatedSavingsUsd || 0) > 0.001) {
-    explanations.push(`🟢 缓存节省约 ${formatUsd(usage.cost.estimatedSavingsUsd)}，前缀复用有效。`);
+  const estimatedSavingsUsd = Number(usage.cost?.estimatedSavingsUsd || 0);
+  if (estimatedSavingsUsd > 0.001) {
+    explanations.push(`🟢 缓存节省约 ${formatUsd(estimatedSavingsUsd)}，前缀复用有效。`);
   }
 
   if (explanations.length === 0) {
