@@ -54,6 +54,7 @@ export interface SettingsElements {
   agentMaxRounds: HTMLInputElement | null;
   autoContextSummary: HTMLInputElement | null;
   cacheOptimization: HTMLInputElement | null;
+  contextFoldEconomics: HTMLInputElement | null;
   privacyMode: HTMLInputElement | null;
   clearWorkspaceIndexCacheBtn: HTMLElement | null;
   workspaceIndexCacheStatus: HTMLElement | null;
@@ -62,6 +63,8 @@ export interface SettingsElements {
   crewDisplayMode: HTMLSelectElement | null;
   defaultComposerMode: HTMLSelectElement | null;
   runCodeEnabled: HTMLInputElement | null;
+  codingEditsEnabled: HTMLInputElement | null;
+  agentModelTier: HTMLSelectElement | null;
   systemPrompt: HTMLTextAreaElement | null;
   modelQuickSelect: HTMLElement | null;
   modelCapabilityStatus: HTMLElement | null;
@@ -118,6 +121,7 @@ export function collectSettingsElements(): SettingsElements {
     agentMaxRounds: document.getElementById('agent-max-rounds-input') as HTMLInputElement | null,
     autoContextSummary: document.getElementById('auto-context-summary-toggle') as HTMLInputElement | null,
     cacheOptimization: document.getElementById('cache-optimization-toggle') as HTMLInputElement | null,
+    contextFoldEconomics: document.getElementById('context-fold-economics-toggle') as HTMLInputElement | null,
     privacyMode: document.getElementById('privacy-mode-toggle') as HTMLInputElement | null,
     clearWorkspaceIndexCacheBtn: document.getElementById('clear-workspace-index-cache-btn'),
     workspaceIndexCacheStatus: document.getElementById('workspace-index-cache-status'),
@@ -126,6 +130,8 @@ export function collectSettingsElements(): SettingsElements {
     crewDisplayMode: document.getElementById('crew-display-mode-select') as HTMLSelectElement | null,
     defaultComposerMode: document.getElementById('default-composer-mode-select') as HTMLSelectElement | null,
     runCodeEnabled: document.getElementById('run-code-enabled-toggle') as HTMLInputElement | null,
+    codingEditsEnabled: document.getElementById('coding-edits-enabled-toggle') as HTMLInputElement | null,
+    agentModelTier: document.getElementById('agent-model-tier-select') as HTMLSelectElement | null,
     systemPrompt: document.getElementById('system-prompt-input') as HTMLTextAreaElement | null,
     modelQuickSelect: document.querySelector('.model-quick-select'),
     modelCapabilityStatus: document.getElementById('model-capability-status'),
@@ -178,8 +184,11 @@ export function applySettingsToInputs(els: SettingsElements, settings: Record<st
   if (els.agentMaxRounds) els.agentMaxRounds.value = String(settings.agentMaxRounds ?? '');
   if (els.autoContextSummary) els.autoContextSummary.checked = settings.autoContextSummary !== false;
   if (els.cacheOptimization) els.cacheOptimization.checked = settings.cacheOptimization !== false;
+  if (els.contextFoldEconomics) els.contextFoldEconomics.checked = settings.contextFoldEconomicsEnabled !== false;
   if (els.toolApprovalTimeout) els.toolApprovalTimeout.value = String(settings.toolApprovalTimeoutMs ?? '');
   if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
+  if (els.codingEditsEnabled) els.codingEditsEnabled.checked = settings.codingEditsEnabled !== false;
+  if (els.agentModelTier) els.agentModelTier.value = String(settings.agentModelTier || 'auto');
   if (els.thinkingBudget) els.thinkingBudget.value = String(settings.thinkingBudget ?? '');
   if (els.thinkingBudgetVal)
     els.thinkingBudgetVal.textContent = settings.thinkingBudget === 0 ? '自动' : `${settings.thinkingBudget} tokens`;
@@ -421,6 +430,15 @@ export function bindSettingsEvents(
     if (patch.cacheOptimization !== undefined && els.cacheOptimization) {
       els.cacheOptimization.checked = next.cacheOptimization !== false;
     }
+    if (patch.contextFoldEconomicsEnabled !== undefined && els.contextFoldEconomics) {
+      els.contextFoldEconomics.checked = next.contextFoldEconomicsEnabled !== false;
+    }
+    if (patch.codingEditsEnabled !== undefined && els.codingEditsEnabled) {
+      els.codingEditsEnabled.checked = next.codingEditsEnabled !== false;
+    }
+    if (patch.agentModelTier !== undefined && els.agentModelTier) {
+      els.agentModelTier.value = String(next.agentModelTier || 'auto');
+    }
     if (patch.toolApprovalTimeoutMs !== undefined && els.toolApprovalTimeout) {
       els.toolApprovalTimeout.value = String(next.toolApprovalTimeoutMs);
     }
@@ -598,6 +616,11 @@ export function bindSettingsEvents(
       saveSettings({ cacheOptimization: els.cacheOptimization!.checked })
     );
   }
+  if (els.contextFoldEconomics) {
+    els.contextFoldEconomics.addEventListener('change', () =>
+      saveSettings({ contextFoldEconomicsEnabled: els.contextFoldEconomics!.checked })
+    );
+  }
   if (els.privacyMode) {
     els.privacyMode.addEventListener('change', () => saveSettings({ privacyMode: els.privacyMode!.checked }));
   }
@@ -631,6 +654,14 @@ export function bindSettingsEvents(
   }
   if (els.runCodeEnabled) {
     els.runCodeEnabled.addEventListener('change', () => saveSettings({ runCodeEnabled: els.runCodeEnabled!.checked }));
+  }
+  if (els.codingEditsEnabled) {
+    els.codingEditsEnabled.addEventListener('change', () =>
+      saveSettings({ codingEditsEnabled: els.codingEditsEnabled!.checked })
+    );
+  }
+  if (els.agentModelTier) {
+    els.agentModelTier.addEventListener('change', () => saveSettings({ agentModelTier: els.agentModelTier!.value }));
   }
   if (els.systemPrompt) {
     els.systemPrompt.addEventListener('input', () => saveSettings({ systemPrompt: els.systemPrompt!.value }));

@@ -138,6 +138,9 @@ export interface SettingsPatch {
   activeSkill?: ActiveSkill;
   autoContextSummary?: boolean;
   cacheOptimization?: boolean;
+  contextFoldEconomicsEnabled?: boolean;
+  codingEditsEnabled?: boolean;
+  agentModelTier?: 'flash' | 'auto' | 'pro';
   toolApprovalTimeoutMs?: number;
   toolApprovalPolicy?: 'confirm_all' | 'auto_readonly';
   runCodeEnabled?: boolean;

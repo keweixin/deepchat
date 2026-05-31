@@ -321,6 +321,24 @@ describe('electron chat service token usage and agent loop', () => {
     expect(intent.selectedTools).toContain('run_code');
   });
 
+  it('detects coding edit intent and exposes edit tools only with workspace permission', async () => {
+    const service = new ChatService(() => fakeWindow());
+    const settings = baseSettings({
+      activeSkill: 'agent_auto',
+      workspaceRoots: ['E:\\demo'],
+      codingEditsEnabled: true,
+    });
+    const intent = detectAgentIntent('请修改 src/main.ts 修复这个问题', settings);
+    const tools = await service.getAvailableTools(settings, intent);
+    const names = tools.map((tool) => tool.function.name);
+
+    expect(intent.selectedTools).toEqual(expect.arrayContaining(['edit_file', 'multi_edit', 'read_file']));
+    expect(names).toEqual(expect.arrayContaining(['edit_file', 'multi_edit']));
+
+    const disabled = await service.getAvailableTools({ ...settings, codingEditsEnabled: false }, intent);
+    expect(disabled.map((tool) => tool.function.name)).not.toContain('edit_file');
+  });
+
   it('keeps year-only explanation prompts in plain chat while searching year-scoped facts', () => {
     const plain = detectAgentIntent('解释 2024 年 JavaScript 闭包这个概念', {
       tavilyApiKey: 'tvly-test',
@@ -730,6 +748,33 @@ describe('electron chat service token usage and agent loop', () => {
     expect(service.summarizeContext).toHaveBeenCalledTimes(1);
     expect(second.generated).toBe(false);
     expect(second.meta.cacheHit).toBe(true);
+  });
+
+  it('records a fold economics decision when generating summaries', async () => {
+    const service = new ChatService(() => fakeWindow());
+    service.summarizeContext = vi.fn(async () => 'folded summary');
+    const contextBundle = {
+      messages: [{ role: 'user', content: 'latest' }],
+      meta: {
+        droppedMessages: [{ role: 'user', content: 'old context '.repeat(500) }],
+        budgetRatio: 0.88,
+      },
+    };
+
+    const result = await service.maybeBuildContextSummary(
+      { requestId: 'req-fold-economics', contextSummary: '', contextSummaryMeta: null },
+      baseSettings({ contextFoldEconomicsEnabled: true }),
+      contextBundle,
+      0,
+      new AbortController().signal
+    );
+
+    expect(result.summary).toBe('folded summary');
+    expect(result.meta.foldDecision).toMatchObject({
+      action: expect.stringMatching(/generate|emergency/),
+      reason: expect.any(String),
+    });
+    expect(result.meta.foldDecision.estimatedSavingsUsd).toBeGreaterThanOrEqual(0);
   });
 
   it('uses the flash model for DeepSeek summary auxiliary calls and records summary cost separately', async () => {

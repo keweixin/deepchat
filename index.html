@@ -965,6 +965,11 @@
                   <span>自动摘要长上下文</span>
                 </label>
                 <p class="form-hint">历史消息被预算裁剪或接近输入预算时，自动生成短记忆并计入本轮 token 用量。</p>
+                <label class="toggle-row">
+                  <input type="checkbox" id="context-fold-economics-toggle" checked />
+                  <span>摘要经济决策</span>
+                </label>
+                <p class="form-hint">根据预算压力、待丢弃 token、摘要成本和后续轮次收益决定复用、生成或跳过摘要。</p>
               </div>
               <div class="form-group">
                 <label for="tool-approval-timeout-input">工具确认超时 (ms)</label
@@ -996,6 +1001,22 @@
                   <span>允许运行代码工具</span>
                 </label>
                 <p class="form-hint">关闭后模型仍可生成代码，但不能通过本机运行。开启时使用轻量隔离环境并逐次确认。</p>
+                <label class="toggle-row">
+                  <input type="checkbox" id="coding-edits-enabled-toggle" checked />
+                  <span>允许编码编辑工具</span>
+                </label>
+                <p class="form-hint">
+                  仅在已授权工作区和明确编辑意图下暴露 edit_file / multi_edit；写入前必须确认并生成备份。
+                </p>
+              </div>
+              <div class="form-group">
+                <label for="agent-model-tier-select">Agent 辅助模型档位</label>
+                <select id="agent-model-tier-select" class="form-input">
+                  <option value="auto">自动 — 摘要/修复优先低成本模型</option>
+                  <option value="flash">Flash — 辅助调用固定低成本模型</option>
+                  <option value="pro">Pro — 辅助调用跟随当前主模型</option>
+                </select>
+                <p class="form-hint">主回答仍使用当前模型；该选项只影响摘要、工具修复等辅助调用的模型选择和成本。</p>
               </div>
             </div>
             <div class="settings-section" id="section-appearance" data-tab="tab-preference">

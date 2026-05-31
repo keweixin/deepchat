@@ -5,6 +5,7 @@ import { formatMessagesForSummary, hashMessages } from './context-manager.js';
 
 const SUMMARY_TRIGGER_RATIO = 0.8;
 const COMPACTION_SUMMARY_MARKER = '[CONVERSATION HISTORY SUMMARY — earlier turns folded for context efficiency]\n\n';
+const SUMMARY_FUTURE_ROUNDS = 3;
 
 async function maybeBuildContextSummary(
   request,
@@ -21,21 +22,36 @@ async function maybeBuildContextSummary(
     droppedMessages.length > 0
       ? droppedMessages
       : contextBundle.messages.slice(0, Math.max(0, contextBundle.messages.length - 1));
+  const economicsEnabled =
+    settings.contextFoldEconomicsEnabled !== false && settings.contextFoldEconomicsEnabled !== 'false';
   const shouldSummarize =
-    settings.cacheOptimization !== false
-      ? droppedMessages.length > 0
-      : droppedMessages.length > 0 || contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO;
+    droppedMessages.length > 0 ||
+    (economicsEnabled && contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO) ||
+    (settings.cacheOptimization === false && contextBundle.meta.budgetRatio >= SUMMARY_TRIGGER_RATIO);
   if (!shouldSummarize) return existingSummary ? { summary: existingSummary, generated: false } : null;
   if (summarySourceMessages.length === 0)
     return existingSummary ? { summary: existingSummary, generated: false } : null;
   const summaryHash = hashMessages(summarySourceMessages);
   const priorMeta =
     request.contextSummaryMeta && typeof request.contextSummaryMeta === 'object' ? request.contextSummaryMeta : {};
+  const foldDecision = buildContextFoldDecision({
+    settings,
+    contextBundle,
+    existingSummary,
+    summaryHash,
+    priorMeta,
+    summarySourceMessages,
+  });
+  if (foldDecision.action === 'skip') {
+    return existingSummary
+      ? { summary: existingSummary, generated: false, meta: { foldDecision, cacheHit: true, stale: true } }
+      : null;
+  }
   if (existingSummary && priorMeta.hash === summaryHash) {
     return {
       summary: existingSummary,
       generated: false,
-      meta: { hash: summaryHash, sourceMessageCount: summarySourceMessages.length, cacheHit: true },
+      meta: { hash: summaryHash, sourceMessageCount: summarySourceMessages.length, cacheHit: true, foldDecision },
     };
   }
 
@@ -44,6 +60,7 @@ async function maybeBuildContextSummary(
     stage: 'summary',
     round: 0,
     maxRounds: resolveAgentMaxRounds(settings),
+    foldDecision,
     warning: summaryModel !== settings.model ? `摘要辅助调用使用 ${summaryModel} 以降低成本。` : undefined,
   });
   try {
@@ -68,6 +85,7 @@ async function maybeBuildContextSummary(
         cacheHit: false,
         auxiliaryModel: summaryModel,
         requestedModel: settings.model,
+        foldDecision,
       },
       usage: normalizeTokenUsage(null, {
         input,
@@ -87,10 +105,120 @@ async function maybeBuildContextSummary(
           sourceMessageCount: priorMeta.sourceMessageCount || 0,
           cacheHit: true,
           stale: true,
+          foldDecision,
         },
       };
     return null;
   }
+}
+
+function buildContextFoldDecision({
+  settings = {},
+  contextBundle = {},
+  existingSummary = '',
+  summaryHash = '',
+  priorMeta = {},
+  summarySourceMessages = [],
+}) {
+  const typedSettings = settings as any;
+  const typedPriorMeta = priorMeta as any;
+  const meta = (contextBundle as any).meta || {};
+  const droppedMessages = Array.isArray(meta.droppedMessages) ? meta.droppedMessages : [];
+  const budgetRatio = Number(meta.budgetRatio || 0);
+  const sourceTokens = estimateMessagesTokens(summarySourceMessages);
+  const droppedTokens = droppedMessages.length > 0 ? estimateMessagesTokens(droppedMessages) : 0;
+  const estimatedSummaryTokens = Math.min(700, Math.max(180, Math.round(sourceTokens * 0.12)));
+  const estimatedFutureSavingsTokens = Math.max(0, droppedTokens - estimatedSummaryTokens) * SUMMARY_FUTURE_ROUNDS;
+  const estimatedCostUsd = estimateAuxiliarySummaryCost(settings, sourceTokens + estimatedSummaryTokens);
+  const estimatedSavingsUsd = estimateInputTokenSavings(settings, estimatedFutureSavingsTokens);
+  const matchingSummary = Boolean(existingSummary && typedPriorMeta.hash === summaryHash);
+
+  if (matchingSummary) {
+    return {
+      action: 'reuse',
+      reason: 'summary_hash_hit',
+      budgetRatio,
+      sourceTokens,
+      droppedTokens,
+      estimatedCostUsd: 0,
+      estimatedSavingsUsd,
+      cacheHit: true,
+    };
+  }
+
+  if (typedSettings.contextFoldEconomicsEnabled === false || typedSettings.contextFoldEconomicsEnabled === 'false') {
+    return {
+      action: droppedMessages.length > 0 || budgetRatio >= SUMMARY_TRIGGER_RATIO ? 'generate' : 'skip',
+      reason: 'economics_disabled_threshold',
+      budgetRatio,
+      sourceTokens,
+      droppedTokens,
+      estimatedCostUsd,
+      estimatedSavingsUsd,
+    };
+  }
+
+  if (budgetRatio >= 0.95) {
+    return {
+      action: 'emergency',
+      reason: 'input_budget_emergency',
+      budgetRatio,
+      sourceTokens,
+      droppedTokens,
+      estimatedCostUsd,
+      estimatedSavingsUsd,
+    };
+  }
+
+  if (droppedMessages.length > 0) {
+    return {
+      action: 'generate',
+      reason:
+        estimatedSavingsUsd >= estimatedCostUsd * 0.6 || droppedTokens > 1200
+          ? 'dropped_context_roi'
+          : 'dropped_context_required',
+      budgetRatio,
+      sourceTokens,
+      droppedTokens,
+      estimatedCostUsd,
+      estimatedSavingsUsd,
+    };
+  }
+
+  if (budgetRatio >= SUMMARY_TRIGGER_RATIO && sourceTokens > 1800) {
+    return {
+      action: 'generate',
+      reason: 'budget_pressure_preemptive',
+      budgetRatio,
+      sourceTokens,
+      droppedTokens,
+      estimatedCostUsd,
+      estimatedSavingsUsd,
+    };
+  }
+
+  return {
+    action: 'skip',
+    reason: 'budget_pressure_low',
+    budgetRatio,
+    sourceTokens,
+    droppedTokens,
+    estimatedCostUsd,
+    estimatedSavingsUsd,
+  };
+}
+
+function estimateAuxiliarySummaryCost(settings, tokens) {
+  const provider = String(settings.providerId || settings.apiBase || '').toLowerCase();
+  const pricePerMillion =
+    provider.includes('deepseek') || String(settings.model || '').includes('deepseek') ? 0.05 : 0.2;
+  return Number((((Number(tokens) || 0) * pricePerMillion) / 1_000_000).toFixed(8));
+}
+
+function estimateInputTokenSavings(settings, tokens) {
+  const provider = String(settings.providerId || settings.apiBase || '').toLowerCase();
+  const pricePerMillion = provider.includes('deepseek') || String(settings.model || '').includes('deepseek') ? 0.28 : 1;
+  return Number((((Number(tokens) || 0) * pricePerMillion) / 1_000_000).toFixed(8));
 }
 
 async function summarizeContext(settings, existingSummary, droppedMessages, signal) {
@@ -126,4 +254,10 @@ async function summarizeContext(settings, existingSummary, droppedMessages, sign
   return String(content).trim().slice(0, 1200);
 }
 
-export { SUMMARY_TRIGGER_RATIO, COMPACTION_SUMMARY_MARKER, maybeBuildContextSummary, summarizeContext };
+export {
+  SUMMARY_TRIGGER_RATIO,
+  COMPACTION_SUMMARY_MARKER,
+  maybeBuildContextSummary,
+  summarizeContext,
+  buildContextFoldDecision,
+};

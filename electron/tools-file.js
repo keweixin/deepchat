@@ -396,12 +396,73 @@ function createMatcher(pattern) {
 }
 
 /**
- * Edit a file using SEARCH/REPLACE pattern.
- * @param {Record<string, unknown>} args
- * @param {Record<string, unknown>} settings
+ * @param {string} requestedPath
+ * @param {string[]} workspaceRoots
  * @returns {Promise<string>}
  */
-async function editFile(args, settings) {
+async function resolveEditableFilePath(requestedPath, workspaceRoots) {
+  const resolvedPath = await resolveAllowedPath(requestedPath, workspaceRoots || []);
+  if (isSensitivePath(resolvedPath)) throw new Error('该文件路径看起来包含密钥、凭证或敏感配置，已拒绝编辑。');
+  const stat = await fs.stat(resolvedPath);
+  if (!stat.isFile()) throw new Error('只能编辑文件，不能编辑目录。');
+  const sampleHandle = await fs.open(resolvedPath, 'r');
+  try {
+    const sampleSize = Math.min(stat.size, 4096);
+    const buffer = Buffer.alloc(sampleSize);
+    if (sampleSize > 0) await sampleHandle.read(buffer, 0, sampleSize, 0);
+    if (isProbablyBinary(buffer)) throw new Error('该文件看起来是二进制文件，已拒绝编辑。');
+  } finally {
+    await sampleHandle.close();
+  }
+  return resolvedPath;
+}
+
+/**
+ * @param {string} content
+ * @param {string} searchText
+ * @returns {number[]}
+ */
+function findOccurrences(content, searchText) {
+  const occurrences = [];
+  let idx = content.indexOf(searchText);
+  while (idx !== -1) {
+    occurrences.push(idx);
+    idx = content.indexOf(searchText, idx + 1);
+  }
+  return occurrences;
+}
+
+/**
+ * @param {string} content
+ * @param {number} index
+ * @returns {number}
+ */
+function lineNumberForIndex(content, index) {
+  return content.slice(0, Math.max(0, index)).split('\n').length;
+}
+
+/**
+ * @param {string} searchText
+ * @param {string} replaceText
+ * @returns {{ searchLines: number, replaceLines: number, lineDelta: number }}
+ */
+function buildLineStats(searchText, replaceText) {
+  const searchLines = searchText.split('\n').length;
+  const replaceLines = replaceText.split('\n').length;
+  return {
+    searchLines,
+    replaceLines,
+    lineDelta: replaceLines - searchLines,
+  };
+}
+
+/**
+ * Preview and validate a single SEARCH/REPLACE edit without writing.
+ * @param {Record<string, unknown>} args
+ * @param {Record<string, unknown>} settings
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function previewEditFile(args, settings) {
   const filePath = String(args.path || '').trim();
   const searchText = String(args.search || '');
   const replaceText = String(args.replace || '');
@@ -410,44 +471,149 @@ async function editFile(args, settings) {
   if (!searchText) throw new Error('搜索文本不能为空。');
   if (searchText === replaceText) throw new Error('搜索文本和替换文本相同，无需修改。');
 
-  const resolvedPath = await resolveFilePath(filePath, settings.workspaceRoots || []);
-
-  // Read current file content
+  const resolvedPath = await resolveEditableFilePath(filePath, settings.workspaceRoots || []);
   const content = await fs.readFile(resolvedPath, 'utf8');
-
-  // Find all occurrences of search text
-  const occurrences = [];
-  let idx = content.indexOf(searchText);
-  while (idx !== -1) {
-    occurrences.push(idx);
-    idx = content.indexOf(searchText, idx + 1);
-  }
-
+  const occurrences = findOccurrences(content, searchText);
   if (occurrences.length === 0) {
     throw new Error(
       `搜索文本在文件中未找到。请检查搜索文本是否完全匹配（包括空格和换行）。\n文件：${resolvedPath}\n搜索文本前50字符：${searchText.slice(0, 50)}`
     );
   }
-
   if (occurrences.length > 1) {
     throw new Error(
       `搜索文本匹配到 ${occurrences.length} 处，必须唯一匹配。请提供更多上下文使搜索文本唯一。\n文件：${resolvedPath}`
     );
   }
-
-  // Apply replacement
+  const stats = buildLineStats(searchText, replaceText);
   const newContent = content.replace(searchText, replaceText);
+  const oldLineCount = content.split('\n').length;
+  const newLineCount = newContent.split('\n').length;
+  return {
+    tool: 'edit_file',
+    path: resolvedPath,
+    requestedPath: filePath,
+    editCount: 1,
+    matchLine: lineNumberForIndex(content, occurrences[0]),
+    searchLines: stats.searchLines,
+    replaceLines: stats.replaceLines,
+    lineDelta: newLineCount - oldLineCount,
+    diffSummary: `1 处唯一匹配；${stats.searchLines} 行 SEARCH -> ${stats.replaceLines} 行 REPLACE；总行数 ${oldLineCount} -> ${newLineCount}`,
+    searchPreview: searchText.slice(0, 600),
+    replacePreview: replaceText.slice(0, 600),
+    backupPlanned: true,
+    restoreHint: '执行前会在同目录 .deepchat-backups 创建 .bak 备份，可用备份文件覆盖原文件恢复。',
+  };
+}
 
-  // Create backup for rollback
+/**
+ * Preview and validate multiple SEARCH/REPLACE edits without writing.
+ * @param {Record<string, unknown>} args
+ * @param {Record<string, unknown>} settings
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function previewMultiEdit(args, settings) {
+  const filePath = String(args.path || '').trim();
+  const edits = args.edits;
+  if (!filePath) throw new Error('文件路径不能为空。');
+  if (!Array.isArray(edits) || edits.length === 0) throw new Error('edits 数组不能为空。');
+  if (edits.length > 20) throw new Error('单次 multi_edit 最多允许 20 个编辑。');
+
+  const resolvedPath = await resolveEditableFilePath(filePath, settings.workspaceRoots || []);
+  const content = await fs.readFile(resolvedPath, 'utf8');
+  const previews = [];
+  let lineDelta = 0;
+  let nextContent = content;
+  for (let i = 0; i < edits.length; i++) {
+    const edit = edits[i] || {};
+    const searchText = String(edit.search || '');
+    const replaceText = String(edit.replace || '');
+    if (!searchText) throw new Error(`第 ${i + 1} 个编辑的搜索文本不能为空。`);
+    if (searchText === replaceText) throw new Error(`第 ${i + 1} 个编辑的搜索文本和替换文本相同。`);
+    const occurrences = findOccurrences(content, searchText);
+    if (occurrences.length === 0) {
+      throw new Error(`第 ${i + 1} 个编辑的搜索文本未找到：${searchText.slice(0, 50)}`);
+    }
+    if (occurrences.length > 1) {
+      throw new Error(`第 ${i + 1} 个编辑的搜索文本匹配到 ${occurrences.length} 处，必须唯一匹配。`);
+    }
+    const stats = buildLineStats(searchText, replaceText);
+    lineDelta += stats.lineDelta;
+    previews.push({
+      index: i + 1,
+      matchLine: lineNumberForIndex(content, occurrences[0]),
+      searchLines: stats.searchLines,
+      replaceLines: stats.replaceLines,
+      searchPreview: searchText.slice(0, 300),
+      replacePreview: replaceText.slice(0, 300),
+    });
+    nextContent = nextContent.replace(searchText, replaceText);
+  }
+  const oldLineCount = content.split('\n').length;
+  const newLineCount = nextContent.split('\n').length;
+  return {
+    tool: 'multi_edit',
+    path: resolvedPath,
+    requestedPath: filePath,
+    editCount: previews.length,
+    edits: previews,
+    lineDelta: newLineCount - oldLineCount,
+    diffSummary: `${previews.length} 个编辑全部唯一匹配；总行数 ${oldLineCount} -> ${newLineCount}`,
+    backupPlanned: true,
+    restoreHint: '执行前会在同目录 .deepchat-backups 创建 .bak 备份，可用备份文件覆盖原文件恢复。',
+  };
+}
+
+/**
+ * @param {Record<string, unknown>} args
+ * @param {Record<string, unknown>} settings
+ * @returns {Promise<Record<string, unknown> | null>}
+ */
+async function previewFileEditTool(args, settings) {
+  const name = String(args.toolName || args.name || '');
+  if (name === 'edit_file') return previewEditFile(args, settings);
+  if (name === 'multi_edit') return previewMultiEdit(args, settings);
+  return null;
+}
+
+/**
+ * @param {string} resolvedPath
+ * @returns {Promise<string>}
+ */
+async function createBackup(resolvedPath) {
+  const content = await fs.readFile(resolvedPath, 'utf8');
   const backupDir = path.join(path.dirname(resolvedPath), '.deepchat-backups');
   await fs.mkdir(backupDir, { recursive: true });
   const backupPath = path.join(backupDir, `${path.basename(resolvedPath)}.${Date.now()}.bak`);
   await fs.writeFile(backupPath, content, 'utf8');
+  return backupPath;
+}
 
-  // Write new content
+/**
+ * @param {Record<string, unknown>} evidence
+ * @returns {string}
+ */
+function formatStructuredEditEvidence(evidence) {
+  return [
+    'Structured Edit:',
+    JSON.stringify({ type: 'deepchat.fileEditResult', version: 1, ...evidence }, null, 2),
+  ].join('\n');
+}
+
+/**
+ * Edit a file using SEARCH/REPLACE pattern.
+ * @param {Record<string, unknown>} args
+ * @param {Record<string, unknown>} settings
+ * @returns {Promise<string>}
+ */
+async function editFile(args, settings) {
+  const searchText = String(args.search || '');
+  const replaceText = String(args.replace || '');
+  const preview = await previewEditFile(args, settings);
+  const resolvedPath = String(preview.path || '');
+  const content = await fs.readFile(resolvedPath, 'utf8');
+  const newContent = content.replace(searchText, replaceText);
+  const backupPath = await createBackup(resolvedPath);
   await fs.writeFile(resolvedPath, newContent, 'utf8');
-
-  // Generate diff summary
   const oldLines = content.split('\n');
   const newLines = newContent.split('\n');
   const addedLines = newLines.length - oldLines.length;
@@ -460,6 +626,16 @@ async function editFile(args, settings) {
     '修改预览：',
     `- ${searchText.split('\n').length} 行搜索文本`,
     `+ ${replaceText.split('\n').length} 行替换文本`,
+    '',
+    formatStructuredEditEvidence({
+      tool: 'edit_file',
+      path: resolvedPath,
+      backupPath,
+      lineDelta: addedLines,
+      searchLines: searchText.split('\n').length,
+      replaceLines: replaceText.split('\n').length,
+      restoreHint: preview.restoreHint,
+    }),
   ];
 
   return result.join('\n');
@@ -472,46 +648,18 @@ async function editFile(args, settings) {
  * @returns {Promise<string>}
  */
 async function multiEdit(args, settings) {
-  const filePath = String(args.path || '').trim();
+  const preview = await previewMultiEdit(args, settings);
   const edits = args.edits;
-
-  if (!filePath) throw new Error('文件路径不能为空。');
-  if (!Array.isArray(edits) || edits.length === 0) throw new Error('edits 数组不能为空。');
-
-  const resolvedPath = await resolveFilePath(filePath, settings.workspaceRoots || []);
+  const resolvedPath = String(preview.path || '');
   let content = await fs.readFile(resolvedPath, 'utf8');
-
-  // Validate all edits first
   const results = [];
   for (let i = 0; i < edits.length; i++) {
     const edit = edits[i];
     const searchText = String(edit.search || '');
     const replaceText = String(edit.replace || '');
-    if (!searchText) throw new Error(`第 ${i + 1} 个编辑的搜索文本不能为空。`);
-
-    const occurrences = [];
-    let idx = content.indexOf(searchText);
-    while (idx !== -1) {
-      occurrences.push(idx);
-      idx = content.indexOf(searchText, idx + 1);
-    }
-
-    if (occurrences.length === 0) {
-      throw new Error(`第 ${i + 1} 个编辑的搜索文本未找到：${searchText.slice(0, 50)}`);
-    }
-    if (occurrences.length > 1) {
-      throw new Error(`第 ${i + 1} 个编辑的搜索文本匹配到 ${occurrences.length} 处，必须唯一匹配。`);
-    }
     results.push({ searchText, replaceText });
   }
-
-  // Create backup
-  const backupDir = path.join(path.dirname(resolvedPath), '.deepchat-backups');
-  await fs.mkdir(backupDir, { recursive: true });
-  const backupPath = path.join(backupDir, `${path.basename(resolvedPath)}.${Date.now()}.bak`);
-  await fs.writeFile(backupPath, content, 'utf8');
-
-  // Apply all edits
+  const backupPath = await createBackup(resolvedPath);
   for (const { searchText, replaceText } of results) {
     content = content.replace(searchText, replaceText);
   }
@@ -526,6 +674,15 @@ async function multiEdit(args, settings) {
     `备份位置：${backupPath}`,
     `编辑数量：${results.length}`,
     `行数变化：${oldLines} → ${newLines}`,
+    '',
+    formatStructuredEditEvidence({
+      tool: 'multi_edit',
+      path: resolvedPath,
+      backupPath,
+      editCount: results.length,
+      lineDelta: newLines - oldLines,
+      restoreHint: preview.restoreHint,
+    }),
   ].join('\n');
 }
 
@@ -542,7 +699,7 @@ async function applyPatch(args, settings) {
   if (!filePath) throw new Error('文件路径不能为空。');
   if (!patch) throw new Error('patch 内容不能为空。');
 
-  const resolvedPath = await resolveFilePath(filePath, settings.workspaceRoots || []);
+  const resolvedPath = await resolveEditableFilePath(filePath, settings.workspaceRoots || []);
   const content = await fs.readFile(resolvedPath, 'utf8');
 
   // Simple unified diff parser
@@ -605,6 +762,10 @@ module.exports = {
   editFile,
   multiEdit,
   applyPatch,
+  previewEditFile,
+  previewMultiEdit,
+  previewFileEditTool,
+  resolveEditableFilePath,
   walk,
   shouldSkip,
   createMatcher,

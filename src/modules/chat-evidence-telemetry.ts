@@ -46,6 +46,8 @@ export function formatTokenUsageTitle(tokens: Record<string, any>) {
         .join(', ')}`
     );
   }
+  const foldDecision = tokens.foldDecision || tokens.summaryMeta?.foldDecision || profile.foldDecision;
+  if (foldDecision) lines.push(`摘要决策: ${formatFoldDecision(foldDecision)}`);
   if ((usage.rounds || 0) > 1) lines.push(`Agent 轮次: ${usage.rounds}`);
   const warnings = [
     ...(usage.warnings || []),
@@ -102,6 +104,8 @@ export function buildConversationUsageTelemetryDetails(conversation: Record<stri
   if ((usage.rounds || 0) > 1) titleLines.push(`Agent 轮次: ${usage.rounds}`);
   if (profile.prefixFingerprint) titleLines.push(`Prefix: ${profile.prefixFingerprint}`);
   if (profile.prefixTokens) titleLines.push(`Prefix tokens: ${profile.prefixTokens}`);
+  const foldDecision = profile.foldDecision || conversation?.contextSummaryMeta?.foldDecision;
+  if (foldDecision) titleLines.push(`摘要决策: ${formatFoldDecision(foldDecision)}`);
   if (reasons.length) titleLines.push(`Cache miss 可能原因: ${reasons.map(formatCacheStabilityReason).join('、')}`);
   const detailText = formatCacheStabilityDetails(profile.cacheStabilityDetails);
   if (detailText) titleLines.push(`变化明细: ${detailText}`);
@@ -142,6 +146,7 @@ export function buildCacheProfile(tokens: Record<string, any>, contextBudget: Re
     cacheHitRate: usage.cacheHitRate,
     estimatedCostUsd: usage.cost?.estimatedCostUsd || 0,
     estimatedSavingsUsd: usage.cost?.estimatedSavingsUsd || 0,
+    foldDecision: contextBudget?.foldDecision || contextBudget?.summaryMeta?.foldDecision || profile.foldDecision,
   };
 }
 
@@ -206,6 +211,22 @@ export function formatCacheStabilityDetails(details: Record<string, any>) {
     if (previous || current) parts.push(`${key}: ${previous || '-'} -> ${current || '-'}`);
   }
   return parts.join('；');
+}
+
+export function formatFoldDecision(decision: Record<string, any>) {
+  if (!decision || typeof decision !== 'object') return '';
+  const actionLabels: Record<string, string> = {
+    skip: '跳过',
+    reuse: '复用摘要',
+    generate: '生成摘要',
+    emergency: '紧急摘要',
+  };
+  const action = actionLabels[String(decision.action || '')] || String(decision.action || 'unknown');
+  const reason = String(decision.reason || '').replace(/_/g, ' ');
+  const ratio = Number(decision.budgetRatio || 0);
+  const savings = Number(decision.estimatedSavingsUsd || 0);
+  const cost = Number(decision.estimatedCostUsd || 0);
+  return `${action}${reason ? ` · ${reason}` : ''}${ratio ? ` · 预算 ${Math.round(ratio * 100)}%` : ''} · 预估成本 ${formatUsd(cost)} · 预估节省 ${formatUsd(savings)}`;
 }
 
 // ─── DOM Helpers (for renderConversationUsageTelemetryPanel) ─────────────────

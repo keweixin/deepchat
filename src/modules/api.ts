@@ -166,10 +166,10 @@ export const SKILLS: Record<
   code_runner: {
     name: '代码运行',
     icon: '▶',
-    description: '确认后运行 JavaScript / Python 小片段',
+    description: '确认后运行代码或预览安全编辑',
     needs: [],
     promptSuffix:
-      '\n\n当前客户端具备代码执行能力（需用户确认）。当需要计算验证或运行代码时，请提供可执行代码。客户端会弹出确认卡片，用户同意后才会执行。',
+      '\n\n当前客户端具备代码执行能力和受控文件编辑能力（均需用户确认）。需要计算验证时提供可执行代码；需要修改文件时使用 SEARCH/REPLACE，并先读取目标上下文。客户端会弹出确认卡片，用户同意后才会执行。',
   },
   mcp_tool: {
     name: 'MCP',
@@ -182,10 +182,10 @@ export const SKILLS: Record<
   multi_tool: {
     name: '全工具',
     icon: '🛠',
-    description: '按需联网、读文件、运行代码、MCP',
+    description: '按需联网、读文件、运行代码、编辑文件、MCP',
     needs: ['anyTool'],
     promptSuffix:
-      '\n\n当前客户端具备多种工具能力：联网搜索（Tavily）、文件读取（授权工作区）、代码执行（需确认）、MCP Server 工具。根据用户需求主动使用合适的工具。所有工具调用都需要用户确认后才会执行。',
+      '\n\n当前客户端具备多种工具能力：联网搜索（Tavily）、文件读取（授权工作区）、代码执行（需确认）、受控文件编辑（需确认且备份）、MCP Server 工具。根据用户需求主动使用合适的工具。所有工具调用都需要用户确认后才会执行。',
   },
 };
 

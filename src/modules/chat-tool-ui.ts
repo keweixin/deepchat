@@ -31,7 +31,7 @@ const LOW_RISK_TOOLS = new Set([
   'index_workspace',
 ]);
 
-const HIGH_RISK_TOOLS = new Set(['run_code']);
+const HIGH_RISK_TOOLS = new Set(['run_code', 'edit_file', 'multi_edit']);
 
 export function getToolRiskMeta(tool: Record<string, unknown> = {}) {
   const security = tool.security as Record<string, unknown> | undefined;
@@ -250,10 +250,14 @@ export function renderToolCalls(container: HTMLElement, toolCalls: any[] = [], o
     if (meta) block.appendChild(meta);
     const security = createToolSecurityMeta(tool);
     if (security) block.appendChild(security);
+    const editPreview = createEditPreview(tool);
+    if (editPreview) block.appendChild(editPreview);
     const nextAction = createToolNextAction(tool);
     if (nextAction) block.appendChild(nextAction);
     const repairAction = createToolRepairAction(tool);
     if (repairAction) block.appendChild(repairAction);
+    const repairReport = createToolRepairReport(tool);
+    if (repairReport) block.appendChild(repairReport);
     if (tool.parseError) {
       const parse = document.createElement('div');
       parse.className = 'tool-parse-error';
@@ -398,6 +402,12 @@ function createToolSecurityMeta(tool: Record<string, any>) {
     items.push('限制：限制执行时间和输出大小；当前不强制限制内存，不承诺硬隔离');
     items.push('网络：未硬阻断');
     items.push('输出：已脱敏');
+  } else if (toolName === 'edit_file' || toolName === 'multi_edit') {
+    items.push('写入：需要逐次确认');
+    items.push('预检：工作区路径、敏感路径、唯一匹配');
+    items.push('备份：写入前创建 .deepchat-backups');
+    if (tool.security?.editCount) items.push(`编辑数：${tool.security.editCount}`);
+    if (tool.backupPath) items.push(`备份：${tool.backupPath}`);
   } else {
     if (tool.security.riskLevel) items.push(`风险：${tool.security.riskLevel}`);
     if (tool.security.sandbox) items.push(`沙箱：${tool.security.sandbox}`);
@@ -411,6 +421,55 @@ function createToolSecurityMeta(tool: Record<string, any>) {
   meta.className = 'tool-security-meta';
   meta.textContent = items.join(' · ');
   return meta;
+}
+
+function createEditPreview(tool: Record<string, any>) {
+  const preview = tool.editPreview || tool.security?.editPreview;
+  const toolName = String(tool.name || '').toLowerCase();
+  if (!preview && toolName !== 'edit_file' && toolName !== 'multi_edit' && !tool.backupPath) return null;
+  const box = document.createElement('div');
+  box.className = 'tool-edit-preview';
+
+  const title = document.createElement('div');
+  title.className = 'tool-edit-preview-title';
+  title.textContent = tool.status === 'pending' ? '写入预览' : '写入证据';
+  box.appendChild(title);
+
+  const rows = [
+    preview?.path ? ['路径', preview.path] : null,
+    preview?.diffSummary ? ['差异摘要', preview.diffSummary] : null,
+    preview?.matchLine ? ['匹配行', preview.matchLine] : null,
+    preview?.editCount ? ['编辑数', preview.editCount] : null,
+    preview?.lineDelta !== undefined ? ['行数变化', preview.lineDelta] : null,
+    tool.backupPath ? ['备份位置', tool.backupPath] : null,
+    tool.restoreHint || preview?.restoreHint ? ['恢复建议', tool.restoreHint || preview.restoreHint] : null,
+  ].filter(Boolean) as Array<[string, unknown]>;
+
+  for (const [label, value] of rows) {
+    const row = document.createElement('div');
+    row.className = 'tool-edit-preview-row';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const content = document.createElement('code');
+    content.textContent = String(value);
+    row.append(name, content);
+    box.appendChild(row);
+  }
+
+  if (preview?.searchPreview || preview?.replacePreview) {
+    const details = document.createElement('details');
+    details.className = 'tool-edit-preview-details';
+    const summary = document.createElement('summary');
+    summary.textContent = '查看 SEARCH/REPLACE 片段';
+    const pre = document.createElement('pre');
+    pre.textContent = [`SEARCH:\n${preview.searchPreview || ''}`, `REPLACE:\n${preview.replacePreview || ''}`].join(
+      '\n\n'
+    );
+    details.append(summary, pre);
+    box.appendChild(details);
+  }
+
+  return box;
 }
 
 function createToolNextAction(tool: Record<string, any>) {
@@ -444,6 +503,23 @@ function createToolRepairAction(tool: Record<string, any>) {
   });
   row.append(hint, button);
   return row;
+}
+
+function createToolRepairReport(tool: Record<string, any>) {
+  if (!tool.repairReport || typeof tool.repairReport !== 'object') return null;
+  const report = tool.repairReport as Record<string, any>;
+  const parts = [];
+  if (report.scavenge) parts.push('正文补救');
+  if (report.truncation) parts.push('参数补齐');
+  if (report.storm) parts.push('重复抑制');
+  if (report.result) parts.push(`结果：${report.result}`);
+  const box = document.createElement('div');
+  box.className = 'tool-repair-report';
+  box.textContent = `修复报告：${parts.join(' · ') || '已记录'}`;
+  if (Array.isArray(report.warnings) && report.warnings.length) {
+    box.title = report.warnings.join('\n');
+  }
+  return box;
 }
 
 function createToolOutputSummary(outputText: string, tool: Record<string, any> = {}) {

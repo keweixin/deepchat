@@ -188,6 +188,14 @@ function filterStableBuiltInTools(tools, settings = {}) {
     )
       return Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
     if (name === 'run_code') return settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false';
+    if (name === 'edit_file' || name === 'multi_edit') {
+      return (
+        settings.codingEditsEnabled !== false &&
+        settings.codingEditsEnabled !== 'false' &&
+        Array.isArray(settings.workspaceRoots) &&
+        settings.workspaceRoots.length > 0
+      );
+    }
     return true;
   });
 }

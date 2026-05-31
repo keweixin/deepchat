@@ -53,10 +53,15 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
           const repaired =
             nativeToolCalls.length === 0
               ? repairToolCallsFromText(content, thinking, tools)
-              : { toolCalls: [], warning: '' };
+              : { toolCalls: [], warning: '', repairReport: null };
           if (repaired.toolCalls.length > 0) {
             warnings.push(repaired.warning);
-            emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
+            emit(requestId, 'agentStage', {
+              stage: 'tool_repair',
+              round: 0,
+              warning: repaired.warning,
+              repairReport: repaired.repairReport,
+            });
           }
           return {
             content,
@@ -64,6 +69,7 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
             usage,
             toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
             warnings,
+            repairReport: repaired.repairReport,
           };
         }
 
@@ -89,10 +95,17 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
 
     const nativeToolCalls = compactToolCalls(toolCalls);
     const repaired =
-      nativeToolCalls.length === 0 ? repairToolCallsFromText(content, thinking, tools) : { toolCalls: [], warning: '' };
+      nativeToolCalls.length === 0
+        ? repairToolCallsFromText(content, thinking, tools)
+        : { toolCalls: [], warning: '', repairReport: null };
     if (repaired.toolCalls.length > 0) {
       warnings.push(repaired.warning);
-      emit(requestId, 'agentStage', { stage: 'tool_repair', round: 0, warning: repaired.warning });
+      emit(requestId, 'agentStage', {
+        stage: 'tool_repair',
+        round: 0,
+        warning: repaired.warning,
+        repairReport: repaired.repairReport,
+      });
     }
     return {
       content,
@@ -100,6 +113,7 @@ async function streamOnce(requestId, messages, settings, tools, signal, emit) {
       usage,
       toolCalls: repaired.toolCalls.length > 0 ? repaired.toolCalls : nativeToolCalls,
       warnings,
+      repairReport: repaired.repairReport,
     };
   } finally {
     reader.releaseLock();

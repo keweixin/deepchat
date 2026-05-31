@@ -105,6 +105,26 @@ export function detectAgentIntent(
     if (settings.runCodeEnabled === false) missing.add('代码运行工具');
     else selected.add('run_code');
   }
+  if (!candidates.has('edit_file') && needsCodingEdit(text, lower)) {
+    candidates.add('edit_file');
+    candidates.add('multi_edit');
+    candidates.add('index_workspace');
+    candidates.add('search_workspace');
+    candidates.add('read_file');
+    reasons.push('coding_edit');
+    score += 0.45;
+    if (!Array.isArray(settings.workspaceRoots) || (settings.workspaceRoots as unknown[]).length === 0) {
+      missing.add('工作区目录');
+    } else if ((settings as any).codingEditsEnabled === false) {
+      missing.add('编码编辑工具');
+    } else {
+      selected.add('edit_file');
+      selected.add('multi_edit');
+      selected.add('index_workspace');
+      selected.add('search_workspace');
+      selected.add('read_file');
+    }
+  }
   if (!candidates.has('mcp') && needsMcp(text, lower)) {
     candidates.add('mcp');
     reasons.push('external_mcp');
@@ -125,7 +145,9 @@ export function detectAgentIntent(
       selected.has('list_files') ||
       selected.has('search_workspace') ||
       selected.has('read_symbol') ||
-      selected.has('read_file')) &&
+      selected.has('read_file') ||
+      selected.has('edit_file') ||
+      selected.has('multi_edit')) &&
     !selected.has('web_search') &&
     !selected.has('run_code')
   )
@@ -203,6 +225,14 @@ function needsCode(text: string, lower: string): boolean {
     /运行|执行|调试|复现|验证.*代码|算一下|计算|单元测试|测试一下|run code|debug|reproduce|calculate|execute/i.test(
       text
     ) || /```/.test(lower)
+  );
+}
+
+function needsCodingEdit(text: string, lower: string): boolean {
+  const value = String(text || '');
+  return (
+    /修改|编辑|修复|改一下|改成|替换|删除|新增|实现|补上|重构|落地|写入|保存|应用修改/i.test(value) ||
+    /\b(edit|fix|change|replace|delete|insert|implement|refactor|update|write)\b/i.test(lower)
   );
 }
 

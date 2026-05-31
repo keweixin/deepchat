@@ -250,15 +250,15 @@ function compactMcpOutput(text: string) {
  * @param {string} content
  * @param {string} thinking
  * @param {any[]} tools
- * @returns {{ toolCalls: any[], warning: string }}
+ * @returns {{ toolCalls: any[], warning: string, repairReport: Record<string, any> }}
  */
 export function repairToolCallsFromText(content = '', thinking = '', tools: any[] = []) {
   const allowedNames = new Set(
     (Array.isArray(tools) ? tools : []).map((tool: any) => String(tool?.function?.name || '').trim()).filter(Boolean)
   );
-  if (allowedNames.size === 0) return { toolCalls: [], warning: '' };
+  if (allowedNames.size === 0) return { toolCalls: [], warning: '', repairReport: buildToolRepairReport('scavenge') };
   const text = [thinking, content].filter(Boolean).join('\n\n').slice(0, TOOL_REPAIR_SCAN_LIMIT);
-  if (!text) return { toolCalls: [], warning: '' };
+  if (!text) return { toolCalls: [], warning: '', repairReport: buildToolRepairReport('scavenge') };
 
   const candidates = extractToolRepairCandidates(text, allowedNames);
   const toolCalls = [];
@@ -279,10 +279,16 @@ export function repairToolCallsFromText(content = '', thinking = '', tools: any[
     }
     if (toolCalls.length >= TOOL_REPAIR_MAX_CALLS) break;
   }
+  const warning =
+    toolCalls.length > 0 ? `已从模型正文/思考中修复 ${toolCalls.length} 个工具调用；仍需用户确认后才会执行。` : '';
   return {
     toolCalls,
-    warning:
-      toolCalls.length > 0 ? `已从模型正文/思考中修复 ${toolCalls.length} 个工具调用；仍需用户确认后才会执行。` : '',
+    warning,
+    repairReport: buildToolRepairReport('scavenge', {
+      result: toolCalls.length > 0 ? 'repaired' : 'none',
+      repairedToolCalls: toolCalls.length,
+      warnings: warning ? [warning] : [],
+    }),
   };
 }
 
@@ -362,7 +368,7 @@ function extractBalancedJsonSnippets(text: string, allowedNames: Set<string>) {
  * Parse tool arguments with truncated-JSON repair.
  *
  * @param {string} raw
- * @returns {{ args: Record<string, any>, error: string, repaired?: boolean, warning?: string }}
+ * @returns {{ args: Record<string, any>, error: string, repaired?: boolean, warning?: string, repairReport?: Record<string, any> }}
  */
 export function parseToolArgsDetailed(raw: string) {
   const text = String(raw || '{}');
@@ -383,14 +389,36 @@ export function parseToolArgsDetailed(raw: string) {
             error: '',
             repaired: true,
             warning: '工具参数 JSON 看起来被截断，已自动补齐结尾引号/括号；请确认参数后再批准执行。',
+            repairReport: buildToolRepairReport('truncation', {
+              result: 'repaired',
+              warnings: ['工具参数 JSON 看起来被截断，已自动补齐结尾引号/括号。'],
+            }),
           };
         }
       } catch {
         // Fall through to the original parse error.
       }
     }
-    return { args: {}, error: error.message || 'JSON parse error' };
+    return {
+      args: {},
+      error: error.message || 'JSON parse error',
+      repairReport: buildToolRepairReport('truncation', {
+        result: 'failed',
+        warnings: [error.message || 'JSON parse error'],
+      }),
+    };
   }
+}
+
+function buildToolRepairReport(kind: string, patch: Record<string, any> = {}) {
+  return {
+    scavenge: kind === 'scavenge',
+    truncation: kind === 'truncation',
+    storm: kind === 'storm',
+    result: patch.result || 'none',
+    warnings: Array.isArray(patch.warnings) ? patch.warnings : [],
+    repairedToolCalls: patch.repairedToolCalls || 0,
+  };
 }
 
 /**
@@ -574,4 +602,5 @@ module.exports = {
   // Argument parsing & repair
   parseToolArgsDetailed,
   repairTruncatedJsonObject,
+  buildToolRepairReport,
 };

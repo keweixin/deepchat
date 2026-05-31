@@ -9,7 +9,16 @@ import {
   redactRunCodeOutput,
   normalizeLanguage,
 } from './tools-run-code.js';
-import { listFiles, readFile, readManyFiles, editFile, multiEdit, parsePathLineCitation } from './tools-file.js';
+import {
+  listFiles,
+  readFile,
+  readManyFiles,
+  editFile,
+  multiEdit,
+  previewEditFile,
+  previewMultiEdit,
+  parsePathLineCitation,
+} from './tools-file.js';
 import {
   indexWorkspace,
   searchWorkspace,
@@ -36,12 +45,16 @@ function getToolModeStatus(settings: {
   workspaceRoots?: string[];
   tavilyApiKey?: string;
   runCodeEnabled?: boolean | string;
+  codingEditsEnabled?: boolean | string;
 }) {
   const roots = settings.workspaceRoots || [];
+  const editEnabled =
+    settings.codingEditsEnabled !== false && settings.codingEditsEnabled !== 'false' && roots.length > 0;
   return {
     web_search: Boolean(settings.tavilyApiKey),
     file_reader: roots.length > 0,
     code_runner: settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false',
+    coding_edits: editEnabled,
     multi_tool: Boolean(settings.tavilyApiKey) || roots.length > 0,
   };
 }
@@ -129,6 +142,22 @@ function describeToolRisk(name: string, args: any) {
     const maxTotalBytes = clampInt(args.maxTotalBytes, 1024, MAX_READ_MANY_FILES_BYTES, MAX_READ_MANY_FILES_BYTES);
     return `将批量读取已授权工作区内的 ${paths.length} 个文本文件（总上限 ${Math.round(maxTotalBytes / 1024)}KB）。只读操作。`;
   }
+  if (name === 'edit_file') {
+    const searchLines = String(args.search || '').split('\n').length;
+    const replaceLines = String(args.replace || '').split('\n').length;
+    return [
+      `将修改已授权工作区内的文件：${String(args.path || '').slice(0, 160)}`,
+      `SEARCH/REPLACE：${searchLines} 行 -> ${replaceLines} 行，SEARCH 必须唯一匹配。`,
+      '执行前会只读预检路径、敏感文件、唯一匹配和差异摘要；确认后写入并生成 .deepchat-backups 备份。',
+    ].join('\n');
+  }
+  if (name === 'multi_edit') {
+    const edits = Array.isArray(args.edits) ? args.edits : [];
+    return [
+      `将对已授权工作区内的文件应用 ${edits.length} 个 SEARCH/REPLACE 修改：${String(args.path || '').slice(0, 160)}`,
+      '所有编辑必须先全部通过唯一匹配预检；确认后才会一次性写入并生成 .deepchat-backups 备份。',
+    ].join('\n');
+  }
   return '未知工具调用。';
 }
 
@@ -159,6 +188,20 @@ async function executeTool(name: string, args: any, settings: any, signal?: Abor
 }
 
 /**
+ * Build a write-tool preview without mutating files.
+ *
+ * @param {string} name
+ * @param {any} args
+ * @param {any} settings
+ * @returns {Promise<Record<string, unknown> | null>}
+ */
+async function previewToolCall(name: string, args: any, settings: any) {
+  if (name === 'edit_file') return previewEditFile(args, settings);
+  if (name === 'multi_edit') return previewMultiEdit(args, settings);
+  return null;
+}
+
+/**
  * @param {any} value
  * @param {number} min
  * @param {number} max
@@ -177,6 +220,7 @@ export {
   getToolModeStatus,
   describeToolRisk,
   executeTool,
+  previewToolCall,
   redactSensitiveText,
   redactRunCodeOutput,
   isSensitivePath,

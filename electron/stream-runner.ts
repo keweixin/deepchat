@@ -303,6 +303,8 @@ export function toolCallSignature(toolCall: any = {}) {
  */
 export function resolveAuxiliaryModel(settings: any = {}) {
   const model = String(settings.model || '').trim();
+  const tier = String(settings.agentModelTier || 'auto');
+  if (tier === 'pro') return model;
   const provider = String(settings.providerId || inferProviderIdFromBase(settings.apiBase)).toLowerCase();
   if (provider === 'deepseek' || /^deepseek-/i.test(model)) return 'deepseek-v4-flash';
   if (provider === 'xiaomimimo' || /^mimo-/i.test(model)) return 'mimo-v2.5';

@@ -10,12 +10,15 @@
     "build": "vite build",
     "test": "vitest run",
     "lint": "node scripts/check-source.mjs",
+    "lint:biome": "biome check --formatter-enabled=false .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "syntax": "node --check electron.js && node --check preload.js",
     "typecheck": "tsc --noEmit",
     "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run typecheck:strict && npm test && npm run build",
+    "test:coverage": "vitest run --coverage",
+    "verify:quality": "npm run lint && npm run lint:biome && npm run typecheck && npm run typecheck:strict && npm run test:coverage",
+    "verify": "npm run format:check && npm run lint && npm run lint:biome && npm run typecheck && npm run typecheck:strict && npm test && npm run build",
     "verify:prod": "npm run verify && npm run build:electron && npm run test:e2e",
     "verify:release": "node scripts/verify-release.mjs",
     "preview": "vite preview",
@@ -23,7 +26,12 @@
     "electron:dev": "vite build && npm run build:electron && electron .",
     "electron:build": "vite build && npm run build:electron && electron-builder --win --x64",
     "electron:build:portable": "vite build && npm run build:electron && electron-builder --win portable",
-    "test:e2e": "npm run build && npm run build:electron && npx playwright test"
+    "test:e2e": "npm run build && npm run build:electron && npx playwright test",
+    "prepare": "simple-git-hooks || true"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npm run format:check && npm run lint",
+    "pre-push": "npm run verify"
   },
   "build": {
     "appId": "com.deepchat.app",
@@ -64,13 +72,16 @@
     }
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.16",
     "@playwright/test": "^1.60.0",
     "@types/dompurify": "^3.0.5",
     "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.7",
     "electron": "^33.2.0",
     "electron-builder": "^26.8.1",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
+    "simple-git-hooks": "^2.13.1",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3",
     "vite": "^8.0.12",

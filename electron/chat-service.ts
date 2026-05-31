@@ -337,12 +337,22 @@ class ChatService {
         prefixTokens,
         abortController.signal
       );
+      if (summaryResult?.meta) {
+        contextBundle = {
+          ...contextBundle,
+          meta: {
+            ...contextBundle.meta,
+            summaryMeta: summaryResult.meta,
+            foldDecision: summaryResult.meta.foldDecision,
+          } as any,
+        };
+      }
       if (summaryResult?.summary) {
         workingMessages.push({
           role: 'system',
           content: `${COMPACTION_SUMMARY_MARKER}${summaryResult.summary}`,
         });
-        usageRounds.push(summaryResult.usage);
+        if (summaryResult.usage) usageRounds.push(summaryResult.usage);
         contextBundle = {
           ...contextBundle,
           meta: {
@@ -527,8 +537,8 @@ class ChatService {
         : settings.activeSkill;
     const builtIn =
       settings.activeSkill === 'agent_auto' && settings.cacheOptimization !== false
-        ? filterStableBuiltInTools(getToolDefinitions(activeSkill), settings)
-        : getToolDefinitions(activeSkill);
+        ? filterStableBuiltInTools(getToolDefinitions(activeSkill, { settings, intent }), settings)
+        : getToolDefinitions(activeSkill, { settings, intent });
     if (activeSkill !== 'mcp_tool' && activeSkill !== 'multi_tool') return builtIn;
     const mcpTools = await this.mcpManager.getToolDefinitions(settings);
     const combined = [...builtIn, ...mcpTools];

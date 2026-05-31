@@ -196,7 +196,7 @@ function matchesConditions(conditions: Record<string, unknown>, name: string, ar
     if (!conditions.workspaceOnly && inWorkspace) return false;
   }
   if (conditions.readOnly !== undefined) {
-    const toolIsReadOnly = !['run_code', 'write_file', 'edit_file'].includes(name);
+    const toolIsReadOnly = !['run_code', 'write_file', 'edit_file', 'multi_edit'].includes(name);
     if (conditions.readOnly !== toolIsReadOnly) return false;
   }
   if (conditions.riskLevel !== undefined) {
@@ -451,6 +451,32 @@ function buildToolSecurity(name: string, args?: any, settings?: any) {
       paths: Array.isArray(_args.paths) ? _args.paths : [],
       sensitiveDenylist: true,
       redaction: true,
+    };
+  } else if (name === 'edit_file') {
+    base = {
+      riskLevel: 'high',
+      path: String(_args.path || ''),
+      searchChars: String(_args.search || '').length,
+      replaceChars: String(_args.replace || '').length,
+      searchLines: String(_args.search || '').split('\n').length,
+      replaceLines: String(_args.replace || '').split('\n').length,
+      workspaceOnly: true,
+      writesFile: true,
+      backupRequired: true,
+      approvalRequired: true,
+      preflight: 'path-sensitive-unique-match',
+    };
+  } else if (name === 'multi_edit') {
+    const edits = Array.isArray(_args.edits) ? _args.edits : [];
+    base = {
+      riskLevel: 'high',
+      path: String(_args.path || ''),
+      editCount: edits.length,
+      workspaceOnly: true,
+      writesFile: true,
+      backupRequired: true,
+      approvalRequired: true,
+      preflight: 'path-sensitive-all-edits-unique-match',
     };
   } else if (name === 'web_search') {
     base = { riskLevel: 'low', network: 'https', query: String(_args.query || '') };

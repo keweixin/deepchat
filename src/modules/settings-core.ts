@@ -55,6 +55,9 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   defaultComposerMode: 'daily',
   autoContextSummary: true,
   cacheOptimization: true,
+  contextFoldEconomicsEnabled: true,
+  codingEditsEnabled: true,
+  agentModelTier: 'auto',
   toolApprovalTimeoutMs: 60000,
   toolApprovalPolicy: 'confirm_all',
   runCodeEnabled: true,
@@ -125,6 +128,9 @@ async function migrateLegacyStorage(): Promise<void> {
     dc_thinkingBudget: 'thinkingBudget',
     dc_activeSkill: 'activeSkill',
     dc_cacheOptimization: 'cacheOptimization',
+    dc_contextFoldEconomicsEnabled: 'contextFoldEconomicsEnabled',
+    dc_codingEditsEnabled: 'codingEditsEnabled',
+    dc_agentModelTier: 'agentModelTier',
     dc_runCodeEnabled: 'runCodeEnabled',
     dc_autoContextSummary: 'autoContextSummary',
     dc_enhance: 'enhance',
@@ -174,6 +180,9 @@ function loadBrowserSettings(): Record<string, unknown> {
     activeSkill: localStorage.getItem('dc_activeSkill') || DEFAULT_SETTINGS.activeSkill,
     autoContextSummary: localStorage.getItem('dc_autoContextSummary') !== 'false',
     cacheOptimization: localStorage.getItem('dc_cacheOptimization') !== 'false',
+    contextFoldEconomicsEnabled: localStorage.getItem('dc_contextFoldEconomicsEnabled') !== 'false',
+    codingEditsEnabled: localStorage.getItem('dc_codingEditsEnabled') !== 'false',
+    agentModelTier: localStorage.getItem('dc_agentModelTier') || DEFAULT_SETTINGS.agentModelTier,
     toolApprovalTimeoutMs: parseInt(
       localStorage.getItem('dc_toolApprovalTimeoutMs') || String(DEFAULT_SETTINGS.toolApprovalTimeoutMs),
       10
@@ -207,6 +216,9 @@ function saveBrowserSettings(patch: Record<string, unknown>): void {
     activeSkill: 'dc_activeSkill',
     autoContextSummary: 'dc_autoContextSummary',
     cacheOptimization: 'dc_cacheOptimization',
+    contextFoldEconomicsEnabled: 'dc_contextFoldEconomicsEnabled',
+    codingEditsEnabled: 'dc_codingEditsEnabled',
+    agentModelTier: 'dc_agentModelTier',
     toolApprovalTimeoutMs: 'dc_toolApprovalTimeoutMs',
     toolApprovalPolicy: 'dc_toolApprovalPolicy',
     runCodeEnabled: 'dc_runCodeEnabled',
@@ -261,8 +273,15 @@ function normalizeSettings(input: Record<string, unknown> = {}): Record<string, 
   next.mcpServers = Array.isArray(next.mcpServers) ? next.mcpServers : [];
   next.autoContextSummary = next.autoContextSummary !== false && next.autoContextSummary !== 'false';
   next.cacheOptimization = next.cacheOptimization !== false && next.cacheOptimization !== 'false';
+  next.contextFoldEconomicsEnabled =
+    next.contextFoldEconomicsEnabled !== false && next.contextFoldEconomicsEnabled !== 'false';
+  next.codingEditsEnabled = next.codingEditsEnabled !== false && next.codingEditsEnabled !== 'false';
   next.runCodeEnabled = next.runCodeEnabled !== false && next.runCodeEnabled !== 'false';
   next.enhance = next.enhance !== false && next.enhance !== 'false';
+  const validAgentModelTiers = ['flash', 'auto', 'pro'];
+  next.agentModelTier = validAgentModelTiers.includes(String(next.agentModelTier))
+    ? next.agentModelTier
+    : DEFAULT_SETTINGS.agentModelTier;
   const validCrewModes = ['auto', 'always', 'tools_only', 'off'];
   next.crewDisplayMode = validCrewModes.includes(String(next.crewDisplayMode))
     ? next.crewDisplayMode
@@ -288,7 +307,14 @@ function parseStoredValue(key: string, value: string): unknown {
     ].includes(key)
   )
     return parseInt(value, 10);
-  if (key === 'enhance' || key === 'autoContextSummary' || key === 'cacheOptimization' || key === 'runCodeEnabled')
+  if (
+    key === 'enhance' ||
+    key === 'autoContextSummary' ||
+    key === 'cacheOptimization' ||
+    key === 'contextFoldEconomicsEnabled' ||
+    key === 'codingEditsEnabled' ||
+    key === 'runCodeEnabled'
+  )
     return value !== 'false';
   return value;
 }

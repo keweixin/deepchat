@@ -691,6 +691,46 @@ describe('electron tools helpers', () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('edits a workspace file only after a unique SEARCH match and creates a backup', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-edit-file-'));
+    try {
+      const file = path.join(tmpDir, 'README.md');
+      await fs.writeFile(file, 'hello\nworld\n', 'utf8');
+
+      const output = await executeTool(
+        'edit_file',
+        { path: 'README.md', search: 'world', replace: 'DeepChat' },
+        { workspaceRoots: [tmpDir] }
+      );
+      const changed = await fs.readFile(file, 'utf8');
+      const backups = await fs.readdir(path.join(tmpDir, '.deepchat-backups'));
+
+      expect(changed).toBe('hello\nDeepChat\n');
+      expect(backups.some((name) => name.endsWith('.bak'))).toBe(true);
+      expect(output).toContain('文件已修改');
+      expect(output).toContain('Structured Edit:');
+      expect(output).toContain('备份位置：');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects ambiguous edits before writing or creating backups', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-edit-ambiguous-'));
+    try {
+      const file = path.join(tmpDir, 'README.md');
+      await fs.writeFile(file, 'same\nsame\n', 'utf8');
+
+      await expect(
+        executeTool('edit_file', { path: 'README.md', search: 'same', replace: 'other' }, { workspaceRoots: [tmpDir] })
+      ).rejects.toThrow('必须唯一匹配');
+      await expect(fs.readFile(file, 'utf8')).resolves.toBe('same\nsame\n');
+      await expect(fs.readdir(path.join(tmpDir, '.deepchat-backups'))).rejects.toThrow();
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 function extractStructuredResults(output, marker = 'Structured Results:') {

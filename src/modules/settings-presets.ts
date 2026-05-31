@@ -460,7 +460,13 @@ export function isSkillRunnable(id: string, settings: Record<string, unknown> = 
   }
   if (id === 'web_search') return Boolean((settings as any).tavilyApiKey);
   if (id === 'file_reader') return ((settings as any).workspaceRoots || []).length > 0;
-  if (id === 'code_runner') return (settings as any).runCodeEnabled !== false;
+  if (id === 'code_runner') {
+    const canRunCode = (settings as any).runCodeEnabled !== false;
+    const canEdit =
+      (settings as any).codingEditsEnabled !== false &&
+      (((settings as any).workspaceRoots as unknown[]) || []).length > 0;
+    return canRunCode || canEdit;
+  }
   if (id === 'mcp_tool')
     return ((settings as any).mcpServers || []).some((server: any) => server?.enabled !== false && server?.command);
   if (id === 'multi_tool') return true;

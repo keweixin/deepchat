@@ -19,6 +19,10 @@ export function createToolRecord(event: any = {}, now = new Date()): any {
     approvalPolicy: event.approvalPolicy || '',
     autoApproved: event.autoApproved === true,
     nextAction: event.nextAction || '',
+    editPreview: event.editPreview || null,
+    backupPath: event.backupPath || '',
+    restoreHint: event.restoreHint || '',
+    repairReport: event.repairReport || null,
     status: event.autoApproved ? 'approved' : 'pending',
     requestedAt: now.toISOString(),
     expiresAt: event.expiresAt || '',
@@ -58,6 +62,11 @@ export function applyToolResult(toolCalls: any[] = [], event: any = {}, now = ne
   if (event.approvalPolicy) tool.approvalPolicy = event.approvalPolicy;
   if (event.autoApproved !== undefined) tool.autoApproved = event.autoApproved === true;
   if (event.nextAction) tool.nextAction = event.nextAction;
+  if (event.editPreview !== undefined) tool.editPreview = event.editPreview;
+  if (event.backupPath !== undefined) tool.backupPath = event.backupPath;
+  if (event.restoreHint !== undefined) tool.restoreHint = event.restoreHint;
+  if (event.repairReport !== undefined) tool.repairReport = event.repairReport;
+  if (event.editEvidence !== undefined) tool.editEvidence = event.editEvidence;
   if (event.contextOutput !== undefined) tool.contextOutput = event.contextOutput;
   if (event.rawOutputTokens !== undefined) tool.rawOutputTokens = event.rawOutputTokens;
   if (event.contextOutputTokens !== undefined) tool.contextOutputTokens = event.contextOutputTokens;
@@ -98,6 +107,11 @@ export function buildToolRuns(toolCalls: any[] = []): any[] {
     autoApproved: tool.autoApproved === true,
     nextAction: tool.nextAction || '',
     parseError: tool.parseError || '',
+    editPreview: tool.editPreview || null,
+    backupPath: tool.backupPath || '',
+    restoreHint: tool.restoreHint || '',
+    repairReport: tool.repairReport || null,
+    editEvidence: tool.editEvidence || null,
     contextOutput: tool.contextOutput || '',
     rawOutputTokens: normalizeNumber(tool.rawOutputTokens),
     contextOutputTokens: normalizeNumber(tool.contextOutputTokens),
@@ -138,6 +152,11 @@ export function buildToolEvidencePayload(tool: any = {}): any {
     autoApproved: tool.autoApproved === true,
     nextAction: tool.nextAction || '',
     parseError: tool.parseError || '',
+    editPreview: tool.editPreview || null,
+    backupPath: tool.backupPath || '',
+    restoreHint: tool.restoreHint || '',
+    repairReport: tool.repairReport || null,
+    editEvidence: tool.editEvidence || null,
     sources,
     localCitations,
     workspaceResults,

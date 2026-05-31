@@ -36,6 +36,9 @@ const DEFAULT_SETTINGS = {
   activeSkill: 'agent_auto',
   autoContextSummary: true,
   cacheOptimization: true,
+  contextFoldEconomicsEnabled: true,
+  codingEditsEnabled: true,
+  agentModelTier: 'auto',
   toolApprovalTimeoutMs: 60000,
   toolApprovalPolicy: 'confirm_all',
   runCodeEnabled: true,
@@ -124,6 +127,12 @@ function normalizeSettings(input = /** @type {Record<string, any>} */ ({})) {
   next.tavilyMaxResults = Math.round(clampNumber(next.tavilyMaxResults, 1, 10, DEFAULT_SETTINGS.tavilyMaxResults));
   next.autoContextSummary = nextAny.autoContextSummary !== false && nextAny.autoContextSummary !== 'false';
   next.cacheOptimization = nextAny.cacheOptimization !== false && nextAny.cacheOptimization !== 'false';
+  next.contextFoldEconomicsEnabled =
+    nextAny.contextFoldEconomicsEnabled !== false && nextAny.contextFoldEconomicsEnabled !== 'false';
+  next.codingEditsEnabled = nextAny.codingEditsEnabled !== false && nextAny.codingEditsEnabled !== 'false';
+  next.agentModelTier = ['flash', 'auto', 'pro'].includes(String(next.agentModelTier))
+    ? String(next.agentModelTier)
+    : DEFAULT_SETTINGS.agentModelTier;
   next.toolApprovalTimeoutMs = Math.round(
     clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs)
   );

@@ -1,6 +1,6 @@
 import { isMcpToolName } from './mcp-manager.js';
 import path from 'path';
-import { executeTool } from './tools.js';
+import { executeTool, previewToolCall } from './tools.js';
 import {
   resolveToolApprovalDecision,
   resolveToolApprovalTimeout,
@@ -45,13 +45,14 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
       maxRounds,
       toolName: fn.name,
       warning: parsedArgs.warning,
+      repairReport: parsedArgs.repairReport,
     });
   }
 
   let security = buildToolSecurity(fn.name, args, settings);
   if (controller && controller.scopePolicy) {
     if (controller.scopePolicy === 'read_only') {
-      const isWrite = ['run_code', 'write_file', 'edit_file'].includes(fn.name);
+      const isWrite = ['run_code', 'write_file', 'edit_file', 'multi_edit'].includes(fn.name);
       if (isWrite) {
         security = {
           ...security,
@@ -93,6 +94,38 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
     return denied;
   }
 
+  let editPreview = null;
+  if (!parsedArgs.error && (fn.name === 'edit_file' || fn.name === 'multi_edit')) {
+    try {
+      editPreview = await previewToolCall(fn.name, args, settings);
+      security = {
+        ...security,
+        editPreview,
+      };
+    } catch (error) {
+      const message = `写入工具预检失败：${normalizeError(error)}`;
+      const nextAction = buildToolNextAction(fn.name, args, { failed: true, output: message, error: message });
+      emit(requestId, 'agentStage', {
+        stage: 'tool_failed',
+        round,
+        maxRounds,
+        toolName: fn.name,
+        warning: message,
+      });
+      emit(requestId, 'toolResult', {
+        toolCallId: toolCall.id,
+        name: fn.name,
+        ok: false,
+        output: message,
+        nextAction,
+        security,
+        editPreview: null,
+        ...buildToolContextOutput(fn.name, args, message),
+      });
+      return message;
+    }
+  }
+
   const approval = resolveToolApprovalDecision(fn.name, args, settings, security, requestId);
   emit(requestId, 'toolRequest', {
     toolCallId: toolCall.id,
@@ -101,8 +134,10 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
     rawArguments: fn.arguments || '',
     parseError: parsedArgs.error,
     parseRepair: parsedArgs.repaired ? parsedArgs.warning : '',
+    repairReport: parsedArgs.repairReport || null,
     risk: describeRisk(fn.name, args, settings),
     security,
+    editPreview,
     approvalPolicy: approval.policy,
     autoApproved: approval.autoApproved,
     expiresAt: new Date(Date.now() + resolveToolApprovalTimeout(settings)).toISOString(),
@@ -127,6 +162,7 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
       ...contextMeta,
       rawArguments: fn.arguments || '',
       parseError: parsedArgs.error,
+      repairReport: parsedArgs.repairReport || null,
     });
     return message;
   }
@@ -202,6 +238,8 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
       output,
       ...buildToolContextOutput(fn.name, args, output),
       security: buildToolSecurity(fn.name, args, settings),
+      editPreview,
+      ...extractWriteEvidence(output),
       autoApproved: decision.autoApproved === true,
     });
     return output;
@@ -224,9 +262,60 @@ async function handleToolCall(requestId, toolCall, settings, signal, round = 0, 
       nextAction,
       ...buildToolContextOutput(fn.name, args, returned),
       security: buildToolSecurity(fn.name, args, settings),
+      editPreview,
     });
     return returned;
   }
+}
+
+function extractWriteEvidence(output) {
+  const text = String(output || '');
+  const backup = text.match(/^备份位置：(.+)$/m)?.[1]?.trim() || '';
+  const structured = extractStructuredEditEvidence(text);
+  return {
+    backupPath: backup || structured?.backupPath || '',
+    restoreHint: structured?.restoreHint || (backup ? `可用备份文件恢复：${backup}` : ''),
+    editEvidence: structured || null,
+  };
+}
+
+function extractStructuredEditEvidence(text) {
+  const marker = 'Structured Edit:';
+  const start = String(text || '').indexOf(marker);
+  if (start < 0) return null;
+  const jsonStart = text.indexOf('{', start + marker.length);
+  if (jsonStart < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = jsonStart; index < text.length; index++) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === '\\') {
+      escaped = inString;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(text.slice(jsonStart, index + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 async function handleToolCallsForRound(
@@ -288,6 +377,13 @@ async function handleToolCallsForRound(
         name: toolCall.function?.name,
         ok: false,
         output: blocked,
+        repairReport: {
+          scavenge: false,
+          truncation: false,
+          storm: true,
+          result: 'blocked',
+          warnings: [blocked],
+        },
       });
       results[index] = { toolCall, output: blocked };
       continue;

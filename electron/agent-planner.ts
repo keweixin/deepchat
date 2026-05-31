@@ -13,6 +13,7 @@
 export interface AgentSettings {
   tavilyApiKey?: string;
   runCodeEnabled?: boolean | string;
+  codingEditsEnabled?: boolean | string;
   workspaceRoots?: string[];
   mcpServers?: Array<{ enabled?: boolean; command?: string } | undefined>;
   activeSkill?: string;
@@ -200,6 +201,14 @@ export function needsCode(text: string, lower: string): boolean {
   );
 }
 
+export function needsCodingEdit(text: string, lower: string): boolean {
+  const value = String(text || '');
+  return (
+    /修改|编辑|修复|改一下|改成|替换|删除|新增|实现|补上|重构|落地|写入|保存|应用修改|提交修改/i.test(value) ||
+    /\b(edit|fix|change|replace|delete|insert|implement|refactor|update|write)\b/i.test(lower)
+  );
+}
+
 export function needsGit(text: string, lower: string): boolean {
   const value = String(text || '');
   return (
@@ -345,6 +354,26 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
     if (settings.runCodeEnabled === false || settings.runCodeEnabled === 'false') missing.add('代码运行工具');
     else selected.add('run_code');
   }
+  if (!candidates.has('edit_file') && needsCodingEdit(text, lower)) {
+    candidates.add('edit_file');
+    candidates.add('multi_edit');
+    candidates.add('index_workspace');
+    candidates.add('search_workspace');
+    candidates.add('read_file');
+    reasons.push('coding_edit');
+    score += 0.45;
+    if (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0) {
+      missing.add('工作区目录');
+    } else if (settings.codingEditsEnabled === false || settings.codingEditsEnabled === 'false') {
+      missing.add('编码编辑工具');
+    } else {
+      selected.add('edit_file');
+      selected.add('multi_edit');
+      selected.add('index_workspace');
+      selected.add('search_workspace');
+      selected.add('read_file');
+    }
+  }
   if (!candidates.has('mcp') && needsMcp(text, lower)) {
     candidates.add('mcp');
     reasons.push('external_mcp');
@@ -371,7 +400,9 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
       selected.has('project_map') ||
       selected.has('git_status') ||
       selected.has('git_diff') ||
-      selected.has('git_log')) &&
+      selected.has('git_log') ||
+      selected.has('edit_file') ||
+      selected.has('multi_edit')) &&
     !selected.has('web_search') &&
     !selected.has('run_code')
   )
@@ -422,6 +453,9 @@ export function buildPlanApprovalPolicy(selectedTools: string[], settings: Agent
   }
   if (selectedTools.includes('run_code')) {
     policy.push('代码运行必须确认；结果会以实验卡片展示退出码、耗时和 stdout/stderr。');
+  }
+  if (selectedTools.includes('edit_file') || selectedTools.includes('multi_edit')) {
+    policy.push('写入类工具必须逐次确认；确认卡会展示路径、SEARCH/REPLACE 摘要、风险、备份与恢复提示。');
   }
   if (selectedTools.includes('mcp')) {
     policy.push('MCP 工具调用必须确认；写入或外部系统操作需要按工具风险提示判断。');
@@ -537,6 +571,9 @@ export function buildAgentPlanSummary(
   }
   if (selectedTools.includes('run_code')) {
     steps.push('在用户确认后运行小段代码或实验，并记录退出码与输出。');
+  }
+  if (selectedTools.includes('edit_file') || selectedTools.includes('multi_edit')) {
+    steps.push('先读取或定位目标文件，再在用户确认后应用最小 SEARCH/REPLACE 修改并保留备份证据。');
   }
   if (selectedTools.includes('mcp')) {
     steps.push('按需调用已启用 MCP 工具，并记录 server/tool 证据。');

@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an improvement for DeepChat.
+title: '[Feature]: '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should DeepChat do differently?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Agent tools
+        - Token/cache/cost
+        - MCP
+        - Workspace files
+        - UI/UX
+        - Packaging
+        - Other
