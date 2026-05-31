@@ -123,15 +123,7 @@ import { COMPACTION_SUMMARY_MARKER, maybeBuildContextSummary, summarizeContext }
 import { streamOnce } from './chat-streamer.js';
 
 import { handleToolCall, handleToolCallsForRound } from './tool-call-handler.js';
-
-type ChatRequest = Record<string, any> & {
-  requestId: string;
-  messages?: Array<Record<string, any>>;
-  overrides?: Record<string, any>;
-  cacheProfile?: Record<string, any> | null;
-  contextSummary?: string;
-  contextSummaryMeta?: Record<string, any> | null;
-};
+import type { ChatRequest } from './agent-contracts.js';
 
 type AgentRunController = {
   requestId: string;

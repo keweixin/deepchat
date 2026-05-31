@@ -390,6 +390,98 @@ const TOOL_DEFINITIONS = {
       icon: '📜',
     },
   },
+  git_blame: {
+    name: 'git_blame',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    schema: {
+      type: 'function',
+      function: {
+        name: 'git_blame',
+        description:
+          'Show Git blame information for a workspace file and line range. Uses only read-only git commands.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Approved workspace root. If omitted, first root is used.' },
+            file: { type: 'string', description: 'Workspace-relative file path.' },
+            startLine: { type: 'integer', minimum: 1, description: 'First line to inspect.' },
+            endLine: { type: 'integer', minimum: 1, description: 'Last line to inspect.' },
+          },
+          required: ['file'],
+        },
+      },
+    },
+    productCopy: {
+      purpose: '读取 Git 行级历史证据',
+      scope: '当前 Git 仓库',
+      riskReason: '只读命令，不修改工作区',
+      icon: '🔎',
+    },
+  },
+  git_compare: {
+    name: 'git_compare',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    schema: {
+      type: 'function',
+      function: {
+        name: 'git_compare',
+        description:
+          'Compare two Git refs in an approved workspace and return a changed-file summary. Read-only operation.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Approved workspace root. If omitted, first root is used.' },
+            base: { type: 'string', description: 'Base ref, default HEAD~1.' },
+            head: { type: 'string', description: 'Head ref, default HEAD.' },
+            file: { type: 'string', description: 'Optional workspace-relative file path.' },
+          },
+        },
+      },
+    },
+    productCopy: {
+      purpose: '比较两个 Git ref 的差异证据',
+      scope: '当前 Git 仓库',
+      riskReason: '只读命令，不修改工作区',
+      icon: '🧾',
+    },
+  },
+  git_show: {
+    name: 'git_show',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    schema: {
+      type: 'function',
+      function: {
+        name: 'git_show',
+        description: 'Show a Git commit or object with stat and patch details. Read-only operation.',
+        parameters: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Approved workspace root. If omitted, first root is used.' },
+            ref: { type: 'string', description: 'Git ref to inspect, default HEAD.' },
+            file: { type: 'string', description: 'Optional workspace-relative file path.' },
+          },
+        },
+      },
+    },
+    productCopy: {
+      purpose: '读取 Git 提交或对象详情',
+      scope: '当前 Git 仓库',
+      riskReason: '只读命令，不修改工作区',
+      icon: '🧾',
+    },
+  },
   project_map: {
     name: 'project_map',
     category: 'workspace',

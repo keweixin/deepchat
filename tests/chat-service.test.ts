@@ -14,6 +14,7 @@ import {
   mergeTokenUsage,
   normalizeTokenUsage,
 } from '../electron/chat-service.js';
+import type { AgentStageEvent, AgentToolRun, NormalizedUsage } from '../electron/agent-contracts.js';
 
 const mockResponse = (value: Partial<Response>) => value as Response;
 const requestBodyAt = (fetchMock: any, index = 0) => String(fetchMock.mock.calls[index][1]?.body ?? '');
@@ -22,6 +23,36 @@ describe('electron chat service token usage and agent loop', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  it('keeps agent contracts narrow enough for renderer persistence', () => {
+    const stage: AgentStageEvent = {
+      stage: 'tool_pending',
+      round: 1,
+      maxRounds: 3,
+      toolName: 'read_file',
+    };
+    const toolRun: AgentToolRun = {
+      id: 'tool-1',
+      name: 'read_file',
+      args: { path: 'README.md' },
+      status: 'pending',
+      ok: null,
+    };
+    const usage: NormalizedUsage = {
+      input: 10,
+      output: 2,
+      total: 12,
+      reasoning: 0,
+      cacheHit: 0,
+      cacheMiss: 10,
+      cacheHitRate: 0,
+      source: 'estimated',
+    };
+
+    expect(stage.stage).toBe('tool_pending');
+    expect(toolRun.status).toBe('pending');
+    expect(usage.total).toBe(12);
   });
 
   it('requests streamed usage and parses provider usage chunks', async () => {

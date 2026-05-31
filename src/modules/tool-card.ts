@@ -296,7 +296,9 @@ export function renderToolCard(
   const meta = document.createElement('div');
   meta.className = 'tool-card-meta';
   const metaItems: string[] = [];
+  const job = (tool.job || {}) as Record<string, unknown>;
   if (duration) metaItems.push(`⏱ ${duration}`);
+  if (job.id) metaItems.push(`Job ${String(job.status || 'queued')}`);
   if (tokens) metaItems.push(`🔤 ${tokens} tokens`);
   if (rawOutputTokens) metaItems.push(`原始输出 ${rawOutputTokens} tokens`);
   if (contextOutputTokens) metaItems.push(`上下文 ${contextOutputTokens} tokens`);
@@ -398,6 +400,17 @@ export function renderToolCard(
     perfPre.textContent = perfParts.join('\n');
     perfEl.appendChild(perfPre);
     details.appendChild(perfEl);
+  }
+
+  if (job.id) {
+    const jobEl = document.createElement('div');
+    jobEl.className = 'tool-card-section';
+    jobEl.innerHTML = `<strong>Job 状态</strong>`; /* safeSetHTML-exempt: static template */
+    const jobPre = document.createElement('pre');
+    jobPre.className = 'tool-card-raw';
+    jobPre.textContent = JSON.stringify(job, null, 2);
+    jobEl.appendChild(jobPre);
+    details.appendChild(jobEl);
   }
 
   // Full input

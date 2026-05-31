@@ -106,9 +106,9 @@ describe('cache stability invariants', () => {
     expect(result.prefixFingerprint).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
   });
 
-  it('all 12 registered tools have stable names', () => {
+  it('all registered tools have stable names', () => {
     const names = getAllToolNames();
-    expect(names).toHaveLength(14);
+    expect(names).toHaveLength(17);
     for (const name of names) {
       const def = TOOL_REGISTRY[name];
       expect(def).toBeDefined();

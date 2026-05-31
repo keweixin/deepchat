@@ -1,5 +1,5 @@
 ﻿import { resolveAllowedPath, isSensitivePath, isPathInsideRoot } from './tools-path.js';
-import { gitStatus, gitDiff, gitLog } from './tools-git.js';
+import { gitStatus, gitDiff, gitLog, gitBlame, gitCompare, gitShow } from './tools-git.js';
 import { webSearch, normalizeSearchQueries, normalizeTavilyResults, formatTavilyResults } from './tools-search.js';
 import { projectMap } from './tools-project.js';
 import {
@@ -142,6 +142,15 @@ function describeToolRisk(name: string, args: any) {
       ? `将读取已授权工作区内文件 ${file.slice(0, 160)} 的最近 ${count} 条 Git 提交历史。只读操作。`
       : `将读取已授权工作区的最近 ${count} 条 Git 提交历史。只读操作。`;
   }
+  if (name === 'git_blame') {
+    return `将读取已授权工作区内文件 ${String(args.file || '').slice(0, 160)} 的 Git blame 行级历史。只读操作。`;
+  }
+  if (name === 'git_compare') {
+    return `将比较 Git ref ${String(args.base || 'HEAD~1').slice(0, 80)}..${String(args.head || 'HEAD').slice(0, 80)} 的文件差异摘要。只读操作。`;
+  }
+  if (name === 'git_show') {
+    return `将读取 Git ref ${String(args.ref || 'HEAD').slice(0, 80)} 的提交/对象详情。只读操作。`;
+  }
   if (name === 'project_map') {
     const maxDepth = clampInt(args.maxDepth, 1, 10, 4);
     return `将生成已授权工作区的项目结构概览（最大深度 ${maxDepth}），排除 .git、node_modules 等目录。只读操作。`;
@@ -188,6 +197,9 @@ async function executeTool(name: string, args: any, settings: any, signal?: Abor
   else if (name === 'git_status') output = await gitStatus(args, settings);
   else if (name === 'git_diff') output = await gitDiff(args, settings);
   else if (name === 'git_log') output = await gitLog(args, settings);
+  else if (name === 'git_blame') output = await gitBlame(args, settings);
+  else if (name === 'git_compare') output = await gitCompare(args, settings);
+  else if (name === 'git_show') output = await gitShow(args, settings);
   else if (name === 'project_map') output = await projectMap(args, settings);
   else if (name === 'read_many_files') output = await readManyFiles(args, settings);
   else if (name === 'edit_file') output = await editFile(args, settings);

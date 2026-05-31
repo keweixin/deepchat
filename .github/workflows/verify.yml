@@ -24,5 +24,8 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Agent quality gates
+        run: npm run verify:agent
+
       - name: Verify
         run: npm run verify

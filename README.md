@@ -74,11 +74,14 @@ npm run electron:build:portable
 - [electron.js](./electron.js)：Electron 启动入口，加载生产编译后的主进程。
 - [electron/main.ts](./electron/main.ts)：Electron 主进程、安全默认值、窗口策略和 IPC 注册。
 - [electron/chat-service.ts](./electron/chat-service.ts)：Agent loop 编排、usage/cache 聚合和会话级上下文处理。
+- [electron/agent-contracts.ts](./electron/agent-contracts.ts)：主进程到渲染层的 Agent 事件、工具运行和 usage 合同。
+- [electron/agent-eval.ts](./electron/agent-eval.ts)：确定性 Agent 场景评估 harness。
 - [electron/stream-runner.ts](./electron/stream-runner.ts)：Provider streaming、SSE 解析、工具调用轮次和降级重试。
 - [electron/tool-executor.ts](./electron/tool-executor.ts)：工具参数解析、正文工具调用修复、重复调用抑制。
 - [electron/tool-call-handler.ts](./electron/tool-call-handler.ts)：工具预览、审批、执行、结果证据和上下文输出。
 - [electron/approval-manager.ts](./electron/approval-manager.ts)：审批策略、超时、风险摘要和写入/执行安全元数据。
-- [electron/tools.ts](./electron/tools.ts)：内置工具统一入口和风险描述。
+- [electron/job-runtime.ts](./electron/job-runtime.ts)：长任务 job 状态、取消和输出摘要模型。
+- [electron/tools.ts](./electron/tools.ts) / [electron/tools-git.js](./electron/tools-git.js)：内置工具统一入口、风险描述和只读 Git 证据工具。
 - [electron/tools-file.js](./electron/tools-file.js)：工作区文件读写、写入预览、敏感路径拒绝、备份与临时文件重命名。
 - [electron/tools-run-code.js](./electron/tools-run-code.js)：代码运行轻隔离、环境变量清洗、超时终止和输出脱敏。
 - [electron/tools-workspace.ts](./electron/tools-workspace.ts) / [electron/workspace-index.ts](./electron/workspace-index.ts)：Workspace Knowledge Lite 索引、搜索和符号读取。
@@ -86,6 +89,8 @@ npm run electron:build:portable
 - [src/modules/api.ts](./src/modules/api.ts)：Provider registry、浏览器 fallback、usage/context helpers。
 - [src/modules/chat.ts](./src/modules/chat.ts)：聊天 UI、Agent timeline、工具卡、token/cache 展示。
 - [src/modules/agent-run-store.ts](./src/modules/agent-run-store.ts) / [src/modules/agent-crew.ts](./src/modules/agent-crew.ts)：Agent Crew 状态与消息内协作视图。
+- [src/modules/context-assets.ts](./src/modules/context-assets.ts)：文本附件 context asset 与 bounded prompt block。
+- [docs/adr/0001-agent-runtime-boundaries.md](./docs/adr/0001-agent-runtime-boundaries.md)：Agent Runtime Boundaries ADR。
 - [tests](./tests)：Vitest 单元和 UI helper 测试。
 
 ## 路线
@@ -102,19 +107,17 @@ npm run electron:build:portable
 8. ✅ Artifact Panel：Markdown、Mermaid、Table、JSON、HTML sandbox preview，支持版本管理和 diff。
 9. ✅ MCP Drawer：server status、tool scopes、call logs、usage statistics。
 10. ✅ 三层记忆系统：workspace-index（工作记忆）、memory-manager（短期记忆）、长期记忆检索。
+11. ✅ Context Shortcuts：`@file`、`@folder`、`@symbol`、`@changed`、`@web`、`@run`、`@mcp` 会在前端提示 prerequisites，并把 Agent 路由到明确工具。
+12. ✅ Git 只读证据工具：`git_status`、`git_diff`、`git_log`、`git_blame`、`git_compare`、`git_show`。
 
 **进行中 (In Progress)**
 
-11. 🔄 ChatService 拆分：已将部分职责拆出为 `agent-planner.ts`、`approval-manager.ts`、`tool-executor.ts`、`stream-runner.ts`、`memory-manager.ts`、`workspace-index.ts`，剩余 `chat-service.ts` 继续瘦身中。
-12. 🔄 Tool Repair 透明化：区分原生调用 / 文本修复 / 手动触发，修复出的 tool call 默认不自动执行。
-13. 🔄 TypeScript 严格模式：分批启用 `strict: true`，核心路径逐步消除 `@ts-nocheck`。
-14. 🔄 Electron 生产编译：从 tsx 运行时加载迁移为 `tsc` 预编译 `dist-electron/`。
+13. 🔄 ChatService 拆分：已将部分职责拆出为 `agent-planner.ts`、`approval-manager.ts`、`tool-executor.ts`、`stream-runner.ts`、`memory-manager.ts`、`workspace-index.ts`，剩余 `chat-service.ts` 继续瘦身中。
+14. 🔄 Tool Repair 透明化：区分原生调用 / 文本修复 / 手动触发，修复出的 tool call 默认不自动执行。
+15. 🔄 TypeScript 严格模式：分批启用 `strict: true`，核心路径逐步消除 `@ts-nocheck`。
+16. 🔄 Electron 生产编译：从 tsx 运行时加载迁移为 `tsc` 预编译 `dist-electron/`。
 
 **计划 (Planned)**
 
-15. `@file` / `@folder` / `@symbol` 显式上下文选择。
-16. Git 工具集成：
-    - 已交付：`git_status`、`git_diff`、`git_log`
-    - 计划：`git_blame`、`branch compare`、`PR summary`
 17. 多模态输入扩展：语音输入、截图标注、PDF 解析。
 18. 跨会话知识图谱：基于工具证据的关系抽取和可视化。

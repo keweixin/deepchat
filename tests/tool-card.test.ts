@@ -87,6 +87,17 @@ describe('renderToolCard', () => {
     expect(meta).toContain('42 tokens');
   });
 
+  it('shows observable job metadata for long-running tools', () => {
+    const card = renderToolCard({
+      name: 'run_code',
+      args: {},
+      job: { id: 'job-1', status: 'completed', startedAt: '2026-05-31T00:00:00.000Z' },
+      expanded: true,
+    });
+    expect(card.querySelector('.tool-card-meta')!.textContent).toContain('Job completed');
+    expect(card.querySelector('.tool-card-details')!.textContent).toContain('job-1');
+  });
+
   it('shows context compaction reason and ratio', () => {
     const card = renderToolCard({
       name: 'read_file',

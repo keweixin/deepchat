@@ -1,12 +1,15 @@
+import { buildContextAssetPromptBlock, createTextContextAsset, type ContextAsset } from './context-assets.ts';
+
 export const DEFAULT_MAX_TEXT_ATTACHMENT_BYTES = 256 * 1024;
 export const DEFAULT_MAX_COMPOSER_ATTACHMENTS = 8;
 
-export type ComposerAttachment = {
+export type ComposerAttachment = Partial<ContextAsset> & {
   id: string;
   name?: string;
   mimeType?: string;
   size?: number;
   dataUrl?: string | ArrayBuffer | null;
+  includeInNextTurn?: boolean;
 };
 
 export type DroppedFileHandlerOptions = {
@@ -38,9 +41,21 @@ export function buildTextAttachmentContext(name: string | undefined, text: unkno
 }
 
 export function buildUploadedAttachmentsContext(attachments: ComposerAttachment[] = []): string {
-  return getTextAttachments(attachments)
-    .map((item) => buildTextAttachmentContext(item.name, item.dataUrl))
-    .join('\n\n');
+  const assets = getTextAttachments(attachments).map((item) =>
+    createTextContextAsset({
+      id: item.id,
+      name: item.name || '文本附件',
+      text: String(item.text || item.dataUrl || ''),
+      size: item.size || String(item.text || item.dataUrl || '').length,
+      mimeType: item.mimeType || 'text/plain',
+      includeInNextTurn: item.includeInNextTurn !== false,
+      createdAt: item.createdAt,
+    })
+  );
+  return buildContextAssetPromptBlock(assets, { maxCharsPerAsset: 6000 }).replace(
+    /^<uploaded_attachments>\n|\n<\/uploaded_attachments>$/g,
+    ''
+  );
 }
 
 export function appendTextAttachmentsToPrompt(prompt: string, attachments: ComposerAttachment[] = []): string {
@@ -133,12 +148,17 @@ function createAttachment(
   dataUrl: FileReader['result'],
   createId: (() => string) | undefined
 ): ComposerAttachment {
+  const image = isImageFile(file);
   return {
     id: createId?.() || `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    kind: image ? 'image' : 'text',
     name: file.name,
     mimeType: file.type || 'text/plain',
     size: file.size,
+    text: image ? undefined : String(dataUrl || ''),
     dataUrl,
+    includeInNextTurn: true,
+    createdAt: new Date().toISOString(),
   };
 }
 

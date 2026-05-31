@@ -692,6 +692,68 @@ describe('electron tools helpers', () => {
     }
   });
 
+  it('shows git blame for a workspace file', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-git-blame-'));
+    try {
+      execFileSync('git', ['init'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: tmpDir, stdio: 'ignore' });
+      await fs.writeFile(path.join(tmpDir, 'README.md'), 'line1\nline2\nline3\n', 'utf8');
+      execFileSync('git', ['add', '.'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-m', 'initial blame'], { cwd: tmpDir, stdio: 'ignore' });
+
+      const output = await executeTool(
+        'git_blame',
+        { file: 'README.md', startLine: 1, endLine: 3 },
+        { workspaceRoots: [tmpDir] }
+      );
+
+      expect(output).toContain('git blame：README.md');
+      expect(output).toContain('Structured Blame:');
+      expect(output).toContain('Test User');
+      const structured = extractStructuredPayload(output, 'Structured Blame:');
+      expect(structured).toMatchObject({
+        type: 'deepchat.gitBlame',
+        file: 'README.md',
+        startLine: 1,
+        endLine: 3,
+      });
+      expect(structured.entries.length).toBeGreaterThan(0);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('compares refs and shows commit details without mutating the workspace', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-git-compare-'));
+    try {
+      execFileSync('git', ['init'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['config', 'user.name', 'Test User'], { cwd: tmpDir, stdio: 'ignore' });
+      await fs.writeFile(path.join(tmpDir, 'README.md'), 'one\n', 'utf8');
+      execFileSync('git', ['add', '.'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-m', 'first'], { cwd: tmpDir, stdio: 'ignore' });
+      await fs.writeFile(path.join(tmpDir, 'README.md'), 'one\ntwo\n', 'utf8');
+      execFileSync('git', ['add', '.'], { cwd: tmpDir, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-m', 'second'], { cwd: tmpDir, stdio: 'ignore' });
+
+      const before = execFileSync('git', ['status', '--porcelain=v1'], { cwd: tmpDir, encoding: 'utf8' });
+      const compare = await executeTool('git_compare', { base: 'HEAD~1', head: 'HEAD' }, { workspaceRoots: [tmpDir] });
+      const show = await executeTool('git_show', { ref: 'HEAD', file: 'README.md' }, { workspaceRoots: [tmpDir] });
+      const after = execFileSync('git', ['status', '--porcelain=v1'], { cwd: tmpDir, encoding: 'utf8' });
+
+      expect(compare).toContain('Git Compare');
+      expect(compare).toContain('Changed files: 1');
+      expect(compare).toContain('README.md');
+      expect(show).toContain('Git Show');
+      expect(show).toContain('second');
+      expect(show).toContain('Structured Show:');
+      expect(after).toBe(before);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it('edits a workspace file only after a unique SEARCH match and creates a backup', async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-edit-file-'));
     const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-edit-data-'));

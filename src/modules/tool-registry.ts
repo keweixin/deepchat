@@ -39,6 +39,9 @@ export const TOOL_NAMES = Object.freeze({
   gitStatus: 'git_status',
   gitDiff: 'git_diff',
   gitLog: 'git_log',
+  gitBlame: 'git_blame',
+  gitCompare: 'git_compare',
+  gitShow: 'git_show',
   mcpPrefix: 'mcp__',
 } as const);
 
@@ -83,7 +86,14 @@ const READER_TOOLS: readonly string[] = Object.freeze([
   TOOL_NAMES.projectMap,
 ]);
 
-const REVIEWER_TOOLS: readonly string[] = Object.freeze([TOOL_NAMES.gitStatus, TOOL_NAMES.gitDiff, TOOL_NAMES.gitLog]);
+const REVIEWER_TOOLS: readonly string[] = Object.freeze([
+  TOOL_NAMES.gitStatus,
+  TOOL_NAMES.gitDiff,
+  TOOL_NAMES.gitLog,
+  TOOL_NAMES.gitBlame,
+  TOOL_NAMES.gitCompare,
+  TOOL_NAMES.gitShow,
+]);
 
 const RESEARCHER_KEYWORDS: readonly string[] = Object.freeze([
   'search',
@@ -208,6 +218,18 @@ export function getToolSummary(event: ToolSummaryInput): ToolSummaryOutput {
     return { label: `已获取 ${String(args.count || 10)} 条提交记录` };
   }
 
+  if (name === TOOL_NAMES.gitBlame) {
+    return { label: args.file ? `已获取 ${String(args.file)} 的 Git blame` : '已获取 Git blame' };
+  }
+
+  if (name === TOOL_NAMES.gitCompare) {
+    return { label: `已比较 ${String(args.base || 'HEAD~1')}..${String(args.head || 'HEAD')}` };
+  }
+
+  if (name === TOOL_NAMES.gitShow) {
+    return { label: `已查看 ${String(args.ref || 'HEAD')}` };
+  }
+
   if (name === TOOL_NAMES.projectMap) {
     return { label: '已生成项目结构' };
   }
@@ -283,6 +305,9 @@ const TOOL_ICON_MAP: Record<string, string> = Object.freeze({
   [TOOL_NAMES.gitStatus]: '📋',
   [TOOL_NAMES.gitDiff]: '📝',
   [TOOL_NAMES.gitLog]: '📜',
+  [TOOL_NAMES.gitBlame]: '🔎',
+  [TOOL_NAMES.gitCompare]: '🧾',
+  [TOOL_NAMES.gitShow]: '🧾',
   default: '🛠',
 });
 
@@ -307,7 +332,14 @@ export const ROLE_TOOL_MAP = Object.freeze({
   ]),
   researcher: Object.freeze([TOOL_NAMES.webSearch]),
   coder: Object.freeze([TOOL_NAMES.runCode, TOOL_NAMES.writeFile, TOOL_NAMES.editFile]),
-  reviewer: Object.freeze([TOOL_NAMES.gitStatus, TOOL_NAMES.gitDiff, TOOL_NAMES.gitLog]),
+  reviewer: Object.freeze([
+    TOOL_NAMES.gitStatus,
+    TOOL_NAMES.gitDiff,
+    TOOL_NAMES.gitLog,
+    TOOL_NAMES.gitBlame,
+    TOOL_NAMES.gitCompare,
+    TOOL_NAMES.gitShow,
+  ]),
 } as const);
 
 // ─── Unified Tool Registry ──────────────────────────────────────────────────
@@ -451,6 +483,48 @@ const FRONTEND_TOOL_DEFINITIONS: Readonly<Record<string, SharedToolDefinition>> 
       scope: '当前分支提交记录',
       riskReason: '只读查询提交历史',
       icon: '📜',
+    },
+  },
+  git_blame: {
+    name: 'git_blame',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    productCopy: {
+      purpose: '读取 Git 行级历史证据',
+      scope: '当前 Git 仓库',
+      riskReason: '只读命令，不修改工作区',
+      icon: '🔎',
+    },
+  },
+  git_compare: {
+    name: 'git_compare',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    productCopy: {
+      purpose: '比较两个 Git ref 的差异证据',
+      scope: '当前 Git 仓库',
+      riskReason: '只读命令，不修改工作区',
+      icon: '🧾',
+    },
+  },
+  git_show: {
+    name: 'git_show',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    productCopy: {
+      purpose: '读取 Git 提交或对象详情',
+      scope: '当前 Git 仓库',
+      riskReason: '只读命令，不修改工作区',
+      icon: '🧾',
     },
   },
   project_map: {

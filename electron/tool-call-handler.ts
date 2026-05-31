@@ -13,6 +13,8 @@ import { normalizeError } from './provider-adapters.js';
 import { toolCallSignature } from './stream-runner.js';
 import { parseToolArgsDetailed } from './tool-executor.js';
 import { buildToolNextAction, buildToolContextOutput } from './chat-service-helpers.js';
+import type { ToolRepairReport } from './agent-contracts.js';
+import { defaultJobRuntime, shouldTrackToolJob } from './job-runtime.js';
 
 type ToolFunctionCall = {
   name?: string;
@@ -27,6 +29,10 @@ type ToolCall = {
 type ToolResult = {
   toolCall: ToolCall;
   output: unknown;
+};
+
+type ToolRequestPayload = Record<string, any> & {
+  repairReport?: ToolRepairReport | null;
 };
 
 type ToolController = {
@@ -147,6 +153,9 @@ async function handleToolCall(
   }
 
   let editPreview = null;
+  const trackedJob = shouldTrackToolJob(fn.name)
+    ? defaultJobRuntime.createJob({ id: `job_${toolCall.id}`, toolName: fn.name, args })
+    : null;
   if (!parsedArgs.error && (fn.name === 'edit_file' || fn.name === 'multi_edit')) {
     try {
       editPreview = await previewToolCall(fn.name, args, settings);
@@ -179,7 +188,7 @@ async function handleToolCall(
   }
 
   const approval = resolveToolApprovalDecision(fn.name, args, settings, security, requestId);
-  emit(requestId, 'toolRequest', {
+  const toolRequestPayload: ToolRequestPayload = {
     toolCallId: toolCall.id,
     name: fn.name,
     args,
@@ -190,10 +199,14 @@ async function handleToolCall(
     risk: describeRisk(fn.name, args, settings),
     security,
     editPreview,
+    job: trackedJob
+      ? { id: trackedJob.id, status: trackedJob.status, toolName: trackedJob.toolName, createdAt: trackedJob.createdAt }
+      : null,
     approvalPolicy: approval.policy,
     autoApproved: approval.autoApproved,
     expiresAt: new Date(Date.now() + resolveToolApprovalTimeout(settings)).toISOString(),
-  });
+  };
+  emit(requestId, 'toolRequest', toolRequestPayload);
   if (parsedArgs.error) {
     const message = `工具 ${fn.name || 'unknown_tool'} 参数 JSON 解析失败：${parsedArgs.error}`;
     const nextAction = buildToolNextAction(fn.name, args, { parseError: parsedArgs.error, output: message });
@@ -279,9 +292,14 @@ async function handleToolCall(
       warning: decision.autoApproved ? decision.reason : undefined,
     });
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-    const output = isMcpToolName(fn.name)
-      ? await mcpManager.callOpenAiTool(fn.name, args, settings, signal)
-      : await executeTool(fn.name, args, settings, signal);
+    const runTool = async (jobSignal?: AbortSignal) => {
+      const effectiveSignal = jobSignal || signal;
+      return isMcpToolName(fn.name)
+        ? await mcpManager.callOpenAiTool(fn.name, args, settings, effectiveSignal)
+        : await executeTool(fn.name, args, settings, effectiveSignal);
+    };
+    const output = trackedJob ? await defaultJobRuntime.runJob(trackedJob.id, runTool) : await runTool(signal);
+    const finishedJob = trackedJob ? defaultJobRuntime.getJob(trackedJob.id) : null;
     emit(requestId, 'agentStage', { stage: 'tool_result', round, maxRounds, toolName: fn.name });
     emit(requestId, 'toolResult', {
       toolCallId: toolCall.id,
@@ -291,6 +309,15 @@ async function handleToolCall(
       ...buildToolContextOutput(fn.name, args, output),
       security: buildToolSecurity(fn.name, args, settings),
       editPreview,
+      job: finishedJob
+        ? {
+            id: finishedJob.id,
+            status: finishedJob.status,
+            startedAt: finishedJob.startedAt,
+            finishedAt: finishedJob.finishedAt,
+            outputPreview: finishedJob.outputPreview,
+          }
+        : null,
       ...extractWriteEvidence(output),
       autoApproved: decision.autoApproved === true,
     });
@@ -315,6 +342,7 @@ async function handleToolCall(
       ...buildToolContextOutput(fn.name, args, returned),
       security: buildToolSecurity(fn.name, args, settings),
       editPreview,
+      job: trackedJob ? defaultJobRuntime.getJob(trackedJob.id) : null,
     });
     return returned;
   }

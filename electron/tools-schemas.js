@@ -31,6 +31,9 @@ const MODE_TOOLS = {
     'git_status',
     'git_diff',
     'git_log',
+    'git_blame',
+    'git_compare',
+    'git_show',
   ],
   code_runner: ['run_code', 'edit_file', 'multi_edit'],
   multi_tool: [
@@ -48,6 +51,9 @@ const MODE_TOOLS = {
     'git_status',
     'git_diff',
     'git_log',
+    'git_blame',
+    'git_compare',
+    'git_show',
   ],
 };
 

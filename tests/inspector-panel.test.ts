@@ -56,6 +56,26 @@ describe('inspector-panel', () => {
     expect(isInspectorPanelOpen()).toBe(true);
   });
 
+  it('renders memory retrieval diagnostics without raw memory bodies', () => {
+    openInspectorPanel('message', {
+      index: 0,
+      msg: {
+        role: 'assistant',
+        timestamp: Date.now(),
+        memoryDiagnostics: {
+          selectedCount: 1,
+          skippedCount: 2,
+          reasons: [{ memoryId: 'mem-1', score: 8, reason: 'matched query terms in agent memory' }],
+        },
+      },
+    });
+
+    expect(panel.textContent).toContain('记忆命中');
+    expect(panel.textContent).toContain('mem-1');
+    expect(panel.textContent).toContain('score 8');
+    expect(panel.textContent).not.toContain('DeepSeek cache uses stable prefixes');
+  });
+
   it('update does nothing when closed', () => {
     updateInspectorPanel('message', { msg: { role: 'user' }, index: 0 });
     expect(panel.classList.contains('is-visible')).toBe(false);

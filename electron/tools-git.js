@@ -1,5 +1,7 @@
 const { execFile } = require('child_process');
-const { resolveWorkspaceRoot, isSensitivePath } = require('./tools-path');
+const fs = require('fs/promises');
+const path = require('path');
+const { resolveAllowedPath, resolveWorkspaceRoot, isSensitivePath } = require('./tools-path');
 
 const MAX_TOOL_OUTPUT = 12000;
 
@@ -46,6 +48,34 @@ function execGit(cwd, args) {
       }
     );
   });
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} fallback
+ * @returns {string}
+ */
+function sanitizeRef(value, fallback = 'HEAD') {
+  const ref = String(value || fallback).trim();
+  if (!ref || ref.startsWith('-') || !/^[A-Za-z0-9_./:@~^+-]+$/.test(ref)) {
+    throw new Error('Git ref 包含非法字符。');
+  }
+  return ref;
+}
+
+/**
+ * @param {string | undefined} file
+ * @param {string} root
+ * @returns {Promise<string>}
+ */
+async function resolveGitFile(file, root) {
+  const relativeOrAbsolute = String(file || '').trim();
+  if (!relativeOrAbsolute) throw new Error('Git 文件路径不能为空。');
+  if (isSensitivePath(relativeOrAbsolute)) throw new Error('拒绝读取敏感路径的 Git 历史。');
+  const resolved = await resolveAllowedPath(relativeOrAbsolute, [root]);
+  if (isSensitivePath(resolved)) throw new Error('拒绝读取敏感路径的 Git 历史。');
+  const realRoot = await fs.realpath(root);
+  return path.relative(realRoot, resolved).replace(/\\/g, '/');
 }
 
 /**
@@ -313,8 +343,131 @@ async function gitLog(args, settings) {
   return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
+/**
+ * @param {{ path?: string; file?: string; startLine?: number; endLine?: number }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
+async function gitBlame(args, settings) {
+  const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
+  const file = await resolveGitFile(args.file, root);
+  const startLine = clampInt(args.startLine, 1, 1_000_000, 1);
+  const endLine = clampInt(args.endLine, startLine, 1_000_000, Math.min(startLine + 20, 1_000_000));
+  const { stdout } = await execGit(root, ['blame', '--line-porcelain', `-L${startLine},${endLine}`, '--', file]);
+  const lines = stdout.split(/\r?\n/);
+  const entries = [];
+  let current = null;
+  for (const line of lines) {
+    if (/^[0-9a-f]{40}\s/.test(line)) {
+      const parts = line.split(/\s+/);
+      current = {
+        hash: parts[0],
+        originalLine: Number(parts[1]),
+        finalLine: Number(parts[2]),
+        author: '',
+        summary: '',
+      };
+      entries.push(current);
+    } else if (current && line.startsWith('author ')) {
+      current.author = line.slice('author '.length);
+    } else if (current && line.startsWith('summary ')) {
+      current.summary = line.slice('summary '.length);
+    }
+  }
+  const structured = { type: 'deepchat.gitBlame', version: 1, root, file, startLine, endLine, entries };
+  return [
+    `git blame：${file}`,
+    `工作区：${root}`,
+    `行范围：${startLine}-${endLine}`,
+    'Structured Blame:',
+    JSON.stringify(structured, null, 2),
+    '',
+    truncate(stdout, 8000),
+  ]
+    .join('\n')
+    .slice(0, MAX_TOOL_OUTPUT);
+}
+
+/**
+ * @param {{ path?: string; base?: string; head?: string; file?: string }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
+async function gitCompare(args, settings) {
+  const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
+  const base = sanitizeRef(args.base, 'HEAD~1');
+  const head = sanitizeRef(args.head, 'HEAD');
+  const gitArgs = ['diff', '--numstat', `${base}..${head}`];
+  const file = String(args.file || '').trim();
+  if (file) gitArgs.push('--', await resolveGitFile(file, root));
+  const { stdout } = await execGit(root, gitArgs);
+  const files = stdout
+    .split(/\r?\n/)
+    .filter((line) => line.trim())
+    .map((line) => {
+      const [additionsRaw, deletionsRaw, ...fileParts] = line.split(/\s+/);
+      return {
+        file: fileParts.join(' '),
+        additions: additionsRaw === '-' ? 0 : Number.parseInt(additionsRaw, 10) || 0,
+        deletions: deletionsRaw === '-' ? 0 : Number.parseInt(deletionsRaw, 10) || 0,
+      };
+    });
+  const structured = { type: 'deepchat.gitCompare', version: 1, root, base, head, files };
+  const outputLines = [
+    'Git Compare',
+    `工作区：${root}`,
+    `范围：${base}..${head}`,
+    `Changed files: ${files.length}`,
+    'Structured Compare:',
+    JSON.stringify(structured, null, 2),
+    '',
+  ];
+  files.forEach((item, index) =>
+    outputLines.push(`${index + 1}. ${item.file} (+${item.additions} -${item.deletions})`)
+  );
+  if (!files.length) outputLines.push('没有文件差异。');
+  return outputLines.join('\n').slice(0, MAX_TOOL_OUTPUT);
+}
+
+/**
+ * @param {{ path?: string; ref?: string; file?: string }} args
+ * @param {{ workspaceRoots?: string[] }} settings
+ * @returns {Promise<string>}
+ */
+async function gitShow(args, settings) {
+  const root = await resolveWorkspaceRoot(args.path, settings.workspaceRoots || []);
+  const ref = sanitizeRef(args.ref, 'HEAD');
+  const gitArgs = ['show', '--stat', '--patch', '--find-renames', ref];
+  const file = String(args.file || '').trim();
+  if (file) gitArgs.push('--', await resolveGitFile(file, root));
+  const { stdout } = await execGit(root, gitArgs);
+  const structured = {
+    type: 'deepchat.gitShow',
+    version: 1,
+    root,
+    ref,
+    file: file || null,
+    output: truncate(stdout, 9000),
+  };
+  return [
+    'Git Show',
+    `工作区：${root}`,
+    `Ref：${ref}`,
+    file ? `文件：${file}` : '范围：完整提交/对象',
+    'Structured Show:',
+    JSON.stringify(structured, null, 2),
+    '',
+    structured.output,
+  ]
+    .join('\n')
+    .slice(0, MAX_TOOL_OUTPUT);
+}
+
 module.exports = {
   gitStatus,
   gitDiff,
   gitLog,
+  gitBlame,
+  gitCompare,
+  gitShow,
 };

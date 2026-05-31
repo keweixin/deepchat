@@ -27,6 +27,9 @@ const ALL_14_TOOLS = [
   'git_status',
   'git_diff',
   'git_log',
+  'git_blame',
+  'git_compare',
+  'git_show',
   'project_map',
   'read_many_files',
   'edit_file',
@@ -34,9 +37,9 @@ const ALL_14_TOOLS = [
 ];
 
 describe('TOOL_REGISTRY', () => {
-  it('registers all 13 tools', () => {
+  it('registers all tools', () => {
     expect(getAllToolNames()).toEqual(expect.arrayContaining(ALL_14_TOOLS));
-    expect(getAllToolNames()).toHaveLength(14);
+    expect(getAllToolNames()).toHaveLength(17);
   });
 
   it.each(ALL_14_TOOLS)('tool %s has all required fields', (name) => {
@@ -84,6 +87,9 @@ describe('getToolIcon', () => {
     expect(getToolIcon('git_status')).toBe('📋');
     expect(getToolIcon('git_diff')).toBe('📝');
     expect(getToolIcon('git_log')).toBe('📜');
+    expect(getToolIcon('git_blame')).toBe('🔎');
+    expect(getToolIcon('git_compare')).toBe('🧾');
+    expect(getToolIcon('git_show')).toBe('🧾');
     expect(getToolIcon('project_map')).toBe('🌳');
     expect(getToolIcon('read_many_files')).toBe('📄');
   });
@@ -114,6 +120,9 @@ describe('getToolRole', () => {
     expect(getToolRole('git_status')).toBe('reviewer');
     expect(getToolRole('git_diff')).toBe('reviewer');
     expect(getToolRole('git_log')).toBe('reviewer');
+    expect(getToolRole('git_blame')).toBe('reviewer');
+    expect(getToolRole('git_compare')).toBe('reviewer');
+    expect(getToolRole('git_show')).toBe('reviewer');
   });
 });
 
@@ -243,6 +252,9 @@ describe('consistency', () => {
     expect(TOOL_NAMES.gitStatus).toBe('git_status');
     expect(TOOL_NAMES.gitDiff).toBe('git_diff');
     expect(TOOL_NAMES.gitLog).toBe('git_log');
+    expect(TOOL_NAMES.gitBlame).toBe('git_blame');
+    expect(TOOL_NAMES.gitCompare).toBe('git_compare');
+    expect(TOOL_NAMES.gitShow).toBe('git_show');
     expect(TOOL_NAMES.projectMap).toBe('project_map');
   });
 

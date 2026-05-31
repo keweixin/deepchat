@@ -155,6 +155,25 @@ describe('memory-manager', () => {
       const results = getProjectMemory('TypeScript');
       expect(results[0].fact).toContain('TypeScript');
     });
+
+    it('reports why memories were selected for context', async () => {
+      const fact = await addProjectMemory('DeepSeek cache uses stable prefixes', 'agent');
+      await addProjectMemory('Unrelated browser note', 'ui');
+
+      const result = getProjectMemory({
+        query: 'DeepSeek cache',
+        limit: 3,
+        includeDiagnostics: true,
+      });
+
+      expect(result.items[0].id).toBe(fact.id);
+      expect(result.diagnostics).toMatchObject({
+        query: 'DeepSeek cache',
+        selectedCount: 1,
+      });
+      expect(result.diagnostics.skippedCount).toBeGreaterThanOrEqual(1);
+      expect(result.diagnostics.reasons[0]).toMatchObject({ memoryId: fact.id });
+    });
   });
 
   // ── Evidence Memory ────────────────────────────────────────────────────
@@ -245,6 +264,7 @@ describe('memory-manager', () => {
       expect(result.text).toContain('Project Memory');
       expect(result.text).toContain('Vite');
       expect(result.projectCount).toBeGreaterThanOrEqual(1);
+      expect(result.diagnostics?.selectedCount).toBeGreaterThanOrEqual(1);
     });
 
     it('includes evidence memory', async () => {

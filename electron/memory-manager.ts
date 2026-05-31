@@ -43,6 +43,15 @@ export interface FormattedMemory {
   sessionCount: number;
   projectCount: number;
   evidenceCount: number;
+  diagnostics?: MemoryRetrievalDiagnostics;
+}
+
+export interface MemoryRetrievalDiagnostics {
+  query: string;
+  selectedCount: number;
+  skippedCount: number;
+  reasons: Array<{ memoryId: string; score: number; reason: string }>;
+  warnings: string[];
 }
 
 export type ReadJsonFn = (fileName: string, fallback: unknown) => Promise<unknown>;
@@ -234,18 +243,49 @@ export async function addProjectMemory(
   return entry;
 }
 
+type ProjectMemoryQueryOptions = {
+  query?: string;
+  limit?: number;
+  includeDiagnostics?: boolean;
+};
+
 /** Search project facts by keyword. */
-export function getProjectMemory(query: string): ProjectMemoryFact[] {
-  const terms = extractSearchTerms(query);
-  if (terms.length === 0) return [];
+export function getProjectMemory(query: string): ProjectMemoryFact[];
+export function getProjectMemory(query: ProjectMemoryQueryOptions): {
+  items: ProjectMemoryFact[];
+  diagnostics: MemoryRetrievalDiagnostics;
+};
+export function getProjectMemory(query: string | ProjectMemoryQueryOptions):
+  | ProjectMemoryFact[]
+  | {
+      items: ProjectMemoryFact[];
+      diagnostics: MemoryRetrievalDiagnostics;
+    } {
+  const options = typeof query === 'string' ? { query } : query || {};
+  const queryText = String(options.query || '');
+  const limit = Math.max(1, Math.min(Number(options.limit || CONTEXT_MAX_PROJECT), CONTEXT_MAX_PROJECT));
+  const terms = extractSearchTerms(queryText);
+  if (terms.length === 0) {
+    const diagnostics = buildProjectMemoryDiagnostics(queryText, [], _projectMemory.length, [
+      'query produced no search terms',
+    ]);
+    return options.includeDiagnostics ? { items: [], diagnostics } : [];
+  }
 
   const scored = _projectMemory
     .map((fact) => ({ fact, score: scoreFact(fact, terms) }))
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, CONTEXT_MAX_PROJECT);
+    .slice(0, limit);
 
-  return scored.map((item) => item.fact);
+  const items = scored.map((item) => item.fact);
+  if (options.includeDiagnostics) {
+    return {
+      items,
+      diagnostics: buildProjectMemoryDiagnostics(queryText, scored, Math.max(0, _projectMemory.length - scored.length)),
+    };
+  }
+  return items;
 }
 
 /** Get all project memory entries. */
@@ -317,7 +357,8 @@ export function getEvidenceMemoryCount(): number {
  */
 export function formatMemoryForContext(query: string): FormattedMemory {
   const sessionEntries = getAllSessionMemory().slice(0, CONTEXT_MAX_SESSION);
-  const projectFacts = getProjectMemory(query).slice(0, CONTEXT_MAX_PROJECT);
+  const projectMemory = getProjectMemory({ query, limit: CONTEXT_MAX_PROJECT, includeDiagnostics: true });
+  const projectFacts = projectMemory.items;
   const evidenceEntries = getEvidenceMemory(query, CONTEXT_MAX_EVIDENCE);
 
   const lines: string[] = [];
@@ -362,6 +403,26 @@ export function formatMemoryForContext(query: string): FormattedMemory {
     sessionCount: sessionEntries.length,
     projectCount: projectFacts.length,
     evidenceCount: evidenceEntries.length,
+    diagnostics: projectMemory.diagnostics,
+  };
+}
+
+function buildProjectMemoryDiagnostics(
+  query: string,
+  scored: Array<{ fact: ProjectMemoryFact; score: number }>,
+  skippedCount: number,
+  warnings: string[] = []
+): MemoryRetrievalDiagnostics {
+  return {
+    query,
+    selectedCount: scored.length,
+    skippedCount,
+    reasons: scored.map((item) => ({
+      memoryId: item.fact.id,
+      score: Number(item.score.toFixed(2)),
+      reason: `matched query terms in ${item.fact.category || 'general'} memory`,
+    })),
+    warnings,
   };
 }
 

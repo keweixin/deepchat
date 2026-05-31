@@ -211,6 +211,31 @@ function _renderMessageInfo(data: Record<string, any>) {
       </div>
     </div>
     ${
+      msg.memoryDiagnostics
+        ? `
+    <div class="inspector-section">
+      <h3>记忆命中</h3>
+      <div class="inspector-meta-grid">
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">选中</span>
+          <span class="inspector-meta-value">${Number(msg.memoryDiagnostics.selectedCount || 0)}</span>
+        </div>
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">跳过</span>
+          <span class="inspector-meta-value">${Number(msg.memoryDiagnostics.skippedCount || 0)}</span>
+        </div>
+      </div>
+      <pre class="inspector-memory-diagnostics">${escapeHtml(
+        (msg.memoryDiagnostics.reasons || [])
+          .slice(0, 5)
+          .map((item: any) => `${item.memoryId || 'memory'} · score ${item.score ?? 0} · ${item.reason || ''}`)
+          .join('\n') || '暂无命中原因'
+      )}</pre>
+    </div>
+    `
+        : ''
+    }
+    ${
       msg.toolCalls?.length
         ? `
     <div class="inspector-section">

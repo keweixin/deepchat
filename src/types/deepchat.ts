@@ -22,6 +22,13 @@ export type {
   StorageStatus,
 } from './zod-derived.js';
 
+export type {
+  AgentStageEvent,
+  AgentToolRun,
+  NormalizedUsage,
+  ToolRepairReport,
+} from '../../electron/agent-contracts.js';
+
 // ─── Frontend-specific / Zod-unexpressible types ─────────────────────────────
 
 /** Cache optimization profile */

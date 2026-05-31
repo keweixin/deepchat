@@ -47,14 +47,24 @@ describe('composer attachments', () => {
     expect(buildTextAttachmentContext('README.md', 'hello')).toBe('[附件文件: README.md]\n```\nhello\n```');
 
     const prompt = appendTextAttachmentsToPrompt('请总结', [
-      { id: '1', name: 'a.md', mimeType: 'text/markdown', dataUrl: 'Alpha' },
+      { id: '1', name: 'a.md', mimeType: 'text/markdown', size: 5, dataUrl: 'Alpha' },
       { id: '2', name: 'photo.png', mimeType: 'image/png', dataUrl: 'data:image/png;base64,abc' },
     ]);
 
     expect(prompt).toContain('<uploaded_attachments>');
     expect(prompt).toContain('[附件文件: a.md]');
+    expect(prompt).toContain('id: 1');
     expect(prompt).toContain('Alpha');
     expect(prompt).not.toContain('photo.png');
+  });
+
+  it('bounds long text attachments before adding them to the prompt', () => {
+    const prompt = appendTextAttachmentsToPrompt('请总结', [
+      { id: 'long', name: 'long.txt', mimeType: 'text/plain', dataUrl: 'A'.repeat(7000), size: 7000 },
+    ]);
+
+    expect(prompt).toContain('truncated 1000 chars');
+    expect(prompt.length).toBeLessThan(6600);
   });
 
   it('inserts a text attachment only when the user chooses insert', () => {
@@ -91,7 +101,14 @@ describe('composer attachments', () => {
 
     expect(input.value).toBe('');
     expect(pending).toHaveLength(1);
-    expect(pending[0]).toMatchObject({ id: 'attachment-1', name: 'notes.md', dataUrl: 'file body' });
+    expect(pending[0]).toMatchObject({
+      id: 'attachment-1',
+      kind: 'text',
+      name: 'notes.md',
+      dataUrl: 'file body',
+      text: 'file body',
+      includeInNextTurn: true,
+    });
     expect(document.querySelectorAll('.attachment-item.type-text')).toHaveLength(1);
     expect(sendButton.disabled).toBe(false);
     expect(toast).toHaveBeenCalledWith('已添加 1 个附件', 1500);
