@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import { renderMarkdown, postProcess } from '../src/modules/renderer.js';
 import {
   collectReadingAnchors,
@@ -161,7 +160,7 @@ flowchart LR
 
   it('keeps a compact expandable navigator on small viewports', async () => {
     const originalMatchMedia = window.matchMedia;
-    window.matchMedia = () => ({ matches: true });
+    window.matchMedia = () => ({ matches: true }) as MediaQueryList;
     document.body.innerHTML = `
       <main id="main-content">
         <div id="chat-messages" style="height: 400px; overflow: auto;"></div>

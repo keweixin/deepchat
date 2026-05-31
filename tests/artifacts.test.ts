@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import {
   buildArtifactDownloadName,
   createSandboxedHtmlDocument,
@@ -53,7 +52,7 @@ describe('artifact helpers', () => {
   });
 
   it('builds stable download names', () => {
-    expect(buildArtifactDownloadName({ title: 'HTML 预览' }, 1)).toBe('html-预览-2.html');
+    expect(buildArtifactDownloadName({ title: 'HTML 预览' } as any, 1)).toBe('html-预览-2.html');
   });
 
   describe('extractArtifacts (unified)', () => {
@@ -122,10 +121,10 @@ describe('artifact helpers', () => {
     });
 
     it('builds download names with correct extensions', () => {
-      expect(buildArtifactDownloadName({ type: 'mermaid', title: '流程图' })).toBe('流程图.mmd');
-      expect(buildArtifactDownloadName({ type: 'json-data', title: 'Config' })).toBe('config.json');
-      expect(buildArtifactDownloadName({ type: 'code-file', title: 'script', ext: 'py' })).toBe('script.py');
-      expect(buildArtifactDownloadName({ type: 'table', title: 'data' })).toBe('data.csv');
+      expect(buildArtifactDownloadName({ type: 'mermaid', title: '流程图' } as any)).toBe('流程图.mmd');
+      expect(buildArtifactDownloadName({ type: 'json-data', title: 'Config' } as any)).toBe('config.json');
+      expect(buildArtifactDownloadName({ type: 'code-file', title: 'script', ext: 'py' } as any)).toBe('script.py');
+      expect(buildArtifactDownloadName({ type: 'table', title: 'data' } as any)).toBe('data.csv');
     });
   });
 });

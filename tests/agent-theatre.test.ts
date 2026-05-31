@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Agent Theatre Tests
  */
 
@@ -9,6 +8,7 @@ import { renderAgentTheatre, setCrewDisplayMode, shouldShowTheatre } from '../sr
 // Mock ResizeObserver for jsdom
 global.ResizeObserver = class ResizeObserver {
   observe() {}
+  unobserve() {}
   disconnect() {}
 };
 

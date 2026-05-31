@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { beforeEach, describe, expect, it } from 'vitest';
+﻿import { beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_SYSTEM_PROMPT,
   PROVIDER_PRESETS,
@@ -239,7 +238,7 @@ describe('browser settings fallback', () => {
       activeSkill: 'agent_auto',
       cacheOptimization: true,
     });
-    const localReport = getProviderCompatibilityReport(settings);
+    const localReport = getProviderCompatibilityReport(settings) as any;
     expect(localReport.status).toBe('warning');
     expect(localReport.items.map((item) => item.label)).toEqual(
       expect.arrayContaining(['Agent 工具受限', '无法显示真实缓存命中', '流式 usage 可能缺失', '本地服务'])
@@ -252,7 +251,7 @@ describe('browser settings fallback', () => {
       apiKey: '',
       activeSkill: 'none',
     });
-    const blocked = getProviderCompatibilityReport(settings);
+    const blocked = getProviderCompatibilityReport(settings) as any;
     expect(blocked.status).toBe('blocked');
     expect(blocked.items.map((item) => item.label)).toEqual(
       expect.arrayContaining(['缺少 API Base URL', '需要 API Key', '缺少模型名称'])
@@ -494,8 +493,8 @@ describe('browser settings fallback', () => {
     const content = appendContextHintsToUserContent(
       '分析 @file:README.md',
       [
-        { type: 'file', path: 'README.md' },
-        { type: 'symbol', path: 'buildContextBudgetBundle' },
+        { type: 'file', path: 'README.md', label: 'README.md' },
+        { type: 'symbol', path: 'buildContextBudgetBundle', label: 'buildContextBudgetBundle' },
       ],
       { workspaceRoots: [] }
     );

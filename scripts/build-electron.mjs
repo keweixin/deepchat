@@ -64,7 +64,7 @@ const tsconfig = {
     esModuleInterop: true,
     allowSyntheticDefaultImports: true,
     resolveJsonModule: true,
-    strict: false,
+    strict: true,
     noEmitOnError: true,
     allowJs: true,
     checkJs: false,

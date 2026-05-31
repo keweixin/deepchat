@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { afterEach, describe, expect, it, vi } from 'vitest';
+﻿import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getPromptPresetText, renderModelCapabilities } from '../src/modules/settings.js';
 import { renderMcpServerList } from '../src/modules/settings-mcp.js';
 

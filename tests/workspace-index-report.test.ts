@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Workspace Index Report Tests
  */
 

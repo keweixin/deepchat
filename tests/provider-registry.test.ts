@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Provider Registry Tests
  */
 

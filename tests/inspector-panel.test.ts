@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Inspector Panel Tests
  */
 

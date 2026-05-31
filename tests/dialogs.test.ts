@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { afterEach, describe, expect, it } from 'vitest';
+﻿import { afterEach, describe, expect, it } from 'vitest';
 import { confirmAction, promptText } from '../src/modules/dialogs.js';
 
 describe('in-app dialogs', () => {

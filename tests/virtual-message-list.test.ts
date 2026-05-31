@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Virtual Message List Tests
  */
 
@@ -46,8 +45,8 @@ describe('estimateMessageHeights', () => {
     container.append(msg1, msg2);
 
     // jsdom getBoundingClientRect returns 0 by default, so we mock
-    msg1.getBoundingClientRect = () => ({ height: 100 });
-    msg2.getBoundingClientRect = () => ({ height: 150 });
+    msg1.getBoundingClientRect = () => ({ height: 100 }) as DOMRect;
+    msg2.getBoundingClientRect = () => ({ height: 150 }) as DOMRect;
 
     const heights = estimateMessageHeights(container, 2);
     expect(heights).toEqual([100, 150]);
@@ -57,7 +56,7 @@ describe('estimateMessageHeights', () => {
     const container = document.createElement('div');
     const msg1 = document.createElement('div');
     msg1.className = 'message';
-    msg1.getBoundingClientRect = () => ({ height: 100 });
+    msg1.getBoundingClientRect = () => ({ height: 100 }) as DOMRect;
     container.appendChild(msg1);
 
     const heights = estimateMessageHeights(container, 3);

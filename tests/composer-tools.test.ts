@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { afterEach, describe, expect, it } from 'vitest';
+﻿import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildComposerContextPreview,
   buildComposerIntentPreview,
@@ -100,7 +99,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('promotes explicit context directives to runnable tool modes before send', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const settings = {
       activeSkill: 'none',
       tavilyApiKey: 'tvly-test',
@@ -150,7 +149,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('builds a send-time context preview with explicit context and tool policy chips', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const preview = buildComposerContextPreview('请检查 @file:src/main.js @symbol:sendMessage，并 @run 一个小实验', {
       activeSkill: 'agent_auto',
       workspaceRoots: ['E:/repo'],
@@ -184,7 +183,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('shows the effective tool mode from explicit directives in the context preview', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const web = buildComposerContextPreview('@web 查资料', {
       activeSkill: 'none',
       workspaceRoots: ['E:/repo'],
@@ -217,7 +216,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('previews changed-context tool routes before send', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const ready = buildComposerContextPreview('@changed 最近改了什么', {
       activeSkill: 'agent_auto',
       workspaceRoots: ['E:/repo'],
@@ -256,7 +255,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('shows MCP server status lights in the send-time context preview', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const preview = buildComposerContextPreview('请用 @mcp 查一下 issue 状态', {
       activeSkill: 'agent_auto',
       workspaceRoots: [],
@@ -282,7 +281,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('uses refreshed MCP status and tool counts in the context preview', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const preview = buildComposerContextPreview('帮我查外部系统记录', {
       activeSkill: 'multi_tool',
       workspaceRoots: [],
@@ -320,7 +319,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('keeps hidden context preview items discoverable with an overflow chip', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const preview = buildComposerContextPreview('请用 @mcp @run @web 检查外部系统', {
       activeSkill: 'multi_tool',
       workspaceRoots: ['E:/repo'],
@@ -409,7 +408,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('enables desktop workspace, code, mcp, and multi-tool entries when configured', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const settings = {
       activeSkill: 'file_reader',
       tavilyApiKey: '',
@@ -428,7 +427,7 @@ describe('composer tool drawer helpers', () => {
   });
 
   it('labels tool modes and explains disabled code execution', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
 
     expect(getComposerToolModeLabel('multi_tool')).toBe('全工具');
     expect(getComposerToolModeLabel('unknown')).toBe('标准');

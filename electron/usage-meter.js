@@ -51,7 +51,7 @@ function estimateTokens(text) {
 }
 
 /**
- * @param {{ content?: string }[]} messages
+ * @param {{ role?: string, content?: string }[]} messages
  * @returns {number}
  */
 function estimateMessagesTokens(messages) {

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { afterEach, describe, expect, it } from 'vitest';
+﻿import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { renderMarkdown, postProcess } from '../src/modules/renderer.js';
@@ -280,7 +279,7 @@ flowchart LR
     document.addEventListener(
       'deepchat:run-code-block',
       (event) => {
-        detail = event.detail;
+        detail = (event as CustomEvent).detail;
       },
       { once: true }
     );

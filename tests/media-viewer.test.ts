@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { afterEach, describe, expect, it } from 'vitest';
+﻿import { afterEach, describe, expect, it } from 'vitest';
 import { bindZoomableMedia, calculateFitScale, clampViewerState, zoomAtPoint } from '../src/modules/media-viewer.js';
 
 function defineImageSize(img, width = 1200, height = 800) {

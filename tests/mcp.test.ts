@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 
 import { parseSkillMeta } from '../electron/external-skills.js';
 import {

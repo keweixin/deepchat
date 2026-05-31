@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Security Utils Tests
  */
 

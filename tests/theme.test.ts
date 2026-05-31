@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { describe, it, expect, beforeEach } from 'vitest';
+﻿import { describe, it, expect, beforeEach } from 'vitest';
 import { initTheme, toggleTheme } from '../src/modules/theme.ts';
 
 describe('theme', () => {

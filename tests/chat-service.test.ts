@@ -1,5 +1,4 @@
-// @ts-nocheck
-import fs from 'node:fs/promises';
+﻿import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +14,9 @@ import {
   mergeTokenUsage,
   normalizeTokenUsage,
 } from '../electron/chat-service.js';
+
+const mockResponse = (value: Partial<Response>) => value as Response;
+const requestBodyAt = (fetchMock: any, index = 0) => String(fetchMock.mock.calls[index][1]?.body ?? '');
 
 describe('electron chat service token usage and agent loop', () => {
   afterEach(() => {
@@ -39,10 +41,12 @@ describe('electron chat service token usage and agent loop', () => {
       'data: [DONE]\n\n',
     ].join('');
 
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      body: streamFromText(response),
-    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockResponse({
+        ok: true,
+        body: streamFromText(response),
+      })
+    );
 
     const result = await service.streamOnce(
       'req-1',
@@ -52,7 +56,7 @@ describe('electron chat service token usage and agent loop', () => {
       new AbortController().signal
     );
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const body = JSON.parse(requestBodyAt(fetchMock));
     expect(body.stream_options).toEqual({ include_usage: true });
     expect(result.content).toBe('Hello');
     expect(result.usage).toMatchObject({
@@ -76,10 +80,12 @@ describe('electron chat service token usage and agent loop', () => {
       'data: [DONE]\n\n',
     ].join('');
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      body: streamFromText(response),
-    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockResponse({
+        ok: true,
+        body: streamFromText(response),
+      })
+    );
 
     const result = await service.streamOnce(
       'req-needs-pro-stream',
@@ -200,13 +206,12 @@ describe('electron chat service token usage and agent loop', () => {
   it('stops with a clear error when agent tool rounds exceed the configured limit', async () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
+    let round = 0;
     service.streamOnce = vi.fn(async (_requestId, _messages, _settings, _tools) => ({
       content: '',
       thinking: '',
       usage: normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 }),
-      toolCalls: [
-        { id: `tool-${service.streamOnce.mock.calls.length}`, function: { name: 'web_search', arguments: '{}' } },
-      ],
+      toolCalls: [{ id: `tool-${round++}`, function: { name: 'web_search', arguments: '{}' } }],
     }));
     service.handleToolCall = vi.fn(async () => 'tool output');
 
@@ -282,15 +287,19 @@ describe('electron chat service token usage and agent loop', () => {
     const service = new ChatService(() => fakeWindow());
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        text: async () => JSON.stringify({ error: { message: 'unsupported parameter stream_options' } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        body: streamFromText([sse({ choices: [{ delta: { content: 'ok' } }] }), 'data: [DONE]\n\n'].join('')),
-      });
+      .mockResolvedValueOnce(
+        mockResponse({
+          ok: false,
+          status: 400,
+          text: async () => JSON.stringify({ error: { message: 'unsupported parameter stream_options' } }),
+        })
+      )
+      .mockResolvedValueOnce(
+        mockResponse({
+          ok: true,
+          body: streamFromText([sse({ choices: [{ delta: { content: 'ok' } }] }), 'data: [DONE]\n\n'].join('')),
+        })
+      );
 
     const result = await service.streamOnce(
       'req-fallback',
@@ -299,8 +308,8 @@ describe('electron chat service token usage and agent loop', () => {
       [],
       new AbortController().signal
     );
-    const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
-    const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    const firstBody = JSON.parse(requestBodyAt(fetchMock, 0));
+    const secondBody = JSON.parse(requestBodyAt(fetchMock, 1));
 
     expect(firstBody.stream_options).toEqual({ include_usage: true });
     expect(secondBody.stream_options).toBeUndefined();
@@ -311,19 +320,23 @@ describe('electron chat service token usage and agent loop', () => {
   it('repairs tool calls emitted as JSON in assistant content', async () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      body: streamFromText(
-        [
-          sse({
-            choices: [
-              { delta: { content: '```json\n{"tool":"web_search","arguments":{"query":"DeepSeek cache hit"}}\n```' } },
-            ],
-          }),
-          'data: [DONE]\n\n',
-        ].join('')
-      ),
-    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockResponse({
+        ok: true,
+        body: streamFromText(
+          [
+            sse({
+              choices: [
+                {
+                  delta: { content: '```json\n{"tool":"web_search","arguments":{"query":"DeepSeek cache hit"}}\n```' },
+                },
+              ],
+            }),
+            'data: [DONE]\n\n',
+          ].join('')
+        ),
+      })
+    );
 
     const result = await service.streamOnce(
       'req-repair-content',
@@ -345,40 +358,44 @@ describe('electron chat service token usage and agent loop', () => {
   it('repairs tool calls emitted in reasoning content only when the tool is allowed', async () => {
     const service = new ChatService(() => fakeWindow());
     vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce({
-        ok: true,
-        body: streamFromText(
-          [
-            sse({
-              choices: [
-                {
-                  delta: {
-                    reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>',
+      .mockResolvedValueOnce(
+        mockResponse({
+          ok: true,
+          body: streamFromText(
+            [
+              sse({
+                choices: [
+                  {
+                    delta: {
+                      reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>',
+                    },
                   },
-                },
-              ],
-            }),
-            'data: [DONE]\n\n',
-          ].join('')
-        ),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        body: streamFromText(
-          [
-            sse({
-              choices: [
-                {
-                  delta: {
-                    reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>',
+                ],
+              }),
+              'data: [DONE]\n\n',
+            ].join('')
+          ),
+        })
+      )
+      .mockResolvedValueOnce(
+        mockResponse({
+          ok: true,
+          body: streamFromText(
+            [
+              sse({
+                choices: [
+                  {
+                    delta: {
+                      reasoning_content: '<tool_call>{"name":"read_file","args":{"path":"README.md"}}</tool_call>',
+                    },
                   },
-                },
-              ],
-            }),
-            'data: [DONE]\n\n',
-          ].join('')
-        ),
-      });
+                ],
+              }),
+              'data: [DONE]\n\n',
+            ].join('')
+          ),
+        })
+      );
 
     const blocked = await service.streamOnce(
       'req-repair-thinking',
@@ -875,10 +892,12 @@ describe('electron chat service token usage and agent loop', () => {
   it('uses the flash model for DeepSeek summary auxiliary calls and records summary cost separately', async () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({ choices: [{ message: { content: '旧上下文摘要' } }] }),
-    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockResponse({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '旧上下文摘要' } }] }),
+      })
+    );
     const contextBundle = {
       messages: [{ role: 'user', content: 'latest' }],
       meta: {
@@ -895,7 +914,7 @@ describe('electron chat service token usage and agent loop', () => {
       new AbortController().signal
     );
 
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const body = JSON.parse(requestBodyAt(fetchMock));
     expect(body.model).toBe('deepseek-v4-flash');
     expect(result.summary).toBe('旧上下文摘要');
     expect(result.meta).toMatchObject({
@@ -1008,8 +1027,10 @@ describe('electron chat service token usage and agent loop', () => {
     const starts = [];
     const resolvers = new Map();
     let secondRoundMessages = [];
+    let streamRound = 0;
     service.streamOnce = vi.fn(async (_requestId, messages) => {
-      if (service.streamOnce.mock.calls.length === 1) {
+      streamRound += 1;
+      if (streamRound === 1) {
         return {
           content: '',
           thinking: '',
@@ -1056,8 +1077,10 @@ describe('electron chat service token usage and agent loop', () => {
     const service = new ChatService(() => fakeWindow());
     const starts = [];
     const resolvers = new Map();
+    let streamRound = 0;
     service.streamOnce = vi.fn(async () => {
-      if (service.streamOnce.mock.calls.length === 1) {
+      streamRound += 1;
+      if (streamRound === 1) {
         return {
           content: '',
           thinking: '',
@@ -1147,12 +1170,14 @@ describe('electron chat service token usage and agent loop', () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
     service.waitForApproval = vi.fn(async () => ({ approved: true }));
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        results: [{ title: 'DeepSeek Cache', url: 'https://example.com/cache', content: 'cache details' }],
-      }),
-    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockResponse({
+        ok: true,
+        json: async () => ({
+          results: [{ title: 'DeepSeek Cache', url: 'https://example.com/cache', content: 'cache details' }],
+        }),
+      })
+    );
     const output = await service.handleToolCall(
       'req-context-output',
       { id: 'tool-context', function: { name: 'web_search', arguments: '{"query":"DeepSeek cache"}' } },
@@ -1175,10 +1200,12 @@ describe('electron chat service token usage and agent loop', () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
     service.waitForApproval = vi.fn(async () => ({ approved: false }));
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({ results: [{ title: 'DeepChat', url: 'https://example.com', content: 'agent notes' }] }),
-    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockResponse({
+        ok: true,
+        json: async () => ({ results: [{ title: 'DeepChat', url: 'https://example.com', content: 'agent notes' }] }),
+      })
+    );
 
     const output = await service.handleToolCall(
       'req-auto-approve',
@@ -1282,7 +1309,7 @@ describe('electron chat service token usage and agent loop', () => {
         checkPausePoint: async () => {},
         skippedToolCallIds: new Set(),
         scopePolicy: 'read_only',
-      });
+      } as any);
 
       const output = await service.handleToolCall(
         'req-readonly-edit',

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { afterEach, describe, expect, it } from 'vitest';
+﻿import { afterEach, describe, expect, it } from 'vitest';
 import {
   buildContextShortcutEntries,
   formatContextMentionTitle,
@@ -24,7 +23,7 @@ describe('context shortcut helpers', () => {
   });
 
   it('enables context shortcuts when desktop prerequisites exist', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
     const entries = buildContextShortcutEntries({
       workspaceRoots: ['E:/repo'],
       tavilyApiKey: 'tvly-test',
@@ -53,7 +52,7 @@ describe('context shortcut helpers', () => {
   });
 
   it('explains disabled code and MCP shortcuts', () => {
-    window.deepchat = {};
+    window.deepchat = {} as any;
 
     expect(getContextShortcutUnavailableReason('run', { runCodeEnabled: false })).toBe('代码运行已关闭');
     expect(getContextShortcutUnavailableReason('mcp', { mcpServers: [] })).toBe('需 MCP');

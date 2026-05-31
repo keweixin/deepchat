@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { debounce, formatTime, relativeTime, uid, truncate, escapeHtml, showToast } from '../src/modules/utils.js';
 
 describe('uid', () => {

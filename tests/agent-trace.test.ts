@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   TraceRecorder,
   getActorRoleForTool,
@@ -463,13 +462,13 @@ describe('agent-trace-store', () => {
 
     await saveTrace(recorder, 'conv_1');
 
-    const summary = await loadRunSummary('run_store_1');
+    const summary = (await loadRunSummary('run_store_1')) as any;
     expect(summary).not.toBeNull();
     expect(summary.runId).toBe('run_store_1');
     expect(summary.conversationId).toBe('conv_1');
     expect(summary.status).toBe('done');
 
-    const events = await loadTraceEvents('run_store_1');
+    const events = (await loadTraceEvents('run_store_1')) as any[];
     expect(events.length).toBe(recorder.events.length);
     expect(events[0].type).toBe('run_start');
     expect(events.at(-1).type).toBe('run_end');

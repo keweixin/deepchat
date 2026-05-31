@@ -133,15 +133,15 @@ export interface ExecutionTrace {
 }
 
 export function buildExecutionTrace(
-  toolCall: { name: string; args: unknown; approved: boolean; autoApproved: boolean },
+  toolCall: { name: string; args: unknown; approved?: boolean; autoApproved?: boolean },
   result: Record<string, unknown> = {}
 ): ExecutionTrace {
   return {
     toolName: toolCall.name,
     args: toolCall.args,
     risk: assessToolRisk(toolCall.name, toolCall.args as Record<string, unknown>),
-    approved: toolCall.approved,
-    autoApproved: toolCall.autoApproved,
+    approved: toolCall.approved ?? false,
+    autoApproved: toolCall.autoApproved ?? false,
     durationMs: (result.durationMs as number) || 0,
     ok: (result.ok as boolean) ?? true,
     error: (result.error as string) || null,

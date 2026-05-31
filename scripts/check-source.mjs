@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ['src', 'electron'];
-const EXTRA_FILES = ['electron.js', 'preload.js', 'index.html'];
+const EXTRA_FILES = ['electron.js', 'preload.js', 'index.html', 'scripts/build-electron.mjs'];
 const DANGEROUS_PATTERNS = [
   { name: 'eval()', pattern: /\beval\s*\(/ },
   { name: 'new Function', pattern: /\bnew\s+Function\b/ },
@@ -136,6 +136,7 @@ function checkToolSurfaceContracts(issues) {
   const toolsFile = fs.readFileSync(path.join(ROOT, 'electron/tools-file.js'), 'utf8');
   const toolDefinitions = fs.readFileSync(path.join(ROOT, 'electron/shared/tool-definitions.js'), 'utf8');
   const workspaceIndex = fs.readFileSync(path.join(ROOT, 'electron/workspace-index.ts'), 'utf8');
+  const buildElectron = fs.readFileSync(path.join(ROOT, 'scripts/build-electron.mjs'), 'utf8');
   const missingExports = REQUIRED_FILE_TOOL_EXPORTS.filter((name) => !new RegExp(`\\b${name}\\b`).test(toolsFile));
   if (missingExports.length) {
     issues.push(`electron/tools-file.js is missing required write-tool exports: ${missingExports.join(', ')}`);
@@ -150,6 +151,9 @@ function checkToolSurfaceContracts(issues) {
     issues.push(
       'electron/workspace-index.ts must stay CommonJS-shaped to avoid Node MODULE_TYPELESS_PACKAGE_JSON warnings'
     );
+  }
+  if (/strict:\s*false/.test(buildElectron)) {
+    issues.push('scripts/build-electron.mjs must compile Electron TypeScript with strict: true');
   }
 }
 

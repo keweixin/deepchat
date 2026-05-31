@@ -30,8 +30,8 @@ type ToolResult = {
 };
 
 type ToolController = {
-  checkPausePoint: () => Promise<void>;
-  skippedToolCallIds: Set<string>;
+  checkPausePoint?: () => Promise<void>;
+  skippedToolCallIds?: Set<string>;
   scopePolicy?: string;
 };
 
@@ -73,8 +73,8 @@ async function handleToolCall(
   const args = parsedArgs.args;
 
   if (controller) {
-    await controller.checkPausePoint();
-    if (controller.skippedToolCallIds.has(toolCall.id)) {
+    await controller.checkPausePoint?.();
+    if (controller.skippedToolCallIds?.has(toolCall.id)) {
       const skippedMsg = `工具 ${fn.name} 已被用户手动跳过。`;
       emit(requestId, 'agentStage', { stage: 'tool_failed', round, maxRounds, toolName: fn.name, warning: skippedMsg });
       emit(requestId, 'toolResult', {
@@ -228,7 +228,7 @@ async function handleToolCall(
     markToolConfirmed(requestId, fn.name);
   }
 
-  if (decision.skipped || (controller && controller.skippedToolCallIds.has(toolCall.id))) {
+  if (decision.skipped || (controller && controller.skippedToolCallIds?.has(toolCall.id))) {
     const skippedMsg = `工具 ${fn.name} 已被用户手动跳过。`;
     emit(requestId, 'agentStage', { stage: 'tool_skipped', round, maxRounds, toolName: fn.name, warning: skippedMsg });
     emit(requestId, 'toolResult', {
@@ -452,7 +452,7 @@ async function handleToolCallsForRound(
   }
 
   await flushParallelGroup();
-  return results.filter(Boolean);
+  return results.filter((result): result is ToolResult => Boolean(result));
 }
 
 export { handleToolCall, handleToolCallsForRound };

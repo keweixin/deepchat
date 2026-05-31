@@ -124,12 +124,44 @@ import { streamOnce } from './chat-streamer.js';
 
 import { handleToolCall, handleToolCallsForRound } from './tool-call-handler.js';
 
+type ChatRequest = Record<string, any> & {
+  requestId: string;
+  messages?: Array<Record<string, any>>;
+  overrides?: Record<string, any>;
+  cacheProfile?: Record<string, any> | null;
+  contextSummary?: string;
+  contextSummaryMeta?: Record<string, any> | null;
+};
+
+type AgentRunController = {
+  requestId: string;
+  status: 'running' | 'paused' | 'cancelled';
+  skippedToolCallIds: Set<string>;
+  scopePolicy: string;
+  pausePromise: Promise<void> | null;
+  pauseResolver: (() => void) | null;
+  checkPausePoint: () => Promise<void>;
+};
+
+type PendingApproval = {
+  resolve: (decision: Record<string, any>) => void;
+};
+
+type ToolCallLike = {
+  id: string;
+  function?: {
+    name?: string;
+    arguments?: string;
+  };
+  [key: string]: any;
+};
+
 class ChatService {
   getWindow: () => any;
   sessions: Map<string, AbortController>;
-  pendingApprovals: Map<string, any>;
+  pendingApprovals: Map<string, PendingApproval>;
   mcpManager: any;
-  controllers: Map<string, any>;
+  controllers: Map<string, AgentRunController>;
 
   constructor(getWindow: () => any) {
     this.getWindow = getWindow;
@@ -139,7 +171,7 @@ class ChatService {
     this.controllers = new Map();
   }
 
-  start(request) {
+  start(request: ChatRequest) {
     const requestId = request?.requestId;
     if (!requestId) return;
     this.cancel(requestId);
@@ -148,7 +180,7 @@ class ChatService {
     this.sessions.set(requestId, abortController);
 
     // Create AgentRunController
-    const controller = {
+    const controller: AgentRunController = {
       requestId,
       status: 'running',
       skippedToolCallIds: new Set(),
@@ -184,7 +216,7 @@ class ChatService {
       });
   }
 
-  cancel(requestId) {
+  cancel(requestId: string) {
     const controller = this.sessions.get(requestId);
     if (controller) controller.abort();
     for (const [key, pending] of this.pendingApprovals.entries()) {
@@ -195,7 +227,7 @@ class ChatService {
     }
   }
 
-  approve(requestId, toolCallId, approved) {
+  approve(requestId: string, toolCallId: string, approved: boolean) {
     const key = `${requestId}:${toolCallId}`;
     const pending = this.pendingApprovals.get(key);
     if (!pending) return;
@@ -203,7 +235,7 @@ class ChatService {
     this.pendingApprovals.delete(key);
   }
 
-  pause(requestId) {
+  pause(requestId: string) {
     const controller = this.controllers.get(requestId);
     if (controller && controller.status === 'running') {
       controller.status = 'paused';
@@ -214,7 +246,7 @@ class ChatService {
     }
   }
 
-  resume(requestId) {
+  resume(requestId: string) {
     const controller = this.controllers.get(requestId);
     if (controller && controller.status === 'paused') {
       controller.status = 'running';
@@ -227,7 +259,7 @@ class ChatService {
     }
   }
 
-  skipTool(requestId, toolCallId) {
+  skipTool(requestId: string, toolCallId?: string) {
     const controller = this.controllers.get(requestId);
     if (controller) {
       if (toolCallId === 'current' || !toolCallId) {
@@ -252,7 +284,7 @@ class ChatService {
     }
   }
 
-  limitScope(requestId, scopePolicy) {
+  limitScope(requestId: string, scopePolicy: string) {
     const controller = this.controllers.get(requestId);
     if (controller) {
       controller.scopePolicy = scopePolicy;
@@ -265,13 +297,13 @@ class ChatService {
     }
   }
 
-  async run(request, abortController) {
+  async run(request: ChatRequest, abortController: AbortController) {
     const requestId = request.requestId;
     const settings = applyRequestOverrides(await getSettings(), request.overrides || {});
     return this.runWithSettings(request, settings, abortController);
   }
 
-  async runWithSettings(request, settings, abortController) {
+  async runWithSettings(request: ChatRequest, settings: any, abortController: AbortController) {
     const requestId = request.requestId;
     const messages = sanitizeMessages(request.messages || []) as any[];
     const intent = detectAgentIntent(messages as any, settings);
@@ -507,7 +539,7 @@ class ChatService {
           role: 'tool',
           tool_call_id: toolCall.id,
           content: compactToolOutputForContext(
-            toolCall.function?.name,
+            toolCall.function?.name || 'unknown_tool',
             parseToolArgs(toolCall.function?.arguments),
             output
           ),
@@ -534,7 +566,13 @@ class ChatService {
     }
   }
 
-  async maybeBuildContextSummary(request, settings, contextBundle, prefixTokens, signal) {
+  async maybeBuildContextSummary(
+    request: ChatRequest,
+    settings: any,
+    contextBundle: any,
+    prefixTokens: number,
+    signal: AbortSignal
+  ) {
     return maybeBuildContextSummary(
       request,
       settings,
@@ -546,15 +584,22 @@ class ChatService {
     );
   }
 
-  async summarizeContext(settings, existingSummary, droppedMessages, signal) {
+  async summarizeContext(settings: any, existingSummary: string, droppedMessages: any[], signal?: AbortSignal) {
     return summarizeContext(settings, existingSummary, droppedMessages, signal);
   }
 
-  async streamOnce(requestId, messages, settings, tools, signal) {
+  async streamOnce(requestId: string, messages: any[], settings: any, tools: any[], signal: AbortSignal): Promise<any> {
     return streamOnce(requestId, messages, settings, tools, signal, this.emit.bind(this));
   }
 
-  async handleToolCall(requestId, toolCall, settings, signal, round = 0, maxRounds = 0) {
+  async handleToolCall(
+    requestId: string,
+    toolCall: ToolCallLike,
+    settings: any,
+    signal: AbortSignal,
+    round = 0,
+    maxRounds = 0
+  ) {
     return handleToolCall(requestId, toolCall, settings, signal, round, maxRounds, {
       emit: this.emit.bind(this),
       waitForApproval: this.waitForApproval.bind(this),
@@ -565,10 +610,10 @@ class ChatService {
   }
 
   async handleToolCallsForRound(
-    requestId,
-    toolCalls,
-    settings,
-    signal,
+    requestId: string,
+    toolCalls: ToolCallLike[],
+    settings: any,
+    signal: AbortSignal,
     round = 0,
     maxRounds = 0,
     seenToolCalls = new Set<string>(),
@@ -580,17 +625,22 @@ class ChatService {
     });
   }
 
-  waitForApproval(requestId, toolCallId, signal, timeoutMs = DEFAULT_TOOL_APPROVAL_TIMEOUT_MS) {
+  waitForApproval(
+    requestId: string,
+    toolCallId: string,
+    signal: AbortSignal,
+    timeoutMs = DEFAULT_TOOL_APPROVAL_TIMEOUT_MS
+  ) {
     return _waitForApproval(requestId, toolCallId, signal, this.pendingApprovals, timeoutMs);
   }
 
-  emit(requestId, type, payload = {}) {
+  emit(requestId: string, type: string, payload: Record<string, any> = {}) {
     const win = this.getWindow();
     if (!win || win.isDestroyed()) return;
     win.webContents.send('chat:event', { requestId, type, ...payload });
   }
 
-  async getAvailableTools(settings, intent = detectAgentIntent([], settings)) {
+  async getAvailableTools(settings: any, intent: any = detectAgentIntent([], settings)) {
     const activeSkill =
       settings.activeSkill === 'agent_auto'
         ? settings.cacheOptimization === false

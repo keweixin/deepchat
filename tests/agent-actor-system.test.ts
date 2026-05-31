@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { describe, it, expect, beforeEach } from 'vitest';
+﻿import { describe, it, expect, beforeEach } from 'vitest';
 import { TraceRecorder, RUN_STATUS, ACTOR_STATUS } from '../src/modules/agent-trace.js';
 import {
   ACTOR_DISPLAY_META,
@@ -221,28 +220,28 @@ describe('buildEventTimeline', () => {
     const timeline = buildEventTimeline(recorder);
     expect(timeline.length).toBe(recorder.events.length);
 
-    const start = timeline.find((t) => t.type === 'run_start');
+    const start = timeline.find((t) => t.type === 'run_start') as any;
     expect(start.mode).toBe('agent_auto');
 
-    const stage = timeline.find((t) => t.type === 'stage');
+    const stage = timeline.find((t) => t.type === 'stage') as any;
     expect(stage.stage).toBe('plan');
 
-    const req = timeline.find((t) => t.type === 'tool_request');
+    const req = timeline.find((t) => t.type === 'tool_request') as any;
     expect(req.roleId).toBe('researcher');
 
-    const result = timeline.find((t) => t.type === 'tool_result');
+    const result = timeline.find((t) => t.type === 'tool_result') as any;
     expect(result.ok).toBe(true);
 
-    const repair = timeline.find((t) => t.type === 'tool_repair');
+    const repair = timeline.find((t) => t.type === 'tool_repair') as any;
     expect(repair.confidence).toBe('medium');
 
-    const delta = timeline.find((t) => t.type === 'model_delta');
+    const delta = timeline.find((t) => t.type === 'model_delta') as any;
     expect(delta.chars).toBe(100);
 
-    const compact = timeline.find((t) => t.type === 'context_compaction');
+    const compact = timeline.find((t) => t.type === 'context_compaction') as any;
     expect(compact.trigger).toBe('budget_exceeded');
 
-    const err = timeline.find((t) => t.type === 'error');
+    const err = timeline.find((t) => t.type === 'error') as any;
     expect(err.message).toBe('oops');
 
     const end = timeline.find((t) => t.type === 'run_end');

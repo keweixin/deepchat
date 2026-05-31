@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * MCP Drawer Tests
  */
 
@@ -29,19 +28,19 @@ describe('constants', () => {
 
 describe('buildServerCard', () => {
   it('builds card with online status', () => {
-    const card = buildServerCard({ id: 'fs', name: 'Filesystem', status: 'online', toolCount: 5 });
+    const card = buildServerCard({ id: 'fs', name: 'Filesystem', status: 'online', toolCount: 5 }) as any;
     expect(card.name).toBe('Filesystem');
     expect(card.status.label).toBe('在线');
     expect(card.toolCount).toBe(5);
   });
 
   it('uses unknown status fallback', () => {
-    const card = buildServerCard({ id: 'x' });
+    const card = buildServerCard({ id: 'x' }) as any;
     expect(card.status.label).toBe('未知');
   });
 
   it('includes stats', () => {
-    const card = buildServerCard({ id: 'x', name: 'X' }, { avgDurationMs: 1200, failureRate: 0.05 });
+    const card = buildServerCard({ id: 'x', name: 'X' }, { avgDurationMs: 1200, failureRate: 0.05 }) as any;
     expect(card.avgDurationMs).toBe(1200);
     expect(card.failureRate).toBe(0.05);
   });
@@ -49,27 +48,27 @@ describe('buildServerCard', () => {
 
 describe('buildToolItem', () => {
   it('infers read scope', () => {
-    const item = buildToolItem({ name: 'read_file', description: 'Read a file' });
+    const item = buildToolItem({ name: 'read_file', description: 'Read a file' }) as any;
     expect(item.scope.id).toBe('read');
   });
 
   it('infers execute scope', () => {
-    const item = buildToolItem({ name: 'run_shell', description: 'Run a command' });
+    const item = buildToolItem({ name: 'run_shell', description: 'Run a command' }) as any;
     expect(item.scope.id).toBe('execute');
   });
 
   it('infers network scope', () => {
-    const item = buildToolItem({ name: 'fetch_url', description: 'Fetch a URL' });
+    const item = buildToolItem({ name: 'fetch_url', description: 'Fetch a URL' }) as any;
     expect(item.scope.id).toBe('network');
   });
 
   it('infers write scope', () => {
-    const item = buildToolItem({ name: 'write_file', description: 'Write content' });
+    const item = buildToolItem({ name: 'write_file', description: 'Write content' }) as any;
     expect(item.scope.id).toBe('write');
   });
 
   it('defaults to unknown scope', () => {
-    const item = buildToolItem({ name: 'foo', description: 'bar' });
+    const item = buildToolItem({ name: 'foo', description: 'bar' }) as any;
     expect(item.scope.id).toBe('unknown');
   });
 });

@@ -1,5 +1,4 @@
-// @ts-nocheck
-/**
+﻿/**
  * Artifact Versions Tests
  */
 
