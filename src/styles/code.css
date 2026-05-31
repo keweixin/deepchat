@@ -279,13 +279,13 @@
   border-top: 1px dashed var(--border-primary);
 }
 
-.code-block-wrapper pre::-webkit-scrollbar {
-  height: 6px;
+.code-block-wrapper pre::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
 }
 
-.code-block-wrapper pre::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
+.code-block-wrapper pre::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
 }
 
 /* ─── Inline code ─── */

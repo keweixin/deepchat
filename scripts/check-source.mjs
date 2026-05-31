@@ -39,6 +39,13 @@ const REQUIRED_FILE_TOOL_EXPORTS = [
   'previewMultiEdit',
   'previewFileEditTool',
 ];
+const REQUIRED_JS_TOOL_DECLARATIONS = [
+  'electron/tools-file.d.ts',
+  'electron/tools-path.d.ts',
+  'electron/tools-run-code.d.ts',
+  'electron/tools-schemas.d.ts',
+  'electron/shared/tool-definitions.d.ts',
+];
 
 const files = [
   ...SCAN_DIRS.flatMap((dir) => collectFiles(path.join(ROOT, dir))),
@@ -131,6 +138,9 @@ function checkToolSurfaceContracts(issues) {
   const missingExports = REQUIRED_FILE_TOOL_EXPORTS.filter((name) => !new RegExp(`\\b${name}\\b`).test(toolsFile));
   if (missingExports.length) {
     issues.push(`electron/tools-file.js is missing required write-tool exports: ${missingExports.join(', ')}`);
+  }
+  for (const rel of REQUIRED_JS_TOOL_DECLARATIONS) {
+    if (!fs.existsSync(path.join(ROOT, rel))) issues.push(`${rel} is required to type-check JS tool module imports`);
   }
   if (/\bapplyPatch\b/.test(toolsFile) || /\bapply_patch\b/.test(toolDefinitions)) {
     issues.push('dangerous partial patch tool is still exposed; use edit_file or multi_edit instead');

@@ -8,7 +8,6 @@ const crypto = require('crypto');
 const MAX_TOOL_OUTPUT = 12000;
 const RUN_CODE_SECURITY_LIMITS = {
   maxOutputBytes: 1024 * 1024, // 1MB
-  maxMemoryMB: 512,
   maxTimeoutMs: 5000,
   killTreeOnTimeout: true,
 };

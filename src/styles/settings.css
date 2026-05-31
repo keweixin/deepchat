@@ -1101,3 +1101,39 @@
   opacity: 1 !important;
   margin-bottom: var(--space-8) !important;
 }
+
+/* ============================================
+   Settings Panel Responsive Adaptations
+   ============================================ */
+
+@media (max-width: 768px) {
+  .settings-panel .settings-subtabs {
+    padding: var(--space-2) var(--space-4) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-status-bar {
+    grid-template-columns: 1fr;
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-2);
+  }
+
+  .provider-presets {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .skill-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-nav {
+    flex: 0 0 110px;
+    padding: var(--space-3) var(--space-2);
+  }
+
+  .settings-nav-item {
+    font-size: 11px;
+    padding: var(--space-2) var(--space-2);
+  }
+}
