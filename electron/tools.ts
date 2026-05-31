@@ -111,9 +111,9 @@ function describeToolRisk(name: string, args: any) {
       `语言：${normalizeLanguage(args.language) || '未知'}`,
       `代码长度：${String(args.code || '').length} chars`,
       `超时：${RUN_CODE_SECURITY_LIMITS.maxTimeoutMs}ms · 进程树终止：${RUN_CODE_SECURITY_LIMITS.killTreeOnTimeout ? '是' : '否'}`,
-      `输出上限：${RUN_CODE_SECURITY_LIMITS.maxOutputBytes / 1024 / 1024}MB · 内存目标：${RUN_CODE_SECURITY_LIMITS.maxMemoryMB}MB（非硬限制，实际由系统调度决定）`,
-      '权限：独立临时 cwd/HOME/TEMP，环境变量已清洗；Windows 轻沙箱不承诺硬网络隔离。',
-      '安全：stdout/stderr 含密钥/token 时自动脱敏。',
+      `输出上限：${RUN_CODE_SECURITY_LIMITS.maxOutputBytes / 1024 / 1024}MB · 本地轻隔离执行`,
+      '权限：独立临时 cwd/HOME/TEMP，环境变量清洗，超时终止，输出截断和脱敏。',
+      '限制：不提供硬网络隔离和硬内存限制。',
     ].join('\n');
   }
   if (name === 'git_status') {
@@ -148,14 +148,14 @@ function describeToolRisk(name: string, args: any) {
     return [
       `将修改已授权工作区内的文件：${String(args.path || '').slice(0, 160)}`,
       `SEARCH/REPLACE：${searchLines} 行 -> ${replaceLines} 行，SEARCH 必须唯一匹配。`,
-      '执行前会只读预检路径、敏感文件、唯一匹配和差异摘要；确认后写入并生成 .deepchat-backups 备份。',
+      '执行前会只读预检路径、敏感文件、唯一匹配和差异摘要；确认后通过临时文件重命名写入，并在 DeepChat 数据目录生成备份。',
     ].join('\n');
   }
   if (name === 'multi_edit') {
     const edits = Array.isArray(args.edits) ? args.edits : [];
     return [
       `将对已授权工作区内的文件应用 ${edits.length} 个 SEARCH/REPLACE 修改：${String(args.path || '').slice(0, 160)}`,
-      '所有编辑必须先全部通过唯一匹配预检；确认后才会一次性写入并生成 .deepchat-backups 备份。',
+      '所有编辑必须先全部通过唯一匹配预检；确认后才会通过临时文件重命名一次性写入，并在 DeepChat 数据目录生成备份。',
     ].join('\n');
   }
   return '未知工具调用。';

@@ -6,7 +6,20 @@
  * in UI, trace, or execution modules.
  */
 
-import { TOOL_DEFINITIONS } from '../../electron/shared/tool-definitions.js';
+type SharedToolDefinition = {
+  name: string;
+  category: 'search' | 'file' | 'code' | 'git' | 'workspace' | 'mcp';
+  riskLevel: 'low' | 'medium' | 'high';
+  approvalPolicy: 'always_allow' | 'confirm_once' | 'confirm_always';
+  parallelSafe: boolean;
+  role: 'reader' | 'researcher' | 'coder' | 'reviewer' | 'planner';
+  productCopy: {
+    purpose: string;
+    scope: string;
+    riskReason: string;
+    icon: string;
+  };
+};
 
 // ─── Tool Names (backend / OpenAI function names) ───────────────────────────
 
@@ -299,6 +312,205 @@ export const ROLE_TOOL_MAP = Object.freeze({
 
 // ─── Unified Tool Registry ──────────────────────────────────────────────────
 
+const FRONTEND_TOOL_DEFINITIONS: Readonly<Record<string, SharedToolDefinition>> = Object.freeze({
+  web_search: {
+    name: 'web_search',
+    category: 'search',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'researcher',
+    productCopy: {
+      purpose: '从互联网获取最新信息和参考来源',
+      scope: '外部网络资源',
+      riskReason: '仅读取公开信息，不修改本地数据',
+      icon: '🌐',
+    },
+  },
+  list_files: {
+    name: 'list_files',
+    category: 'file',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reader',
+    productCopy: {
+      purpose: '查看指定目录的文件列表',
+      scope: '单个目录',
+      riskReason: '仅列出文件名，不读取内容',
+      icon: '📂',
+    },
+  },
+  search_workspace: {
+    name: 'search_workspace',
+    category: 'search',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reader',
+    productCopy: {
+      purpose: '在工作区代码中搜索匹配内容',
+      scope: '整个项目工作区',
+      riskReason: '只读搜索，不修改代码',
+      icon: '🔍',
+    },
+  },
+  index_workspace: {
+    name: 'index_workspace',
+    category: 'workspace',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reader',
+    productCopy: {
+      purpose: '为工作区建立搜索索引以加速后续查询',
+      scope: '整个项目工作区',
+      riskReason: '仅构建索引，不修改源文件',
+      icon: '🗂',
+    },
+  },
+  read_file: {
+    name: 'read_file',
+    category: 'file',
+    riskLevel: 'medium',
+    approvalPolicy: 'confirm_once',
+    parallelSafe: true,
+    role: 'reader',
+    productCopy: {
+      purpose: '读取单个文件的内容',
+      scope: '单个文件',
+      riskReason: '可能访问敏感配置文件',
+      icon: '📄',
+    },
+  },
+  read_symbol: {
+    name: 'read_symbol',
+    category: 'file',
+    riskLevel: 'medium',
+    approvalPolicy: 'confirm_once',
+    parallelSafe: true,
+    role: 'reader',
+    productCopy: {
+      purpose: '查找并读取指定符号（函数/类/变量）的 definition',
+      scope: '工作区中匹配的文件',
+      riskReason: '可能暴露内部实现细节',
+      icon: '🔣',
+    },
+  },
+  run_code: {
+    name: 'run_code',
+    category: 'code',
+    riskLevel: 'high',
+    approvalPolicy: 'confirm_always',
+    parallelSafe: false,
+    role: 'coder',
+    productCopy: {
+      purpose: '执行代码片段并返回运行结果',
+      scope: '隔离执行 environment',
+      riskReason: '执行任意代码存在安全风险',
+      icon: '⚡',
+    },
+  },
+  git_status: {
+    name: 'git_status',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    productCopy: {
+      purpose: '查看当前仓库的 Git 状态',
+      scope: '当前 Git 仓库',
+      riskReason: '只读查询版本控制状态',
+      icon: '📋',
+    },
+  },
+  git_diff: {
+    name: 'git_diff',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    productCopy: {
+      purpose: '查看文件的变更差异',
+      scope: '指定文件或整个仓库',
+      riskReason: '只读查询变更内容',
+      icon: '📝',
+    },
+  },
+  git_log: {
+    name: 'git_log',
+    category: 'git',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reviewer',
+    productCopy: {
+      purpose: '查看最近的提交历史',
+      scope: '当前分支提交记录',
+      riskReason: '只读查询提交历史',
+      icon: '📜',
+    },
+  },
+  project_map: {
+    name: 'project_map',
+    category: 'workspace',
+    riskLevel: 'low',
+    approvalPolicy: 'always_allow',
+    parallelSafe: true,
+    role: 'reader',
+    productCopy: {
+      purpose: '生成项目整体结构地图',
+      scope: '整个项目工作区',
+      riskReason: '仅扫描文件结构，不读取内容',
+      icon: '🌳',
+    },
+  },
+  read_many_files: {
+    name: 'read_many_files',
+    category: 'file',
+    riskLevel: 'medium',
+    approvalPolicy: 'confirm_once',
+    parallelSafe: true,
+    role: 'reader',
+    productCopy: {
+      purpose: '批量读取多个文件的内容',
+      scope: '多个文件',
+      riskReason: '可能一次性访问大量敏感文件',
+      icon: '📄',
+    },
+  },
+  edit_file: {
+    name: 'edit_file',
+    category: 'file',
+    riskLevel: 'high',
+    approvalPolicy: 'confirm_always',
+    parallelSafe: false,
+    role: 'coder',
+    productCopy: {
+      purpose: '通过精确搜索替换编辑文件内容',
+      scope: '单个文件的指定位置',
+      riskReason: '会直接修改文件内容，必须先确认修改内容',
+      icon: '✏️',
+    },
+  },
+  multi_edit: {
+    name: 'multi_edit',
+    category: 'file',
+    riskLevel: 'high',
+    approvalPolicy: 'confirm_always',
+    parallelSafe: false,
+    role: 'coder',
+    productCopy: {
+      purpose: '对单个文件应用多处精确修改',
+      scope: '单个文件的多个位置',
+      riskReason: '会直接修改文件内容，所有修改必须先确认',
+      icon: '✏️',
+    },
+  },
+});
+
 export interface ToolDefinition {
   name: string;
   icon: string;
@@ -317,7 +529,7 @@ export interface ToolDefinition {
 }
 
 export const TOOL_REGISTRY: Readonly<Record<string, ToolDefinition>> = Object.freeze(
-  Object.entries(TOOL_DEFINITIONS).reduce(
+  Object.entries(FRONTEND_TOOL_DEFINITIONS).reduce(
     (acc, [key, def]) => {
       const isReadOnly = def.riskLevel === 'low' && !['run_code', 'write_file', 'edit_file'].includes(def.name);
       const sideEffect =

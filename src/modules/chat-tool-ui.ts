@@ -399,13 +399,14 @@ function createToolSecurityMeta(tool: Record<string, any>) {
 
   if (toolName === 'run_code') {
     items.push('沙箱：轻量目录隔离');
-    items.push('限制：限制执行时间和输出大小；当前不强制限制内存，不承诺硬隔离');
-    items.push('网络：未硬阻断');
+    items.push('限制：超时终止、输出截断、环境变量清洗');
+    items.push('网络/内存：不提供硬隔离');
     items.push('输出：已脱敏');
   } else if (toolName === 'edit_file' || toolName === 'multi_edit') {
     items.push('写入：需要逐次确认');
     items.push('预检：工作区路径、敏感路径、唯一匹配');
-    items.push('备份：写入前创建 .deepchat-backups');
+    items.push('写入：临时文件重命名');
+    items.push('备份：DeepChat 数据目录');
     if (tool.security?.editCount) items.push(`编辑数：${tool.security.editCount}`);
     if (tool.backupPath) items.push(`备份：${tool.backupPath}`);
   } else {

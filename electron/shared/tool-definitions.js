@@ -273,7 +273,7 @@ const TOOL_DEFINITIONS = {
       function: {
         name: 'run_code',
         description:
-          'Run a small JavaScript or Python snippet after explicit user approval. Security limits: 5s timeout, process-tree kill on timeout, 1MB output cap, 512MB memory limit, output redaction for secrets.',
+          'Run a small JavaScript or Python snippet after explicit user approval. Local light isolation only: temporary cwd/HOME/TEMP, cleaned environment, timeout termination, output truncation, and secret redaction. Does not provide hard network isolation or a hard memory limit.',
         parameters: {
           type: 'object',
           properties: {
@@ -491,7 +491,7 @@ const TOOL_DEFINITIONS = {
       function: {
         name: 'edit_file',
         description:
-          'Edit a file using SEARCH/REPLACE pattern. SEARCH text must uniquely match exactly one location in the file. The replacement is applied atomically.',
+          'Edit a file using SEARCH/REPLACE pattern. SEARCH text must uniquely match exactly one location in the file. The replacement is validated before writing, backed up, and written through a same-directory temporary file rename.',
         parameters: {
           type: 'object',
           properties: {
@@ -522,7 +522,7 @@ const TOOL_DEFINITIONS = {
       function: {
         name: 'multi_edit',
         description:
-          'Apply multiple SEARCH/REPLACE edits to a single file atomically. All edits are validated before any are applied.',
+          'Apply multiple SEARCH/REPLACE edits to a single file. All edits are validated before writing, backed up, and written through a same-directory temporary file rename.',
         parameters: {
           type: 'object',
           properties: {

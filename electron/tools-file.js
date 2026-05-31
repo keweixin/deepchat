@@ -2,6 +2,8 @@ const fs = require('fs/promises');
 const fsSync = require('fs');
 const readline = require('readline');
 const path = require('path');
+const os = require('os');
+const crypto = require('crypto');
 const {
   resolveWorkspaceRoot,
   resolveAllowedPath,
@@ -16,6 +18,10 @@ const MAX_FILE_BYTES = 100 * 1024;
 const DEFAULT_FILE_BYTES = 30 * 1024;
 const MAX_READ_MANY_FILES_BYTES = 500 * 1024;
 const MAX_SEARCH_FILE_BYTES = 64 * 1024;
+
+/**
+ * @typedef {{ workspaceRoots?: string[], storageStatus?: { dataDir?: string }, dataDir?: string }} FileToolSettings
+ */
 
 /**
  * @param {any} value
@@ -459,7 +465,7 @@ function buildLineStats(searchText, replaceText) {
 /**
  * Preview and validate a single SEARCH/REPLACE edit without writing.
  * @param {Record<string, unknown>} args
- * @param {Record<string, unknown>} settings
+ * @param {FileToolSettings} settings
  * @returns {Promise<Record<string, unknown>>}
  */
 async function previewEditFile(args, settings) {
@@ -501,14 +507,14 @@ async function previewEditFile(args, settings) {
     searchPreview: searchText.slice(0, 600),
     replacePreview: replaceText.slice(0, 600),
     backupPlanned: true,
-    restoreHint: '执行前会在同目录 .deepchat-backups 创建 .bak 备份，可用备份文件覆盖原文件恢复。',
+    restoreHint: '执行前会在 DeepChat 数据目录创建 .bak 备份，可用备份文件覆盖原文件恢复。',
   };
 }
 
 /**
  * Preview and validate multiple SEARCH/REPLACE edits without writing.
  * @param {Record<string, unknown>} args
- * @param {Record<string, unknown>} settings
+ * @param {FileToolSettings} settings
  * @returns {Promise<Record<string, unknown>>}
  */
 async function previewMultiEdit(args, settings) {
@@ -559,13 +565,13 @@ async function previewMultiEdit(args, settings) {
     lineDelta: newLineCount - oldLineCount,
     diffSummary: `${previews.length} 个编辑全部唯一匹配；总行数 ${oldLineCount} -> ${newLineCount}`,
     backupPlanned: true,
-    restoreHint: '执行前会在同目录 .deepchat-backups 创建 .bak 备份，可用备份文件覆盖原文件恢复。',
+    restoreHint: '执行前会在 DeepChat 数据目录创建 .bak 备份，可用备份文件覆盖原文件恢复。',
   };
 }
 
 /**
  * @param {Record<string, unknown>} args
- * @param {Record<string, unknown>} settings
+ * @param {FileToolSettings} settings
  * @returns {Promise<Record<string, unknown> | null>}
  */
 async function previewFileEditTool(args, settings) {
@@ -577,15 +583,64 @@ async function previewFileEditTool(args, settings) {
 
 /**
  * @param {string} resolvedPath
+ * @param {FileToolSettings} [settings]
  * @returns {Promise<string>}
  */
-async function createBackup(resolvedPath) {
+async function createBackup(resolvedPath, settings = {}) {
   const content = await fs.readFile(resolvedPath, 'utf8');
-  const backupDir = path.join(path.dirname(resolvedPath), '.deepchat-backups');
+  const backupDir = getBackupDir(resolvedPath, settings);
   await fs.mkdir(backupDir, { recursive: true });
   const backupPath = path.join(backupDir, `${path.basename(resolvedPath)}.${Date.now()}.bak`);
   await fs.writeFile(backupPath, content, 'utf8');
   return backupPath;
+}
+
+/**
+ * @param {string} resolvedPath
+ * @param {FileToolSettings} settings
+ * @returns {string}
+ */
+function getBackupDir(resolvedPath, settings = {}) {
+  const storageStatus =
+    settings.storageStatus && typeof settings.storageStatus === 'object' ? settings.storageStatus : {};
+  const dataDir = String(storageStatus.dataDir || settings.dataDir || '').trim();
+  const baseDir = dataDir ? path.join(dataDir, 'file-backups') : path.join(os.tmpdir(), 'deepchat-file-backups');
+  const hash = crypto.createHash('sha256').update(resolvedPath).digest('hex').slice(0, 16);
+  return path.join(baseDir, hash);
+}
+
+/**
+ * Replace a file using a same-directory temporary file and rename.
+ * @param {string} resolvedPath
+ * @param {string} content
+ */
+async function atomicWriteFile(resolvedPath, content) {
+  const dir = path.dirname(resolvedPath);
+  const base = path.basename(resolvedPath).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const tempPath = path.join(dir, `.${base}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.deepchat-tmp`);
+  let handle = null;
+  try {
+    handle = await fs.open(tempPath, 'w');
+    await handle.writeFile(content, 'utf8');
+    await handle.sync().catch(() => {});
+    await handle.close();
+    handle = null;
+    await fs.rename(tempPath, resolvedPath);
+    await fs
+      .open(dir, 'r')
+      .then(async (dirHandle) => {
+        try {
+          await dirHandle.sync().catch(() => {});
+        } finally {
+          await dirHandle.close().catch(() => {});
+        }
+      })
+      .catch(() => {});
+  } catch (error) {
+    if (handle) await handle.close().catch(() => {});
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
 }
 
 /**
@@ -602,7 +657,7 @@ function formatStructuredEditEvidence(evidence) {
 /**
  * Edit a file using SEARCH/REPLACE pattern.
  * @param {Record<string, unknown>} args
- * @param {Record<string, unknown>} settings
+ * @param {FileToolSettings} settings
  * @returns {Promise<string>}
  */
 async function editFile(args, settings) {
@@ -611,9 +666,13 @@ async function editFile(args, settings) {
   const preview = await previewEditFile(args, settings);
   const resolvedPath = String(preview.path || '');
   const content = await fs.readFile(resolvedPath, 'utf8');
+  const occurrences = findOccurrences(content, searchText);
+  if (occurrences.length !== 1) {
+    throw new Error(`写入前复检失败：SEARCH 当前匹配 ${occurrences.length} 处，必须唯一匹配。`);
+  }
   const newContent = content.replace(searchText, replaceText);
-  const backupPath = await createBackup(resolvedPath);
-  await fs.writeFile(resolvedPath, newContent, 'utf8');
+  const backupPath = await createBackup(resolvedPath, settings);
+  await atomicWriteFile(resolvedPath, newContent);
   const oldLines = content.split('\n');
   const newLines = newContent.split('\n');
   const addedLines = newLines.length - oldLines.length;
@@ -642,31 +701,36 @@ async function editFile(args, settings) {
 }
 
 /**
- * Apply multiple edits to a file atomically.
+ * Apply multiple edits to a file after validating every SEARCH match.
  * @param {Record<string, unknown>} args
- * @param {Record<string, unknown>} settings
+ * @param {FileToolSettings} settings
  * @returns {Promise<string>}
  */
 async function multiEdit(args, settings) {
   const preview = await previewMultiEdit(args, settings);
-  const edits = args.edits;
+  const edits = Array.isArray(args.edits) ? args.edits : [];
   const resolvedPath = String(preview.path || '');
-  let content = await fs.readFile(resolvedPath, 'utf8');
+  const originalContent = await fs.readFile(resolvedPath, 'utf8');
+  let content = originalContent;
   const results = [];
   for (let i = 0; i < edits.length; i++) {
     const edit = edits[i];
     const searchText = String(edit.search || '');
     const replaceText = String(edit.replace || '');
+    const occurrences = findOccurrences(originalContent, searchText);
+    if (occurrences.length !== 1) {
+      throw new Error(`写入前复检失败：第 ${i + 1} 个 SEARCH 当前匹配 ${occurrences.length} 处，必须唯一匹配。`);
+    }
     results.push({ searchText, replaceText });
   }
-  const backupPath = await createBackup(resolvedPath);
+  const backupPath = await createBackup(resolvedPath, settings);
   for (const { searchText, replaceText } of results) {
     content = content.replace(searchText, replaceText);
   }
 
-  await fs.writeFile(resolvedPath, content, 'utf8');
+  await atomicWriteFile(resolvedPath, content);
 
-  const oldLines = (await fs.readFile(backupPath, 'utf8')).split('\n').length;
+  const oldLines = originalContent.split('\n').length;
   const newLines = content.split('\n').length;
 
   return [
@@ -686,85 +750,17 @@ async function multiEdit(args, settings) {
   ].join('\n');
 }
 
-/**
- * Apply a unified diff patch to a file.
- * @param {Record<string, unknown>} args
- * @param {Record<string, unknown>} settings
- * @returns {Promise<string>}
- */
-async function applyPatch(args, settings) {
-  const filePath = String(args.path || '').trim();
-  const patch = String(args.patch || '');
-
-  if (!filePath) throw new Error('文件路径不能为空。');
-  if (!patch) throw new Error('patch 内容不能为空。');
-
-  const resolvedPath = await resolveEditableFilePath(filePath, settings.workspaceRoots || []);
-  const content = await fs.readFile(resolvedPath, 'utf8');
-
-  // Simple unified diff parser
-  const lines = patch.split('\n');
-  const hunks = [];
-  let currentHunk = null;
-
-  for (const line of lines) {
-    if (line.startsWith('@@')) {
-      const match = line.match(/@@ -(\d+),?\d* \+(\d+),?\d* @@/);
-      if (match) {
-        currentHunk = { oldStart: parseInt(match[1]), newStart: parseInt(match[2]), lines: [] };
-        hunks.push(currentHunk);
-      }
-    } else if (currentHunk) {
-      currentHunk.lines.push(line);
-    }
-  }
-
-  if (hunks.length === 0) {
-    throw new Error('未找到有效的 hunks。请提供标准 unified diff 格式。');
-  }
-
-  // Create backup
-  const backupDir = path.join(path.dirname(resolvedPath), '.deepchat-backups');
-  await fs.mkdir(backupDir, { recursive: true });
-  const backupPath = path.join(backupDir, `${path.basename(resolvedPath)}.${Date.now()}.bak`);
-  await fs.writeFile(backupPath, content, 'utf8');
-
-  // Apply patches (simplified - works for single hunk)
-  let newContent = content;
-  for (const hunk of hunks) {
-    const oldLines = newContent.split('\n');
-    const start = hunk.oldStart - 1;
-    let result = oldLines.slice(0, start);
-
-    for (const line of hunk.lines) {
-      if (line.startsWith('+')) {
-        result.push(line.slice(1));
-      } else if (line.startsWith('-')) {
-        // Skip removed line
-      } else if (line.startsWith(' ')) {
-        result.push(line.slice(1));
-      }
-    }
-
-    result = result.concat(oldLines.slice(start + hunk.lines.filter((l) => !l.startsWith('+')).length));
-    newContent = result.join('\n');
-  }
-
-  await fs.writeFile(resolvedPath, newContent, 'utf8');
-
-  return [`Patch 已应用：${resolvedPath}`, `备份位置：${backupPath}`, `Hunks 数量：${hunks.length}`].join('\n');
-}
-
 module.exports = {
   listFiles,
   readFile,
   readManyFiles,
   editFile,
   multiEdit,
-  applyPatch,
   previewEditFile,
   previewMultiEdit,
   previewFileEditTool,
+  atomicWriteFile,
+  getBackupDir,
   resolveEditableFilePath,
   walk,
   shouldSkip,

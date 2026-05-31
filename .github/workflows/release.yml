@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -43,7 +45,7 @@ jobs:
           "BUILD_TIMESTAMP=$stamp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Build Windows setup
-        run: npm run electron:build
+        run: npm run package:setup:built
 
       - name: Preserve setup artifacts
         shell: pwsh
@@ -52,7 +54,7 @@ jobs:
           Copy-Item -Path release/* -Destination release-setup -Recurse -Force
 
       - name: Build Windows portable
-        run: npm run electron:build:portable
+        run: npm run package:portable:built
 
       - name: Merge setup and portable artifacts
         shell: pwsh
@@ -71,6 +73,15 @@ jobs:
           }
           $lines | Set-Content -LiteralPath release/SHA256SUMS.txt -Encoding utf8
           Get-Content -LiteralPath release/SHA256SUMS.txt
+
+      - name: Attest release artifact provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/*.exe
+            release/*.blockmap
+            release/*.yml
+            release/SHA256SUMS.txt
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4

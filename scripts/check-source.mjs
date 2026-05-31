@@ -22,6 +22,23 @@ const SECRET_PATTERNS = [
   { name: 'Tavily-like API key', pattern: /tvly-[A-Za-z0-9]{20,}/ },
 ];
 const SENSITIVE_FILE_PATTERNS = /\.(env|pem|key|cert)$/i;
+const FORBIDDEN_TOOL_TEXT = [
+  {
+    name: 'run_code hard memory limit copy',
+    pattern: /512MB memory limit|内存目标：?512MB/,
+  },
+  {
+    name: 'source-local edit backup copy',
+    pattern: /\.deepchat-backups/,
+  },
+];
+const REQUIRED_FILE_TOOL_EXPORTS = [
+  'editFile',
+  'multiEdit',
+  'previewEditFile',
+  'previewMultiEdit',
+  'previewFileEditTool',
+];
 
 const files = [
   ...SCAN_DIRS.flatMap((dir) => collectFiles(path.join(ROOT, dir))),
@@ -49,6 +66,9 @@ for (const file of files) {
   }
   if (SENSITIVE_FILE_PATTERNS.test(path.basename(file))) {
     issues.push(`${rel} is a sensitive file type and should not be in source`);
+  }
+  for (const rule of FORBIDDEN_TOOL_TEXT) {
+    if (rule.pattern.test(text)) issues.push(`${rel} contains stale tool safety text: ${rule.name}`);
   }
 
   // Strict innerHTML check line-by-line
@@ -95,6 +115,8 @@ for (const file of files) {
   }
 }
 
+checkToolSurfaceContracts(issues);
+
 if (issues.length > 0) {
   console.error('Source check failed:');
   for (const issue of issues) console.error(`- ${issue}`);
@@ -102,6 +124,18 @@ if (issues.length > 0) {
 }
 
 console.log(`Source check passed (${files.length} files scanned).`);
+
+function checkToolSurfaceContracts(issues) {
+  const toolsFile = fs.readFileSync(path.join(ROOT, 'electron/tools-file.js'), 'utf8');
+  const toolDefinitions = fs.readFileSync(path.join(ROOT, 'electron/shared/tool-definitions.js'), 'utf8');
+  const missingExports = REQUIRED_FILE_TOOL_EXPORTS.filter((name) => !new RegExp(`\\b${name}\\b`).test(toolsFile));
+  if (missingExports.length) {
+    issues.push(`electron/tools-file.js is missing required write-tool exports: ${missingExports.join(', ')}`);
+  }
+  if (/\bapplyPatch\b/.test(toolsFile) || /\bapply_patch\b/.test(toolDefinitions)) {
+    issues.push('dangerous partial patch tool is still exposed; use edit_file or multi_edit instead');
+  }
+}
 
 function collectFiles(dir) {
   if (!fs.existsSync(dir)) return [];

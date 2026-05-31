@@ -25,7 +25,7 @@ DeepChat 的定位不是大而全 Web 平台，也不是完整 IDE，而是一�
 DeepChat 默认不隐藏执行外部操作：
 
 - `read_file` 只能读取用户授权工作区下的文本文件，并拒读 `.env*`、SSH/AWS/npm/pypi 凭证、key/cert 等敏感路径。
-- `run_code` 每次都需要确认，使用独立临时 `cwd/HOME/TEMP` 和最小环境变量白名单；Windows 轻沙箱不承诺硬网络隔离。
+- `run_code` 每次都需要确认，采用本地轻隔离执行：独立临时 `cwd/HOME/TEMP`、环境变量清洗、超时终止、输出截断和脱敏；不提供硬网络隔离或硬内存限制。
 - MCP 工具作为外部系统能力处理，调用前必须确认，配置和工具状态在设置页可见。
 - API Key、Tavily Key、MCP env 在桌面端通过 Electron `safeStorage` 加密存储；备份导出默认不包含 secrets。
 
@@ -66,16 +66,26 @@ npm run electron:build:portable
 ## CI 与发布
 
 - Pull Request、`main`、`master` 和 `codex/**` 分支会运行 `.github/workflows/verify.yml`：`npm ci` + `npm run verify`。
-- 推送 `v*` tag 会运行 `.github/workflows/release.yml`：校验、production audit、Windows Setup/Portable 构建、SHA256 checksums，并创建 draft GitHub Release。
+- 推送 `v*` tag 会运行 `.github/workflows/release.yml`：校验、production audit、Windows Setup/Portable 构建、SHA256 checksums、GitHub artifact provenance attestation，并创建 draft GitHub Release。
 - 手动触发 Release workflow 时只上传构建 artifacts，不会创建正式 Release，适合发布前 smoke test。
 
 ## 目录
 
-- [electron.js](./electron.js)：Electron 主进程、安全默认值和 IPC 边界。
-- [electron/chat-service.js](./electron/chat-service.js)：Agent loop、provider streaming、usage/cache 统计、工具审批。
-- [electron/tools.js](./electron/tools.js)：内置工具、工作区搜索、文件安全边界、代码运行轻沙箱。
+- [electron.js](./electron.js)：Electron 启动入口，加载生产编译后的主进程。
+- [electron/main.ts](./electron/main.ts)：Electron 主进程、安全默认值、窗口策略和 IPC 注册。
+- [electron/chat-service.ts](./electron/chat-service.ts)：Agent loop 编排、usage/cache 聚合和会话级上下文处理。
+- [electron/stream-runner.ts](./electron/stream-runner.ts)：Provider streaming、SSE 解析、工具调用轮次和降级重试。
+- [electron/tool-executor.ts](./electron/tool-executor.ts)：工具参数解析、正文工具调用修复、重复调用抑制。
+- [electron/tool-call-handler.ts](./electron/tool-call-handler.ts)：工具预览、审批、执行、结果证据和上下文输出。
+- [electron/approval-manager.ts](./electron/approval-manager.ts)：审批策略、超时、风险摘要和写入/执行安全元数据。
+- [electron/tools.ts](./electron/tools.ts)：内置工具统一入口和风险描述。
+- [electron/tools-file.js](./electron/tools-file.js)：工作区文件读写、写入预览、敏感路径拒绝、备份与临时文件重命名。
+- [electron/tools-run-code.js](./electron/tools-run-code.js)：代码运行轻隔离、环境变量清洗、超时终止和输出脱敏。
+- [electron/tools-workspace.ts](./electron/tools-workspace.ts) / [electron/workspace-index.ts](./electron/workspace-index.ts)：Workspace Knowledge Lite 索引、搜索和符号读取。
+- [electron/shared/tool-definitions.js](./electron/shared/tool-definitions.js)：工具 schema、风险级别、角色和产品文案的共享定义。
 - [src/modules/api.ts](./src/modules/api.ts)：Provider registry、浏览器 fallback、usage/context helpers。
 - [src/modules/chat.ts](./src/modules/chat.ts)：聊天 UI、Agent timeline、工具卡、token/cache 展示。
+- [src/modules/agent-run-store.ts](./src/modules/agent-run-store.ts) / [src/modules/agent-crew.ts](./src/modules/agent-crew.ts)：Agent Crew 状态与消息内协作视图。
 - [tests](./tests)：Vitest 单元和 UI helper 测试。
 
 ## 路线

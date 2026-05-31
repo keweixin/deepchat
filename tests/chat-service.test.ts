@@ -1,4 +1,7 @@
 // @ts-nocheck
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -1216,6 +1219,55 @@ describe('electron chat service token usage and agent loop', () => {
       approvalPolicy: 'tool_policy:confirm_always',
     });
   });
+
+  it('runs the edit_file approval path with preview, write evidence, and restorable backup', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-chat-edit-'));
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-chat-edit-data-'));
+    try {
+      const file = path.join(tmpDir, 'README.md');
+      await fs.writeFile(file, 'hello\nworld\n', 'utf8');
+      const events = [];
+      const service = new ChatService(() => fakeWindow(events));
+      service.waitForApproval = vi.fn(async () => ({ approved: true }));
+
+      const output = await service.handleToolCall(
+        'req-edit',
+        {
+          id: 'tool-edit',
+          function: {
+            name: 'edit_file',
+            arguments: JSON.stringify({ path: 'README.md', search: 'world', replace: 'DeepChat' }),
+          },
+        },
+        baseSettings({
+          workspaceRoots: [tmpDir],
+          codingEditsEnabled: true,
+          storageStatus: { dataDir },
+        }),
+        new AbortController().signal
+      );
+
+      const toolRequest = events.find((event) => event.type === 'toolRequest');
+      expect(toolRequest).toMatchObject({
+        name: 'edit_file',
+        autoApproved: false,
+        approvalPolicy: 'tool_policy:confirm_always',
+      });
+      expect(toolRequest.editPreview).toMatchObject({
+        tool: 'edit_file',
+        editCount: 1,
+      });
+      expect(await fs.readFile(file, 'utf8')).toBe('hello\nDeepChat\n');
+      const backupPath = getBackupPathFromToolOutput(output);
+      expect(await fs.readFile(backupPath, 'utf8')).toBe('hello\nworld\n');
+
+      await fs.copyFile(backupPath, file);
+      expect(await fs.readFile(file, 'utf8')).toBe('hello\nworld\n');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  });
 });
 
 function baseSettings(overrides = {}) {
@@ -1267,4 +1319,13 @@ async function waitForCondition(predicate) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
   throw new Error('Timed out waiting for condition');
+}
+
+function getBackupPathFromToolOutput(output) {
+  const line = String(output)
+    .split('\n')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith('备份位置：'));
+  if (!line) throw new Error(`Backup path not found in output:\n${output}`);
+  return line.slice('备份位置：'.length);
 }
