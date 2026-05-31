@@ -15,6 +15,13 @@ const srcDir = path.join(rootDir, 'electron');
 const tmpDir = path.join(rootDir, 'tmp-electron-build');
 const outDir = path.join(rootDir, 'dist-electron');
 
+if (process.env.DEEPCHAT_SKIP_STRICT_BUILD_CHECK !== '1') {
+  execSync('npx tsc -p tsconfig.strict.json --noEmit', {
+    cwd: rootDir,
+    stdio: 'inherit',
+  });
+}
+
 // Clean
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.rmSync(tmpDir, { recursive: true, force: true });

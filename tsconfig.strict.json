@@ -70,6 +70,8 @@
     "src/modules/chat.ts",
     "electron/preload.ts",
     "electron/tools-file.js",
+    "electron/tools-path.js",
+    "electron/tools-run-code.js",
     "electron/tools-schemas.js",
     "electron/shared/tool-definitions.js",
     "electron/agent-planner.ts",
