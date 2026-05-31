@@ -335,36 +335,7 @@
   filter: grayscale(0.6);
 }
 
-/* ─── Dark Mode ───────────────────────────────────────────────────────────── */
-
-@media (prefers-color-scheme: dark) {
-  .agent-theatre-wrapper {
-    background: var(--surface-color, #1f2937);
-    border-color: var(--border-color, #374151);
-  }
-
-  .agent-theatre-header {
-    background: var(--surface-hover, #111827);
-    border-color: var(--border-color, #374151);
-  }
-
-  .theatre-actor {
-    background: var(--surface-color, #1f2937);
-    border-color: var(--border-color, #374151);
-  }
-
-  .theatre-actor-name {
-    color: var(--text-primary, #f3f4f6);
-  }
-
-  .theatre-actor-status {
-    color: var(--text-secondary, #9ca3af);
-  }
-
-  .theatre-actor-summary {
-    color: var(--text-tertiary, #6b7280);
-  }
-}
+/* Theme synchronization uses the global component variables from index.css. */
 
 /* ─── Control Bar ──────────────────────────────────────────────────────────── */
 

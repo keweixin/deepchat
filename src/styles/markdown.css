@@ -96,15 +96,19 @@
   margin-bottom: var(--space-3);
   line-height: 1.82;
   letter-spacing: 0.006em;
-  text-align: justify;
-  text-justify: inter-character;
+  text-align: left;
   word-break: break-word;
+}
+
+.use-serif .message-content p {
+  text-align: justify;
+  text-align-last: left;
 }
 
 .message-content.answer-short p {
   margin: 0;
   line-height: 1.76;
-  text-align: justify;
+  text-align: left;
 }
 
 .message-content .answer-summary {
@@ -297,7 +301,8 @@
   content: '';
   position: absolute;
   left: -0.9em;
-  top: 0.72em;
+  top: 0.55em;
+  transform: translateY(-50%);
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -309,7 +314,7 @@
   width: 4px;
   height: 4px;
   border-radius: 1px;
-  transform: rotate(45deg);
+  transform: translateY(-50%) rotate(45deg);
   background: var(--text-muted);
   opacity: 0.5;
 }

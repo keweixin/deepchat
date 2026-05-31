@@ -94,6 +94,14 @@
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 20px rgba(45, 212, 191, 0.14);
 
+  /* Shared component theme variables */
+  --surface-color: var(--bg-secondary);
+  --border-color: var(--border-primary);
+  --surface-hover: var(--glass-bg-hover);
+  --surface-active: rgba(255, 255, 255, 0.1);
+  --accent-color: var(--accent-primary);
+  --accent-bg: var(--accent-soft);
+
   color-scheme: dark;
 }
 
@@ -144,6 +152,14 @@
 
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
   --shadow-glow: 0 0 20px rgba(15, 118, 110, 0.12);
+
+  /* Shared component theme variables */
+  --surface-color: var(--bg-secondary);
+  --border-color: var(--border-primary);
+  --surface-hover: rgba(0, 0, 0, 0.03);
+  --surface-active: rgba(0, 0, 0, 0.06);
+  --accent-color: var(--accent-primary);
+  --accent-bg: var(--accent-soft);
 
   color-scheme: light;
 }

@@ -288,58 +288,11 @@
   }
 }
 
-/* ─── Dark Mode ──────────────────────────────────────────────────────────── */
+/* Dark Mode overrides scoped under data-theme */
+[data-theme='dark'] #artifact-panel {
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.42);
+}
 
-@media (prefers-color-scheme: dark) {
-  #artifact-panel {
-    background: var(--surface-color, #1f2937);
-    border-color: var(--border-color, #374151);
-    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.2);
-  }
-
-  .artifact-panel-header {
-    background: var(--surface-hover, #111827);
-    border-color: var(--border-color, #374151);
-  }
-
-  .artifact-workspace-card {
-    border-color: var(--border-color, #374151);
-    background: var(--surface-hover, #111827);
-  }
-
-  .artifact-workspace-card:hover,
-  .artifact-workspace-card.is-selected {
-    border-color: var(--accent-color, #3b82f6);
-    background: var(--accent-bg, #1e3a5f);
-  }
-
-  .artifact-preview-container pre {
-    background: var(--code-bg, #1f2937);
-    color: var(--text-primary, #f9fafb);
-    border-color: var(--border-color, #374151);
-  }
-
-  .artifact-preview-container iframe {
-    background: #fff;
-  }
-
-  .artifact-preview-container th,
-  .artifact-preview-container td {
-    border-color: var(--border-color, #374151);
-  }
-
-  .artifact-preview-container th {
-    background: var(--surface-hover, #374151);
-  }
-
-  .artifact-preview-action {
-    border-color: var(--border-color, #374151);
-    background: var(--surface-color, #1f2937);
-    color: var(--text-secondary, #9ca3af);
-  }
-
-  .artifact-preview-action:hover {
-    background: var(--surface-hover, #374151);
-    color: var(--text-primary, #f9fafb);
-  }
+[data-theme='dark'] .artifact-preview-container iframe {
+  background: var(--bg-primary);
 }

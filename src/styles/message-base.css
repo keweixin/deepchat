@@ -1,18 +1,18 @@
-﻿/* ============================================
+/* ============================================
    Message Bubbles
    ============================================ */
 
 .message {
   display: flex;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-6);
+  padding: var(--space-3) var(--space-6);
   max-width: var(--message-max-width);
   margin: 0 auto;
   animation: messageIn 0.35s ease;
 }
 
 .message + .message {
-  margin-top: var(--space-2);
+  margin-top: 0;
 }
 
 .message.user {
