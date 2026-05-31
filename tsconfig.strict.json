@@ -79,6 +79,7 @@
     "electron/agent-planner.ts",
     "electron/memory-manager.ts",
     "electron/system-prompt.ts",
+    "electron/tools-workspace.ts",
     "electron/workspace-index.ts"
   ]
 }

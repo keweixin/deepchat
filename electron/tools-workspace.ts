@@ -6,6 +6,76 @@ import { parseWorkspaceQuery, matchesFileDirective, matchesChangedDirective } fr
 import { resolveWorkspaceRoot, resolveAllowedDirectory, isSensitivePath, isProbablyBinary } from './tools-path.js';
 import { walk, createMatcher } from './tools-file.js';
 import { redactSensitiveText } from './tools-run-code.js';
+
+type ToolArgs = Record<string, any>;
+
+type WorkspaceSettings = {
+  workspaceRoots?: string[];
+  storageStatus?: { dataDir?: string };
+  workspaceIndexCacheDir?: string;
+  [key: string]: any;
+};
+
+type WorkspaceSnippet = {
+  line: number;
+  text: string;
+};
+
+type RawWorkspaceFile = {
+  path: string;
+  fullPath: string;
+  size: number;
+  mtimeMs: number;
+};
+
+type IndexedWorkspaceFile = {
+  path: string;
+  fullPath?: string;
+  size: number;
+  mtimeMs: number;
+  sha256?: string;
+  lineCount: number;
+  chunks: number;
+  text: string;
+  truncated?: boolean;
+};
+
+type WorkspaceSearchHit = Record<string, any> & {
+  file?: string;
+  lineStart?: number;
+  lineEnd?: number;
+  startLine?: number;
+  endLine?: number;
+  score: number;
+  snippet: WorkspaceSnippet[];
+  truncated?: boolean;
+};
+
+type WorkspaceIndex = Record<string, any> & {
+  files: IndexedWorkspaceFile[];
+  root: string;
+  relativeDirectory: string;
+  pattern?: string;
+  fileCount: number;
+  chunkCount: number;
+  hash: string;
+  snapshotHash?: string;
+  builtAtMs: number;
+};
+
+type WorkspaceIndexOptions = {
+  forceRefresh?: boolean;
+  maxFiles?: number;
+};
+
+type WorkspaceIndexModule = {
+  searchWorkspace: (query: string, options?: Record<string, any>) => any[];
+  getWorkspaceStats: () => { fileCount: number; chunkCount: number };
+  findSymbol: (symbol: string, options?: Record<string, any>) => any[];
+  clearWorkspaceIndex: () => Promise<void> | void;
+  [key: string]: any;
+};
+
 const requireFromHere = createRequire(
   typeof __filename === 'string' ? __filename : path.resolve(process.cwd(), 'electron/tools-workspace.ts')
 );
@@ -23,14 +93,14 @@ const WORKSPACE_INDEX_DISK_VERSION = 1;
 const WORKSPACE_INDEX_CACHE_MAX = 8;
 
 /** @type {import('./workspace-index')} */
-let workspaceIndexModule = indexMod;
-function getWorkspaceIndexModule() {
+let workspaceIndexModule: WorkspaceIndexModule = indexMod as WorkspaceIndexModule;
+function getWorkspaceIndexModule(): WorkspaceIndexModule {
   return workspaceIndexModule;
 }
 
-const workspaceIndexCache = new Map();
+const workspaceIndexCache = new Map<string, WorkspaceIndex>();
 
-async function indexWorkspace(args, settings) {
+async function indexWorkspace(args: ToolArgs, settings: WorkspaceSettings): Promise<string> {
   const index = await getWorkspaceIndex(args, settings, {
     forceRefresh: Boolean(args.force_refresh),
     maxFiles: clampInt(args.max_files, 1, MAX_SEARCH_SCAN_FILES, MAX_SEARCH_SCAN_FILES),
@@ -38,7 +108,7 @@ async function indexWorkspace(args, settings) {
   return formatWorkspaceIndexOutput(index);
 }
 
-async function searchWorkspace(args, settings) {
+async function searchWorkspace(args: ToolArgs, settings: WorkspaceSettings): Promise<string> {
   const rawQuery = String(args.query || args.symbol || '').trim();
   if (!rawQuery) throw new Error('搜索关键词不能为空。');
 
@@ -86,7 +156,7 @@ async function searchWorkspace(args, settings) {
             snapshotHash: '',
             hash: '',
           },
-          results: ftsResults.map((hit, i) => ({
+          results: ftsResults.map((hit: any, i: number) => ({
             index: i + 1,
             file: path.join((hit as any).workspaceRoot, hit.file).replace(/\\/g, '/'),
             startLine: hit.lineStart,
@@ -115,7 +185,7 @@ async function searchWorkspace(args, settings) {
           '',
         ].filter(Boolean);
 
-        ftsResults.forEach((hit, i) => {
+        ftsResults.forEach((hit: any, i: number) => {
           const absPath = path.join((hit as any).workspaceRoot, hit.file).replace(/\\/g, '/');
           lines.push(`${i + 1}. ${absPath}:${hit.lineStart}-${hit.lineEnd}`);
           lines.push(`   score: ${hit.score.toFixed(2)}`);
@@ -136,7 +206,7 @@ async function searchWorkspace(args, settings) {
   const index = await getWorkspaceIndex(args, settings);
 
   // Apply directive filters
-  const filteredFiles = index.files.filter((file) => {
+  const filteredFiles = index.files.filter((file: IndexedWorkspaceFile) => {
     if (!matchesFileDirective(file.path, parsed)) return false;
     if (!matchesChangedDirective(file.mtimeMs, parsed)) return false;
     return true;
@@ -144,7 +214,7 @@ async function searchWorkspace(args, settings) {
 
   const terms = tokenizeSearchQuery(query);
   const queryLower = query.toLowerCase();
-  const hits = [];
+  const hits: WorkspaceSearchHit[] = [];
   for (const file of filteredFiles) {
     if (hits.length >= maxResults * 4) break;
     const fileRelevance = scoreWorkspaceFileRelevance(file, query, terms, symbol);
@@ -172,7 +242,12 @@ async function searchWorkspace(args, settings) {
   }
 
   const rankedHits = hits.map((hit) => scoreWorkspaceHit(hit));
-  rankedHits.sort((a, b) => b.score - a.score || a.file.localeCompare(b.file) || a.lineStart - b.lineStart);
+  rankedHits.sort(
+    (a, b) =>
+      b.score - a.score ||
+      String(a.file || '').localeCompare(String(b.file || '')) ||
+      Number(a.lineStart || 0) - Number(b.lineStart || 0)
+  );
   const selected = rankedHits.slice(0, maxResults);
 
   const directiveSummary = buildDirectiveSummary(parsed);
@@ -207,7 +282,7 @@ async function searchWorkspace(args, settings) {
     JSON.stringify(structured, null, 2),
     '',
   ].filter(Boolean);
-  selected.forEach((hit, index) => {
+  selected.forEach((hit: WorkspaceSearchHit, index: number) => {
     lines.push(`${index + 1}. ${hit.file}:${hit.lineStart}-${hit.lineEnd}`);
     lines.push(`   score: ${hit.score}`);
     if (hit.truncated) lines.push(`   说明：文件超过 ${MAX_SEARCH_FILE_BYTES} bytes，仅搜索开头片段。`);
@@ -220,8 +295,8 @@ async function searchWorkspace(args, settings) {
   return lines.join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
-function buildDirectiveSummary(parsed) {
-  const parts = [];
+function buildDirectiveSummary(parsed: any): string {
+  const parts: string[] = [];
   if (parsed.file.length) parts.push(`文件过滤：${parsed.file.join(', ')}`);
   if (parsed.folder.length) parts.push(`目录过滤：${parsed.folder.join(', ')}`);
   if (parsed.symbol) parts.push(`符号：${parsed.symbol}`);
@@ -230,7 +305,17 @@ function buildDirectiveSummary(parsed) {
   return parts.length ? `筛选：${parts.join(' · ')}` : '';
 }
 
-function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected }) {
+function buildWorkspaceSearchStructuredResults({
+  query,
+  symbol,
+  index,
+  selected,
+}: {
+  query: string;
+  symbol: string;
+  index: WorkspaceIndex;
+  selected: WorkspaceSearchHit[];
+}) {
   return {
     type: 'deepchat.workspaceSearchResults',
     version: 1,
@@ -246,7 +331,7 @@ function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected 
       snapshotHash: index.snapshotHash || '',
       hash: index.hash,
     },
-    results: selected.map((hit, resultIndex) => ({
+    results: selected.map((hit: WorkspaceSearchHit, resultIndex: number) => ({
       index: resultIndex + 1,
       file: normalizeWorkspaceResultPath(hit.file),
       startLine: hit.lineStart,
@@ -257,7 +342,7 @@ function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected 
       kind: inferWorkspaceHitKind(hit, symbol),
       symbol: symbol || inferWorkspaceHitSymbol(hit),
       truncated: Boolean(hit.truncated),
-      snippet: hit.snippet.map((item) => ({
+      snippet: hit.snippet.map((item: WorkspaceSnippet) => ({
         line: item.line,
         text: item.text,
       })),
@@ -265,13 +350,13 @@ function buildWorkspaceSearchStructuredResults({ query, symbol, index, selected 
   };
 }
 
-async function readSymbol(args, settings) {
+async function readSymbol(args: ToolArgs, settings: WorkspaceSettings): Promise<string> {
   const symbol = normalizeSearchSymbol(args.symbol);
   if (!symbol) throw new Error('符号名称不能为空，且只能包含字母、数字、_、$、. 或 -。');
   const contextLines = clampInt(args.context_lines, 0, 20, 3);
   const maxLines = clampInt(args.max_lines, 20, 240, 120);
 
-  let matches = [];
+  let matches: WorkspaceSearchHit[] = [];
 
   // --- SQLite FTS5 fast path ---
   const indexMod = getWorkspaceIndexModule();
@@ -290,14 +375,14 @@ async function readSymbol(args, settings) {
 
       if (filtered.length > 0) {
         for (const sym of filtered) {
-          const contentLines = [];
+          const contentLines: WorkspaceSnippet[] = [];
           for (const ctx of sym.context) {
             const lines = ctx.content.split('\n');
             for (let i = 0; i < lines.length; i++) {
               contentLines.push({ line: ctx.lineStart + i, text: lines[i] });
             }
           }
-          const symLine = contentLines.findIndex((l) => l.line === sym.line);
+          const symLine = contentLines.findIndex((l: WorkspaceSnippet) => l.line === sym.line);
           const startIdx = Math.max(0, symLine - contextLines);
           const uncappedEndIdx = Math.min(contentLines.length - 1, symLine + 1 + contextLines);
           const endIdx = Math.min(uncappedEndIdx, startIdx + maxLines - 1);
@@ -330,7 +415,7 @@ async function readSymbol(args, settings) {
     }
   }
 
-  const index =
+  const index: WorkspaceIndex =
     matches.length > 0
       ? {
           root: settings.workspaceRoots?.[0] || '',
@@ -343,10 +428,16 @@ async function readSymbol(args, settings) {
           fromCache: false,
           cacheLayer: '',
           builtAtMs: 0,
+          files: [],
         }
       : await getWorkspaceIndex({ ...args, symbol, query: symbol }, settings);
 
-  matches.sort((a, b) => b.score - a.score || a.file.localeCompare(b.file) || a.startLine - b.startLine);
+  matches.sort(
+    (a, b) =>
+      b.score - a.score ||
+      String(a.file || '').localeCompare(String(b.file || '')) ||
+      Number(a.startLine || a.lineStart || 0) - Number(b.startLine || b.lineStart || 0)
+  );
   const selected = matches[0] || null;
   const structured = buildWorkspaceSymbolStructuredResult({
     symbol,
@@ -389,9 +480,13 @@ async function readSymbol(args, settings) {
   return lines.join('\n').slice(0, MAX_TOOL_OUTPUT);
 }
 
-function findSymbolDefinitionHits(file, symbol, options = {}) {
+function findSymbolDefinitionHits(
+  file: IndexedWorkspaceFile,
+  symbol: string,
+  options: { contextLines?: number; maxLines?: number } = {}
+): WorkspaceSearchHit[] {
   const lines = String(file.text || '').split(/\r?\n/);
-  const hits = [];
+  const hits: WorkspaceSearchHit[] = [];
   const symbolPattern = createSymbolPattern(symbol);
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index] || '';
@@ -402,7 +497,7 @@ function findSymbolDefinitionHits(file, symbol, options = {}) {
     const startIndex = Math.max(0, index - contextLines);
     const uncappedEndIndex = Math.min(lines.length - 1, definitionEnd + contextLines);
     const endIndex = Math.min(uncappedEndIndex, startIndex + maxLines - 1);
-    const snippet = [];
+    const snippet: WorkspaceSnippet[] = [];
     for (let lineIndex = startIndex; lineIndex <= endIndex; lineIndex += 1) {
       snippet.push({ line: lineIndex + 1, text: truncateCodeLine(lines[lineIndex] || '') });
     }
@@ -421,7 +516,7 @@ function findSymbolDefinitionHits(file, symbol, options = {}) {
   return hits;
 }
 
-function inferSymbolDefinitionEnd(lines, startIndex) {
+function inferSymbolDefinitionEnd(lines: string[], startIndex: number): number {
   let braceDepth = 0;
   let sawBrace = false;
   for (let index = startIndex; index < lines.length; index++) {
@@ -440,11 +535,11 @@ function inferSymbolDefinitionEnd(lines, startIndex) {
   return Math.min(lines.length - 1, startIndex + 40);
 }
 
-function stripLineComments(line) {
+function stripLineComments(line: string): string {
   return String(line || '').replace(/\/\/.*$/, '');
 }
 
-function scoreSymbolDefinitionHit(filePath, line, symbol) {
+function scoreSymbolDefinitionHit(filePath: string, line: string, symbol: string): number {
   let score = 20;
   const fileName = path.basename(String(filePath || '')).toLowerCase();
   const symbolLower = String(symbol || '').toLowerCase();
@@ -455,7 +550,7 @@ function scoreSymbolDefinitionHit(filePath, line, symbol) {
   return score;
 }
 
-function inferSymbolKind(line, symbol) {
+function inferSymbolKind(line: string, symbol: string): string {
   const text = String(line || '');
   if (/^\s*(export\s+)?(async\s+)?function\s+/u.test(text)) return 'function';
   if (/^\s*(export\s+)?class\s+/u.test(text)) return 'class';
@@ -465,7 +560,17 @@ function inferSymbolKind(line, symbol) {
   return 'symbol';
 }
 
-function buildWorkspaceSymbolStructuredResult({ symbol, index, selected, alternatives = [] }) {
+function buildWorkspaceSymbolStructuredResult({
+  symbol,
+  index,
+  selected,
+  alternatives = [],
+}: {
+  symbol: string;
+  index: WorkspaceIndex;
+  selected: WorkspaceSearchHit | null;
+  alternatives?: WorkspaceSearchHit[];
+}) {
   return {
     type: 'deepchat.workspaceSymbolResult',
     version: 1,
@@ -485,7 +590,7 @@ function buildWorkspaceSymbolStructuredResult({ symbol, index, selected, alterna
   };
 }
 
-function formatWorkspaceSymbolHit(hit) {
+function formatWorkspaceSymbolHit(hit: WorkspaceSearchHit) {
   return {
     file: normalizeWorkspaceResultPath(hit.file),
     startLine: hit.startLine,
@@ -495,19 +600,19 @@ function formatWorkspaceSymbolHit(hit) {
     kind: hit.kind,
     signature: hit.signature || '',
     truncated: Boolean(hit.truncated),
-    snippet: hit.snippet.map((item) => ({
+    snippet: hit.snippet.map((item: WorkspaceSnippet) => ({
       line: item.line,
       text: item.text,
     })),
   };
 }
 
-function normalizeWorkspaceResultPath(filePath) {
+function normalizeWorkspaceResultPath(filePath: string | undefined): string {
   return String(filePath || '').replace(/\\/g, '/');
 }
 
-function inferWorkspaceHitKind(hit, symbol = '') {
-  const text = (hit?.snippet || []).map((item) => item.text).join('\n');
+function inferWorkspaceHitKind(hit: Partial<WorkspaceSearchHit> | null | undefined, symbol = ''): string {
+  const text = (hit?.snippet || []).map((item: WorkspaceSnippet) => item.text).join('\n');
   if (symbol && text.split(/\r?\n/).some((line) => looksLikeSymbolDefinition(line, symbol))) return 'symbol';
   if (/^\s*(export\s+)?(async\s+)?function\s+/m.test(text)) return 'function';
   if (/^\s*(export\s+)?class\s+/m.test(text)) return 'class';
@@ -516,8 +621,8 @@ function inferWorkspaceHitKind(hit, symbol = '') {
   return 'text';
 }
 
-function inferWorkspaceHitSymbol(hit) {
-  const text = (hit?.snippet || []).map((item) => item.text).join('\n');
+function inferWorkspaceHitSymbol(hit: Partial<WorkspaceSearchHit> | null | undefined): string {
+  const text = (hit?.snippet || []).map((item: WorkspaceSnippet) => item.text).join('\n');
   const match =
     text.match(/^\s*(?:export\s+)?(?:async\s+)?function\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/mu) ||
     text.match(/^\s*(?:export\s+)?class\s+([\p{L}_$][\p{L}\p{N}_$]*)\b/mu) ||
@@ -525,7 +630,11 @@ function inferWorkspaceHitSymbol(hit) {
   return match?.[1] || '';
 }
 
-async function getWorkspaceIndex(args, settings, options = {}) {
+async function getWorkspaceIndex(
+  args: ToolArgs,
+  settings: WorkspaceSettings,
+  options: WorkspaceIndexOptions = {}
+): Promise<WorkspaceIndex> {
   const root = await resolveWorkspaceRoot(args.root, settings.workspaceRoots || []);
   const directory = String(args.directory || '').trim();
   const scanRoot = directory ? await resolveAllowedDirectory(directory, [root]) : root;
@@ -551,7 +660,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   }
 
   const matcher = createMatcher(pattern);
-  const rawFiles = [];
+  const rawFiles: RawWorkspaceFile[] = [];
   await walk(realScanRoot, realScanRoot, rawFiles, matcher, maxFiles);
   const snapshot = buildWorkspaceSnapshot(rawFiles, realRoot);
   if (
@@ -570,7 +679,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
     };
   }
 
-  let incrementalCache = null;
+  let incrementalCache: WorkspaceIndex | null = null;
   if (!(options as any).forceRefresh) {
     const diskIndex = await readWorkspaceIndexDiskCache(cacheKey, snapshot.hash, settings, now);
     if (diskIndex) {
@@ -589,14 +698,16 @@ async function getWorkspaceIndex(args, settings, options = {}) {
     incrementalCache = await readWorkspaceIndexDiskCacheRaw(cacheKey, settings);
   }
 
-  const files = [];
+  const files: IndexedWorkspaceFile[] = [];
   let skippedSensitive = 0;
   let skippedBinary = 0;
   let scannedBytes = 0;
   let chunkCount = 0;
   let reusedCount = 0;
 
-  const oldFileMap = incrementalCache?.files ? new Map(incrementalCache.files.map((f) => [f.path, f])) : new Map();
+  const oldFileMap: Map<string, IndexedWorkspaceFile> = incrementalCache?.files
+    ? new Map(incrementalCache.files.map((f: IndexedWorkspaceFile) => [f.path, f]))
+    : new Map();
 
   for (const file of rawFiles) {
     if (!file.fullPath) continue;
@@ -654,7 +765,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   }
 
   files.sort((a, b) => a.path.localeCompare(b.path));
-  const index = {
+  const index: WorkspaceIndex = {
     cacheKey,
     root: realRoot,
     scanRoot: realScanRoot,
@@ -687,7 +798,7 @@ async function getWorkspaceIndex(args, settings, options = {}) {
   return index;
 }
 
-function rememberWorkspaceIndex(cacheKey, index) {
+function rememberWorkspaceIndex(cacheKey: string, index: WorkspaceIndex): void {
   // Delete then re-insert to update LRU order
   if (workspaceIndexCache.has(cacheKey)) workspaceIndexCache.delete(cacheKey);
   workspaceIndexCache.set(cacheKey, index);
@@ -698,25 +809,25 @@ function rememberWorkspaceIndex(cacheKey, index) {
   }
 }
 
-function clearWorkspaceIndexCache() {
+function clearWorkspaceIndexCache(): void {
   workspaceIndexCache.clear();
 }
 
-function buildWorkspaceIndexCacheKey(root, scanRoot, pattern, maxFiles) {
+function buildWorkspaceIndexCacheKey(root: string, scanRoot: string, pattern: string, maxFiles: number): string {
   return [root, scanRoot, pattern || '*', maxFiles].map((item) => String(item || '').toLowerCase()).join('\0');
 }
 
-function buildWorkspaceIndexHash(files = []) {
+function buildWorkspaceIndexHash(files: IndexedWorkspaceFile[] = []): string {
   const payload = files
-    .map((file) => `${file.path}:${file.size}:${Math.round(file.mtimeMs || 0)}:${file.lineCount}`)
+    .map((file: IndexedWorkspaceFile) => `${file.path}:${file.size}:${Math.round(file.mtimeMs || 0)}:${file.lineCount}`)
     .join('\n');
   return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 16);
 }
 
-function buildWorkspaceSnapshot(rawFiles = [], realRoot = '') {
+function buildWorkspaceSnapshot(rawFiles: RawWorkspaceFile[] = [], realRoot = ''): { hash: string; fileCount: number } {
   const entries = rawFiles
-    .filter((file) => file.fullPath && !isSensitivePath(file.fullPath))
-    .map((file) =>
+    .filter((file: RawWorkspaceFile) => file.fullPath && !isSensitivePath(file.fullPath))
+    .map((file: RawWorkspaceFile) =>
       [path.relative(realRoot, file.fullPath) || file.path, file.size || 0, Math.round(file.mtimeMs || 0)].join(':')
     )
     .sort();
@@ -727,7 +838,7 @@ function buildWorkspaceSnapshot(rawFiles = [], realRoot = '') {
   };
 }
 
-function getWorkspaceIndexDiskDir(settings: any = {}) {
+function getWorkspaceIndexDiskDir(settings: WorkspaceSettings = {}): string {
   const explicit = String(
     settings.workspaceIndexCacheDir || process.env.DEEPCHAT_WORKSPACE_INDEX_CACHE_DIR || ''
   ).trim();
@@ -736,17 +847,22 @@ function getWorkspaceIndexDiskDir(settings: any = {}) {
   return dataDir ? path.join(dataDir, 'workspace-indexes') : '';
 }
 
-function getWorkspaceIndexDiskPath(cacheKey, settings = {}) {
+function getWorkspaceIndexDiskPath(cacheKey: string, settings: WorkspaceSettings = {}): string {
   const dir = getWorkspaceIndexDiskDir(settings);
   if (!dir) return '';
   const id = crypto.createHash('sha256').update(cacheKey).digest('hex').slice(0, 32);
   return path.join(dir, `${id}.json`);
 }
 
-async function readWorkspaceIndexDiskCache(cacheKey, snapshotHash, settings = {}, now = Date.now()) {
+async function readWorkspaceIndexDiskCache(
+  cacheKey: string,
+  snapshotHash: string,
+  settings: WorkspaceSettings = {},
+  now = Date.now()
+): Promise<WorkspaceIndex | null> {
   const filePath = getWorkspaceIndexDiskPath(cacheKey, settings);
   if (!filePath) return null;
-  let payload;
+  let payload: any;
   try {
     payload = JSON.parse(await fs.readFile(filePath, 'utf8'));
   } catch {
@@ -770,10 +886,13 @@ async function readWorkspaceIndexDiskCache(cacheKey, snapshotHash, settings = {}
   };
 }
 
-async function readWorkspaceIndexDiskCacheRaw(cacheKey, settings = {}) {
+async function readWorkspaceIndexDiskCacheRaw(
+  cacheKey: string,
+  settings: WorkspaceSettings = {}
+): Promise<WorkspaceIndex | null> {
   const filePath = getWorkspaceIndexDiskPath(cacheKey, settings);
   if (!filePath) return null;
-  let payload;
+  let payload: any;
   try {
     payload = JSON.parse(await fs.readFile(filePath, 'utf8'));
   } catch {
@@ -786,7 +905,11 @@ async function readWorkspaceIndexDiskCacheRaw(cacheKey, settings = {}) {
   return index;
 }
 
-async function writeWorkspaceIndexDiskCache(cacheKey, index, settings = {}) {
+async function writeWorkspaceIndexDiskCache(
+  cacheKey: string,
+  index: WorkspaceIndex,
+  settings: WorkspaceSettings = {}
+): Promise<Record<string, any>> {
   const filePath = getWorkspaceIndexDiskPath(cacheKey, settings);
   if (!filePath) {
     return {
@@ -830,13 +953,13 @@ async function writeWorkspaceIndexDiskCache(cacheKey, index, settings = {}) {
       enabled: true,
       written: false,
       reason: 'write-failed',
-      error: error?.message || String(error),
+      error: error instanceof Error ? error.message : String(error),
       path: filePath,
     };
   }
 }
 
-async function clearWorkspaceIndexDiskCache(settings = {}) {
+async function clearWorkspaceIndexDiskCache(settings: WorkspaceSettings = {}): Promise<Record<string, any>> {
   clearWorkspaceIndexCache();
   // Also clear the SQLite FTS5 index
   const indexMod = getWorkspaceIndexModule();
@@ -857,7 +980,7 @@ async function clearWorkspaceIndexDiskCache(settings = {}) {
       deletedBytes: 0,
     };
   }
-  let entries = [];
+  let entries: import('fs').Dirent[] = [];
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
   } catch {
@@ -876,7 +999,9 @@ async function clearWorkspaceIndexDiskCache(settings = {}) {
     if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
     const filePath = path.join(dir, entry.name);
     const stat = await fs.stat(filePath).catch(() => null);
-    await fs.rm(filePath, { force: true }).catch((err) => console.warn('[Tools] cache cleanup failed:', err.message));
+    await fs
+      .rm(filePath, { force: true })
+      .catch((err: any) => console.warn('[Tools] cache cleanup failed:', err.message));
     deletedFiles += 1;
     deletedBytes += stat?.size || 0;
   }
@@ -890,25 +1015,28 @@ async function clearWorkspaceIndexDiskCache(settings = {}) {
   };
 }
 
-function buildWorkspaceIndexCacheFileId(cacheKey) {
+function buildWorkspaceIndexCacheFileId(cacheKey: string): string {
   return crypto.createHash('sha256').update(cacheKey).digest('hex').slice(0, 32);
 }
 
-function serializeWorkspaceIndex(index) {
+function serializeWorkspaceIndex(index: WorkspaceIndex): Record<string, any> {
   const { fromCache, ageMs, cacheLayer, diskCache, ...rest } = index;
   return {
     ...rest,
-    files: (index.files || []).map((file) => {
+    files: (index.files || []).map((file: IndexedWorkspaceFile) => {
       const { fullPath, ...safeFile } = file;
       return safeFile;
     }),
   };
 }
 
-function formatWorkspaceIndexOutput(index) {
+function formatWorkspaceIndexOutput(index: WorkspaceIndex): string {
   const files = index.files
     .slice(0, 80)
-    .map((file) => `- ${file.path} (${file.lineCount} lines, ${file.size} bytes, chunks ${file.chunks})`);
+    .map(
+      (file: IndexedWorkspaceFile) =>
+        `- ${file.path} (${file.lineCount} lines, ${file.size} bytes, chunks ${file.chunks})`
+    );
   return [
     `工作区索引：${formatWorkspaceIndexCacheLabel(index)}`,
     `工作区：${index.root}`,
@@ -933,7 +1061,7 @@ function formatWorkspaceIndexOutput(index) {
     .slice(0, MAX_TOOL_OUTPUT);
 }
 
-function formatWorkspaceIndexCacheLabel(index) {
+function formatWorkspaceIndexCacheLabel(index: Partial<WorkspaceIndex> | null | undefined): string {
   if (!index?.fromCache) return '新建';
   if (index.cacheLayer === 'disk') return '命中缓存（磁盘）';
   if (index.cacheLayer === 'memory') return '命中缓存（内存）';
@@ -949,7 +1077,7 @@ function formatWorkspaceIndexDiskStatus(diskCache: any = {}) {
   return '磁盘缓存：未写入';
 }
 
-async function readSearchableFile(filePath, maxBytes) {
+async function readSearchableFile(filePath: string, maxBytes: number): Promise<{ text: string; sha256: string }> {
   const handle = await fs.open(filePath, 'r').catch(() => null);
   if (!handle) return { text: '', sha256: '' };
   try {
@@ -961,32 +1089,38 @@ async function readSearchableFile(filePath, maxBytes) {
     const sha256 = crypto.createHash('sha256').update(slice).digest('hex').slice(0, 16);
     return { text: slice.toString('utf8'), sha256 };
   } finally {
-    await handle.close().catch((err) => console.warn('[Tools] handle.close failed:', err.message));
+    await handle.close().catch((err: any) => console.warn('[Tools] handle.close failed:', err.message));
   }
 }
 
-function tokenizeSearchQuery(query) {
+function tokenizeSearchQuery(query: string): string[] {
   return [
     ...new Set(
       String(query || '')
         .toLowerCase()
         .split(/[^\p{L}\p{N}_.$/-]+/u)
-        .map((term) => term.trim())
-        .filter((term) => term.length >= 2)
+        .map((term: string) => term.trim())
+        .filter((term: string) => term.length >= 2)
         .slice(0, 8)
     ),
   ];
 }
 
-function normalizeSearchSymbol(value) {
+function normalizeSearchSymbol(value: any): string {
   const symbol = String(value || '').trim();
   if (!symbol || symbol.length > 160) return '';
   return /^[\p{L}_$][\p{L}\p{N}_$.-]*$/u.test(symbol) ? symbol : '';
 }
 
-function findTextHits(text, terms, queryLower, symbol = '', maxHits = 2) {
+function findTextHits(
+  text: string,
+  terms: string[],
+  queryLower: string,
+  symbol = '',
+  maxHits = 2
+): WorkspaceSearchHit[] {
   const lines = String(text || '').split(/\r?\n/);
-  const candidates = [];
+  const candidates: WorkspaceSearchHit[] = [];
   const symbolPattern = symbol ? createSymbolPattern(symbol) : null;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index] || '';
@@ -1003,16 +1137,22 @@ function findTextHits(text, terms, queryLower, symbol = '', maxHits = 2) {
     if (score <= 0) continue;
     const lineStart = index + 1;
     const lineEnd = Math.min(lines.length, index + 2);
-    const snippet = [];
+    const snippet: WorkspaceSnippet[] = [];
     for (let i = lineStart - 1; i < lineEnd; i++) {
       snippet.push({ line: i + 1, text: truncateLine(lines[i] || '') });
     }
     candidates.push({ contentScore: score, score, lineStart, lineEnd, snippet });
   }
-  candidates.sort((a, b) => b.score - a.score || a.lineStart - b.lineStart);
-  const selected = [];
+  candidates.sort((a, b) => b.score - a.score || Number(a.lineStart || 0) - Number(b.lineStart || 0));
+  const selected: WorkspaceSearchHit[] = [];
   for (const candidate of candidates) {
-    const overlaps = selected.some((hit) => candidate.lineStart <= hit.lineEnd && candidate.lineEnd >= hit.lineStart);
+    const candidateStart = Number(candidate.lineStart || 0);
+    const candidateEnd = Number(candidate.lineEnd || candidateStart);
+    const overlaps = selected.some((hit) => {
+      const hitStart = Number(hit.lineStart || 0);
+      const hitEnd = Number(hit.lineEnd || hitStart);
+      return candidateStart <= hitEnd && candidateEnd >= hitStart;
+    });
     if (overlaps) continue;
     selected.push(candidate);
     if (selected.length >= maxHits) break;
@@ -1020,10 +1160,10 @@ function findTextHits(text, terms, queryLower, symbol = '', maxHits = 2) {
   return selected;
 }
 
-function buildFileNameWorkspaceHit(file) {
+function buildFileNameWorkspaceHit(file: IndexedWorkspaceFile): WorkspaceSearchHit {
   const lines = String(file.text || '').split(/\r?\n/);
   const lineEnd = Math.min(lines.length || 1, 3);
-  const snippet = [];
+  const snippet: WorkspaceSnippet[] = [];
   for (let index = 0; index < lineEnd; index += 1) {
     snippet.push({ line: index + 1, text: truncateLine(lines[index] || '') });
   }
@@ -1036,13 +1176,18 @@ function buildFileNameWorkspaceHit(file) {
   };
 }
 
-function scoreWorkspaceFileRelevance(file, query, terms = [], symbol = '') {
+function scoreWorkspaceFileRelevance(
+  file: Partial<IndexedWorkspaceFile>,
+  query: string,
+  terms: string[] = [],
+  symbol = ''
+): { score: number; recency: number; reasons: string[] } {
   const filePath = String(file?.path || '').replace(/\\/g, '/');
   const fileName = path.basename(filePath).toLowerCase();
   const pathLower = filePath.toLowerCase();
   const queryLower = String(query || '').toLowerCase();
   const symbolLower = String(symbol || '').toLowerCase();
-  const reasons = [];
+  const reasons: string[] = [];
   let score = 0;
 
   if (queryLower && fileName.includes(queryLower)) {
@@ -1079,7 +1224,7 @@ function scoreWorkspaceFileRelevance(file, query, terms = [], symbol = '') {
   return { score, recency, reasons };
 }
 
-function scoreWorkspaceHit(hit) {
+function scoreWorkspaceHit(hit: WorkspaceSearchHit): WorkspaceSearchHit {
   const contentScore = Number(hit.contentScore ?? hit.score ?? 0);
   const fileScore = Number(hit.fileRelevance?.score || 0);
   const symbolScore = inferWorkspaceHitKind(hit) === 'symbol' ? 50 : 0;
@@ -1102,17 +1247,17 @@ function scoreWorkspaceHit(hit) {
   };
 }
 
-function hasFileIdentityMatch(fileRelevance: any = {}) {
-  return (fileRelevance.reasons || []).some((reason) => reason === 'file_name' || reason === 'path');
+function hasFileIdentityMatch(fileRelevance: any = {}): boolean {
+  return (fileRelevance.reasons || []).some((reason: string) => reason === 'file_name' || reason === 'path');
 }
 
-function createSymbolPattern(symbol) {
+function createSymbolPattern(symbol: string): RegExp {
   const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const boundary = '[^\\p{L}\\p{N}_$.-]';
   return new RegExp(`(^|${boundary})${escaped}(?=$|${boundary})`, 'u');
 }
 
-function looksLikeSymbolDefinition(line, symbol) {
+function looksLikeSymbolDefinition(line: string, symbol: string): boolean {
   const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const patterns = [
     `\\bfunction\\s+${escaped}\\b`,
@@ -1122,27 +1267,27 @@ function looksLikeSymbolDefinition(line, symbol) {
     `\\b(?:async\\s+)?${escaped}\\s*\\(`,
     `<${escaped}(?:\\s|>|/)`,
   ];
-  return patterns.some((pattern) => new RegExp(pattern, 'u').test(line));
+  return patterns.some((pattern: string) => new RegExp(pattern, 'u').test(line));
 }
 
-function truncateLine(value) {
+function truncateLine(value: any): string {
   const text = String(value || '').trim();
   return text.length > 240 ? `${text.slice(0, 240)}...` : text;
 }
 
-function truncateCodeLine(value) {
+function truncateCodeLine(value: any): string {
   const text = String(value || '').replace(/\s+$/g, '');
   return text.length > 240 ? `${text.slice(0, 240)}...` : text;
 }
 
-function formatDuration(ms) {
+function formatDuration(ms: number): string {
   const value = Math.max(0, Number(ms) || 0);
   if (value < 1000) return `${Math.round(value)}ms`;
   if (value < 60 * 1000) return `${Math.round(value / 1000)}s`;
   return `${Math.round(value / 60000)}m`;
 }
 
-function clampInt(value, min, max, fallback) {
+function clampInt(value: any, min: number, max: number, fallback: number): number {
   const number = Number.parseInt(value, 10);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(Math.max(number, min), max);

@@ -38,7 +38,7 @@ export function resolveEditableFilePath(filePath: string, workspaceRoots: string
 export function walk(
   root: string,
   current: string,
-  files: string[],
+  files: Array<{ path: string; fullPath: string; size: number; mtimeMs: number }>,
   matcher: (filePath: string) => boolean,
   maxFiles?: number
 ): Promise<void>;
