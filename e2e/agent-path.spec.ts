@@ -9,14 +9,21 @@ let server: http.Server;
 let port: number;
 let requestCount = 0;
 let testUserDataDir: string;
+let testWorkspaceDir: string;
+let editTargetPath: string;
 
 test.beforeAll(async () => {
   // Start dynamic in-memory mock LLM provider
-  server = http.createServer((req, res) => {
+  server = http.createServer(async (req, res) => {
     console.log(`[E2E Mock Server] Request received: ${req.method} ${req.url}`);
     if (req.method === 'POST' && req.url === '/v1/chat/completions') {
       requestCount++;
       console.log(`[E2E Mock Server] Match: completions request #${requestCount}`);
+      const bodyText = await readRequestBody(req);
+      const body = safeJsonParse(bodyText) || {};
+      const messages = Array.isArray(body.messages) ? body.messages : [];
+      const isEditTurn = bodyText.includes('E2E_WRITE_TARGET');
+      const hasToolResult = messages.some((message: any) => message?.role === 'tool');
 
       // Set headers for SSE (Server-Sent Events)
       res.writeHead(200, {
@@ -25,7 +32,50 @@ test.beforeAll(async () => {
         Connection: 'keep-alive',
       });
 
-      if (requestCount === 1) {
+      if (isEditTurn && !hasToolResult) {
+        const toolCallChunk = {
+          choices: [
+            {
+              delta: {
+                role: 'assistant',
+                content: '我会先生成写入预览，等待确认后再修改临时工作区文件。',
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_edit_e2e_target',
+                    type: 'function',
+                    function: {
+                      name: 'edit_file',
+                      arguments: JSON.stringify({
+                        path: editTargetPath,
+                        search: 'world',
+                        replace: 'DeepChatE2E',
+                      }),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        };
+        writeSseChunk(res, toolCallChunk);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      } else if (isEditTurn) {
+        const finalAnswerChunk = {
+          choices: [
+            {
+              delta: {
+                role: 'assistant',
+                content: '写入完成，已修改临时文件，并保留了可恢复的备份证据。',
+              },
+            },
+          ],
+        };
+        writeSseChunk(res, finalAnswerChunk);
+        res.write('data: [DONE]\n\n');
+        res.end();
+      } else if (!hasToolResult) {
         // First request: return the tool call to read package.json
         const toolCallChunk = {
           choices: [
@@ -48,7 +98,7 @@ test.beforeAll(async () => {
             },
           ],
         };
-        res.write(`data: ${JSON.stringify(toolCallChunk)}\n\n`);
+        writeSseChunk(res, toolCallChunk);
         res.write('data: [DONE]\n\n');
         res.end();
       } else {
@@ -64,7 +114,7 @@ test.beforeAll(async () => {
             },
           ],
         };
-        res.write(`data: ${JSON.stringify(finalAnswerChunk)}\n\n`);
+        writeSseChunk(res, finalAnswerChunk);
         res.write('data: [DONE]\n\n');
         res.end();
       }
@@ -85,6 +135,10 @@ test.beforeAll(async () => {
   // Setup isolated temporary user data directory
   testUserDataDir = path.join(os.tmpdir(), `deepchat-e2e-test-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
   fs.mkdirSync(path.join(testUserDataDir, 'data'), { recursive: true });
+  testWorkspaceDir = path.join(testUserDataDir, 'workspace');
+  fs.mkdirSync(testWorkspaceDir, { recursive: true });
+  editTargetPath = path.join(testWorkspaceDir, 'e2e-edit-target.md');
+  fs.writeFileSync(editTargetPath, 'alpha\nworld\nomega\n', 'utf8');
 
   // Pre-configure settings.json targeting our local mock LLM provider
   const settings = {
@@ -93,7 +147,7 @@ test.beforeAll(async () => {
       providerId: 'custom',
       apiBase: `http://127.0.0.1:${port}/v1`,
       model: 'deepseek-chat',
-      workspaceRoots: [path.resolve(__dirname, '..')],
+      workspaceRoots: [path.resolve(__dirname, '..'), testWorkspaceDir],
       toolApprovalPolicy: 'confirm_all',
     },
   };
@@ -200,4 +254,95 @@ test.describe('Agent Path End-To-End Integration', () => {
     await expect(inspectorPanel).toContainText('read_file');
     await expect(inspectorPanel).toContainText('package.json');
   });
+
+  test('runs edit_file path: preview -> approval -> write -> backup restore', async () => {
+    fs.writeFileSync(editTargetPath, 'alpha\nworld\nomega\n', 'utf8');
+    fs.rmSync(path.join(testUserDataDir, 'data', 'file-backups'), { recursive: true, force: true });
+
+    electronApp = await electron.launch({
+      args: [path.join(__dirname, '..', 'electron.js')],
+      env: {
+        ...process.env,
+        DEEPCHAT_DISABLE_GPU: '1',
+        DEEPCHAT_TEST_USER_DATA_DIR: testUserDataDir,
+        NODE_ENV: 'development',
+      },
+    });
+
+    const window = await electronApp.firstWindow();
+    await window.waitForSelector('#sidebar', { state: 'visible', timeout: 15_000 });
+    await window.waitForSelector('#message-input', { state: 'visible', timeout: 15_000 });
+
+    const modeSelect = window.locator('#composer-mode-select');
+    await modeSelect.selectOption('agent');
+    await expect(modeSelect).toHaveValue('agent');
+
+    const composer = window.locator('#message-input');
+    await composer.fill('请把 E2E_WRITE_TARGET 里的 world 改成 DeepChatE2E');
+    const sendBtn = window.locator('#send-btn');
+    await sendBtn.click();
+
+    await window.waitForSelector('.tool-approve-btn', { state: 'visible', timeout: 15_000 });
+    await expect(window.locator('.tool-edit-preview')).toContainText('写入预览');
+    await expect(window.locator('.tool-edit-preview')).toContainText('唯一匹配');
+    await expect(window.locator('.tool-security-meta').filter({ hasText: '临时文件重命名' })).toBeVisible();
+    expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nworld\nomega\n');
+
+    await window.locator('.tool-approve-btn').click();
+    await expect(sendBtn).not.toHaveClass(/hidden/, { timeout: 30_000 });
+    await expect(window.locator('#chat-messages')).toContainText('写入完成');
+    expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nDeepChatE2E\nomega\n');
+
+    const backupPath = await waitForBackupFile(path.basename(editTargetPath));
+    expect(fs.readFileSync(backupPath, 'utf8')).toBe('alpha\nworld\nomega\n');
+    fs.copyFileSync(backupPath, editTargetPath);
+    expect(fs.readFileSync(editTargetPath, 'utf8')).toBe('alpha\nworld\nomega\n');
+  });
 });
+
+function readRequestBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+function safeJsonParse(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function writeSseChunk(res: http.ServerResponse, payload: unknown) {
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+async function waitForBackupFile(targetBaseName: string): Promise<string> {
+  const roots = [path.join(testUserDataDir, 'data', 'file-backups'), path.join(os.tmpdir(), 'deepchat-file-backups')];
+  for (let attempt = 0; attempt < 50; attempt++) {
+    for (const root of roots) {
+      const found = findBackupFile(root, targetBaseName);
+      if (found) return found;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Backup file not found for ${targetBaseName}`);
+}
+
+function findBackupFile(root: string, targetBaseName: string): string {
+  if (!fs.existsSync(root)) return '';
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      const nested = findBackupFile(fullPath, targetBaseName);
+      if (nested) return nested;
+    } else if (entry.isFile() && entry.name.startsWith(`${targetBaseName}.`) && entry.name.endsWith('.bak')) {
+      return fullPath;
+    }
+  }
+  return '';
+}
