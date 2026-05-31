@@ -1,4 +1,4 @@
-﻿/* Welcome Screen */
+/* Welcome Screen */
 .welcome-screen {
   display: flex;
   flex-direction: column;
@@ -64,9 +64,12 @@
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-align: left;
-  transition: all var(--transition-base);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   overflow: hidden;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.03);
 }
 .suggestion-card::before {
   content: '';
@@ -75,20 +78,21 @@
   left: -75%;
   width: 50%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
-  transition: left 0.5s ease;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  transition: left 0.6s ease;
 }
 .suggestion-card:hover::before {
   left: 125%;
 }
 .suggestion-card:hover {
   background: var(--glass-bg-hover);
-  border-color: color-mix(in srgb, var(--accent-primary), transparent 55%);
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 45%);
   color: var(--text-primary);
-  transform: translateY(-2px);
+  transform: translateY(-5px) scale(1.02);
   box-shadow:
-    0 8px 28px rgba(0, 0, 0, 0.15),
-    0 0 0 1px color-mix(in srgb, var(--accent-primary), transparent 80%);
+    0 12px 32px rgba(0, 0, 0, 0.22),
+    0 0 0 1px color-mix(in srgb, var(--accent-primary), transparent 75%),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
 }
 .suggestion-icon {
   font-size: 1.4rem;
@@ -101,10 +105,18 @@
   border-radius: 12px;
   background: var(--accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 78%);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.suggestion-card:hover .suggestion-icon {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  transform: scale(1.1) rotate(8deg);
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-primary), transparent 60%);
 }
 .suggestion-text {
   line-height: 1.5;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 @keyframes welcomeFadeIn {
@@ -115,5 +127,22 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suggestion-card,
+  .suggestion-card::before,
+  .suggestion-icon {
+    transition: none !important;
+  }
+
+  .suggestion-card:hover::before {
+    left: -75%;
+  }
+
+  .suggestion-card:hover,
+  .suggestion-card:hover .suggestion-icon {
+    transform: none !important;
   }
 }
