@@ -722,6 +722,35 @@ describe('electron tools helpers', () => {
     }
   });
 
+  it('keeps the original file intact and removes temp files when atomic rename fails', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-edit-rename-fail-'));
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-edit-rename-fail-data-'));
+    try {
+      const file = path.join(tmpDir, 'README.md');
+      await fs.writeFile(file, 'hello\nworld\n', 'utf8');
+      vi.spyOn(fs, 'rename').mockRejectedValueOnce(new Error('simulated rename failure'));
+
+      await expect(
+        executeTool(
+          'edit_file',
+          { path: 'README.md', search: 'world', replace: 'DeepChat' },
+          { workspaceRoots: [tmpDir], storageStatus: { dataDir } }
+        )
+      ).rejects.toThrow('simulated rename failure');
+
+      await expect(fs.readFile(file, 'utf8')).resolves.toBe('hello\nworld\n');
+      const entries = await fs.readdir(tmpDir);
+      expect(entries.filter((entry) => entry.includes('.deepchat-tmp'))).toEqual([]);
+      const backupRoot = path.join(dataDir, 'file-backups');
+      await expect(fs.readdir(backupRoot, { recursive: true })).resolves.toEqual(
+        expect.arrayContaining([expect.stringMatching(/README\.md\.\d+\.bak$/)])
+      );
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it('previews edit_file without mutating the file or creating backups', async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-edit-preview-'));
     const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-edit-preview-data-'));
