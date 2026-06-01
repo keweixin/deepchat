@@ -3,6 +3,7 @@ import {
   buildComposerContextPreview,
   buildComposerIntentPreview,
   buildComposerToolEntries,
+  buildSendPreflightBlocker,
   getComposerToolApprovalSummary,
   getComposerToolModeLabel,
   getComposerToolRisk,
@@ -431,5 +432,68 @@ describe('composer tool drawer helpers', () => {
     expect(getComposerToolModeLabel('multi_tool')).toBe('全工具');
     expect(getComposerToolModeLabel('unknown')).toBe('标准');
     expect(getComposerToolUnavailableReason('code_runner', { runCodeEnabled: false })).toBe('代码运行已关闭');
+  });
+
+  it('blocks explicit tool sends when the provider cannot call tools', () => {
+    window.deepchat = {} as any;
+
+    const blocker = buildSendPreflightBlocker(
+      '@mcp 查 issue',
+      {
+        activeSkill: 'mcp_tool',
+        mcpServers: [{ id: 'github', command: 'node', enabled: true }],
+        mcpStatuses: [{ id: 'github', ok: true, toolCount: 3 }],
+      },
+      { capabilities: { tools: false } }
+    );
+
+    expect(blocker).toMatchObject({ code: 'provider_tools_unsupported' });
+    expect(blocker?.message).toContain('不支持工具调用');
+  });
+
+  it('blocks MCP sends until a server is tested and returns tools', () => {
+    window.deepchat = {} as any;
+
+    expect(
+      buildSendPreflightBlocker(
+        '@mcp 查资料',
+        { activeSkill: 'mcp_tool', mcpServers: [{ id: 'github', command: 'node', enabled: true }], mcpStatuses: [] },
+        { capabilities: { tools: true } }
+      )
+    ).toMatchObject({ code: 'mcp_not_tested' });
+
+    const zeroTools = buildSendPreflightBlocker(
+      '@mcp 查资料',
+      {
+        activeSkill: 'mcp_tool',
+        mcpServers: [{ id: 'github', command: 'node', enabled: true }],
+        mcpStatuses: [{ id: 'github', ok: true, toolCount: 0 }],
+      },
+      { capabilities: { tools: true } }
+    );
+    expect(zeroTools).toMatchObject({ code: 'mcp_zero_tools' });
+    expect(zeroTools?.message).toContain('没有返回可用工具');
+  });
+
+  it.each([
+    ['ENOENT', '启动命令不存在'],
+    ['cwd missing', '工作目录不存在'],
+    ['missing env key GITHUB_TOKEN', '缺少必要环境变量'],
+    ['initialize timeout', '超时'],
+  ])('shows readable MCP failure reason for %s', (error, label) => {
+    window.deepchat = {} as any;
+
+    const blocker = buildSendPreflightBlocker(
+      '@mcp 查资料',
+      {
+        activeSkill: 'mcp_tool',
+        mcpServers: [{ id: 'github', command: 'node', enabled: true }],
+        mcpStatuses: [{ id: 'github', ok: false, error }],
+      },
+      { capabilities: { tools: true } }
+    );
+
+    expect(blocker).toMatchObject({ code: 'mcp_unavailable' });
+    expect(blocker?.message).toContain(label);
   });
 });

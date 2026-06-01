@@ -171,7 +171,7 @@ function getProviderToolSupport(settings = {}) {
 
 function shouldWarnAboutToolSupport(settings = {}, intent = {}) {
   const activeSkill = String(settings.activeSkill || 'none');
-  if (activeSkill && activeSkill !== 'none') return true;
+  if (activeSkill && activeSkill !== 'none' && activeSkill !== 'agent_auto') return true;
   return Boolean((intent.selectedTools || []).length || (intent.candidateTools || []).length);
 }
 

@@ -382,12 +382,13 @@ function getToolReadablePurpose(tool: Record<string, any>) {
 }
 
 function createToolArgsDetails(tool: Record<string, any>, detailLevel: ToolDetailLevel) {
+  if (detailLevel === 'normal') return null;
   const formatted = formatToolArgs(tool);
   if (!formatted || formatted === '{}') return null;
-  return createPreDetails(detailLevel === 'normal' ? '查看参数' : '工具参数', formatted, {
+  return createPreDetails('工具参数', formatted, {
     className: 'tool-call-args-details',
     preClassName: 'tool-call-args',
-    open: detailLevel !== 'normal',
+    open: true,
   });
 }
 

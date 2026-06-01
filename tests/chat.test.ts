@@ -459,6 +459,8 @@ describe('chat regeneration', () => {
     expect(badge.textContent).toBe('高风险确认');
     expect(badge.className).toContain('tone-high');
     expect(badge.title).toContain('执行前需要确认');
+    expect(container.textContent).not.toContain('查看参数');
+    expect(container.textContent).not.toContain('console.log("ok")');
   });
 
   it('renders tool recovery suggestions in tool result cards', () => {
@@ -684,6 +686,45 @@ describe('chat regeneration', () => {
     expect(input.value).toContain('运行前仍需我确认 run_code 工具调用');
     expect(input.value).toContain('console.log("测试完成")');
     input.remove();
+  });
+
+  it.each([
+    ['normal', false, false, false],
+    ['advanced', true, true, false],
+    ['developer', true, true, true],
+  ])('renders tool cards with %s information density', (detailLevel, showsArgs, showsRawOutput, showsContextOutput) => {
+    const container = document.createElement('div');
+    renderToolCalls(
+      container,
+      [
+        {
+          id: 'tool-density',
+          name: 'read_file',
+          status: 'completed',
+          ok: true,
+          args: { path: 'E:/repo/secret-plan.md' },
+          output: '完整输出内容',
+          contextOutput: '压缩后进入上下文的内容',
+        },
+      ],
+      { detailLevel }
+    );
+
+    expect(container.textContent.includes('工具参数')).toBe(showsArgs);
+    expect(container.textContent.includes('查看完整工具结果')).toBe(showsRawOutput);
+    expect(container.textContent.includes('复制证据 JSON')).toBe(showsRawOutput);
+    expect(container.textContent.includes('查看进入上下文的压缩输出')).toBe(showsContextOutput);
+    expect(container.textContent.includes('复制上下文输出')).toBe(showsContextOutput);
+  });
+
+  it('renders assistant thinking blocks hidden by default', () => {
+    const el = createMessageElement({ role: 'assistant', thinking: '内部推理', timestamp: Date.now() }, true);
+    const thinkingBlock = el.querySelector('.thinking-block') as HTMLElement;
+
+    expect(thinkingBlock).toBeTruthy();
+    expect(thinkingBlock.hidden).toBe(true);
+    expect(el.textContent).toContain('思考过程');
+    expect(el.textContent).not.toContain('内部推理');
   });
 
   it('builds run_code failure explanation prompts with bounded evidence', () => {

@@ -168,9 +168,9 @@ function buildSystemPrompt(settings: Settings, intent: any = detectAgentIntent([
 /**
  * Format skill definitions into a system-prompt section.
  * @param skills - Array of skill objects to format.
- * @param label - Section label (defaults to '外部 Skill').
+ * @param label - Section label (defaults to '外部技能').
  */
-function formatExternalSkills(skills: ExternalSkill[], label: string = '外部 Skill'): string {
+function formatExternalSkills(skills: ExternalSkill[], label: string = '外部技能'): string {
   const enabled = (Array.isArray(skills) ? skills : [])
     .filter((skill: ExternalSkill) => skill.enabled && skill.content)
     .sort((a: ExternalSkill, b: ExternalSkill) => stableStringCompare(a.name, b.name));

@@ -70,6 +70,35 @@ describe('inspector-panel', () => {
     expect(panel.querySelector('.inspector-overview-action')).toBeTruthy();
   });
 
+  it('routes overview toolbar buttons to their own latest message indexes', () => {
+    const opened = [];
+    const openedArtifacts = [];
+    const onOpen = (event) => opened.push(event.detail);
+    const onArtifact = (event) => openedArtifacts.push(event.detail);
+    document.addEventListener('deepchat:open-inspector', onOpen);
+    document.addEventListener('deepchat:open-artifact-inspector', onArtifact);
+    setInspectorOverviewProvider(() => ({
+      conversationTitle: '测试会话',
+      messageCount: 5,
+      latestMessageIndex: 4,
+      latestTraceIndex: 2,
+      latestArtifactIndex: 1,
+    }));
+
+    openInspectorPanel('empty');
+    panel.querySelector('[data-mode="message"]').click();
+    panel.querySelector('[data-mode="trace"]').click();
+    panel.querySelector('[data-mode="artifact"]').click();
+
+    expect(opened).toEqual([
+      { mode: 'message', msgIndex: 4 },
+      { mode: 'trace', msgIndex: 2 },
+    ]);
+    expect(openedArtifacts).toEqual([{ msgIndex: 1 }]);
+    document.removeEventListener('deepchat:open-inspector', onOpen);
+    document.removeEventListener('deepchat:open-artifact-inspector', onArtifact);
+  });
+
   it('renders actionable overview guidance when the current conversation has no messages yet', () => {
     setInspectorOverviewProvider(() => ({
       conversationTitle: '新会话',
@@ -166,6 +195,48 @@ describe('inspector-panel', () => {
 
     expect(panel.textContent).toContain('服务商未返回命中数据');
     expect(panel.textContent).not.toContain('命中 0%');
+  });
+
+  it('labels mixed token usage as provider plus local estimate', () => {
+    openInspectorPanel('message', {
+      index: 0,
+      msg: {
+        role: 'assistant',
+        timestamp: Date.now(),
+        tokens: { input: 1000, output: 250, total: 1250, source: 'mixed' },
+      },
+    });
+
+    expect(panel.textContent).toContain('Provider 实测 + 本地估算');
+  });
+
+  it('renders trace stages, failures, and tool calls from message data', () => {
+    openInspectorPanel('trace', {
+      index: 0,
+      msg: {
+        role: 'assistant',
+        timestamp: Date.now(),
+        agentStages: [
+          { stage: 'plan', round: 0 },
+          { stage: 'stop', round: 1, stopReason: 'provider_tools_unsupported' },
+        ],
+        toolCalls: [
+          {
+            id: 'tool-1',
+            name: 'web_search',
+            status: 'failed',
+            ok: false,
+            output: 'ENOENT: command not found',
+          },
+        ],
+      },
+    });
+
+    expect(panel.textContent).toContain('Trace 摘要');
+    expect(panel.textContent).toContain('最近阶段');
+    expect(panel.textContent).toContain('provider_tools_unsupported');
+    expect(panel.textContent).toContain('工具调用 (1)');
+    expect(panel.textContent).toContain('ENOENT');
   });
 
   it('update does nothing when closed', () => {
@@ -316,7 +387,7 @@ describe('inspector-panel', () => {
       const toolbar = panel.querySelector('.inspector-toolbar');
       expect(toolbar).toBeTruthy();
       const btns = toolbar.querySelectorAll('.inspector-toolbar-btn');
-      expect(btns.length).toBe(3);
+      expect(btns.length).toBe(4);
       const activeBtn = toolbar.querySelector('.inspector-toolbar-btn.is-active');
       expect(activeBtn).toBeTruthy();
       expect(activeBtn.dataset.mode).toBe('artifact');
@@ -328,6 +399,36 @@ describe('inspector-panel', () => {
       expect(toolbar).toBeTruthy();
       const activeBtn = toolbar.querySelector('.inspector-toolbar-btn.is-active');
       expect(activeBtn.dataset.mode).toBe('message');
+    });
+
+    it('keeps raw data locked outside developer mode', () => {
+      localStorage.setItem('dc_interfaceDetailLevel', 'normal');
+      openInspectorPanel('raw', {
+        index: 0,
+        msg: {
+          role: 'assistant',
+          toolCalls: [{ id: 'tool-1', name: 'run_code', args: { code: 'console.log(1)' } }],
+          tokens: { input: 1, output: 1, source: 'estimated' },
+        },
+      });
+      expect(panel.textContent).toContain('原始数据');
+      expect(panel.textContent).toContain('只在“开发者模式”显示');
+      expect(panel.textContent).not.toContain('console.log');
+    });
+
+    it('renders raw data in developer mode', () => {
+      localStorage.setItem('dc_interfaceDetailLevel', 'developer');
+      openInspectorPanel('raw', {
+        index: 0,
+        msg: {
+          role: 'assistant',
+          toolCalls: [{ id: 'tool-1', name: 'run_code', args: { code: 'console.log(1)' } }],
+          tokens: { input: 1, output: 1, source: 'estimated' },
+        },
+      });
+      expect(panel.textContent).toContain('原始数据');
+      expect(panel.textContent).toContain('console.log');
+      localStorage.removeItem('dc_interfaceDetailLevel');
     });
 
     it('renders search input for artifact filtering', () => {

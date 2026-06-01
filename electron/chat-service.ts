@@ -123,6 +123,7 @@ import { COMPACTION_SUMMARY_MARKER, maybeBuildContextSummary, summarizeContext }
 import { streamOnce } from './chat-streamer.js';
 
 import { handleToolCall, handleToolCallsForRound } from './tool-call-handler.js';
+import { emitMcpZeroToolsStop, emitProviderToolsUnsupportedStop } from './chat-service-stop-events.js';
 import type { ChatRequest } from './agent-contracts.js';
 import { defaultJobRuntime } from './job-runtime.js';
 
@@ -345,16 +346,24 @@ class ChatService {
       warnings.push(warning);
       this.emit(requestId, 'agentStage', { stage: 'warning', round: 0, maxRounds: maxToolRounds, warning });
     }
+    const stopBase = {
+      emit: this.emit.bind(this),
+      requestId,
+      maxToolRounds,
+      contextMeta: contextBundle.meta,
+      systemPrompt,
+      apiMessages,
+      settings,
+      prefix,
+      warnings,
+    };
     if (!toolSupport.supported && shouldWarnAboutToolSupport(settings, intent)) {
-      warnings.push(toolSupport.warning);
-      this.emit(requestId, 'agentStage', {
-        stage: 'warning',
-        round: 0,
-        maxRounds: maxToolRounds,
-        warning: toolSupport.warning,
-        selectedTools: [],
-        stopReason: 'provider_tools_unsupported',
-      });
+      emitProviderToolsUnsupportedStop(stopBase, toolSupport.warning);
+      return;
+    }
+    if (settings.activeSkill === 'mcp_tool' && tools.length === 0) {
+      emitMcpZeroToolsStop(stopBase);
+      return;
     }
     for (const warning of prefixWarnings) {
       this.emit(requestId, 'agentStage', { stage: 'warning', round: 0, maxRounds: maxToolRounds, warning });

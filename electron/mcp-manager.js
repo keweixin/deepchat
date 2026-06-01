@@ -368,6 +368,7 @@ function summarizeTool(tool) {
 
 function makeStatusPayload(server, payload) {
   const tools = Array.isArray(payload.tools) ? payload.tools : [];
+  const error = payload.error ? String(payload.error) : '';
   return {
     id: server.id,
     name: server.name,
@@ -375,10 +376,12 @@ function makeStatusPayload(server, payload) {
     ok: payload.ok,
     tools,
     toolCount: tools.length,
+    phase: payload.ok ? 'listTools' : payload.enabled === false ? 'disabled' : 'initialize/listTools',
     schemaHash: payload.schemaHash || '',
     cacheTtlMs: TOOL_DEFINITION_CACHE_TTL_MS,
     cacheExpiresAt: new Date((payload.cacheCreatedAt || Date.now()) + TOOL_DEFINITION_CACHE_TTL_MS).toISOString(),
     error: payload.error,
+    failureReason: classifyMcpStatusError(error),
     checkedAt: payload.checkedAt,
     durationMs: payload.durationMs,
     command: server.command,
@@ -387,6 +390,17 @@ function makeStatusPayload(server, payload) {
     inheritEnv: server.inheritEnv === true,
     envKeys: Object.keys(server.env || {}).sort(),
   };
+}
+
+function classifyMcpStatusError(error) {
+  const text = String(error || '');
+  if (!text) return '';
+  if (/ENOENT|not found|找不到|无法识别/i.test(text)) return 'command_not_found';
+  if (/cwd|working directory|目录不存在|no such file or directory/i.test(text)) return 'cwd_missing';
+  if (/env|environment|missing.*key|缺少.*环境变量/i.test(text)) return 'env_missing';
+  if (/timeout|timed out|超时/i.test(text)) return 'timeout';
+  if (/initialize|initializ/i.test(text)) return 'initialize_failed';
+  return 'failed';
 }
 
 function hashMcpTools(server, tools) {

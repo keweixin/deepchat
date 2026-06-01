@@ -160,11 +160,29 @@ description: Demo skill description
     expect(statuses[0].ok).toBe(true);
     expect(statuses[0].tools.map((tool) => tool.name)).toEqual(['alpha', 'zeta']);
     expect(statuses[0].toolCount).toBe(2);
+    expect(statuses[0].phase).toBe('listTools');
     expect(statuses[0].cacheTtlMs).toBeGreaterThan(0);
     expect(statuses[0].cacheExpiresAt).toMatch(/T/);
     expect(statuses[0].schemaHash).toMatch(/^[a-f0-9]{16}$/);
     expect(definitions).toHaveLength(3);
     expect(calls).toEqual(['a', 'b']);
+  });
+
+  it('classifies MCP status failures for diagnostics', async () => {
+    const manager = new McpManager();
+    const settings = { mcpServers: [{ id: 'bad', name: 'Bad', command: 'missing-cmd', args: [] }] };
+    manager.listTools = async () => {
+      throw new Error('spawn ENOENT missing-cmd');
+    };
+
+    const statuses = await manager.listStatus(settings);
+
+    expect(statuses[0]).toMatchObject({
+      id: 'bad',
+      ok: false,
+      phase: 'initialize/listTools',
+      failureReason: 'command_not_found',
+    });
   });
 
   it('changes MCP schema hash when tool schemas change', () => {

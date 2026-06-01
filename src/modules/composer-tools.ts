@@ -58,6 +58,40 @@ export function hasAnyToolConfigured(settings: Record<string, unknown> = {}): bo
   return hasEnabledMcpServer(settings);
 }
 
+export function buildSendPreflightBlocker(
+  inputText = '',
+  settings: Record<string, unknown> = {},
+  providerReport: Record<string, any> = {}
+): { code: string; message: string; openSettings?: boolean } | null {
+  const activeSkill = String((settings as any).activeSkill || 'agent_auto');
+  const toolMode = resolveActiveSkillForExplicitDirectives(inputText, settings, activeSkill);
+  const explicitMcp = /(?:^|[\s([，,;；])@mcp\b/i.test(String(inputText || ''));
+  const wantsTools = toolMode && !['none', 'agent_auto'].includes(toolMode);
+  const providerTools = providerReport?.capabilities?.tools;
+
+  if ((wantsTools || explicitMcp) && providerTools === false) {
+    return {
+      code: 'provider_tools_unsupported',
+      message: '当前模型不支持工具调用。请切换到支持 tool_calls 的模型，或改用“日常/标准聊天”只回答文字。',
+      openSettings: true,
+    };
+  }
+
+  if (toolMode === 'mcp_tool' || explicitMcp) {
+    return buildMcpSendBlocker(settings);
+  }
+
+  if (toolMode === 'multi_tool' && !hasAnyToolConfigured(settings)) {
+    return {
+      code: 'no_tool_configured',
+      message: '当前没有可用工具。请先配置搜索、工作区、代码运行或 MCP，再发送工具型任务。',
+      openSettings: true,
+    };
+  }
+
+  return null;
+}
+
 export function resolveActiveSkillForExplicitDirectives(
   inputText = '',
   settings: Record<string, unknown> = {},
@@ -308,6 +342,70 @@ function hasSearchCapability(settings: Record<string, unknown>): boolean {
 
 function hasEnabledMcpServer(settings: Record<string, unknown> = {}): boolean {
   return ((settings as any).mcpServers || []).some((server: any) => server?.enabled !== false && server?.command);
+}
+
+function buildMcpSendBlocker(settings: Record<string, unknown> = {}) {
+  const servers = (Array.isArray((settings as any).mcpServers) ? (settings as any).mcpServers : []).filter(
+    (server: any) => server?.enabled !== false
+  );
+  const configuredServers = servers.filter((server: any) => String(server?.command || '').trim());
+  if (configuredServers.length === 0) {
+    return {
+      code: 'mcp_not_configured',
+      message: 'MCP 还没有可启动的 server。请在 MCP 设置里填写 server name、command、args 和 cwd 后再试。',
+      openSettings: true,
+    };
+  }
+
+  const statuses = Array.isArray((settings as any).mcpStatuses) ? (settings as any).mcpStatuses : [];
+  if (statuses.length === 0) {
+    return {
+      code: 'mcp_not_tested',
+      message: 'MCP 已配置，但还没有最新测试结果。请打开 MCP 设置，先刷新/测试 server，确认有工具后再发送。',
+      openSettings: true,
+    };
+  }
+
+  const statusById = new Map(
+    statuses.filter(Boolean).map((status: any) => [String(status.id || status.name || ''), status])
+  );
+  const relatedStatuses = configuredServers
+    .map((server: any) => statusById.get(String(server?.id || server?.name || '')))
+    .filter(Boolean);
+  const sourceStatuses = relatedStatuses.length > 0 ? relatedStatuses : statuses;
+  const usable = sourceStatuses.some((status: any) => {
+    const toolCount = Number(status?.toolCount ?? status?.tools?.length ?? 0) || 0;
+    return Boolean(status?.ok) && toolCount > 0;
+  });
+  if (usable) return null;
+
+  const zeroTool = sourceStatuses.find((status: any) => status?.ok);
+  if (zeroTool) {
+    return {
+      code: 'mcp_zero_tools',
+      message:
+        'MCP server 能连接，但没有返回可用工具。请检查该 server 的 listTools 输出，或在 Tool Lab 里查看工具数量。',
+      openSettings: true,
+    };
+  }
+
+  const failed = sourceStatuses.find((status: any) => status?.error) || {};
+  const reason = formatMcpSendFailureReason(String(failed.error || ''));
+  return {
+    code: 'mcp_unavailable',
+    message: `MCP 暂不可用：${reason}。请打开 MCP 设置或 Tool Lab 查看 server 日志后再发送。`,
+    openSettings: true,
+  };
+}
+
+function formatMcpSendFailureReason(error: string): string {
+  const text = String(error || '').trim();
+  if (!text) return '最近一次测试失败';
+  if (/ENOENT|not found|找不到|无法识别/i.test(text)) return '启动命令不存在或不在 PATH 中';
+  if (/cwd|working directory|目录不存在|no such file or directory/i.test(text)) return '工作目录不存在或无法访问';
+  if (/env|environment|missing.*key|缺少.*环境变量/i.test(text)) return '缺少必要环境变量';
+  if (/timeout|timed out|超时/i.test(text)) return '初始化或 listTools 超时';
+  return text.slice(0, 160);
 }
 
 function getMcpServerPreviewItems(settings: Record<string, unknown> = {}): any[] {

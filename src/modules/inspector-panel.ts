@@ -33,7 +33,7 @@ let _panelEl: HTMLElement | null = null;
 let _contentEl: HTMLElement | null = null;
 let _toolbarEl: HTMLElement | null = null;
 let _isOpen = false;
-let _currentMode = 'empty'; // empty | overview | message | trace | theatre | artifact
+let _currentMode = 'empty'; // empty | overview | message | trace | raw | theatre | artifact
 let _currentData: Record<string, any> = {};
 let _overviewProvider: (() => Record<string, any> | null) | null = null;
 
@@ -148,6 +148,9 @@ function _renderContent(mode: string, data: Record<string, any>) {
       break;
     case 'trace':
       _renderTraceInfo(data);
+      break;
+    case 'raw':
+      _renderRawInfo(data);
       break;
     case 'model':
       _renderModelInfo(data);
@@ -405,8 +408,49 @@ function _renderMessageInfo(data: Record<string, any>) {
 
   const toolListEl = _contentEl.querySelector('.inspector-tool-list') as HTMLElement | null;
   if (toolListEl && Array.isArray(msg.toolCalls)) {
-    renderToolCardList(toolListEl, msg.toolCalls, { showRaw: true });
+    renderToolCardList(toolListEl, msg.toolCalls, { showRaw: false });
   }
+}
+
+function _renderRawInfo(data: Record<string, any>) {
+  if (!_contentEl) return;
+  const { msg, index } = data;
+  if (!msg) return _renderEmpty();
+
+  const detailLevel = _getInspectorDetailLevel();
+  if (detailLevel !== 'developer') {
+    safeSetHTML(
+      _contentEl,
+      `
+      <div class="inspector-section">
+        <h3>原始数据</h3>
+        <p class="inspector-overview-hint">原始参数、完整工具输出、cache profile 和 schema/hash 只在“开发者模式”显示，避免普通使用时被调试信息打断。</p>
+      </div>
+      `
+    );
+    return;
+  }
+
+  const raw = {
+    messageIndex: Number(index ?? -1) + 1,
+    role: msg.role,
+    tokens: msg.tokens || null,
+    cacheProfile: msg.cacheProfile || null,
+    contextBudget: msg.contextBudget || null,
+    agentStages: Array.isArray(msg.agentStages) ? msg.agentStages : [],
+    toolCalls: Array.isArray(msg.toolCalls) ? msg.toolCalls : [],
+    toolRuns: Array.isArray(msg.toolRuns) ? msg.toolRuns : [],
+  };
+  safeSetHTML(
+    _contentEl,
+    `
+    <div class="inspector-section">
+      <h3>原始数据</h3>
+      <p class="inspector-overview-hint">用于排查工具参数、Provider usage、cache profile、trace 和 job 证据。普通模式不会显示这些内容。</p>
+      <pre class="inspector-raw-data">${escapeHtml(JSON.stringify(raw, null, 2))}</pre>
+    </div>
+    `
+  );
 }
 
 function _formatTokenUsageForInspector(tokens: unknown) {
@@ -482,17 +526,25 @@ function _formatUsd(value: unknown) {
 
 function _renderTraceInfo(data: Record<string, any>) {
   if (!_contentEl) return;
-  const { recorder } = data;
-  if (!recorder) return _renderEmpty();
+  const { recorder, msg } = data;
+  if (!recorder && !msg) return _renderEmpty();
 
-  const summary = recorder.getRunSummary ? recorder.getRunSummary() : {};
+  const summary = recorder?.getRunSummary ? recorder.getRunSummary() : {};
+  const stages = Array.isArray(msg?.agentStages) ? msg.agentStages : [];
+  const toolCalls = recorder?.getAllToolCalls
+    ? recorder.getAllToolCalls()
+    : Array.isArray(msg?.toolCalls)
+      ? msg.toolCalls
+      : [];
+  const lastStage = stages.length ? stages[stages.length - 1] : null;
+  const lastFailure = [...toolCalls].reverse().find((tool: any) => tool?.status === 'failed' || tool?.ok === false);
   const html = `
     <div class="inspector-section">
       <h3>Trace 摘要</h3>
       <div class="inspector-meta-grid">
         <div class="inspector-meta-item">
           <span class="inspector-meta-label">Run ID</span>
-          <span class="inspector-meta-value" style="font-size:0.75rem;word-break:break-all">${summary.runId || recorder.runId || '—'}</span>
+          <span class="inspector-meta-value" style="font-size:0.75rem;word-break:break-all">${summary.runId || recorder?.runId || msg?.agentRun?.id || '—'}</span>
         </div>
         <div class="inspector-meta-item">
           <span class="inspector-meta-label">状态</span>
@@ -500,12 +552,63 @@ function _renderTraceInfo(data: Record<string, any>) {
         </div>
         <div class="inspector-meta-item">
           <span class="inspector-meta-label">事件数</span>
-          <span class="inspector-meta-value">${summary.eventCount || 0}</span>
+          <span class="inspector-meta-value">${summary.eventCount || stages.length + toolCalls.length || 0}</span>
+        </div>
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">最近阶段</span>
+          <span class="inspector-meta-value">${escapeHtml(_formatTraceStage(lastStage))}</span>
+        </div>
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">最近失败</span>
+          <span class="inspector-meta-value">${escapeHtml(_formatTraceFailure(lastFailure))}</span>
         </div>
       </div>
     </div>
+    ${
+      stages.length
+        ? `
+    <div class="inspector-section">
+      <h3>Agent 阶段</h3>
+      <ol class="inspector-trace-list">
+        ${stages
+          .slice(-8)
+          .map((stage: any) => `<li>${escapeHtml(_formatTraceStage(stage))}</li>`)
+          .join('')}
+      </ol>
+    </div>
+    `
+        : ''
+    }
+    ${
+      toolCalls.length
+        ? `
+    <div class="inspector-section">
+      <h3>工具调用 (${toolCalls.length})</h3>
+      <div class="inspector-trace-tools"></div>
+    </div>
+    `
+        : ''
+    }
   `;
   safeSetHTML(_contentEl, html);
+  const toolsEl = _contentEl.querySelector('.inspector-trace-tools') as HTMLElement | null;
+  if (toolsEl && toolCalls.length) renderToolCardList(toolsEl, toolCalls, { showRaw: false });
+}
+
+function _formatTraceStage(stage: any) {
+  if (!stage) return '暂无';
+  const name = String(stage.stage || stage.type || '阶段');
+  const round = stage.round ? `第 ${stage.round} 轮` : '';
+  const warning = stage.warning || stage.stopReason || stage.currentAction || '';
+  return [name, round, warning].filter(Boolean).join(' · ');
+}
+
+function _formatTraceFailure(tool: any) {
+  if (!tool) return '暂无';
+  return String(tool.error || tool.outputSummary || tool.output || tool.name || tool.toolName || '工具失败').slice(
+    0,
+    160
+  );
 }
 
 function _renderModelInfo(data: Record<string, any>) {
@@ -1115,7 +1218,7 @@ function _showInspectorToast(message: string) {
 const TOOLBAR_MODES = [
   {
     mode: 'message',
-    label: '消息',
+    label: '概览',
     icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
   },
   {
@@ -1124,11 +1227,25 @@ const TOOLBAR_MODES = [
     icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
   },
   {
+    mode: 'raw',
+    label: '原始数据',
+    icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><line x1="12" y1="2" x2="12" y2="22"/></svg>',
+  },
+  {
     mode: 'artifact',
     label: 'Artifact',
     icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
   },
 ];
+
+function _getInspectorDetailLevel() {
+  try {
+    const raw = window.localStorage?.getItem('dc_interfaceDetailLevel') || 'normal';
+    return raw === 'developer' || raw === 'advanced' || raw === 'normal' ? raw : 'normal';
+  } catch {
+    return 'normal';
+  }
+}
 
 /**
  * Render the mode toolbar inside the panel header.
@@ -1153,8 +1270,15 @@ function _ensureToolbar() {
     btn.innerHTML = `${m.icon}<span>${m.label}</span>`; /* safeSetHTML-exempt: static template */
     btn.addEventListener('click', () => {
       if (!_currentData || !_currentData.msg) {
-        if (_currentData?.latestMessageIndex !== undefined)
-          _dispatchInspectorOpen(m.mode, _currentData.latestMessageIndex);
+        const targetIndex = _getOverviewToolbarTargetIndex(m.mode, _currentData);
+        if (targetIndex === undefined) return;
+        if (m.mode === 'artifact') {
+          document.dispatchEvent(
+            new CustomEvent('deepchat:open-artifact-inspector', { detail: { msgIndex: targetIndex } })
+          );
+        } else {
+          _dispatchInspectorOpen(m.mode, targetIndex);
+        }
         return;
       }
       openInspectorPanel(m.mode, _currentData);
@@ -1169,6 +1293,12 @@ function _ensureToolbar() {
   } else {
     header.appendChild(_toolbarEl);
   }
+}
+
+function _getOverviewToolbarTargetIndex(mode: string, data: Record<string, any> = {}) {
+  if (mode === 'trace') return data.latestTraceIndex;
+  if (mode === 'artifact') return data.latestArtifactIndex;
+  return data.latestMessageIndex;
 }
 
 function _updateToolbar() {

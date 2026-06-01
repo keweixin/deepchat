@@ -133,11 +133,11 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
       const mode = deps.getSettings().crewDisplayMode || 'auto';
       if (mode === 'off') return false;
       if (mode === 'tools_only') {
-        const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
+        const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'agent_auto';
         return isAgentSkill(skill);
       }
       if (mode === 'always') return true;
-      const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
+      const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'agent_auto';
       return isAgentSkill(skill);
     }
 
@@ -145,7 +145,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
       const mode = deps.getSettings().crewDisplayMode || 'auto';
       if (mode === 'off') return false;
       if (mode === 'always') return true;
-      const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
+      const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'agent_auto';
       if (mode === 'auto') {
         if (isAgentSkill(skill)) return true;
         if (event.stage === 'plan') {
@@ -167,7 +167,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
     function ensureAgentRun() {
       if (!assistantMsg.agentRun) {
         assistantMsg.agentRun = createAgentRun(
-          composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto'
+          composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'agent_auto'
         );
       }
       return assistantMsg.agentRun;
@@ -175,7 +175,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
 
     const traceRecorder = new TraceRecorder({
       runId: assistantMsg.id || `msg_${assistantMsg.timestamp}`,
-      mode: composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto',
+      mode: composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'agent_auto',
       model: deps.getSettings().model || '',
     });
     assistantMsg.traceRecorder = traceRecorder;

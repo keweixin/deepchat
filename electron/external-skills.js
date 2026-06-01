@@ -8,7 +8,7 @@ const MAX_SCAN_CANDIDATES = 80;
 
 async function pickExternalSkill(parentWindow, settings, setSettings) {
   const result = await dialog.showOpenDialog(parentWindow, {
-    title: '选择外部 Skill 文件或目录',
+    title: '选择外部技能文件或目录',
     filters: [{ name: 'Skill Markdown', extensions: ['md'] }],
     properties: ['openFile', 'openDirectory'],
   });
@@ -124,7 +124,7 @@ async function readSkillFile(filePath) {
   const meta = parseSkillMeta(content);
   return {
     id: createSkillId(filePath),
-    name: meta.name || path.basename(path.dirname(filePath)) || '外部 Skill',
+    name: meta.name || path.basename(path.dirname(filePath)) || '外部技能',
     description: meta.description || '',
     sourcePath: filePath,
     content,

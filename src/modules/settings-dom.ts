@@ -296,7 +296,7 @@ export function renderExternalSkillList(
   if (!container) return;
   container.textContent = '';
   if (!skills.length) {
-    renderEmptyList(container, '尚未导入外部 Skill', '可导入本地 SKILL.md');
+    renderEmptyList(container, '尚未导入外部技能', '可导入本地 SKILL.md，只作为提示词和说明使用');
     return;
   }
   for (const skill of skills) {
@@ -305,7 +305,7 @@ export function renderExternalSkillList(
     const main = document.createElement('div');
     main.className = 'workspace-item-main';
     const name = document.createElement('span');
-    name.textContent = skill.name || '外部 Skill';
+    name.textContent = skill.name || '外部技能';
     const actions = document.createElement('div');
     actions.className = 'form-actions';
     const toggle = document.createElement('button');
@@ -359,7 +359,7 @@ export function renderExternalSkillImportList(
     const main = document.createElement('div');
     main.className = 'workspace-item-main';
     const name = document.createElement('span');
-    name.textContent = `${candidate.name || '外部 Skill'} · ${candidate.status || 'new'}`;
+    name.textContent = `${candidate.name || '外部技能'} · ${candidate.status || 'new'}`;
     const importBtn = document.createElement('button');
     importBtn.type = 'button';
     importBtn.className = 'icon-btn-sm';
@@ -1003,7 +1003,7 @@ export function bindSettingsEvents(
         (next.externalSkills as ExternalSkill[]) || [],
         updateExternalSkills
       );
-      showToast('外部 Skill 已导入');
+      showToast('外部技能已导入');
     });
   }
   if (els.scanExternalSkillBtn) {

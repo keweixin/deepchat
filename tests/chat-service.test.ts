@@ -713,16 +713,15 @@ describe('electron chat service token usage and agent loop', () => {
     );
   });
 
-  it('disables tool schemas up front for providers that do not support tool calls', async () => {
+  it('blocks tool tasks up front for providers that do not support tool calls', async () => {
     const events = [];
     const service = new ChatService(() => fakeWindow(events));
-    let sentTools = null;
-    let sentSystem = '';
-    service.streamOnce = vi.fn(async (_requestId, messages, _settings, tools) => {
-      sentTools = tools;
-      sentSystem = messages[0].content;
-      return { content: 'ok', thinking: '', usage: normalizeTokenUsage(null, { input: 1, output: 1 }), toolCalls: [] };
-    });
+    service.streamOnce = vi.fn(async () => ({
+      content: 'ok',
+      thinking: '',
+      usage: normalizeTokenUsage(null, { input: 1, output: 1 }),
+      toolCalls: [],
+    }));
 
     await service.runWithSettings(
       { requestId: 'req-provider-no-tools', messages: [{ role: 'user', content: '运行 1+1 验证结果' }] },
@@ -736,15 +735,43 @@ describe('electron chat service token usage and agent loop', () => {
       new AbortController()
     );
 
-    expect(sentTools).toEqual([]);
-    expect(sentSystem).not.toContain('代码运行工具');
+    expect(service.streamOnce).not.toHaveBeenCalled();
     expect(
       events.some(
         (event) =>
           event.type === 'agentStage' && event.stage === 'warning' && event.stopReason === 'provider_tools_unsupported'
       )
     ).toBe(true);
+    expect(
+      events.some((event) => event.type === 'token' && String(event.token).includes('当前模型不能执行工具型任务'))
+    ).toBe(true);
     expect(events.find((event) => event.type === 'tokenCount').warnings.join('\n')).toContain('tool_calls');
+  });
+
+  it('blocks MCP mode when no callable MCP tools are available', async () => {
+    const events = [];
+    const service = new ChatService(() => fakeWindow(events));
+    service.mcpManager = { getToolDefinitions: vi.fn(async () => []) } as any;
+    service.streamOnce = vi.fn(async () => ({
+      content: 'ok',
+      thinking: '',
+      usage: normalizeTokenUsage(null, { input: 1, output: 1 }),
+      toolCalls: [],
+    }));
+
+    await service.runWithSettings(
+      { requestId: 'req-mcp-zero-tools', messages: [{ role: 'user', content: '@mcp 查 issue' }] },
+      baseSettings({
+        activeSkill: 'mcp_tool',
+        mcpServers: [{ id: 'github', name: 'GitHub', command: 'node', enabled: true }],
+      }),
+      new AbortController()
+    );
+
+    expect(service.mcpManager.getToolDefinitions).toHaveBeenCalled();
+    expect(service.streamOnce).not.toHaveBeenCalled();
+    expect(events.some((event) => event.type === 'agentStage' && event.stopReason === 'mcp_zero_tools')).toBe(true);
+    expect(events.some((event) => event.type === 'token' && String(event.token).includes('MCP 目前不可用'))).toBe(true);
   });
 
   it('keeps smart-agent scratch out of the cache-stable prefix and retained history', async () => {

@@ -48,7 +48,11 @@ export function renderMcpServerList(
     meta.className = 'workspace-item-meta';
     const toolCount = status?.toolCount ?? status?.tools?.length ?? 0;
     const schemaText = status?.schemaHash ? ` · schema ${shortHash(status.schemaHash)}` : '';
-    const toolText = status?.ok ? `工具 ${toolCount} 个${schemaText}` : status?.error || '未测试';
+    const toolText = status?.ok
+      ? toolCount > 0
+        ? `工具 ${toolCount} 个${schemaText}`
+        : '连接成功，但没有工具'
+      : status?.error || '未测试';
     const envText = server.inheritEnv ? '继承系统环境' : '只传安全环境';
     const cwdText = server.cwd ? ` · cwd ${server.cwd}` : '';
     meta.textContent = `${server.enabled === false ? '停用' : '启用'} · ${server.command} ${(server.args || []).join(' ')}${cwdText} · ${envText} · ${toolText}`;
@@ -106,7 +110,9 @@ export function renderMcpServerList(
       metaLine.className = 'mcp-status-meta';
       metaLine.textContent = [
         `检测时间 ${status.checkedAt || '-'}`,
+        status.phase ? `阶段 ${status.phase}` : '',
         `耗时 ${status.durationMs ?? '-'}ms`,
+        status.failureReason ? `失败类型 ${formatMcpFailureReason(status.failureReason)}` : '',
         status.cacheExpiresAt ? `缓存到 ${status.cacheExpiresAt}` : '',
         status.inheritEnv ? '环境策略：继承系统环境' : '环境策略：只传安全环境和显式 env',
         status.envKeys?.length ? `显式 env：${status.envKeys.join(', ')}` : '',
@@ -144,6 +150,18 @@ export function emitMcpStatusChanged(statuses: any[] = [], meta: Record<string, 
 
 function shortHash(value: unknown) {
   return String(value || '').slice(0, 8);
+}
+
+function formatMcpFailureReason(reason: unknown) {
+  const labels: Record<string, string> = {
+    command_not_found: '命令不存在',
+    cwd_missing: '工作目录不存在',
+    env_missing: '缺少环境变量',
+    timeout: '超时',
+    initialize_failed: '初始化失败',
+    failed: '失败',
+  };
+  return labels[String(reason || '')] || String(reason || '');
 }
 
 function formatDuration(ms: unknown) {

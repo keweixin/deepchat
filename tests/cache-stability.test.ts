@@ -79,14 +79,14 @@ describe('cache stability invariants', () => {
         { name: 'zeta', description: 'Z', content: 'Z body', enabled: true },
         { name: 'Alpha', description: 'A', content: 'A body', enabled: true },
       ],
-      '外部 Skill'
+      '外部技能'
     );
     const second = formatExternalSkills(
       [
         { name: 'Alpha', description: 'A', content: 'A body', enabled: true },
         { name: 'zeta', description: 'Z', content: 'Z body', enabled: true },
       ],
-      '外部 Skill'
+      '外部技能'
     );
     expect(first).toBe(second);
     expect(first.indexOf('Alpha')).toBeLessThan(first.indexOf('zeta'));

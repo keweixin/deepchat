@@ -55,7 +55,7 @@ export const SKILL_IDS = Object.freeze({
   codeRunner: 'code_runner',
   mcpTool: 'mcp_tool',
   multiTool: 'multi_tool',
-  auto: 'auto',
+  auto: 'agent_auto',
 } as const);
 
 export type SkillId = (typeof SKILL_IDS)[keyof typeof SKILL_IDS];

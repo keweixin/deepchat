@@ -285,7 +285,7 @@ function normalizeExternalSkills(skills) {
     .filter((skill) => skill && typeof skill === 'object')
     .map((skill) => ({
       id: String(skill.id || '').trim() || randomId('skill'),
-      name: String(skill.name || '外部 Skill')
+      name: String(skill.name || '外部技能')
         .trim()
         .slice(0, 80),
       description: String(skill.description || '')

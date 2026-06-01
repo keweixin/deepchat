@@ -64,6 +64,36 @@ describe('settings MCP rendering', () => {
     expect(payload.tools[0].name).toBe('read_file');
   });
 
+  it('renders MCP phase, zero-tool, and classified failure diagnostics', () => {
+    const container = document.createElement('div');
+
+    renderMcpServerList(
+      container,
+      [
+        { id: 'empty', name: 'Empty MCP', command: 'node', enabled: true },
+        { id: 'bad', name: 'Bad MCP', command: 'missing-cmd', enabled: true },
+      ],
+      vi.fn(),
+      [
+        { id: 'empty', ok: true, tools: [], toolCount: 0, phase: 'listTools', checkedAt: 'now', durationMs: 10 },
+        {
+          id: 'bad',
+          ok: false,
+          error: 'ENOENT',
+          failureReason: 'command_not_found',
+          phase: 'initialize/listTools',
+          checkedAt: 'now',
+          durationMs: 10,
+        },
+      ]
+    );
+
+    expect(container.textContent).toContain('连接成功，但没有工具');
+    expect(container.textContent).toContain('阶段 listTools');
+    expect(container.textContent).toContain('失败类型 命令不存在');
+    expect(container.textContent).toContain('阶段 initialize/listTools');
+  });
+
   it('renders provider readiness warnings next to capability pills', () => {
     const container = document.createElement('div');
 
@@ -118,7 +148,7 @@ describe('settings MCP rendering', () => {
     const skillContainer = document.createElement('div');
     const mcpContainer = document.createElement('div');
 
-    renderExternalSkillImportList(skillContainer, [], vi.fn(), { emptyHint: '外部 Skill 自动发现仅桌面版可用。' });
+    renderExternalSkillImportList(skillContainer, [], vi.fn(), { emptyHint: '外部技能自动发现仅桌面版可用。' });
     renderExternalMcpImportList(
       mcpContainer,
       [],

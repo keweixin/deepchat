@@ -65,7 +65,7 @@ import { initInspectorPanel } from './modules/inspector-panel.js';
 import { initArtifactPanel, openArtifactPanel } from './modules/artifact-panel.js';
 import { autoResize, debounce, showToast } from './modules/utils.js';
 import { applyComposerModeToPrompt, getComposerMode, getComposerModeOverrides } from './modules/composer-modes.js';
-import { resolveActiveSkillForExplicitDirectives } from './modules/composer-tools.js';
+import { buildSendPreflightBlocker, resolveActiveSkillForExplicitDirectives } from './modules/composer-tools.js';
 import { buildContextShortcutEntries, formatContextMentionTitle } from './modules/context-shortcuts.js';
 import { maybeShowProviderSetupHint } from './modules/app-startup.js';
 import {
@@ -138,6 +138,13 @@ function maybeShowOnboardingHint() {
 
 // ─── Event Bindings ───
 
+function openSettingsPanel() {
+  const settingsPanel = document.getElementById('settings-panel') as HTMLElement | null;
+  const settingsOverlay = document.getElementById('settings-overlay') as HTMLElement | null;
+  settingsPanel?.classList.remove('hidden');
+  settingsOverlay?.classList.remove('hidden');
+}
+
 function bindEvents() {
   const $input = document.getElementById('message-input') as HTMLTextAreaElement;
   const $sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
@@ -150,12 +157,8 @@ function bindEvents() {
   const $mobileSidebarToggle = document.getElementById('mobile-sidebar-toggle') as HTMLButtonElement | null;
   const $sidebar = document.getElementById('sidebar') as HTMLElement;
   const mobileLayoutQuery = window.matchMedia('(max-width: 768px)');
-  const settingsPanel = document.getElementById('settings-panel') as HTMLElement;
-  const settingsOverlay = document.getElementById('settings-overlay') as HTMLElement;
-
   function openSettings() {
-    settingsPanel.classList.remove('hidden');
-    settingsOverlay.classList.remove('hidden');
+    openSettingsPanel();
   }
 
   async function triggerNewChat() {
@@ -436,8 +439,20 @@ async function handleSend() {
     return;
   }
 
-  const attachments = pendingAttachments.map((item) => ({ ...item }));
   const overrides = getComposerOverrides();
+  const composedSettings = { ...getSettings(), ...overrides, mcpStatuses: latestMcpStatuses };
+  const preflightBlocker = buildSendPreflightBlocker(
+    content,
+    composedSettings,
+    getProviderCompatibilityReport(composedSettings)
+  );
+  if (preflightBlocker) {
+    showToast(preflightBlocker.message, 5200);
+    if (preflightBlocker.openSettings) openSettingsPanel();
+    return;
+  }
+
+  const attachments = pendingAttachments.map((item) => ({ ...item }));
 
   let finalModelContent = applyComposerModeToPrompt(content, composerModeId);
   finalModelContent = appendTextAttachmentsToPrompt(finalModelContent, pendingAttachments);

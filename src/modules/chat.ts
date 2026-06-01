@@ -907,7 +907,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
 
     let agentRun = msg.agentRun;
     if (!agentRun && ((msg.toolCalls && msg.toolCalls.length > 0) || (msg.agentStages && msg.agentStages.length > 0))) {
-      agentRun = createAgentRun(msg.composerOverrides?.activeSkill || 'auto');
+      agentRun = createAgentRun(msg.composerOverrides?.activeSkill || 'agent_auto');
       if (msg.agentStages && msg.agentStages.length > 0) {
         msg.agentStages.forEach((stage: Record<string, any>) => handleCrewAgentStage(agentRun, stage));
       }
