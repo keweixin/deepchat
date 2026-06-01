@@ -1441,6 +1441,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
 
   // Copy user message
   const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
   copyBtn.className = 'msg-action-btn';
   copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`; /* safeSetHTML-exempt: static template */
   copyBtn.addEventListener('click', async () => {
@@ -1458,6 +1459,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
 
   // Edit user message
   const editBtn = document.createElement('button');
+  editBtn.type = 'button';
   editBtn.className = 'msg-action-btn';
   editBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> 编辑`; /* safeSetHTML-exempt: static template */
   editBtn.addEventListener('click', () => {
@@ -1475,6 +1477,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
     btnGroup.className = 'edit-btn-group';
 
     const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
     saveBtn.className = 'edit-save-btn';
     saveBtn.textContent = '保存并重新生成';
     saveBtn.addEventListener('click', () => {
@@ -1483,6 +1486,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
     });
 
     const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
     cancelBtn.className = 'edit-cancel-btn';
     cancelBtn.textContent = '取消';
     cancelBtn.addEventListener('click', () => {
@@ -1499,6 +1503,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
 
   // Delete single message
   const delBtn = document.createElement('button');
+  delBtn.type = 'button';
   delBtn.className = 'msg-action-btn';
   delBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> 删除`; /* safeSetHTML-exempt: static template */
   delBtn.addEventListener('click', async () => {
@@ -1533,6 +1538,7 @@ function addMessageActions(msgEl: HTMLElement, content: string, _tokens: any, _s
 
   // Copy
   const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
   copyBtn.className = 'msg-action-btn';
   copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> 复制`; /* safeSetHTML-exempt: static template */
   copyBtn.addEventListener('click', async () => {
@@ -1554,12 +1560,14 @@ function addMessageActions(msgEl: HTMLElement, content: string, _tokens: any, _s
 
   // Regenerate
   const regenBtn = document.createElement('button');
+  regenBtn.type = 'button';
   regenBtn.className = 'msg-action-btn';
   regenBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> 重新生成`; /* safeSetHTML-exempt: static template */
   regenBtn.addEventListener('click', () => regenerateResponseAt(msgIndex));
   actions.appendChild(regenBtn);
 
   const detailBtn = document.createElement('button');
+  detailBtn.type = 'button';
   detailBtn.className = 'msg-action-btn';
   detailBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> 详情`; /* safeSetHTML-exempt: static template */
   detailBtn.title = '在 Inspector 查看模型、Token、工具和证据详情';

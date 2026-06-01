@@ -177,7 +177,7 @@ export interface SettingsPatch {
 /** Full settings (extends patch with runtime fields) */
 export interface Settings extends SettingsPatch {
   crewDisplayMode?: 'auto' | 'compact' | 'theatre' | 'off' | 'always' | 'tools_only';
-  defaultComposerMode?: string;
+  defaultComposerMode?: 'daily' | 'analysis' | 'project' | 'agent' | 'research' | 'code' | 'writing' | 'polish';
   theme?: 'light' | 'dark';
   storageStatus?: unknown;
 }
@@ -267,19 +267,28 @@ export interface DeepChatBridge {
   settings: {
     get: () => Promise<Settings>;
     set: (patch: SettingsPatch) => Promise<Settings>;
+    migrateLegacy: (data: { settings?: SettingsPatch; conversations?: Conversation[] }) => Promise<void>;
     testApi: () => Promise<{ ok: boolean; error?: string }>;
     testSearch: (query: string) => Promise<{ ok: boolean; error?: string }>;
-    migrateLegacy: (data: { settings: Settings; conversations: Conversation[] }) => Promise<void>;
+  };
+  conversations: {
+    load: () => Promise<Conversation[]>;
+    save: (conversations: Conversation[]) => Promise<Conversation[]>;
+    exportBackup: (options?: { includeSecrets?: boolean }) => Promise<unknown>;
+    importBackup: () => Promise<unknown>;
   };
   chat: {
-    stream: (request: ChatStartRequest) => Promise<string>;
+    start: (request: ChatStartRequest) => void;
+    cancel: (requestId: string) => void;
+    pause: (requestId: string) => void;
+    resume: (requestId: string) => void;
+    skipTool: (requestId: string, toolCallId?: string) => void;
+    limitScope: (requestId: string, scopePolicy: string) => void;
     onEvent: (cb: (event: ChatEvent) => void) => () => void;
-    abort: (requestId: string) => void;
-    approve: (requestId: string, toolCallId: string, approved: boolean) => void;
   };
   tools: {
-    run: (name: string, args: unknown) => Promise<unknown>;
-    list: () => Promise<string[]>;
+    approve: (requestId: string, toolCallId: string, approved: boolean) => void;
+    run: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   };
   skills?: {
     pickExternal: () => Promise<Settings>;
@@ -299,18 +308,14 @@ export interface DeepChatBridge {
     search: (payload: { query: string; maxResults?: number }) => Promise<unknown>;
   };
   workspace: {
-    listRoots: () => Promise<string[]>;
-    addRoot: (path: string) => Promise<void>;
-    removeRoot: (path: string) => Promise<void>;
-    indexWorkspace: () => Promise<{ ok: boolean }>;
-    searchWorkspace: (query: string, maxResults?: number) => Promise<unknown[]>;
-    readSymbol: (symbol: string) => Promise<unknown>;
-    readFile: (path: string) => Promise<string>;
-    listFiles: (directory: string) => Promise<string[]>;
+    pick: () => Promise<Settings>;
+    remove: (root: string) => Promise<Settings>;
+    clearIndexCache: () => Promise<unknown>;
+    getStats: () => Promise<unknown>;
   };
-  memory: {
-    get: (key: string) => Promise<unknown>;
-    set: (key: string, value: unknown) => Promise<void>;
+  menu?: {
+    onOpenSettings: (callback: () => void) => () => void;
+    onNewChat: (callback: () => void) => () => void;
   };
 }
 

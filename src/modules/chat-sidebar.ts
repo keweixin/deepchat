@@ -219,7 +219,7 @@ export function createSidebar(deps: Record<string, any>) {
         </span>
         ${pinIcon}
         <div class="conv-actions">
-          <button class="conv-menu-trigger icon-btn-sm" title="更多操作" aria-label="打开对话操作菜单" aria-haspopup="menu" aria-expanded="false">
+          <button type="button" class="conv-menu-trigger icon-btn-sm" title="更多操作" aria-label="打开对话操作菜单" aria-haspopup="menu" aria-expanded="false">
             <span aria-hidden="true">•••</span>
           </button>
         </div>

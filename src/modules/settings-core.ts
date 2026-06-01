@@ -363,6 +363,18 @@ function normalizeSettings(input: Record<string, unknown> = {}): Record<string, 
   next.codingEditsEnabled = next.codingEditsEnabled !== false && next.codingEditsEnabled !== 'false';
   next.runCodeEnabled = next.runCodeEnabled !== false && next.runCodeEnabled !== 'false';
   next.enhance = next.enhance !== false && next.enhance !== 'false';
+  const validActiveSkills = [
+    'agent_auto',
+    'none',
+    'web_search',
+    'file_reader',
+    'code_runner',
+    'mcp_tool',
+    'multi_tool',
+  ];
+  next.activeSkill = validActiveSkills.includes(String(next.activeSkill))
+    ? next.activeSkill
+    : DEFAULT_SETTINGS.activeSkill;
   const validAgentModelTiers = ['flash', 'auto', 'pro'];
   next.agentModelTier = validAgentModelTiers.includes(String(next.agentModelTier))
     ? next.agentModelTier

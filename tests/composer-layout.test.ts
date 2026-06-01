@@ -3,11 +3,53 @@ import fs from 'fs';
 import path from 'path';
 
 describe('composer layout', () => {
+  it('keeps static buttons from accidentally submitting forms', () => {
+    const html = fs.readFileSync(path.resolve('index.html'), 'utf8');
+    const buttonsWithoutType = html.match(/<button(?![^>]*\btype=)[^>]*>/g) || [];
+
+    expect(buttonsWithoutType).toEqual([]);
+  });
+
+  it('keeps primary runtime-created chat buttons from defaulting to submit', () => {
+    const main = fs.readFileSync(path.resolve('src/main.ts'), 'utf8');
+    const chat = fs.readFileSync(path.resolve('src/modules/chat.ts'), 'utf8');
+    const sidebar = fs.readFileSync(path.resolve('src/modules/chat-sidebar.ts'), 'utf8');
+
+    expect(main).toContain("scrollFab.type = 'button'");
+    expect(sidebar).toContain('<button type="button" class="conv-menu-trigger');
+    expect(chat).toContain("copyBtn.type = 'button'");
+    expect(chat).toContain("editBtn.type = 'button'");
+    expect(chat).toContain("delBtn.type = 'button'");
+    expect(chat).toContain("regenBtn.type = 'button'");
+    expect(chat).toContain("detailBtn.type = 'button'");
+  });
+
+  it('keeps hidden context preview out of visual and accessibility snapshots', () => {
+    const css = fs.readFileSync(path.resolve('src/styles/chat-input.css'), 'utf8');
+
+    expect(css).toContain('.composer-context-preview[hidden]');
+    expect(css).toContain('.composer-context-preview[hidden]::before');
+    expect(css).toContain('content: none');
+  });
+
+  it('keeps collapsed advanced composer controls hidden from accessibility snapshots', () => {
+    const html = fs.readFileSync(path.resolve('index.html'), 'utf8');
+    const css = fs.readFileSync(path.resolve('src/styles/chat-input.css'), 'utf8');
+    const main = fs.readFileSync(path.resolve('src/main.ts'), 'utf8');
+
+    expect(html).toContain('id="composer-advanced-options"');
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('hidden');
+    expect(css).toContain('visibility: hidden');
+    expect(css).toContain('pointer-events: none');
+    expect(css).toContain('.composer-advanced-options[hidden]');
+    expect(main).toContain('$advancedOptions.hidden = !expanded');
+    expect(main).toContain("setAttribute('aria-hidden', expanded ? 'false' : 'true')");
+  });
+
   it('keeps advanced send options inside the collapsible options group', () => {
     const html = fs.readFileSync(path.resolve('index.html'), 'utf8');
-    const start = html.indexOf('<div id="composer-advanced-options"');
-    const end = html.indexOf('</div>\n          </div>', start);
-    const advanced = html.slice(start, end > start ? end : undefined);
+    const advanced = html.match(/<div[^>]+id="composer-advanced-options"[\s\S]*?<\/div>\s*<\/div>/)?.[0] || '';
 
     expect(html).toContain('id="composer-advanced-toggle"');
     expect(html).toContain('aria-controls="composer-advanced-options"');

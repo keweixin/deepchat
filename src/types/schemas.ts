@@ -277,16 +277,20 @@ export const SettingsSchema = z
     maxContextMessages: z.number().int().positive().optional(),
     agentMaxRounds: z.number().int().nonnegative().optional(),
     thinkingBudget: z.number().int().nonnegative().optional(),
-    activeSkill: z.string().max(80).optional(),
+    activeSkill: z
+      .enum(['agent_auto', 'none', 'web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'])
+      .optional(),
     crewDisplayMode: z.enum(['auto', 'always', 'tools_only', 'theatre', 'compact', 'off']).optional(),
-    defaultComposerMode: z.string().max(80).optional(),
+    defaultComposerMode: z
+      .enum(['daily', 'analysis', 'project', 'agent', 'research', 'code', 'writing', 'polish'])
+      .optional(),
     autoContextSummary: z.boolean().optional(),
     cacheOptimization: z.boolean().optional(),
     contextFoldEconomicsEnabled: z.boolean().optional(),
     codingEditsEnabled: z.boolean().optional(),
     agentModelTier: z.enum(['flash', 'auto', 'pro']).optional(),
     toolApprovalTimeoutMs: z.number().int().positive().optional(),
-    toolApprovalPolicy: z.enum(['confirm_all', 'confirm_risky', 'auto_approve']).optional(),
+    toolApprovalPolicy: z.enum(['confirm_all', 'auto_readonly']).optional(),
     runCodeEnabled: z.boolean().optional(),
     enhance: z.boolean().optional(),
     tavilyApiKey: z.string().optional(),

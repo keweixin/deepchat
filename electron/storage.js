@@ -34,6 +34,8 @@ const DEFAULT_SETTINGS = {
   agentMaxRounds: 3,
   thinkingBudget: 0,
   activeSkill: 'agent_auto',
+  crewDisplayMode: 'auto',
+  defaultComposerMode: 'daily',
   autoContextSummary: true,
   cacheOptimization: true,
   contextFoldEconomicsEnabled: true,
@@ -173,6 +175,34 @@ function normalizeSettings(input = /** @type {Record<string, any>} */ ({})) {
     String(next.toolApprovalPolicy || DEFAULT_SETTINGS.toolApprovalPolicy) === 'auto_readonly'
       ? 'auto_readonly'
       : DEFAULT_SETTINGS.toolApprovalPolicy;
+  next.activeSkill = [
+    'agent_auto',
+    'none',
+    'web_search',
+    'file_reader',
+    'code_runner',
+    'mcp_tool',
+    'multi_tool',
+  ].includes(String(next.activeSkill))
+    ? String(next.activeSkill)
+    : DEFAULT_SETTINGS.activeSkill;
+  next.crewDisplayMode = ['auto', 'always', 'tools_only', 'theatre', 'compact', 'off'].includes(
+    String(next.crewDisplayMode)
+  )
+    ? String(next.crewDisplayMode)
+    : DEFAULT_SETTINGS.crewDisplayMode;
+  next.defaultComposerMode = [
+    'daily',
+    'analysis',
+    'project',
+    'agent',
+    'research',
+    'code',
+    'writing',
+    'polish',
+  ].includes(String(next.defaultComposerMode))
+    ? String(next.defaultComposerMode)
+    : DEFAULT_SETTINGS.defaultComposerMode;
   next.runCodeEnabled = nextAny.runCodeEnabled !== false && nextAny.runCodeEnabled !== 'false';
   next.workspaceRoots = normalizeWorkspaceRoots(next.workspaceRoots);
   next.externalSkills = normalizeExternalSkills(next.externalSkills);

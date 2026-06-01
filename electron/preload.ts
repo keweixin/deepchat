@@ -1,15 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { ChatRequest } from './agent-contracts.js';
+import type { Conversation, ExternalSkill, McpServerConfig, SettingsPatch } from '../src/types/deepchat.js';
 
 /** Allowed IPC channels for renderer → main event listening. */
 const VALID_ON_CHANNELS = ['chat:event', 'menu:openSettings', 'menu:newChat'] as const;
+type ValidOnChannel = (typeof VALID_ON_CHANNELS)[number];
+type IpcUnsubscribe = () => void;
+type ChatEventPayload = Record<string, unknown>;
+type BackupExportOptions = { includeSecrets?: boolean };
+type ManualToolArgs = Record<string, unknown>;
+type DocsetSearchPayload = { query: string; maxResults?: number };
 
-function on(channel: string, callback: (payload: any) => void) {
-  if (!VALID_ON_CHANNELS.includes(channel as any)) {
+function on<TPayload = unknown>(channel: string, callback: (payload: TPayload) => void): IpcUnsubscribe {
+  if (!VALID_ON_CHANNELS.includes(channel as ValidOnChannel)) {
     console.warn(`[preload] Blocked unauthorized IPC channel: ${channel}`);
     return () => {};
   }
-  const listener = (_event: any, payload: any) => callback(payload);
+  const listener = (_event: Electron.IpcRendererEvent, payload: TPayload) => callback(payload);
   ipcRenderer.on(channel, listener);
   return () => ipcRenderer.removeListener(channel, listener);
 }
@@ -17,15 +24,16 @@ function on(channel: string, callback: (payload: any) => void) {
 contextBridge.exposeInMainWorld('deepchat', {
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
-    set: (patch: any) => ipcRenderer.invoke('settings:set', patch),
-    migrateLegacy: (payload: any) => ipcRenderer.invoke('settings:migrateLegacy', payload),
+    set: (patch: SettingsPatch) => ipcRenderer.invoke('settings:set', patch),
+    migrateLegacy: (payload: { settings?: SettingsPatch; conversations?: Conversation[] }) =>
+      ipcRenderer.invoke('settings:migrateLegacy', payload),
     testApi: () => ipcRenderer.invoke('settings:testApi'),
-    testSearch: (query: any) => ipcRenderer.invoke('settings:testSearch', query),
+    testSearch: (query: string) => ipcRenderer.invoke('settings:testSearch', query),
   },
   conversations: {
     load: () => ipcRenderer.invoke('conversations:load'),
-    save: (conversations: any) => ipcRenderer.invoke('conversations:save', conversations),
-    exportBackup: (options?: any) => ipcRenderer.invoke('conversations:exportBackup', options),
+    save: (conversations: Conversation[]) => ipcRenderer.invoke('conversations:save', conversations),
+    exportBackup: (options?: BackupExportOptions) => ipcRenderer.invoke('conversations:exportBackup', options),
     importBackup: () => ipcRenderer.invoke('conversations:importBackup'),
   },
   chat: {
@@ -36,38 +44,40 @@ contextBridge.exposeInMainWorld('deepchat', {
     skipTool: (requestId: string, toolCallId?: string) => ipcRenderer.send('chat:skipTool', { requestId, toolCallId }),
     limitScope: (requestId: string, scopePolicy: string) =>
       ipcRenderer.send('chat:limitScope', { requestId, scopePolicy }),
-    onEvent: (callback: any) => on('chat:event', callback),
+    onEvent: (callback: (payload: ChatEventPayload) => void) => on('chat:event', callback),
   },
   tools: {
     approve: (requestId: string, toolCallId: string, approved: boolean) =>
       ipcRenderer.send('tools:approve', { requestId, toolCallId, approved }),
-    run: (name: string, args: Record<string, unknown>) => ipcRenderer.invoke('tools:runManual', { name, args }),
+    run: (name: string, args: ManualToolArgs) => ipcRenderer.invoke('tools:runManual', { name, args }),
   },
   workspace: {
     pick: () => ipcRenderer.invoke('workspace:pick'),
-    remove: (root: any) => ipcRenderer.invoke('workspace:remove', root),
+    remove: (root: string) => ipcRenderer.invoke('workspace:remove', root),
     clearIndexCache: () => ipcRenderer.invoke('workspace:clearIndexCache'),
     getStats: () => ipcRenderer.invoke('workspace:getStats'),
   },
   skills: {
     pickExternal: () => ipcRenderer.invoke('skills:pickExternal'),
     scanExternal: () => ipcRenderer.invoke('skills:scanExternal'),
-    importExternal: (payload: any) => ipcRenderer.invoke('skills:importExternal', payload),
+    importExternal: (payload: { skills: ExternalSkill[] }) => ipcRenderer.invoke('skills:importExternal', payload),
   },
   mcp: {
     listStatus: () => ipcRenderer.invoke('mcp:listStatus'),
     scanExternalConfigs: () => ipcRenderer.invoke('mcp:scanExternalConfigs'),
-    importExternalConfigs: (payload: any) => ipcRenderer.invoke('mcp:importExternalConfigs', payload),
-    probeExternalConfig: (payload: any) => ipcRenderer.invoke('mcp:probeExternalConfig', payload),
+    importExternalConfigs: (payload: { servers: McpServerConfig[] }) =>
+      ipcRenderer.invoke('mcp:importExternalConfigs', payload),
+    probeExternalConfig: (payload: { server: McpServerConfig }) =>
+      ipcRenderer.invoke('mcp:probeExternalConfig', payload),
   },
   docset: {
     list: () => ipcRenderer.invoke('docset:list'),
     add: (root?: string) => ipcRenderer.invoke('docset:add', root),
     remove: (root: string) => ipcRenderer.invoke('docset:remove', root),
-    search: (payload: any) => ipcRenderer.invoke('docset:search', payload),
+    search: (payload: DocsetSearchPayload) => ipcRenderer.invoke('docset:search', payload),
   },
   menu: {
-    onOpenSettings: (callback: any) => on('menu:openSettings', callback),
-    onNewChat: (callback: any) => on('menu:newChat', callback),
+    onOpenSettings: (callback: () => void) => on('menu:openSettings', callback),
+    onNewChat: (callback: () => void) => on('menu:newChat', callback),
   },
 });

@@ -338,6 +338,7 @@ function bindEvents() {
   // ─── Scroll-to-bottom FAB ───
   const $chatMessages = document.getElementById('chat-messages');
   const scrollFab = document.createElement('button');
+  scrollFab.type = 'button';
   scrollFab.className = 'scroll-to-bottom-fab hidden';
   scrollFab.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`; /* safeSetHTML-exempt: static template */
   scrollFab.title = '回到底部';
@@ -466,6 +467,7 @@ function initComposerOptions(openSettings: (() => void) | undefined) {
   const $toolStatus = document.getElementById('composer-tool-status') as HTMLElement | null;
   const $contextBtn = document.getElementById('composer-context-btn') as HTMLButtonElement | null;
   const $advancedToggle = document.getElementById('composer-advanced-toggle') as HTMLButtonElement | null;
+  const $advancedOptions = document.getElementById('composer-advanced-options') as HTMLElement | null;
   const $runStatus = document.getElementById('composer-run-status') as HTMLElement | null;
   const $contextPreview = document.getElementById('composer-context-preview') as HTMLElement | null;
   const $templateBtn = document.getElementById('composer-template-btn') as HTMLButtonElement | null;
@@ -635,6 +637,10 @@ function initComposerOptions(openSettings: (() => void) | undefined) {
     $advancedToggle.addEventListener('click', () => {
       const expanded = $toolbar.classList.toggle('is-advanced-open');
       $advancedToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if ($advancedOptions) {
+        $advancedOptions.hidden = !expanded;
+        $advancedOptions.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+      }
       $advancedToggle.textContent = expanded ? '收起' : '选项';
     });
   }

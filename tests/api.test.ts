@@ -45,6 +45,28 @@ describe('browser settings fallback', () => {
     expect(localStorage.getItem('dc_model')).toBe('demo-model');
   });
 
+  it('normalizes user-facing mode settings before storing browser fallback values', async () => {
+    const invalid = await saveSettings({
+      activeSkill: 'auto',
+      crewDisplayMode: 'floating',
+      defaultComposerMode: 'debug',
+    });
+
+    expect(invalid.activeSkill).toBe('agent_auto');
+    expect(invalid.crewDisplayMode).toBe('auto');
+    expect(invalid.defaultComposerMode).toBe('daily');
+
+    const valid = await saveSettings({
+      activeSkill: 'file_reader',
+      crewDisplayMode: 'theatre',
+      defaultComposerMode: 'project',
+    });
+
+    expect(valid.activeSkill).toBe('file_reader');
+    expect(valid.crewDisplayMode).toBe('theatre');
+    expect(valid.defaultComposerMode).toBe('project');
+  });
+
   it('exports browser backups without API keys or MCP env secrets', () => {
     const sanitized = sanitizeSettingsForBackup({
       apiKey: 'sk-local-secret',

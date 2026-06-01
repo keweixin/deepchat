@@ -63,6 +63,8 @@
   max-height: 0;
   overflow: hidden;
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -75,9 +77,15 @@
   padding-top: 0;
 }
 
+.composer-advanced-options[hidden] {
+  display: none !important;
+}
+
 .composer-toolbar.is-advanced-open .composer-advanced-options {
   max-height: 200px;
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
   padding-top: var(--space-1);
 }
 
@@ -442,6 +450,10 @@
 .composer-run-status[hidden],
 .composer-context-preview[hidden] {
   display: none !important;
+}
+
+.composer-context-preview[hidden]::before {
+  content: none;
 }
 
 .composer-chip-row {

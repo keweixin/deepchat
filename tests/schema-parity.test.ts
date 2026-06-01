@@ -110,4 +110,34 @@ describe('runtime schema parity', () => {
     ).toThrow();
     expect(() => SettingsSchema.parse({ tavilySearchDepth: 'scrape' })).toThrow();
   });
+
+  it('keeps tool approval policy values aligned across IPC and renderer schemas', () => {
+    const supported = [{ toolApprovalPolicy: 'confirm_all' }, { toolApprovalPolicy: 'auto_readonly' }];
+
+    for (const patch of supported) {
+      expect(validate(schemas.SettingsPatchSchema, patch, 'settings:set')).toMatchObject(patch);
+      expect(SettingsSchema.parse(patch)).toMatchObject(patch);
+    }
+
+    for (const toolApprovalPolicy of ['confirm_risky', 'auto_approve', 'auto_write']) {
+      expect(() => validate(schemas.SettingsPatchSchema, { toolApprovalPolicy }, 'settings:set')).toThrow();
+      expect(() => SettingsSchema.parse({ toolApprovalPolicy })).toThrow();
+    }
+  });
+
+  it('keeps visible settings controls aligned with IPC and renderer schemas', () => {
+    const patch = {
+      activeSkill: 'agent_auto',
+      crewDisplayMode: 'theatre',
+      defaultComposerMode: 'project',
+    };
+
+    expect(validate(schemas.SettingsPatchSchema, patch, 'settings:set')).toMatchObject(patch);
+    expect(SettingsSchema.parse(patch)).toMatchObject(patch);
+
+    expect(() => validate(schemas.SettingsPatchSchema, { activeSkill: 'auto' }, 'settings:set')).toThrow();
+    expect(() => SettingsSchema.parse({ activeSkill: 'auto' })).toThrow();
+    expect(() => validate(schemas.SettingsPatchSchema, { crewDisplayMode: 'floating' }, 'settings:set')).toThrow();
+    expect(() => SettingsSchema.parse({ defaultComposerMode: 'debug' })).toThrow();
+  });
 });

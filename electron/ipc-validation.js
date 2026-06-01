@@ -303,6 +303,10 @@ const SettingsPatchSchema = z
     activeSkill: z
       .enum(['agent_auto', 'none', 'web_search', 'file_reader', 'code_runner', 'mcp_tool', 'multi_tool'])
       .optional(),
+    crewDisplayMode: z.enum(['auto', 'always', 'tools_only', 'theatre', 'compact', 'off']).optional(),
+    defaultComposerMode: z
+      .enum(['daily', 'analysis', 'project', 'agent', 'research', 'code', 'writing', 'polish'])
+      .optional(),
     autoContextSummary: z.boolean().optional(),
     cacheOptimization: z.boolean().optional(),
     contextFoldEconomicsEnabled: z.boolean().optional(),

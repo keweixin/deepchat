@@ -95,6 +95,8 @@ describe('settings MCP rendering', () => {
 
     expect(html).toContain('class="settings-nav"');
     expect(html).not.toContain('class="settings-tabs"');
+    expect(html).not.toContain('settings-status-bar');
+    expect(html).not.toContain('status-card');
     expect(html).not.toContain('role="tablist" aria-label="设置分类"');
     expect(panelRule).toContain('width: min(920px, 100vw)');
     expect(navRule).toContain('flex: 0 0 150px');
