@@ -212,9 +212,16 @@ function formatCompactionSummary(tool: Record<string, unknown>): string {
 
 export function renderToolCard(
   tool: Record<string, unknown>,
-  options: { showRaw?: boolean; onToggleRaw?: (expanded: boolean) => void } = {}
+  options: {
+    showRaw?: boolean;
+    detailLevel?: 'normal' | 'advanced' | 'developer';
+    onToggleRaw?: (expanded: boolean) => void;
+  } = {}
 ): HTMLElement {
   const { showRaw = false, onToggleRaw } = options;
+  const detailLevel = getDetailLevel(options);
+  const showAdvanced = detailLevel !== 'normal';
+  const showDeveloper = detailLevel === 'developer' || showRaw;
   const approval = inferApprovalStatus(tool);
   const duration = formatDuration((tool.durationMs as number) || 0);
   const isRepair = tool.isRepair || tool.repaired;
@@ -298,11 +305,11 @@ export function renderToolCard(
   const metaItems: string[] = [];
   const job = (tool.job || {}) as Record<string, unknown>;
   if (duration) metaItems.push(`⏱ ${duration}`);
-  if (job.id) metaItems.push(`Job ${String(job.status || 'queued')}`);
-  if (tokens) metaItems.push(`🔤 ${tokens} tokens`);
-  if (rawOutputTokens) metaItems.push(`原始输出 ${rawOutputTokens} tokens`);
-  if (contextOutputTokens) metaItems.push(`上下文 ${contextOutputTokens} tokens`);
-  if (compactionSummary) metaItems.push(`压缩 ${compactionSummary}`);
+  if (job.id && showAdvanced) metaItems.push(`Job ${String(job.status || 'queued')}`);
+  if (tokens && showAdvanced) metaItems.push(`🔤 ${tokens} tokens`);
+  if (rawOutputTokens && showAdvanced) metaItems.push(`原始输出 ${rawOutputTokens} tokens`);
+  if (contextOutputTokens && showAdvanced) metaItems.push(`上下文 ${contextOutputTokens} tokens`);
+  if (compactionSummary && showAdvanced) metaItems.push(`压缩 ${compactionSummary}`);
   if (tool.inContext === false) metaItems.push('⛔ 未进入上下文');
   if (isRepair) metaItems.push('🔧 修复生成');
   if ((tool.evidenceIds as any[])?.length) metaItems.push(`📎 ${(tool.evidenceIds as any[]).length} 证据`);
@@ -313,7 +320,7 @@ export function renderToolCard(
   actions.className = 'tool-card-actions';
 
   // Copy result
-  if (tool.output) {
+  if (tool.output && showAdvanced) {
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
     copyBtn.className = 'tool-card-action-btn';
@@ -358,16 +365,16 @@ export function renderToolCard(
   const toggleBtn = document.createElement('button');
   toggleBtn.type = 'button';
   toggleBtn.className = 'tool-card-toggle';
-  toggleBtn.textContent = showRaw || tool.expanded ? '🔽 收起高级详情' : '▶️ 展开高级详情';
+  toggleBtn.textContent = showDeveloper || tool.expanded ? '收起高级详情' : '展开高级详情';
 
   // ─── Advanced Details (collapsible) ───────────────────────────────────────
   const details = document.createElement('div');
   details.className = 'tool-card-details';
   const isExpert = document.documentElement.classList.contains('expert-mode');
-  if (showRaw || tool.expanded || isExpert) details.classList.add('is-expanded');
+  if (showDeveloper || tool.expanded || isExpert) details.classList.add('is-expanded');
 
   // Trace info
-  if (traceId) {
+  if (traceId && showDeveloper) {
     const traceEl = document.createElement('div');
     traceEl.className = 'tool-card-section';
     traceEl.innerHTML = `<strong>Trace ID</strong>`; /* safeSetHTML-exempt: static template */
@@ -402,7 +409,7 @@ export function renderToolCard(
     details.appendChild(perfEl);
   }
 
-  if (job.id) {
+  if (job.id && showDeveloper) {
     const jobEl = document.createElement('div');
     jobEl.className = 'tool-card-section';
     jobEl.innerHTML = `<strong>Job 状态</strong>`; /* safeSetHTML-exempt: static template */
@@ -413,30 +420,40 @@ export function renderToolCard(
     details.appendChild(jobEl);
   }
 
-  // Full input
-  const inputSection = document.createElement('div');
-  inputSection.className = 'tool-card-section';
-  inputSection.innerHTML = `<strong>完整输入参数</strong>`; /* safeSetHTML-exempt: static template */
-  const inputPre = document.createElement('pre');
-  inputPre.className = 'tool-card-raw';
-  inputPre.textContent = JSON.stringify(tool.args || {}, null, 2);
-  inputSection.appendChild(inputPre);
-  details.appendChild(inputSection);
+  if (showDeveloper) {
+    // Full input
+    const inputSection = document.createElement('div');
+    inputSection.className = 'tool-card-section';
+    inputSection.innerHTML = `<strong>完整输入参数</strong>`; /* safeSetHTML-exempt: static template */
+    const inputPre = document.createElement('pre');
+    inputPre.className = 'tool-card-raw';
+    inputPre.textContent = JSON.stringify(tool.args || {}, null, 2);
+    inputSection.appendChild(inputPre);
+    details.appendChild(inputSection);
 
-  // Full output
-  const outputSection = document.createElement('div');
-  outputSection.className = 'tool-card-section';
-  outputSection.innerHTML = `<strong>完整输出结果</strong>`; /* safeSetHTML-exempt: static template */
-  const outputPre = document.createElement('pre');
-  outputPre.className = 'tool-card-raw';
-  outputPre.textContent = tool.output != null ? String(tool.output) : '(无输出)';
-  outputSection.appendChild(outputPre);
-  details.appendChild(outputSection);
+    // Full output
+    const outputSection = document.createElement('div');
+    outputSection.className = 'tool-card-section';
+    outputSection.innerHTML = `<strong>完整输出结果</strong>`; /* safeSetHTML-exempt: static template */
+    const outputPre = document.createElement('pre');
+    outputPre.className = 'tool-card-raw';
+    outputPre.textContent = tool.output != null ? String(tool.output) : '(无输出)';
+    outputSection.appendChild(outputPre);
+    details.appendChild(outputSection);
+  } else {
+    const hintSection = document.createElement('div');
+    hintSection.className = 'tool-card-section';
+    hintSection.textContent =
+      detailLevel === 'advanced'
+        ? '高级模式显示摘要、耗时和压缩信息；完整参数与原始输出请切换开发者模式查看。'
+        : '普通模式只显示执行摘要；详细参数和原始输出在 Inspector 的开发者模式中查看。';
+    details.appendChild(hintSection);
+  }
 
   toggleBtn.addEventListener('click', () => {
     details.classList.toggle('is-expanded');
     const expanded = details.classList.contains('is-expanded');
-    toggleBtn.textContent = expanded ? '🔽 收起高级详情' : '▶️ 展开高级详情';
+    toggleBtn.textContent = expanded ? '收起高级详情' : '展开高级详情';
     if (onToggleRaw) onToggleRaw(expanded);
   });
 
@@ -451,10 +468,19 @@ export function renderToolCard(
   return card;
 }
 
+function getDetailLevel(options: Record<string, unknown> = {}) {
+  const raw = String(options.detailLevel || '').trim();
+  return raw === 'advanced' || raw === 'developer' ? raw : 'normal';
+}
+
 export function renderToolCardList(
   container: HTMLElement | null,
   toolCalls: Array<Record<string, unknown>> = [],
-  options: { showRaw?: boolean; onToggleRaw?: (expanded: boolean) => void } = {}
+  options: {
+    showRaw?: boolean;
+    detailLevel?: 'normal' | 'advanced' | 'developer';
+    onToggleRaw?: (expanded: boolean) => void;
+  } = {}
 ): void {
   if (!container) return;
   container.textContent = '';
@@ -471,7 +497,11 @@ export function renderToolCardList(
 export function renderToolCallsUnified(
   container: HTMLElement | null,
   toolCalls: Array<Record<string, unknown>> = [],
-  options: { showRaw?: boolean; onToggleRaw?: (expanded: boolean) => void } = {}
+  options: {
+    showRaw?: boolean;
+    detailLevel?: 'normal' | 'advanced' | 'developer';
+    onToggleRaw?: (expanded: boolean) => void;
+  } = {}
 ): void {
   renderToolCardList(container, toolCalls, options);
 }

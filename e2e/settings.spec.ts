@@ -7,6 +7,14 @@ test.afterEach(async () => {
   if (electronApp) await electronApp.close();
 });
 
+async function openWorkbenchSettings(window: any) {
+  const settingsButton = window.locator('#workbench-rail-settings-btn');
+  await expect(settingsButton).toBeVisible();
+  await settingsButton.click();
+  await expect(window.locator('#app')).toHaveClass(/settings-active/);
+  await expect(window.locator('#settings-dashboard')).toBeVisible();
+}
+
 test.describe('Settings', () => {
   test('opening settings panel', async () => {
     electronApp = await electron.launch({
@@ -18,21 +26,10 @@ test.describe('Settings', () => {
     });
 
     const window = await electronApp.firstWindow();
-    await window.waitForSelector('#settings-btn', { state: 'visible', timeout: 15_000 });
+    await openWorkbenchSettings(window);
 
-    // Settings panel should be hidden initially
-    const settingsPanel = window.locator('#settings-panel');
-    await expect(settingsPanel).toHaveClass(/hidden/);
-
-    // Click settings button
-    const settingsBtn = window.locator('#settings-btn');
-    await settingsBtn.click();
-
-    // Settings panel should now be visible
-    await expect(settingsPanel).not.toHaveClass(/hidden/);
-
-    const settingsHeader = window.locator('.settings-header h2');
-    await expect(settingsHeader).toHaveText('设置');
+    const settingsHeader = window.locator('.settings-dashboard-title');
+    await expect(settingsHeader).toHaveText('设置与控制台');
   });
 
   test('settings sections are rendered', async () => {
@@ -45,18 +42,16 @@ test.describe('Settings', () => {
     });
 
     const window = await electronApp.firstWindow();
-    await window.waitForSelector('#settings-btn', { state: 'visible', timeout: 15_000 });
-
-    // Open settings
-    await window.locator('#settings-btn').click();
-    await window.waitForSelector('#settings-panel:not(.hidden)', { timeout: 5_000 });
+    await openWorkbenchSettings(window);
+    await window.locator('.sub-item[data-settings-section="section-provider"]').click();
 
     // Verify key settings sections exist
-    const sections = window.locator('.settings-section h3');
+    const sections = window.locator('#settings-forms-container .settings-section h3');
     const sectionTexts = await sections.allTextContents();
 
     expect(sectionTexts.length).toBeGreaterThan(0);
     expect(sectionTexts).toContain('API 配置');
+    await expect(window.locator('#section-provider')).toBeVisible();
   });
 
   test('font typography preference toggles message reading mode', async () => {
@@ -69,11 +64,10 @@ test.describe('Settings', () => {
     });
 
     const window = await electronApp.firstWindow();
-    await window.waitForSelector('#settings-btn', { state: 'visible', timeout: 15_000 });
     await window.evaluate(() => localStorage.removeItem('dc_font_serif'));
 
-    await window.locator('#settings-btn').click();
-    await window.waitForSelector('#settings-panel:not(.hidden)', { timeout: 5_000 });
+    await openWorkbenchSettings(window);
+    await window.locator('.sub-item[data-settings-section="section-appearance"]').click();
 
     const sansButton = window.locator('#font-sans-btn');
     const serifButton = window.locator('#font-serif-btn');

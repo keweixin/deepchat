@@ -103,8 +103,10 @@ export function closeInspectorPanel() {
  * @param {Object} data
  */
 export function toggleInspectorPanel(mode: string, data: Record<string, any> = {}) {
+  _ensurePanel();
   const resolved = _resolveInspectorRequest(mode, data);
-  if (_isOpen && _currentMode === resolved.mode) {
+  const isDomOpen = Boolean(_panelEl?.classList.contains('is-visible'));
+  if (isDomOpen && _currentMode === resolved.mode) {
     closeInspectorPanel();
   } else {
     openInspectorPanel(resolved.mode, resolved.data);
@@ -398,6 +400,7 @@ function _renderMessageInfo(data: Record<string, any>) {
         ? `
     <div class="inspector-section">
       <h3>工具调用 (${msg.toolCalls.length})</h3>
+      <div class="inspector-evidence-summary"></div>
       <div class="inspector-tool-list"></div>
     </div>
     `
@@ -407,9 +410,68 @@ function _renderMessageInfo(data: Record<string, any>) {
   safeSetHTML(_contentEl, html);
 
   const toolListEl = _contentEl.querySelector('.inspector-tool-list') as HTMLElement | null;
-  if (toolListEl && Array.isArray(msg.toolCalls)) {
-    renderToolCardList(toolListEl, msg.toolCalls, { showRaw: false });
+  const evidenceSummaryEl = _contentEl.querySelector('.inspector-evidence-summary') as HTMLElement | null;
+  if (evidenceSummaryEl && Array.isArray(msg.toolCalls)) {
+    evidenceSummaryEl.replaceChildren(_createTaskEvidenceSummary(msg.toolCalls));
   }
+  if (toolListEl && Array.isArray(msg.toolCalls)) {
+    renderToolCardList(toolListEl, msg.toolCalls, { showRaw: false, detailLevel: _getInspectorDetailLevel() });
+  }
+}
+
+function _createTaskEvidenceSummary(toolCalls: Array<Record<string, any>> = []) {
+  const summary = document.createElement('div');
+  summary.className = 'inspector-task-evidence';
+
+  const counts = _summarizeToolEvidence(toolCalls);
+  const rows = [
+    ['读取', counts.read ? `${counts.read} 个文件/上下文` : '暂无'],
+    ['修改', counts.write ? `${counts.write} 个文件` : '暂无'],
+    ['执行', counts.execute ? `${counts.execute} 次命令/代码` : '暂无'],
+    ['失败', counts.failed ? `${counts.failed} 项` : '暂无'],
+  ];
+
+  for (const [label, value] of rows) {
+    const item = document.createElement('span');
+    item.className = 'inspector-task-evidence-item';
+    item.append(_createInlineStrong(label), document.createTextNode(value));
+    summary.appendChild(item);
+  }
+
+  if (counts.backups.length) {
+    const backup = document.createElement('div');
+    backup.className = 'inspector-task-evidence-note';
+    backup.textContent = `备份：${counts.backups.slice(0, 2).join('；')}`;
+    summary.appendChild(backup);
+  }
+  if (counts.nextAction) {
+    const next = document.createElement('div');
+    next.className = 'inspector-task-evidence-note';
+    next.textContent = `下一步：${counts.nextAction}`;
+    summary.appendChild(next);
+  }
+  return summary;
+}
+
+function _createInlineStrong(text: string) {
+  const strong = document.createElement('strong');
+  strong.textContent = `${text}：`;
+  return strong;
+}
+
+function _summarizeToolEvidence(toolCalls: Array<Record<string, any>> = []) {
+  const result = { read: 0, write: 0, execute: 0, failed: 0, backups: [] as string[], nextAction: '' };
+  for (const tool of toolCalls) {
+    const name = String(tool.name || '').toLowerCase();
+    const ok = tool.ok !== false && tool.status !== 'failed' && tool.status !== 'denied';
+    if (!ok) result.failed += 1;
+    if (name.includes('read') || name === 'search_workspace' || name === 'web_search') result.read += 1;
+    if (name === 'edit_file' || name === 'multi_edit') result.write += Number(tool.security?.editCount || 1);
+    if (name === 'run_code' || name.includes('command')) result.execute += 1;
+    if (tool.backupPath) result.backups.push(String(tool.backupPath));
+    if (!result.nextAction && tool.nextAction) result.nextAction = String(tool.nextAction);
+  }
+  return result;
 }
 
 function _renderRawInfo(data: Record<string, any>) {
@@ -1337,6 +1399,10 @@ export function initInspectorPanel(options: { getOverviewData?: () => Record<str
       // Clear badge on open
       toggleBtn.classList.remove('has-badge');
     });
+  }
+  if (window.matchMedia?.('(min-width: 1180px)').matches) {
+    openInspectorPanel('empty');
+    toggleBtn?.setAttribute('aria-expanded', 'true');
   }
   bindInspectorPanelShortcut();
 }

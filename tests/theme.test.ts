@@ -7,9 +7,9 @@ describe('theme', () => {
     document.documentElement.removeAttribute('data-theme');
   });
 
-  it('initTheme sets dark theme by default', () => {
+  it('initTheme sets light workbench theme by default', () => {
     initTheme();
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
   });
 
   it('initTheme restores saved theme', () => {

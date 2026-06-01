@@ -248,9 +248,9 @@ export function renderToolCalls(container: HTMLElement, toolCalls: any[] = [], o
     block.append(header, risk);
     if (args) block.appendChild(args);
 
-    const meta = createToolMeta(tool);
+    const meta = createToolMeta(tool, detailLevel);
     if (meta) block.appendChild(meta);
-    const security = createToolSecurityMeta(tool);
+    const security = createToolSecurityMeta(tool, detailLevel);
     if (security) block.appendChild(security);
     const editPreview = createEditPreview(tool);
     if (editPreview) block.appendChild(editPreview);
@@ -464,17 +464,17 @@ function createToolRiskBadge(tool: Record<string, any>) {
   return badge;
 }
 
-function createToolMeta(tool: Record<string, any>) {
+function createToolMeta(tool: Record<string, any>, detailLevel: ToolDetailLevel = 'normal') {
   const items = [];
-  if (tool.requestedAt) items.push(`请求：${formatToolTime(tool.requestedAt)}`);
+  if (detailLevel !== 'normal' && tool.requestedAt) items.push(`请求：${formatToolTime(tool.requestedAt)}`);
   if (tool.autoApproved) items.push('审批：自动通过');
   if (tool.expiresAt && tool.status === 'pending') {
     const seconds = Math.max(0, Math.ceil((Date.parse(tool.expiresAt) - Date.now()) / 1000));
     items.push(`确认倒计时：${seconds}s`);
   }
-  if (tool.completedAt) items.push(`完成：${formatToolTime(tool.completedAt)}`);
+  if (detailLevel !== 'normal' && tool.completedAt) items.push(`完成：${formatToolTime(tool.completedAt)}`);
   const duration = getToolDurationMs(tool);
-  if (duration !== null) items.push(`耗时：${duration}ms`);
+  if (detailLevel !== 'normal' && duration !== null) items.push(`耗时：${duration}ms`);
   if (items.length === 0) return null;
   const meta = document.createElement('div');
   meta.className = 'tool-call-meta';
@@ -482,7 +482,7 @@ function createToolMeta(tool: Record<string, any>) {
   return meta;
 }
 
-function createToolSecurityMeta(tool: Record<string, any>) {
+function createToolSecurityMeta(tool: Record<string, any>, detailLevel: ToolDetailLevel = 'normal') {
   if (!tool.security) return null;
   const items = [];
   const toolName = String(tool.name || '')
@@ -491,16 +491,20 @@ function createToolSecurityMeta(tool: Record<string, any>) {
 
   if (toolName === 'run_code') {
     items.push('沙箱：轻量目录隔离');
-    items.push('限制：超时终止、输出截断、环境变量清洗');
     items.push('网络/内存：不提供硬隔离');
-    items.push('输出：已脱敏');
+    if (detailLevel !== 'normal') {
+      items.push('限制：超时终止、输出截断、环境变量清洗');
+      items.push('输出：已脱敏');
+    }
   } else if (toolName === 'edit_file' || toolName === 'multi_edit') {
     items.push('写入：需要逐次确认');
     items.push('预检：工作区路径、敏感路径、唯一匹配');
     items.push('写入：临时文件重命名');
     items.push('备份：DeepChat 数据目录');
-    if (tool.security?.editCount) items.push(`编辑数：${tool.security.editCount}`);
-    if (tool.backupPath) items.push(`备份：${tool.backupPath}`);
+    if (detailLevel !== 'normal') {
+      if (tool.security?.editCount) items.push(`编辑数：${tool.security.editCount}`);
+      if (tool.backupPath) items.push(`备份：${tool.backupPath}`);
+    }
   } else {
     if (tool.security.riskLevel) items.push(`风险：${tool.security.riskLevel}`);
     if (tool.security.sandbox) items.push(`沙箱：${tool.security.sandbox}`);

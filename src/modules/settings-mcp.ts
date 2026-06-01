@@ -106,6 +106,13 @@ export function renderMcpServerList(
       } else {
         body.textContent = status.error || '没有返回工具。';
       }
+      const hint = getMcpResolutionHint(status);
+      if (hint) {
+        const hintLine = document.createElement('div');
+        hintLine.className = 'mcp-status-hint';
+        hintLine.textContent = hint;
+        body.appendChild(hintLine);
+      }
       const metaLine = document.createElement('div');
       metaLine.className = 'mcp-status-meta';
       metaLine.textContent = [
@@ -162,6 +169,24 @@ function formatMcpFailureReason(reason: unknown) {
     failed: '失败',
   };
   return labels[String(reason || '')] || String(reason || '');
+}
+
+function getMcpResolutionHint(status: Record<string, any> = {}) {
+  if (status.ok && (status.toolCount ?? status.tools?.length ?? 0) === 0) {
+    return '修复建议：连接已建立，但 server 没有返回工具；请检查该 MCP server 的 listTools 实现或启动参数。';
+  }
+  const reason = String(status.failureReason || '');
+  if (reason === 'command_not_found')
+    return '修复建议：命令不存在。请检查 command 是否在 PATH 中，或改用可执行文件的绝对路径。';
+  if (reason === 'cwd_missing') return '修复建议：工作目录不存在。请修正 cwd，或留空使用默认目录。';
+  if (reason === 'env_missing')
+    return '修复建议：缺少环境变量。DeepChat 不会自动复制 secret，请在 MCP 配置中显式添加需要的 env key。';
+  if (reason === 'timeout')
+    return '修复建议：server 启动或 initialize 超时。请先在终端运行同一 command/args 确认能正常启动。';
+  if (reason === 'initialize_failed')
+    return '修复建议：JSON-RPC initialize 失败。请检查 server 是否兼容 MCP stdio 协议。';
+  if (status.error) return '修复建议：查看 stderr/错误详情，确认命令、参数、cwd 和 env 后重新测试。';
+  return '';
 }
 
 function formatDuration(ms: unknown) {

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -22,114 +22,319 @@
     <div id="app">
       <div class="bg-gradient-animated"></div>
       <aside id="sidebar" class="sidebar">
-        <div class="sidebar-header">
-          <div class="logo">
-            <div class="logo-icon">
+        <nav class="workbench-rail" aria-label="主导航">
+          <div class="workbench-rail-brand">
+            <svg
+              class="brand-logo-svg"
+              width="22"
+              height="22"
+              viewBox="0 0 32 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style="margin-right: 6px; flex-shrink: 0"
+            >
+              <defs>
+                <linearGradient id="brand-logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#075ec8" />
+                  <stop offset="100%" stop-color="#00c6ff" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M16 2L29.8564 10V26L16 34L2.14359 26V10L16 2Z"
+                stroke="url(#brand-logo-grad)"
+                stroke-width="3"
+                stroke-linejoin="round"
+              />
+              <circle cx="16" cy="18" r="5" fill="url(#brand-logo-grad)" />
+            </svg>
+            <span class="brand-deep">Deep</span>
+            <span class="brand-focus">Focus</span>
+            <span class="brand-version">v2.4.0</span>
+          </div>
+          <button type="button" class="workbench-rail-btn active" data-workbench-action="workspace" title="工作区">
+            <span class="workbench-rail-icon">▣</span>
+            <span>工作区</span>
+          </button>
+          <button type="button" class="workbench-rail-btn" data-workbench-action="agents" title="智能体">
+            <span class="workbench-rail-icon">▦</span>
+            <span>智能体</span>
+          </button>
+          <button type="button" class="workbench-rail-btn" data-workbench-action="files" title="文件管理">
+            <span class="workbench-rail-icon">▱</span>
+            <span>文件管理</span>
+          </button>
+          <button type="button" class="workbench-rail-btn" data-workbench-action="compute" title="工具运行">
+            <span class="workbench-rail-icon">⌘</span>
+            <span>工具运行</span>
+          </button>
+          <button
+            type="button"
+            class="workbench-rail-btn"
+            data-workbench-action="settings"
+            id="workbench-rail-settings-btn"
+            title="系统设置"
+          >
+            <span class="workbench-rail-icon">⚙</span>
+            <span>系统设置</span>
+          </button>
+          <div
+            class="workbench-rail-sub-container"
+            id="workbench-rail-sub-container"
+            style="
+              display: none;
+              width: 100%;
+              flex-direction: column;
+              padding-left: 12px;
+              gap: 4px;
+              box-sizing: border-box;
+            "
+          >
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-provider"
+              title="API 服务商"
+            >
+              <span class="workbench-rail-icon">☁</span>
+              <span>API 服务商</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-search"
+              title="网络检索"
+            >
+              <span class="workbench-rail-icon">🌐</span>
+              <span>网络检索</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-workspace"
+              title="授权工作区"
+            >
+              <span class="workbench-rail-icon">🗂</span>
+              <span>授权工作区</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-agent"
+              title="智能体配置"
+            >
+              <span class="workbench-rail-icon">✦</span>
+              <span>智能体配置</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-mcp"
+              title="MCP 服务插件"
+            >
+              <span class="workbench-rail-icon">🔌</span>
+              <span>MCP 服务插件</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-skills"
+              title="自定义技能"
+            >
+              <span class="workbench-rail-icon">📔</span>
+              <span>自定义技能</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-model"
+              title="推理模型参数"
+            >
+              <span class="workbench-rail-icon">⚙</span>
+              <span>推理模型参数</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-appearance"
+              title="系统界面外观"
+            >
+              <span class="workbench-rail-icon">🎨</span>
+              <span>系统界面外观</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-data"
+              title="系统数据备份"
+            >
+              <span class="workbench-rail-icon">💾</span>
+              <span>系统数据备份</span>
+            </button>
+            <button
+              type="button"
+              class="workbench-rail-btn compact sub-item"
+              data-settings-section="section-debug"
+              title="高级开发调试"
+            >
+              <span class="workbench-rail-icon">🔧</span>
+              <span>高级开发调试</span>
+            </button>
+          </div>
+          <div class="workbench-rail-spacer"></div>
+          <button type="button" class="workbench-rail-btn compact" data-workbench-action="help" title="帮助说明">
+            <span class="workbench-rail-icon">?</span>
+            <span>帮助说明</span>
+          </button>
+          <button type="button" class="workbench-rail-btn compact" data-workbench-action="logs" title="系统日志">
+            <span class="workbench-rail-icon">▻</span>
+            <span>系统日志</span>
+          </button>
+          <button type="button" class="workbench-rail-btn compact" id="theme-toggle-btn" title="切换主题">
+            <span class="workbench-rail-icon">
               <svg
-                width="28"
-                height="28"
+                class="icon-sun"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="url(#logo-grad)"
+                stroke="currentColor"
                 stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
               >
-                <defs>
-                  <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style="stop-color: #2dd4bf" />
-                    <stop offset="100%" style="stop-color: #f59e0b" />
-                  </linearGradient>
-                </defs>
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                <line x1="1" y1="12" x2="3" y2="12" />
+                <line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
               </svg>
+              <svg
+                class="icon-moon"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            </span>
+            <span>切换主题</span>
+          </button>
+          <div class="workbench-rail-profile">
+            <img
+              class="profile-avatar"
+              src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&q=80"
+              alt="Alex Chen"
+            />
+            <div class="profile-info">
+              <span class="profile-name">Alex Chen</span>
+              <span class="profile-plan">专业版</span>
             </div>
-            <span class="logo-text">DeepChat</span>
           </div>
-          <button type="button" id="sidebar-toggle" class="icon-btn" title="折叠侧边栏">
+        </nav>
+        <div class="sidebar-content-area">
+          <div class="sidebar-header">
+            <div class="logo">
+              <div class="logo-icon">
+                <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="excl-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#00c6ff" />
+                      <stop offset="100%" stop-color="#0072ff" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d="M16 2L29.8564 10V26L16 34L2.14359 26V10L16 2Z"
+                    fill="url(#excl-grad)"
+                    stroke="#ffffff"
+                    stroke-width="1.5"
+                    stroke-linejoin="round"
+                  />
+                  <circle cx="16" cy="18" r="5" fill="#ffffff" />
+                  <path d="M11 18H21" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" />
+                  <path d="M16 13V23" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" />
+                </svg>
+              </div>
+              <span class="logo-text">DeepChat</span>
+            </div>
+            <button type="button" id="sidebar-toggle" class="icon-btn" title="折叠侧边栏">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+              </svg>
+            </button>
+          </div>
+          <button type="button" id="new-chat-btn" class="new-chat-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <line x1="9" y1="3" x2="9" y2="21" />
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
+            <span>新建对话</span>
           </button>
-        </div>
-        <button type="button" id="new-chat-btn" class="new-chat-btn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          <span>新建对话</span>
-        </button>
-        <div class="sidebar-search">
-          <svg
-            class="search-icon"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input type="text" id="search-input" class="search-input" placeholder="搜索对话..." />
-        </div>
-        <div class="conversation-toolbar" aria-label="会话筛选">
-          <button type="button" class="conv-filter-btn active" data-conv-filter="active">对话</button>
-          <button type="button" class="conv-filter-btn" data-conv-filter="favorites">收藏</button>
-          <button type="button" class="conv-filter-btn" data-conv-filter="archived">归档</button>
-          <button type="button" class="conv-filter-btn" data-conv-filter="all">全部</button>
-          <button type="button" id="conversation-bulk-toggle" class="conv-filter-btn conv-bulk-toggle">批量</button>
-        </div>
-        <div id="conversation-bulk-bar" class="conversation-bulk-bar hidden">
-          <span id="conversation-bulk-count">已选 0</span>
-          <button type="button" id="conversation-bulk-archive">归档</button>
-          <button type="button" id="conversation-bulk-delete">删除</button>
-          <button type="button" id="conversation-bulk-cancel">取消</button>
-        </div>
-        <div class="sidebar-conversations" id="conversation-list"></div>
-        <div class="sidebar-footer">
-          <button type="button" id="theme-toggle-btn" class="icon-btn" title="切换主题">
+          <div class="sidebar-search">
             <svg
-              class="icon-sun"
-              width="18"
-              height="18"
+              class="search-icon"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
             >
-              <circle cx="12" cy="12" r="5" />
-              <line x1="12" y1="1" x2="12" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="12" x2="23" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <svg
-              class="icon-moon"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          </button>
-          <button type="button" id="settings-btn" class="icon-btn" title="设置">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3" />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-              />
-            </svg>
-          </button>
+            <input type="text" id="search-input" class="search-input" placeholder="搜索对话..." />
+          </div>
+          <section class="workbench-resource-panel" aria-label="资源管理器">
+            <div class="workbench-resource-title">
+              <span>资源管理器</span>
+              <button type="button" id="workbench-add-resource-btn" class="workbench-resource-add" title="添加上下文">
+                +
+              </button>
+            </div>
+            <div class="workbench-resource-tree">
+              <button type="button" class="workbench-resource-row is-folder is-open" data-workbench-action="workspace">
+                <span class="resource-caret">⌄</span><span class="resource-icon">□</span><span>当前工作区</span>
+              </button>
+              <button
+                type="button"
+                class="workbench-resource-row is-file active"
+                data-prompt="基于当前工作区，先制定一个清晰的执行计划，再说明需要读取哪些文件。"
+              >
+                <span class="resource-indent"></span><span class="resource-icon">▤</span><span>任务计划.md</span>
+              </button>
+              <button
+                type="button"
+                class="workbench-resource-row is-file"
+                data-prompt="检查当前项目的最近改动，列出风险、验证项和下一步建议。"
+              >
+                <span class="resource-indent"></span><span class="resource-icon">◴</span><span>变更审查.json</span>
+              </button>
+              <button type="button" class="workbench-resource-row is-folder" data-workbench-action="agents">
+                <span class="resource-caret">›</span><span class="resource-icon">□</span><span>Agent 配置</span>
+              </button>
+            </div>
+            <div class="workbench-history-label">会话记录</div>
+          </section>
+          <div class="conversation-toolbar" aria-label="会话筛选">
+            <button type="button" class="conv-filter-btn active" data-conv-filter="active">对话</button>
+            <button type="button" class="conv-filter-btn" data-conv-filter="favorites">收藏</button>
+            <button type="button" class="conv-filter-btn" data-conv-filter="archived">归档</button>
+            <button type="button" class="conv-filter-btn" data-conv-filter="all">全部</button>
+            <button type="button" id="conversation-bulk-toggle" class="conv-filter-btn conv-bulk-toggle">批量</button>
+          </div>
+          <div id="conversation-bulk-bar" class="conversation-bulk-bar hidden">
+            <span id="conversation-bulk-count">已选 0</span>
+            <button type="button" id="conversation-bulk-archive">归档</button>
+            <button type="button" id="conversation-bulk-delete">删除</button>
+            <button type="button" id="conversation-bulk-cancel">取消</button>
+          </div>
+          <div class="sidebar-conversations" id="conversation-list"></div>
         </div>
       </aside>
       <button type="button" id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" title="菜单">
@@ -149,11 +354,16 @@
             </div>
             <span class="header-usage-badge hidden" id="chat-usage-badge" title=""></span>
           </div>
+          <button type="button" id="workbench-global-search" class="workbench-global-search" title="搜索资源或对话">
+            <span class="workbench-global-search-icon">⌕</span>
+            <span>搜索资源或文档...</span>
+            <kbd>⌘K</kbd>
+          </button>
           <div class="chat-header-actions">
             <nav class="workbench-top-nav" aria-label="工作台视图">
-              <button type="button" id="workbench-trace-btn" class="workbench-nav-btn active">Trace</button>
-              <button type="button" id="workbench-performance-btn" class="workbench-nav-btn">Performance</button>
-              <button type="button" id="workbench-artifacts-btn" class="workbench-nav-btn">Artifacts</button>
+              <button type="button" id="workbench-trace-btn" class="workbench-nav-btn active">运行追踪</button>
+              <button type="button" id="workbench-performance-btn" class="workbench-nav-btn">性能分析</button>
+              <button type="button" id="workbench-artifacts-btn" class="workbench-nav-btn">产物看板</button>
             </nav>
             <button
               type="button"
@@ -194,62 +404,80 @@
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
               </svg>
             </button>
+            <button
+              type="button"
+              id="workbench-filter-btn"
+              class="icon-btn header-settings-only hidden"
+              title="筛选配置"
+            >
+              <span style="font-size: 16px">🎛</span>
+            </button>
+            <button
+              type="button"
+              id="workbench-deploy-btn"
+              class="primary-btn header-settings-only hidden"
+              style="min-height: 34px; padding: 0 16px; font-weight: 600; font-family: var(--font-sans)"
+              title="部署项目"
+            >
+              部署项目
+            </button>
           </div>
         </header>
         <div id="chat-messages" class="chat-messages" role="log" aria-live="polite" aria-label="对话消息">
           <div id="welcome-screen" class="welcome-screen">
-            <div class="welcome-icon">
-              <svg
-                width="64"
-                height="64"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="url(#welcome-grad)"
-                stroke-width="1.5"
-              >
-                <defs>
-                  <linearGradient id="welcome-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style="stop-color: #2dd4bf" />
-                    <stop offset="100%" style="stop-color: #f59e0b" />
-                  </linearGradient>
-                </defs>
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
+            <div class="workbench-user-card">
+              <div class="workbench-card-label"><span>♙</span> 用户 (User)</div>
+              <div class="workbench-user-prompt">向 Agent 提问，或从左侧选择上下文开始一次任务。</div>
             </div>
-            <h2 class="welcome-title">你好，有什么可以帮你的？</h2>
-            <p class="welcome-subtitle">
-              我会用清晰的排版呈现回答——Markdown、表格、代码高亮、数学公式、流程图和安全交互组件。
-            </p>
-            <div class="welcome-suggestions">
-              <button
-                type="button"
-                class="suggestion-card"
-                data-prompt="用 Python 写一个快速排序算法，并解释时间复杂度"
-              >
-                <div class="suggestion-icon">💻</div>
-                <div class="suggestion-text">写一个快速排序算法</div>
-              </button>
-              <button
-                type="button"
-                class="suggestion-card"
-                data-prompt="我需要计算房贷。请在当前界面生成一个交互式房贷计算器组件，让我可以直接输入本金、利率和年限查看结果"
-              >
-                <div class="suggestion-icon">🏠</div>
-                <div class="suggestion-text">生成房贷计算器</div>
-              </button>
-              <button type="button" class="suggestion-card" data-prompt="解释傅里叶变换的数学原理，包含公式推导">
-                <div class="suggestion-icon">📐</div>
-                <div class="suggestion-text">解释傅里叶变换</div>
-              </button>
-              <button
-                type="button"
-                class="suggestion-card"
-                data-prompt="对比 React, Vue, Angular 三大前端框架的优劣，用表格展示"
-              >
-                <div class="suggestion-icon">⚖️</div>
-                <div class="suggestion-text">对比前端框架</div>
-              </button>
+            <div class="workbench-agent-status">
+              <span class="workbench-agent-avatar"></span>
+              <span>Agent Workbench</span>
+              <strong>THINKING...</strong>
             </div>
+            <section class="workbench-plan-card" aria-label="快速任务">
+              <div class="workbench-plan-header">
+                <span class="workbench-tool-icon">⌕</span>
+                <div>
+                  <h2 class="welcome-title">从一个任务开始</h2>
+                  <p class="welcome-subtitle">先规划，再确认工具调用；关键过程会留在 Trace 和 Inspector。</p>
+                </div>
+                <span class="workbench-version">v1.0.4</span>
+              </div>
+              <div class="welcome-suggestions">
+                <button
+                  type="button"
+                  class="suggestion-card"
+                  data-prompt="基于当前工作区，先梳理项目结构，再给出最需要优化的 5 项。"
+                >
+                  <div class="suggestion-index">01</div>
+                  <div class="suggestion-text">分析当前项目结构与风险</div>
+                </button>
+                <button
+                  type="button"
+                  class="suggestion-card"
+                  data-prompt="检查当前会话的工具、MCP、搜索和工作区配置，告诉我哪些能力可用，哪些需要配置。"
+                >
+                  <div class="suggestion-index">02</div>
+                  <div class="suggestion-text">诊断 Agent 能力配置</div>
+                </button>
+                <button
+                  type="button"
+                  class="suggestion-card"
+                  data-prompt="联网搜索并整理这个问题的证据来源，回答时列出引用和不确定点。"
+                >
+                  <div class="suggestion-index">03</div>
+                  <div class="suggestion-text">生成带来源的搜索计划</div>
+                </button>
+                <button
+                  type="button"
+                  class="suggestion-card"
+                  data-prompt="规划一次代码修改：先读取相关文件，给出修改方案，等我确认后再执行。"
+                >
+                  <div class="suggestion-index">04</div>
+                  <div class="suggestion-text">安全地规划代码修改</div>
+                </button>
+              </div>
+            </section>
           </div>
         </div>
         <div class="input-area">
@@ -393,6 +621,184 @@
           </div>
           <div class="input-footer">
             <span class="footer-text">DeepChat · Ctrl+N 新建 · Ctrl+/ 聚焦 · Ctrl+↑ 历史 · F1 快捷键</span>
+          </div>
+        </div>
+
+        <div id="settings-dashboard" class="settings-dashboard hidden">
+          <!-- Settings & Console Header -->
+          <div class="settings-dashboard-header">
+            <div>
+              <h2 class="settings-dashboard-title">设置与控制台</h2>
+              <p class="settings-dashboard-subtitle">管理您的模型提供商、缓存遥测和全局配置。</p>
+            </div>
+            <div class="settings-dashboard-actions">
+              <button type="button" id="settings-export-btn" class="settings-action-btn secondary">导出配置</button>
+              <button type="button" id="settings-save-btn" class="settings-action-btn primary">保存更改</button>
+            </div>
+          </div>
+
+          <!-- Dashboard Cards Grid -->
+          <div class="settings-dashboard-grid">
+            <!-- Row 1: Token Usage (Left) & Model Providers (Right) -->
+            <div class="settings-grid-row">
+              <!-- Token Usage Card -->
+              <div class="settings-card token-usage-card">
+                <div class="settings-card-header">
+                  <div class="settings-card-icon-title">
+                    <span class="token-card-icon">⑤</span>
+                    <h3 class="settings-card-title">令牌使用情况 (Token Usage)</h3>
+                  </div>
+                  <span class="token-update-badge">更新时间：14:02:33</span>
+                </div>
+                <p class="settings-card-subtitle">实时监控各模型的消耗配额与余额情况。</p>
+                <div class="token-usage-stats">
+                  <div class="token-stat-col">
+                    <span class="token-stat-label">GPT-4o 消耗</span>
+                    <span class="token-stat-val">1.2M <span class="token-unit">tokens</span></span>
+                    <div class="token-progress-bar blue">
+                      <div class="token-progress-fill" style="width: 35%"></div>
+                    </div>
+                  </div>
+                  <div class="token-stat-col">
+                    <span class="token-stat-label">Claude 3.5 Sonnet</span>
+                    <span class="token-stat-val">840K <span class="token-unit">tokens</span></span>
+                    <div class="token-progress-bar yellow">
+                      <div class="token-progress-fill" style="width: 25%"></div>
+                    </div>
+                  </div>
+                  <div class="token-stat-col">
+                    <span class="token-stat-label">Embedding 模型</span>
+                    <span class="token-stat-val">3.4M <span class="token-unit">tokens</span></span>
+                    <div class="token-progress-bar darkblue">
+                      <div class="token-progress-fill" style="width: 65%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Model Providers Card -->
+              <div class="settings-card model-providers-card">
+                <h3 class="settings-card-title-simple">模型提供商</h3>
+                <div class="providers-list">
+                  <div class="provider-row-item active">
+                    <span class="provider-logo bg-o">O</span>
+                    <span class="provider-name">OpenAI</span>
+                    <span class="provider-arrow">&gt;</span>
+                  </div>
+                  <div class="provider-row-item">
+                    <span class="provider-logo bg-a">A</span>
+                    <span class="provider-name">Anthropic</span>
+                    <span class="provider-arrow">&gt;</span>
+                  </div>
+                  <div class="provider-row-item disabled">
+                    <span class="provider-logo bg-l">L</span>
+                    <span class="provider-name">Local Ollama</span>
+                    <span class="provider-status-label">未连接</span>
+                  </div>
+                </div>
+                <button type="button" class="add-provider-btn">+ 添加新提供商</button>
+              </div>
+            </div>
+
+            <!-- Row 2: Cache Telemetry (Left) & Advanced Config (Right) -->
+            <div class="settings-grid-row">
+              <!-- Cache Telemetry Card -->
+              <div class="settings-card cache-telemetry-card">
+                <div class="settings-card-header">
+                  <h3 class="settings-card-title-simple">缓存遥测 (Cache Telemetry)</h3>
+                  <span class="cache-active-badge">活动中</span>
+                </div>
+                <div class="cache-telemetry-content">
+                  <!-- Circular hit rate chart -->
+                  <div class="cache-hit-chart">
+                    <div class="cache-circular-progress">
+                      <div class="cache-circular-inner">
+                        <span class="cache-hit-num">92.4%</span>
+                      </div>
+                    </div>
+                    <span class="cache-hit-label">命中率 (Hit Rate)</span>
+                  </div>
+                  <!-- Stats -->
+                  <div class="cache-stats-block">
+                    <div class="cache-stat-item">
+                      <span class="cache-stat-label">平均延迟</span>
+                      <span class="cache-stat-val">42ms</span>
+                    </div>
+                    <div class="cache-stat-item">
+                      <span class="cache-stat-label">节省带宽</span>
+                      <span class="cache-stat-val">12.8 GB</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Advanced Config Card -->
+              <div class="settings-card advanced-config-card">
+                <h3 class="settings-card-title-simple">高级配置 (Advanced Config)</h3>
+                <div class="advanced-config-rows">
+                  <div class="config-row-item">
+                    <div class="config-row-desc">
+                      <span class="config-title">详细日志记录</span>
+                      <span class="config-subtitle">启用后将记录完整的推理轨迹及中间态。</span>
+                    </div>
+                    <label class="ios-switch">
+                      <input type="checkbox" id="config-detail-log" checked />
+                      <span class="switch-slider"></span>
+                    </label>
+                  </div>
+                  <div class="config-row-item">
+                    <div class="config-row-desc">
+                      <span class="config-title">语义缓存层</span>
+                      <span class="config-subtitle">使用向量数据库自动优化重复查询。</span>
+                    </div>
+                    <label class="ios-switch">
+                      <input type="checkbox" id="config-semantic-cache" />
+                      <span class="switch-slider"></span>
+                    </label>
+                  </div>
+                  <div class="config-slider-item">
+                    <span class="config-title">最大并行请求数</span>
+                    <div class="config-slider-control">
+                      <input
+                        type="range"
+                        id="config-parallel-slider"
+                        min="1"
+                        max="100"
+                        value="32"
+                        class="config-range-slider"
+                      />
+                      <span class="config-slider-value"><span id="parallel-current">32</span> / 100</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 3: System Status Card (Full Width) -->
+            <div class="settings-card system-log-card">
+              <div class="settings-card-header">
+                <div class="settings-card-icon-title">
+                  <span style="font-size: 16px">🖳</span>
+                  <h3 class="settings-card-title-simple">系统实时状态</h3>
+                </div>
+              </div>
+              <div class="system-logs-container">
+                <div class="log-line">
+                  <span class="log-tag info">[INFO]</span> 2026-05-20 14:00:01 - 配置已自动备份至集群存储。
+                </div>
+                <div class="log-line">
+                  <span class="log-tag warn">[WARN]</span> 2026-05-20 14:01:45 - OpenAI API 延迟略有波动 (230ms)。
+                </div>
+                <div class="log-line">
+                  <span class="log-tag info">[INFO]</span> 2026-05-20 14:02:10 - 正在同步 5 个 Agent 的最新 Prompt。
+                </div>
+                <div class="log-line">
+                  <span class="log-tag error">[ERR]</span> 2026-05-20 14:02:22 - 无法加载 Local Ollama，请检查端口
+                  11434。
+                </div>
+                <div class="log-line console-caret">_ 正在监听系统变更...</div>
+              </div>
+            </div>
           </div>
         </div>
       </main>

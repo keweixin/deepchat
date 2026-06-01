@@ -30,15 +30,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border-color, #e5e7eb);
   background: var(--surface-hover, #f9fafb);
+  min-width: 0;
 }
 
 .inspector-panel-header h2 {
   font-size: 0.875rem;
   font-weight: 600;
   margin: 0;
+  flex-shrink: 0;
 }
 
 /* ─── Toolbar ─────────────────────────────────────────────────────────────── */
@@ -46,15 +49,20 @@
 .inspector-toolbar {
   display: flex;
   gap: 0.25rem;
-  margin-left: auto;
-  margin-right: 0.5rem;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+  margin-left: 0;
+  margin-right: 0;
+  overflow: hidden;
 }
 
 .inspector-toolbar-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 6px;
   background: transparent;
@@ -86,6 +94,13 @@
 
 .inspector-toolbar-btn svg {
   flex-shrink: 0;
+}
+
+.inspector-toolbar-btn span {
+  max-width: 4.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Artifact Cards ──────────────────────────────────────────────────────── */
@@ -260,6 +275,7 @@
 }
 
 .inspector-panel-close {
+  flex-shrink: 0;
   background: none;
   border: none;
   cursor: pointer;
@@ -327,6 +343,34 @@
   margin-bottom: 0.125rem;
   color: var(--text-primary, #111827);
   font-size: 0.8125rem;
+}
+
+.inspector-task-evidence {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.inspector-task-evidence-item,
+.inspector-task-evidence-note {
+  min-width: 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-color, #fff), transparent 18%);
+  color: var(--text-secondary, #4b5563);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.inspector-task-evidence-item strong {
+  color: var(--text-primary, #111827);
+}
+
+.inspector-task-evidence-note {
+  grid-column: 1 / -1;
+  word-break: break-word;
 }
 
 .inspector-overview-actions {

@@ -39,6 +39,11 @@ test.describe('Inspector Panel', () => {
     const toggleBtn = window.locator('#inspector-toggle-btn');
     const panel = window.locator('#right-inspector-panel');
 
+    if (await panel.isVisible()) {
+      await toggleBtn.click();
+      await expect(panel).not.toBeVisible();
+    }
+
     await toggleBtn.click();
     await expect(panel).toBeVisible();
 

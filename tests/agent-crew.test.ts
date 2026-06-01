@@ -220,10 +220,21 @@ describe('agent crew state engine', () => {
       renderAgentCrew(container, run);
 
       expect(container.querySelector('.agent-crew-stage')?.getAttribute('aria-label')).toBe('AI 小队工作进度');
+      expect(container.querySelector('.agent-crew-lifecycle')?.getAttribute('aria-label')).toBe('Agent 固定工作阶段');
+      expect(container.textContent).toContain('理解需求');
+      expect(container.textContent).toContain('读取上下文');
+      expect(container.textContent).toContain('制定计划');
+      expect(container.textContent).toContain('等待确认');
+      expect(container.textContent).toContain('执行工具');
+      expect(container.textContent).toContain('验证结果');
+      expect(container.textContent).toContain('总结回答');
       expect(container.textContent).toContain('拆任务');
       expect(container.textContent).toContain('运行/编辑');
       expect(container.textContent).toContain('等待审批：run_code');
       expect(container.querySelector('.agent-crew-persona.status-waiting')?.textContent).toContain('实验员');
+      expect(container.querySelector('.agent-crew-lifecycle-step[data-stage="approval"]')?.className).toContain(
+        'is-active'
+      );
       expect(container.querySelector('.agent-crew-stage-progress span')?.getAttribute('style')).toContain('width:');
     });
 

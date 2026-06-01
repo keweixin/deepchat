@@ -89,8 +89,10 @@ describe('settings MCP rendering', () => {
     );
 
     expect(container.textContent).toContain('连接成功，但没有工具');
+    expect(container.textContent).toContain('server 没有返回工具');
     expect(container.textContent).toContain('阶段 listTools');
     expect(container.textContent).toContain('失败类型 命令不存在');
+    expect(container.textContent).toContain('命令不存在。请检查 command');
     expect(container.textContent).toContain('阶段 initialize/listTools');
   });
 

@@ -9,8 +9,10 @@ DeepChat 的定位不是大而全 Web 平台，也不是完整 IDE，而是一�
 - 多 Provider：DeepSeek、OpenAI、OpenRouter、硅基流动、DashScope、Ollama、LM Studio、自定义 OpenAI-compatible endpoint。
 - 智能 Agent：自动判断联网搜索、文件读取、代码运行、MCP 或普通聊天；所有工具调用都需要用户确认。
 - Tavily 搜索主线：联网工具固定走 Tavily，支持多 query 计划、搜索深度、新闻 freshness、域名过滤、TTL 缓存、可选 Extract 抽取和 structured citations。
-- 可审计工具：工具请求、审批、拒绝、失败、输出摘要、安全提示和来源会写入消息记录。
-- 上下文透明：工具卡可查看/复制“进入下一轮模型上下文”的压缩输出，并显示原始/压缩 token 估算。
+- Workbench UI：默认浅色三栏工作台，左侧资源管理器，中间任务画布，右侧 Inspector 用于查看细节。
+- 可审计工具：工具请求、审批、拒绝、失败、输出摘要、安全提示和来源会写入消息记录；普通聊天流只显示摘要，原始参数和输出进入 Inspector。
+- 信息密度：`normal / advanced / developer` 三档展示，普通用户不被 raw args、trace id、schema hash、cache profile 打断。
+- 上下文透明：Inspector 可查看“进入下一轮模型上下文”的压缩输出、原始/压缩 token 估算和 cache 来源。
 - 工具调用修复：模型把工具 JSON 写进正文或 reasoning text 时，会保守修复为正常工具调用；截断参数 JSON 会在审批前尝试补齐。
 - 只读工具并发：同一轮里的搜索、列目录、工作区搜索和读文件可并行等待确认/执行，结果仍按模型声明顺序进入上下文。
 - MCP 可靠调用：复杂 MCP 参数 schema 会压平成 `filters.status` 这类 dot-path 字段，执行前再还原为嵌套 JSON。
@@ -28,7 +30,7 @@ DeepChat 默认不隐藏执行外部操作：
 
 - `read_file` 只能读取用户授权工作区下的文本文件，并拒读 `.env*`、SSH/AWS/npm/pypi 凭证、key/cert 等敏感路径。
 - `run_code` 每次都需要确认，采用本地轻隔离执行：独立临时 `cwd/HOME/TEMP`、环境变量清洗、超时终止、输出截断和脱敏；不提供硬网络隔离或硬内存限制。
-- MCP 工具作为外部系统能力处理，调用前必须确认，配置和工具状态在设置页可见。
+- MCP 工具作为外部系统能力处理，调用前必须确认；设置页会显示 initialize/listTools 状态、工具数、stderr/失败类型和修复建议。
 - API Key、Tavily Key、MCP env 在桌面端通过 Electron `safeStorage` 加密存储；备份导出默认不包含 secrets。
 
 ## DeepSeek 缓存优化
@@ -91,7 +93,8 @@ npm run electron:build:portable
 - [electron/tools-workspace.ts](./electron/tools-workspace.ts) / [electron/workspace-index.ts](./electron/workspace-index.ts)：Workspace Knowledge Lite 索引、搜索和符号读取。
 - [electron/shared/tool-definitions.js](./electron/shared/tool-definitions.js)：工具 schema、风险级别、角色和产品文案的共享定义。
 - [src/modules/api.ts](./src/modules/api.ts)：Provider registry、浏览器 fallback、usage/context helpers。
-- [src/modules/chat.ts](./src/modules/chat.ts)：聊天 UI、Agent timeline、工具卡、token/cache 展示。
+- [src/modules/chat.ts](./src/modules/chat.ts)：聊天 UI、Agent 进度、信息密度、token/cache 摘要。
+- [src/modules/inspector-panel.ts](./src/modules/inspector-panel.ts)：右侧 Inspector，集中展示消息、Trace、工具证据、Job、Token/cache 和原始数据。
 - [src/modules/agent-run-store.ts](./src/modules/agent-run-store.ts) / [src/modules/agent-crew.ts](./src/modules/agent-crew.ts)：Agent Crew 状态与消息内协作视图。
 - [src/modules/context-assets.ts](./src/modules/context-assets.ts)：文本附件 context asset 与 bounded prompt block。
 - [scripts/check-quality-budget.mjs](./scripts/check-quality-budget.mjs)：AST 复杂度、函数长度、嵌套、import/export 质量预算门禁。

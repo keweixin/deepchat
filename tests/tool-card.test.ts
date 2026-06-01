@@ -81,35 +81,67 @@ describe('renderToolCard', () => {
   });
 
   it('shows duration and tokens in meta', () => {
-    const card = renderToolCard({ name: 'read_file', args: {}, durationMs: 1500, tokens: 42 });
+    const card = renderToolCard(
+      { name: 'read_file', args: {}, durationMs: 1500, tokens: 42 },
+      { detailLevel: 'advanced' }
+    );
     const meta = card.querySelector('.tool-card-meta').textContent;
     expect(meta).toContain('1.5s');
     expect(meta).toContain('42 tokens');
   });
 
-  it('shows observable job metadata for long-running tools', () => {
+  it('keeps raw args and output out of normal mode', () => {
     const card = renderToolCard({
-      name: 'run_code',
-      args: {},
-      job: { id: 'job-1', status: 'completed', startedAt: '2026-05-31T00:00:00.000Z' },
-      expanded: true,
+      id: 'tool-raw',
+      name: 'read_file',
+      args: { path: '/secret.md' },
+      output: 'full raw output',
+      contextOutput: 'context raw output',
     });
+    expect(card.textContent).toContain('普通模式只显示执行摘要');
+    expect(card.textContent).not.toContain('/secret.md');
+    expect(card.textContent).not.toContain('full raw output');
+  });
+
+  it('shows raw args and output in developer mode', () => {
+    const card = renderToolCard(
+      { id: 'tool-raw', name: 'read_file', args: { path: '/secret.md' }, output: 'full raw output' },
+      { detailLevel: 'developer' }
+    );
+    expect(card.querySelector('.tool-card-details')!.textContent).toContain('/secret.md');
+    expect(card.querySelector('.tool-card-details')!.textContent).toContain('full raw output');
+    expect(card.querySelector('.tool-card-details')!.textContent).toContain('tool-raw');
+  });
+
+  it('shows observable job metadata for long-running tools', () => {
+    const card = renderToolCard(
+      {
+        name: 'run_code',
+        args: {},
+        job: { id: 'job-1', status: 'completed', startedAt: '2026-05-31T00:00:00.000Z' },
+        expanded: true,
+      },
+      { detailLevel: 'developer' }
+    );
     expect(card.querySelector('.tool-card-meta')!.textContent).toContain('Job completed');
     expect(card.querySelector('.tool-card-details')!.textContent).toContain('job-1');
   });
 
   it('shows context compaction reason and ratio', () => {
-    const card = renderToolCard({
-      name: 'read_file',
-      args: {},
-      rawOutputTokens: 800,
-      contextOutputTokens: 200,
-      contextCompacted: true,
-      contextCompactionRatio: 0.25,
-      contextCompactionReason: 'tool_type:read_file',
-      contextCompactionType: 'file',
-      expanded: true,
-    });
+    const card = renderToolCard(
+      {
+        name: 'read_file',
+        args: {},
+        rawOutputTokens: 800,
+        contextOutputTokens: 200,
+        contextCompacted: true,
+        contextCompactionRatio: 0.25,
+        contextCompactionReason: 'tool_type:read_file',
+        contextCompactionType: 'file',
+        expanded: true,
+      },
+      { detailLevel: 'advanced' }
+    );
     expect(card.querySelector('.tool-card-meta').textContent).toContain('压缩 保留 25%');
     expect(card.querySelector('.tool-card-details').textContent).toContain('压缩原因：tool_type:read_file');
     expect(card.querySelector('.tool-card-details').textContent).toContain('压缩类型：file');

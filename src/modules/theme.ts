@@ -11,7 +11,7 @@ declare global {
 }
 
 export function initTheme(): void {
-  const saved = localStorage.getItem('dc_theme') || 'dark';
+  const saved = localStorage.getItem('dc_theme') || 'light';
   document.documentElement.setAttribute('data-theme', saved);
 
   // Update mermaid theme when loaded

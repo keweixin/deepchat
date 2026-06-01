@@ -239,6 +239,36 @@ describe('inspector-panel', () => {
     expect(panel.textContent).toContain('ENOENT');
   });
 
+  it('renders task evidence summary for tool calls', () => {
+    openInspectorPanel('message', {
+      index: 0,
+      msg: {
+        role: 'assistant',
+        timestamp: Date.now(),
+        toolCalls: [
+          { id: 'read-1', name: 'read_file', status: 'completed', ok: true, output: 'read ok' },
+          {
+            id: 'edit-1',
+            name: 'edit_file',
+            status: 'completed',
+            ok: true,
+            backupPath: 'C:/DeepChat/backups/demo.bak',
+            security: { editCount: 1 },
+            nextAction: '运行测试确认修改。',
+          },
+          { id: 'run-1', name: 'run_code', status: 'failed', ok: false, output: 'timeout' },
+        ],
+      },
+    });
+
+    expect(panel.textContent).toContain('读取：1 个文件/上下文');
+    expect(panel.textContent).toContain('修改：1 个文件');
+    expect(panel.textContent).toContain('执行：1 次命令/代码');
+    expect(panel.textContent).toContain('失败：1 项');
+    expect(panel.textContent).toContain('C:/DeepChat/backups/demo.bak');
+    expect(panel.textContent).toContain('运行测试确认修改。');
+  });
+
   it('update does nothing when closed', () => {
     updateInspectorPanel('message', { msg: { role: 'user' }, index: 0 });
     expect(panel.classList.contains('is-visible')).toBe(false);

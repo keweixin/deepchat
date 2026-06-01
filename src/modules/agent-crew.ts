@@ -167,9 +167,52 @@ function createCrewHeaderTitle(status: string, statusText: string) {
 
 function createCrewStage(agentRun: Record<string, any>, crew: Record<string, any>[] = []) {
   const fragment = document.createDocumentFragment();
+  fragment.appendChild(createCrewLifecycleMap(crew));
   fragment.appendChild(createCrewStageMap(crew));
   fragment.appendChild(createCrewCurrentPanel(agentRun, crew));
   return fragment;
+}
+
+const AGENT_LIFECYCLE_STAGES = [
+  { id: 'understand', label: '理解需求', roles: ['planner'] },
+  { id: 'context', label: '读取上下文', roles: ['reader'] },
+  { id: 'plan', label: '制定计划', roles: ['planner'] },
+  { id: 'approval', label: '等待确认', roles: ['coder', 'researcher'] },
+  { id: 'execute', label: '执行工具', roles: ['researcher', 'reader', 'coder'] },
+  { id: 'review', label: '验证结果', roles: ['reviewer'] },
+  { id: 'write', label: '总结回答', roles: ['writer'] },
+];
+
+function createCrewLifecycleMap(crew: Record<string, any>[] = []) {
+  const map = document.createElement('ol');
+  map.className = 'agent-crew-lifecycle';
+  map.setAttribute('aria-label', 'Agent 固定工作阶段');
+
+  const activeRole = getPrimaryCrewMember(crew)?.id || '';
+  for (const stage of AGENT_LIFECYCLE_STAGES) {
+    const status = getLifecycleStageStatus(stage, crew, activeRole);
+    const item = document.createElement('li');
+    item.className = `agent-crew-lifecycle-step is-${status}`;
+    item.dataset.stage = stage.id;
+    item.textContent = stage.label;
+    map.appendChild(item);
+  }
+  return map;
+}
+
+function getLifecycleStageStatus(
+  stage: { id: string; roles: string[] },
+  crew: Record<string, any>[] = [],
+  activeRole = ''
+) {
+  const members = crew.filter((member) => stage.roles.includes(String(member.id || '')));
+  if (stage.id === 'approval' && members.some((member) => member.status === 'waiting')) return 'active';
+  if (members.some((member) => member.status === 'error')) return 'error';
+  if (members.some((member) => member.id === activeRole && ['running', 'waiting'].includes(member.status)))
+    return 'active';
+  if (members.some((member) => member.status === 'done')) return 'done';
+  if (members.some((member) => member.status === 'running')) return 'active';
+  return 'idle';
 }
 
 function createCrewStageMap(crew: Record<string, any>[] = []) {
@@ -234,7 +277,7 @@ function createCrewCurrentPanel(agentRun: Record<string, any>, crew: Record<stri
   const hint = createTextElement(
     'span',
     'agent-crew-current-hint',
-    active ? getStatusHelp(active.status) : '模型开始规划或调用工具后，这里会显示进度。'
+    active ? getStatusHelp(active) : '模型开始规划或调用工具后，这里会显示进度。'
   );
 
   panel.append(status, action, hint);
@@ -356,7 +399,16 @@ function getRunReadableStatus(status = '') {
   return labels[String(status)] || '准备中';
 }
 
-function getStatusHelp(status = '') {
+function getStatusHelp(member: Record<string, any> = {}) {
+  const status = String(member.status || '');
+  const text = `${member.currentAction || ''}\n${member.outputSummary || ''}`;
+  if (status === 'waiting') return '需要你确认或拒绝工具调用后，Agent 才会继续。';
+  if (status === 'error') {
+    if (/ENOENT|command not found|命令不存在/i.test(text)) return '命令不存在。请检查 MCP/工具命令路径后重试。';
+    if (/Tavily|API Key|key/i.test(text)) return '缺少搜索配置。请先配置 Tavily Key，或切换到无需联网的模式。';
+    if (/timeout|超时/i.test(text)) return '执行超时。可以缩小任务范围，或检查外部工具是否卡住。';
+    return '这一步失败了，可打开 Trace 查看原因和修复建议。';
+  }
   const labels: Record<string, string> = {
     idle: '还没有轮到这个角色。',
     running: '正在处理，会继续更新。',

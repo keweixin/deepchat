@@ -217,6 +217,14 @@
   font-size: 10px;
 }
 
+.mcp-status-hint {
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--accent-primary), transparent 72%);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent-primary), transparent 92%);
+  color: var(--text-secondary);
+}
+
 .settings-section {
   margin-bottom: var(--space-8);
 }
