@@ -32,8 +32,9 @@ let _panelEl: HTMLElement | null = null;
 let _contentEl: HTMLElement | null = null;
 let _toolbarEl: HTMLElement | null = null;
 let _isOpen = false;
-let _currentMode = 'empty'; // empty | message | trace | theatre | artifact
+let _currentMode = 'empty'; // empty | overview | message | trace | theatre | artifact
 let _currentData: Record<string, any> = {};
+let _overviewProvider: (() => Record<string, any> | null) | null = null;
 
 /** Type icons (SVG paths) for each artifact type. */
 const ARTIFACT_TYPE_ICONS = {
@@ -75,13 +76,14 @@ function _ensurePanel() {
 export function openInspectorPanel(mode: string, data: Record<string, any> = {}) {
   _ensurePanel();
   if (!_panelEl) return;
+  const resolved = _resolveInspectorRequest(mode, data);
   _isOpen = true;
-  _currentMode = mode;
-  _currentData = data;
+  _currentMode = resolved.mode;
+  _currentData = resolved.data;
   _panelEl.classList.add('is-visible');
   _ensureToolbar();
   _updateToolbar();
-  _renderContent(mode, data);
+  _renderContent(resolved.mode, resolved.data);
 }
 
 /**
@@ -100,10 +102,11 @@ export function closeInspectorPanel() {
  * @param {Object} data
  */
 export function toggleInspectorPanel(mode: string, data: Record<string, any> = {}) {
-  if (_isOpen && _currentMode === mode) {
+  const resolved = _resolveInspectorRequest(mode, data);
+  if (_isOpen && _currentMode === resolved.mode) {
     closeInspectorPanel();
   } else {
-    openInspectorPanel(mode, data);
+    openInspectorPanel(resolved.mode, resolved.data);
   }
 }
 
@@ -122,8 +125,14 @@ export function isInspectorPanelOpen() {
  */
 export function updateInspectorPanel(mode: string, data: Record<string, any> = {}) {
   if (!_isOpen) return;
-  _currentMode = mode;
-  _renderContent(mode, data);
+  const resolved = _resolveInspectorRequest(mode, data);
+  _currentMode = resolved.mode;
+  _currentData = resolved.data;
+  _renderContent(resolved.mode, resolved.data);
+}
+
+export function setInspectorOverviewProvider(provider: (() => Record<string, any> | null) | null) {
+  _overviewProvider = provider;
 }
 
 // ─── Content Renderers ──────────────────────────────────────────────────────
@@ -145,6 +154,9 @@ function _renderContent(mode: string, data: Record<string, any>) {
     case 'artifact':
       _renderArtifactInfo(data);
       break;
+    case 'overview':
+      _renderOverview(data);
+      break;
     case 'empty':
     default:
       _renderEmpty();
@@ -159,6 +171,103 @@ function _renderEmpty() {
       <p>选择一条消息或按 <kbd>Ctrl+Shift+I</kbd> 查看详情</p>
     </div>
   `;
+}
+
+function _resolveInspectorRequest(mode: string, data: Record<string, any>) {
+  if (mode !== 'empty') return { mode, data };
+  const overview = _overviewProvider?.();
+  if (overview) return { mode: 'overview', data: overview };
+  return { mode, data };
+}
+
+function _createMetaItem(label: string, value: unknown, title = '') {
+  const item = document.createElement('div');
+  item.className = 'inspector-meta-item';
+  const labelEl = document.createElement('span');
+  labelEl.className = 'inspector-meta-label';
+  labelEl.textContent = label;
+  const valueEl = document.createElement('span');
+  valueEl.className = 'inspector-meta-value';
+  valueEl.textContent = String(value ?? '');
+  if (title) valueEl.title = title;
+  item.append(labelEl, valueEl);
+  return item;
+}
+
+function _createOverviewAction(label: string, enabled: boolean, onClick: () => void) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'inspector-overview-action';
+  button.textContent = label;
+  button.disabled = !enabled;
+  if (enabled) button.addEventListener('click', onClick);
+  return button;
+}
+
+function _dispatchInspectorOpen(mode: string, msgIndex: unknown) {
+  document.dispatchEvent(new CustomEvent('deepchat:open-inspector', { detail: { mode, msgIndex } }));
+}
+
+function _renderOverview(data: Record<string, any>) {
+  if (!_contentEl) return;
+  if (!data?.conversationTitle && !data?.messageCount) return _renderEmpty();
+
+  const fragment = document.createDocumentFragment();
+  const summary = document.createElement('div');
+  summary.className = 'inspector-section inspector-overview';
+
+  const title = document.createElement('h3');
+  title.textContent = '当前会话概览';
+  summary.appendChild(title);
+
+  const grid = document.createElement('div');
+  grid.className = 'inspector-meta-grid';
+  grid.append(
+    _createMetaItem('会话', data.conversationTitle || '新的对话'),
+    _createMetaItem('消息', `${Number(data.messageCount || 0)} 条`),
+    _createMetaItem('工具证据', data.latestToolRunCount ? `${data.latestToolRunCount} 个` : '暂无'),
+    _createMetaItem('Artifact', data.latestArtifactCount ? `${data.latestArtifactCount} 个` : '暂无')
+  );
+  if (data.usageText) grid.appendChild(_createMetaItem('Token / Cache', data.usageText, data.usageTitle));
+  summary.appendChild(grid);
+
+  const actions = document.createElement('div');
+  actions.className = 'inspector-overview-actions';
+  actions.append(
+    _createOverviewAction('最近消息', data.latestMessageIndex !== undefined, () => {
+      _dispatchInspectorOpen('message', data.latestMessageIndex);
+    }),
+    _createOverviewAction('Trace', data.latestTraceIndex !== undefined, () => {
+      _dispatchInspectorOpen('trace', data.latestTraceIndex);
+    }),
+    _createOverviewAction('Artifact', data.latestArtifactIndex !== undefined, () => {
+      document.dispatchEvent(
+        new CustomEvent('deepchat:open-artifact-inspector', { detail: { msgIndex: data.latestArtifactIndex } })
+      );
+    })
+  );
+  summary.appendChild(actions);
+  fragment.appendChild(summary);
+
+  if (data.lastStage || data.latestStopReason) {
+    const trace = document.createElement('div');
+    trace.className = 'inspector-section';
+    const h3 = document.createElement('h3');
+    h3.textContent = '最近 Agent 状态';
+    trace.appendChild(h3);
+    trace.appendChild(_createMetaItem('阶段', data.lastStage || '无'));
+    if (data.latestStopReason) trace.appendChild(_createMetaItem('停止原因', data.latestStopReason));
+    fragment.appendChild(trace);
+  }
+
+  if (data.hint) {
+    const hint = document.createElement('p');
+    hint.className = 'inspector-overview-hint';
+    hint.textContent = data.hint;
+    fragment.appendChild(hint);
+  }
+
+  _contentEl.appendChild(fragment);
 }
 
 function _renderMessageInfo(data: Record<string, any>) {
@@ -926,7 +1035,11 @@ function _ensureToolbar() {
     btn.title = m.label;
     btn.innerHTML = `${m.icon}<span>${m.label}</span>`; /* safeSetHTML-exempt: static template */
     btn.addEventListener('click', () => {
-      if (!_currentData || !_currentData.msg) return;
+      if (!_currentData || !_currentData.msg) {
+        if (_currentData?.latestMessageIndex !== undefined)
+          _dispatchInspectorOpen(m.mode, _currentData.latestMessageIndex);
+        return;
+      }
       openInspectorPanel(m.mode, _currentData);
     });
     _toolbarEl.appendChild(btn);
@@ -967,7 +1080,8 @@ export function bindInspectorPanelShortcut() {
  * Initialize Inspector Panel — bind toggle button and keyboard shortcut.
  * Call once during app startup.
  */
-export function initInspectorPanel() {
+export function initInspectorPanel(options: { getOverviewData?: () => Record<string, any> | null } = {}) {
+  if (options.getOverviewData) setInspectorOverviewProvider(options.getOverviewData);
   const toggleBtn = document.getElementById('inspector-toggle-btn');
   if (toggleBtn) {
     toggleBtn.addEventListener('click', () => {

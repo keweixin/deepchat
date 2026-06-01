@@ -1,6 +1,9 @@
 ﻿import { describe, expect, it } from 'vitest';
 
-import { parseSkillMeta } from '../electron/external-skills.js';
+import { parseSkillMeta, scanExternalSkills } from '../electron/external-skills.js';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import {
   McpManager,
   hashMcpTools,
@@ -22,6 +25,39 @@ description: Demo skill description
       name: 'demo-skill',
       description: 'Demo skill description',
     });
+  });
+
+  it('discovers Codex, Agents, Claude, and workspace skill roots without importing automatically', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-skills-'));
+    try {
+      const codexSkill = path.join(tmp, '.codex', 'skills', 'demo-codex');
+      const workspaceSkill = path.join(tmp, 'workspace', '.claude', 'skills', 'demo-workspace');
+      await fs.mkdir(codexSkill, { recursive: true });
+      await fs.mkdir(workspaceSkill, { recursive: true });
+      await fs.writeFile(
+        path.join(codexSkill, 'SKILL.md'),
+        ['---', 'name: codex-demo', 'description: Codex demo skill', '---', '', '# Demo'].join('\n'),
+        'utf8'
+      );
+      await fs.writeFile(
+        path.join(workspaceSkill, 'SKILL.md'),
+        ['---', 'name: workspace-demo', 'description: Workspace demo skill', '---', '', '# Demo'].join('\n'),
+        'utf8'
+      );
+
+      const payload = await scanExternalSkills(
+        { externalSkills: [], workspaceRoots: [path.join(tmp, 'workspace')] },
+        { homeDir: tmp }
+      );
+
+      expect(payload.candidates.map((candidate: any) => candidate.name)).toEqual(
+        expect.arrayContaining(['codex-demo', 'workspace-demo'])
+      );
+      expect(payload.candidates.every((candidate: any) => candidate.importSkill?.content)).toBe(true);
+      expect(payload.candidates.every((candidate: any) => candidate.status === 'new')).toBe(true);
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
   });
 
   it('creates OpenAI-safe names for MCP tools', () => {

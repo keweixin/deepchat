@@ -77,6 +77,7 @@ describe('composer status helpers', () => {
     });
 
     expect(target.querySelectorAll('.composer-context-preview-chip').length).toBeGreaterThan(0);
+    expect(target.querySelector('.composer-context-preview-chip')?.tagName).toBe('BUTTON');
     expect(target.textContent).toContain('工具 联网检索');
   });
 

@@ -18,6 +18,7 @@ import {
   exportBackup,
   importBackup,
   addDocsetRoot,
+  importExternalSkills,
   importExternalMcpConfigs,
   listDocsets,
   pickExternalSkill,
@@ -25,6 +26,7 @@ import {
   probeExternalMcpConfig,
   removeWorkspace,
   removeDocsetRoot,
+  scanExternalSkills,
   scanExternalMcpConfigs,
 } from './client-store.ts';
 import { showToast } from './utils.js';
@@ -100,6 +102,9 @@ export interface SettingsElements {
   addWorkspaceBtn: HTMLElement | null;
   externalSkillList: HTMLElement | null;
   addExternalSkillBtn: HTMLElement | null;
+  scanExternalSkillBtn: HTMLElement | null;
+  externalSkillStatusText: HTMLElement | null;
+  externalSkillImportList: HTMLElement | null;
   mcpName: HTMLInputElement | null;
   mcpCommand: HTMLInputElement | null;
   mcpArgs: HTMLInputElement | null;
@@ -184,6 +189,9 @@ export function collectSettingsElements(): SettingsElements {
     addWorkspaceBtn: document.getElementById('add-workspace-btn'),
     externalSkillList: document.getElementById('external-skill-list'),
     addExternalSkillBtn: document.getElementById('add-external-skill-btn'),
+    scanExternalSkillBtn: document.getElementById('scan-external-skill-btn'),
+    externalSkillStatusText: document.getElementById('external-skill-status-text'),
+    externalSkillImportList: document.getElementById('external-skill-import-list'),
     mcpName: document.getElementById('mcp-name-input') as HTMLInputElement | null,
     mcpCommand: document.getElementById('mcp-command-input') as HTMLInputElement | null,
     mcpArgs: document.getElementById('mcp-args-input') as HTMLInputElement | null,
@@ -310,6 +318,52 @@ export function renderExternalSkillList(
     const meta = document.createElement('div');
     meta.className = 'workspace-item-meta';
     meta.textContent = `${skill.enabled === false ? '停用' : '启用'} · ${skill.sourcePath || skill.description || '已导入内容'}`;
+    item.append(main, meta);
+    container.appendChild(item);
+  }
+}
+
+type ExternalSkillCandidate = ExternalSkill & {
+  sourceLabel?: string;
+  status?: string;
+  imported?: boolean;
+  importSkill?: ExternalSkill;
+};
+
+function renderExternalSkillImportList(
+  container: HTMLElement | null,
+  candidates: ExternalSkillCandidate[] = [],
+  onImport: (candidate: ExternalSkillCandidate) => Promise<void>
+): void {
+  if (!container) return;
+  container.textContent = '';
+  if (!candidates.length) {
+    renderEmptyList(
+      container,
+      '未发现 Claude/Codex Skill',
+      '会只读扫描 ~/.codex/skills、~/.agents/skills、~/.claude/skills 和工作区 .claude/skills'
+    );
+    return;
+  }
+  for (const candidate of candidates) {
+    const item = document.createElement('div');
+    item.className = 'workspace-item column';
+    const main = document.createElement('div');
+    main.className = 'workspace-item-main';
+    const name = document.createElement('span');
+    name.textContent = `${candidate.name || '外部 Skill'} · ${candidate.status || 'new'}`;
+    const importBtn = document.createElement('button');
+    importBtn.type = 'button';
+    importBtn.className = 'icon-btn-sm';
+    importBtn.textContent = candidate.imported ? '已导入' : '导入';
+    importBtn.disabled = Boolean(candidate.imported);
+    importBtn.addEventListener('click', () => onImport(candidate));
+    main.append(name, importBtn);
+    const meta = document.createElement('div');
+    meta.className = 'workspace-item-meta';
+    meta.textContent = [candidate.sourceLabel || '外部目录', candidate.sourcePath, candidate.description]
+      .filter(Boolean)
+      .join(' · ');
     item.append(main, meta);
     container.appendChild(item);
   }
@@ -670,10 +724,28 @@ export function bindSettingsEvents(
     if (els.panel) els.panel.classList.add('hidden');
     if (els.overlay) els.overlay.classList.add('hidden');
   }
+  function focusSettingsSection(title: string) {
+    if (!title) return;
+    open();
+    const sections = [...(els.panel?.querySelectorAll('.settings-section') ?? [])] as HTMLElement[];
+    const targetSec = sections.find((sec) => sec.querySelector('h3')?.textContent?.trim() === title);
+    if (!targetSec) return;
+    els.panel?.querySelectorAll('.settings-tab, .settings-nav-item').forEach((item) => {
+      const el = item as HTMLElement;
+      el.classList.toggle('active', el.dataset.targetTitle === title);
+    });
+    requestAnimationFrame(() => targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    targetSec.classList.add('settings-section-flash');
+    setTimeout(() => targetSec.classList.remove('settings-section-flash'), 1200);
+  }
 
   if (els.btn) els.btn.addEventListener('click', open);
   if (els.closeBtn) els.closeBtn.addEventListener('click', close);
   if (els.overlay) els.overlay.addEventListener('click', close);
+  window.addEventListener('deepchat:settings-focus', (event) => {
+    const title = String((event as CustomEvent).detail?.title || '');
+    focusSettingsSection(title);
+  });
 
   // ─── Settings Tabs ───
   const settingsBody = els.panel?.querySelector('.settings-body') as HTMLElement | null;
@@ -966,6 +1038,37 @@ export function bindSettingsEvents(
         updateExternalSkills
       );
       showToast('外部 Skill 已导入');
+    });
+  }
+  if (els.scanExternalSkillBtn) {
+    els.scanExternalSkillBtn.addEventListener('click', async () => {
+      if (els.externalSkillStatusText) els.externalSkillStatusText.textContent = '扫描中...';
+      try {
+        const payload = await scanExternalSkills();
+        const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+        renderExternalSkillImportList(els.externalSkillImportList, candidates, async (candidate) => {
+          const skill = candidate.importSkill || candidate;
+          const next = await importExternalSkills([skill]);
+          renderExternalSkillList(
+            els.externalSkillList,
+            (next.externalSkills as ExternalSkill[]) || [],
+            updateExternalSkills
+          );
+          renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
+          if (els.externalSkillStatusText) els.externalSkillStatusText.textContent = '已导入 Skill';
+          showToast('外部 Skill 已导入');
+        });
+        const warnings = Array.isArray(payload?.warnings) ? payload.warnings.length : 0;
+        if (els.externalSkillStatusText) {
+          els.externalSkillStatusText.textContent = warnings
+            ? `发现 ${candidates.length} 个，${warnings} 个警告`
+            : `发现 ${candidates.length} 个`;
+        }
+      } catch (error) {
+        if (els.externalSkillStatusText)
+          els.externalSkillStatusText.textContent = (error as Error).message || '扫描失败';
+        renderExternalSkillImportList(els.externalSkillImportList, [], async () => {});
+      }
     });
   }
   if (els.addMcpServerBtn) {

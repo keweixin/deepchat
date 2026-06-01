@@ -884,8 +884,15 @@
                       <line x1="5" y1="12" x2="19" y2="12" /></svg
                     >导入 SKILL.md
                   </button>
+                  <button id="scan-external-skill-btn" class="secondary-btn" type="button">
+                    发现 Claude/Codex Skill
+                  </button>
+                  <span id="external-skill-status-text" class="inline-status"></span>
                 </div>
-                <p class="form-hint">导入本地 SKILL.md 后，启用的 Skill 会追加到系统提示词中。</p>
+                <div id="external-skill-import-list" class="workspace-list compact-list"></div>
+                <p class="form-hint">
+                  可手动导入 SKILL.md，也可只读扫描 Claude/Codex/Agents 的本地 Skill；导入前不会自动执行。
+                </p>
               </div>
             </div>
             <div class="settings-section" id="section-mcp" data-tab="tab-connection">

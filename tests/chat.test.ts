@@ -904,6 +904,7 @@ describe('chat regeneration', () => {
             reasoning: 40,
             cacheHit: 900,
             cacheMiss: 300,
+            source: 'provider',
             rounds: 2,
             cost: {
               estimatedCostUsd: 0.0002,
@@ -920,6 +921,30 @@ describe('chat regeneration', () => {
     expect(telemetry.title).toContain('本会话 Token / Cache 汇总');
     expect(telemetry.title).toContain('Prefix: abc123');
     expect(telemetry.title).toContain('工具 schema 变化');
+  });
+
+  it('does not present estimated token cache misses as a real 0% cache rate', () => {
+    const telemetry = formatConversationUsageTelemetry({
+      messages: [
+        {
+          role: 'assistant',
+          tokens: {
+            input: 7300,
+            output: 0,
+            total: 7300,
+            cacheHit: 0,
+            cacheMiss: 7300,
+            source: 'estimated',
+          },
+        },
+      ],
+    });
+
+    expect(telemetry.text).toContain('≈7.3k tok');
+    expect(telemetry.text).toContain('估算');
+    expect(telemetry.text).not.toContain('缓存 0%');
+    expect(telemetry.title).toContain('估算依据');
+    expect(telemetry.title).toContain('缓存: provider 未返回');
   });
 
   it('builds detailed cache telemetry for the conversation panel', () => {
@@ -988,6 +1013,7 @@ describe('chat regeneration', () => {
             total: 1200,
             cacheHit: 800,
             cacheMiss: 200,
+            source: 'provider',
             cost: {
               estimatedCostUsd: 0.0002,
               estimatedSavingsUsd: 0.0001,

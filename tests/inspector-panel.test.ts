@@ -10,6 +10,7 @@ import {
   isInspectorPanelOpen,
   updateInspectorPanel,
   bindInspectorPanelShortcut,
+  setInspectorOverviewProvider,
 } from '../src/modules/inspector-panel.js';
 
 describe('inspector-panel', () => {
@@ -26,6 +27,7 @@ describe('inspector-panel', () => {
   });
 
   afterEach(() => {
+    setInspectorOverviewProvider(null);
     panel.remove();
   });
 
@@ -38,6 +40,25 @@ describe('inspector-panel', () => {
   it('does not render trusted-template audit comments as visible inspector text', () => {
     openInspectorPanel('empty');
     expect(panel.textContent).not.toContain('safeSetHTML-exempt');
+  });
+
+  it('renders conversation overview instead of a dead empty inspector when overview data exists', () => {
+    setInspectorOverviewProvider(() => ({
+      conversationTitle: '测试会话',
+      messageCount: 3,
+      latestMessageIndex: 2,
+      latestToolRunCount: 1,
+      usageText: '≈7.3k tok · 估算',
+      usageTitle: '统计来源: 本地估算',
+      hint: '点击按钮查看详情。',
+    }));
+
+    openInspectorPanel('empty');
+
+    expect(panel.textContent).toContain('当前会话概览');
+    expect(panel.textContent).toContain('测试会话');
+    expect(panel.textContent).toContain('≈7.3k tok · 估算');
+    expect(panel.querySelector('.inspector-overview-action')).toBeTruthy();
   });
 
   it('closes panel and removes visible class', () => {

@@ -1,8 +1,10 @@
 const fs = require('fs/promises');
+const os = require('os');
 const path = require('path');
 const { dialog } = require('electron');
 
 const MAX_SKILL_BYTES = 80 * 1024;
+const MAX_SCAN_CANDIDATES = 80;
 
 async function pickExternalSkill(parentWindow, settings, setSettings) {
   const result = await dialog.showOpenDialog(parentWindow, {
@@ -38,6 +40,81 @@ async function loadSkillsFromPath(selectedPath) {
     if (await exists(candidate)) skills.push(await readSkillFile(candidate));
   }
   return skills;
+}
+
+async function scanExternalSkills(settings = {}, options = {}) {
+  const roots = buildExternalSkillRoots(settings, options);
+  const existing = Array.isArray(settings.externalSkills) ? settings.externalSkills : [];
+  const existingKeys = new Set(existing.map((skill) => normalizePathKey(skill.sourcePath || skill.id)));
+  const candidates = [];
+  const warnings = [];
+  const seen = new Set();
+
+  for (const root of roots) {
+    const rootKey = normalizePathKey(root.path);
+    if (!root.path || seen.has(rootKey)) continue;
+    seen.add(rootKey);
+    try {
+      const skills = await loadSkillsFromPath(root.path);
+      for (const skill of skills) {
+        const skillKey = normalizePathKey(skill.sourcePath || skill.id);
+        if (!skillKey || candidates.some((item) => normalizePathKey(item.sourcePath) === skillKey)) continue;
+        const imported = existingKeys.has(skillKey);
+        candidates.push({
+          id: `external_skill_candidate_${candidates.length + 1}`,
+          name: skill.name,
+          description: skill.description || '',
+          sourcePath: skill.sourcePath,
+          sourceLabel: root.label,
+          imported,
+          duplicate: imported,
+          status: imported ? 'imported' : 'new',
+          importSkill: skill,
+        });
+        if (candidates.length >= MAX_SCAN_CANDIDATES) break;
+      }
+    } catch (error) {
+      if (error?.code !== 'ENOENT') warnings.push(`${root.label} 扫描失败：${error?.message || error}`);
+    }
+    if (candidates.length >= MAX_SCAN_CANDIDATES) break;
+  }
+
+  return {
+    scannedAt: new Date().toISOString(),
+    candidates,
+    warnings,
+    summary: {
+      total: candidates.length,
+      new: candidates.filter((item) => item.status === 'new').length,
+      imported: candidates.filter((item) => item.status === 'imported').length,
+      warnings: warnings.length,
+    },
+  };
+}
+
+function buildExternalSkillRoots(settings = {}, options = {}) {
+  const homeDir = options.homeDir || os.homedir();
+  const roots = [
+    { label: 'Codex Skills', path: path.join(homeDir, '.codex', 'skills') },
+    { label: 'Agents Skills', path: path.join(homeDir, '.agents', 'skills') },
+    { label: 'Claude Skills', path: path.join(homeDir, '.claude', 'skills') },
+  ];
+  if (process.env.CODEX_HOME)
+    roots.push({ label: 'Codex Home Skills', path: path.join(process.env.CODEX_HOME, 'skills') });
+  if (process.env.CLAUDE_CONFIG_DIR) {
+    roots.push({ label: 'Claude Config Skills', path: path.join(process.env.CLAUDE_CONFIG_DIR, 'skills') });
+  }
+  const workspaceRoots = Array.isArray(options.workspaceRoots)
+    ? options.workspaceRoots
+    : Array.isArray(settings.workspaceRoots)
+      ? settings.workspaceRoots
+      : [];
+  for (const root of workspaceRoots) {
+    const workspaceRoot = String(root || '').trim();
+    if (workspaceRoot)
+      roots.push({ label: 'Workspace Claude Skills', path: path.join(workspaceRoot, '.claude', 'skills') });
+  }
+  return roots;
 }
 
 async function readSkillFile(filePath) {
@@ -78,6 +155,12 @@ function mergeSkills(existing, incoming) {
   for (const skill of existing) map.set(skill.sourcePath || skill.id, skill);
   for (const skill of incoming) map.set(skill.sourcePath || skill.id, skill);
   return [...map.values()];
+}
+
+function normalizePathKey(value) {
+  if (!value) return '';
+  const resolved = path.resolve(String(value));
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
 async function exists(filePath) {
@@ -124,4 +207,6 @@ module.exports = {
   loadSkillsFromPath,
   loadBuiltinSkills,
   parseSkillMeta,
+  scanExternalSkills,
+  mergeSkills,
 };

@@ -106,12 +106,24 @@ export function renderComposerContextPreview(
   target.textContent = '';
   target.title = preview.title || '';
   for (const item of preview.items) {
-    const chip = document.createElement('span');
+    const chip = document.createElement('button');
+    chip.type = 'button';
     chip.className = `composer-context-preview-chip tone-${item.tone || 'muted'} kind-${item.kind || 'item'}`;
     chip.textContent = item.label;
+    chip.dataset.kind = item.kind || 'item';
+    chip.dataset.action = getComposerPreviewAction(item.kind);
     if (item.title) chip.title = item.title;
     target.appendChild(chip);
   }
+}
+
+function getComposerPreviewAction(kind: string) {
+  if (['tool', 'intent', 'approval'].includes(kind)) return 'tools';
+  if (['workspace', 'file', 'folder', 'symbol', 'changed', 'context-route'].includes(kind)) return 'context';
+  if (['web'].includes(kind)) return 'settings:联网搜索';
+  if (['mcp', 'mcp-server'].includes(kind)) return 'settings:MCP Server';
+  if (['run', 'budget', 'rounds', 'summary', 'cache'].includes(kind)) return 'settings:Agent 与 Token';
+  return 'inspect';
 }
 
 export function updateComposerToolButton(

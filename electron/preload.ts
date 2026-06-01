@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('deepchat', {
   },
   skills: {
     pickExternal: () => ipcRenderer.invoke('skills:pickExternal'),
+    scanExternal: () => ipcRenderer.invoke('skills:scanExternal'),
+    importExternal: (payload: any) => ipcRenderer.invoke('skills:importExternal', payload),
   },
   mcp: {
     listStatus: () => ipcRenderer.invoke('mcp:listStatus'),

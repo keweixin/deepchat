@@ -91,4 +91,50 @@ describe('external MCP config discovery', () => {
       await fs.rm(tmp, { recursive: true, force: true });
     }
   });
+
+  it('discovers Codex config.toml and Claude mcp-configs JSON files', async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-mcp-codex-'));
+    try {
+      await fs.mkdir(path.join(tmp, '.codex'), { recursive: true });
+      await fs.mkdir(path.join(tmp, '.claude', 'mcp-configs'), { recursive: true });
+      await fs.writeFile(
+        path.join(tmp, '.codex', 'config.toml'),
+        [
+          '[mcp_servers.fetch]',
+          'command = "uvx"',
+          'args = ["mcp-server-fetch", "--timeout", "10"]',
+          'env = { API_KEY = "sk-secret-value", SAFE_FLAG = "enabled" }',
+        ].join('\n'),
+        'utf8'
+      );
+      await fs.writeFile(
+        path.join(tmp, '.claude', 'mcp-configs', 'servers.json'),
+        JSON.stringify({
+          mcpServers: {
+            memory: {
+              command: 'node',
+              args: ['memory-server.js'],
+            },
+          },
+        }),
+        'utf8'
+      );
+
+      const payload = await scanExternalMcpConfigs(
+        { mcpServers: [] },
+        { appData: path.join(tmp, 'appdata'), localAppData: path.join(tmp, 'localappdata'), homeDir: tmp }
+      );
+
+      expect(payload.candidates.map((candidate: any) => candidate.source)).toEqual(
+        expect.arrayContaining(['codex_global', 'claude_code_mcp_configs'])
+      );
+      const codex = payload.candidates.find((candidate: any) => candidate.source === 'codex_global');
+      expect(codex.command).toBe('uvx');
+      expect(codex.args).toEqual(['mcp-server-fetch', '--timeout', '10']);
+      expect(codex.importServer.env).toEqual({ API_KEY: '', SAFE_FLAG: 'enabled' });
+      expect(JSON.stringify(payload)).not.toContain('sk-secret-value');
+    } finally {
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
+  });
 });

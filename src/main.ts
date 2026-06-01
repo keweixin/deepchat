@@ -57,6 +57,7 @@ import {
   updateModelDisplay,
   exportCurrentChat,
   setActiveConversationComposerMode,
+  getInspectorOverviewData,
 } from './modules/chat.js';
 import { onMenuNewChat, onMenuOpenSettings } from './modules/client-store.js';
 import { initReadingNavigator } from './modules/reading-navigator.js';
@@ -118,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   schedule(() => {
     initReadingNavigator();
     initSettings(onModelChange);
-    initInspectorPanel();
+    initInspectorPanel({ getOverviewData: getInspectorOverviewData });
     initArtifactPanel();
   });
 });
@@ -662,6 +663,46 @@ function initComposerOptions(openSettings: (() => void) | undefined) {
         getPendingAttachmentCount: () => pendingAttachments.length,
       })
     );
+  }
+
+  if ($contextPreview) {
+    $contextPreview.addEventListener('click', (event) => {
+      const chip = (event.target as HTMLElement | null)?.closest(
+        '.composer-context-preview-chip'
+      ) as HTMLElement | null;
+      if (!chip) return;
+      const action = chip.dataset.action || '';
+      if (action === 'tools') {
+        if ($toolDrawerBtn) {
+          toggleComposerToolMenu($toolDrawerBtn, {
+            settings: getSettings(),
+            activeSkill: composerOverrides?.activeSkill || getSettings().activeSkill,
+            onSelect: (entry) => {
+              composerOverrides = { ...composerOverrides, activeSkill: entry.id };
+            },
+            onChange: () => applySettingsToComposer(getSettings()),
+            openSettings,
+          });
+        }
+        return;
+      }
+      if (action === 'context') {
+        if ($contextBtn) {
+          toggleContextShortcutMenu($contextBtn, {
+            settings: getSettings(),
+            openSettings,
+            getPendingAttachmentCount: () => pendingAttachments.length,
+          });
+        }
+        return;
+      }
+      if (action.startsWith('settings:')) {
+        openSettings?.();
+        window.dispatchEvent(new CustomEvent('deepchat:settings-focus', { detail: { title: action.slice(9) } }));
+        return;
+      }
+      document.dispatchEvent(new CustomEvent('deepchat:open-inspector', { detail: { mode: 'message' } }));
+    });
   }
 
   // Mode select change handler (replaces mode pills)

@@ -281,6 +281,11 @@ export interface DeepChatBridge {
     run: (name: string, args: unknown) => Promise<unknown>;
     list: () => Promise<string[]>;
   };
+  skills?: {
+    pickExternal: () => Promise<Settings>;
+    scanExternal: () => Promise<unknown>;
+    importExternal: (payload: { skills: ExternalSkill[] }) => Promise<Settings>;
+  };
   mcp?: {
     listStatus: () => Promise<unknown[]>;
     scanExternalConfigs: () => Promise<unknown>;

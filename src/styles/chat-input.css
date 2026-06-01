@@ -518,9 +518,18 @@
   background: color-mix(in srgb, var(--surface-card), transparent 24%);
   font-size: 11px;
   line-height: 1.35;
+  font-family: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.composer-context-preview-chip:hover,
+.composer-context-preview-chip:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+  outline: none;
 }
 
 .composer-context-preview-chip.tone-ready {

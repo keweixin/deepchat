@@ -411,6 +411,11 @@ const ExternalMcpProbeSchema = z
     server: McpServerSchema,
   })
   .strict();
+const ExternalSkillImportSchema = z
+  .object({
+    skills: z.array(ExternalSkillSchema).min(1).max(80),
+  })
+  .strict();
 const DocsetRootSchema = z.string().trim().min(1).max(2000);
 const DocsetSearchSchema = z
   .object({
@@ -479,6 +484,7 @@ module.exports = {
     RequestIdSchema,
     ExternalMcpImportSchema,
     ExternalMcpProbeSchema,
+    ExternalSkillImportSchema,
     DocsetRootSchema,
     DocsetSearchSchema,
   },

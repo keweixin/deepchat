@@ -15,7 +15,7 @@ import {
   exportBackup,
   importBackup,
 } from './storage.js';
-import { pickExternalSkill } from './external-skills.js';
+import { mergeSkills, pickExternalSkill, scanExternalSkills } from './external-skills.js';
 import { ChatService, testApiConnection } from './chat-service.js';
 import { executeTool, clearWorkspaceIndexDiskCache, getWorkspaceIndexModule } from './tools.js';
 import { McpManager } from './mcp-manager.js';
@@ -137,6 +137,16 @@ function registerIpc() {
   ipcMain.handle('skills:pickExternal', async () => {
     const settings = await getSettings();
     return pickExternalSkill(mainWindow, settings, setSettings);
+  });
+  ipcMain.handle('skills:scanExternal', async () => {
+    const settings = await getSettings();
+    return scanExternalSkills(settings);
+  });
+  ipcMain.handle('skills:importExternal', async (_event, payload) => {
+    const safePayload = validate(schemas.ExternalSkillImportSchema, payload, 'skills:importExternal');
+    const settings = await getSettings();
+    const externalSkills = mergeSkills(settings.externalSkills || [], safePayload.skills);
+    return setSettings({ externalSkills });
   });
   ipcMain.handle('mcp:listStatus', async () => {
     const settings = await getSettings();

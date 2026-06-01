@@ -251,6 +251,18 @@ export async function pickExternalSkill(): Promise<any> {
   });
 }
 
+export async function scanExternalSkills(): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.skills?.scanExternal) {
+    return { candidates: [], warnings: ['外部 Skill 自动发现仅桌面版可用。'] };
+  }
+  return (window as any).deepchat.skills.scanExternal();
+}
+
+export async function importExternalSkills(skills: any[]): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.skills?.importExternal) return getSettings();
+  return (window as any).deepchat.skills.importExternal({ skills });
+}
+
 export async function listMcpStatus(): Promise<any[]> {
   if (!hasNativeBridge()) return [];
   return (window as any).deepchat.mcp.listStatus();

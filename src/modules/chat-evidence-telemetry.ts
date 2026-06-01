@@ -12,17 +12,21 @@ import { normalizeTokenUsage, getConversationUsageSummary } from './token-budget
 export function formatTokenUsageTitle(tokens: Record<string, any>) {
   const usage = normalizeTokenUsage(tokens);
   const profile = tokens?.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : {};
+  const hasCacheTelemetry = hasReliableCacheTelemetry(tokens);
   const lines = [
     `输入: ${usage.input}`,
     `输出: ${usage.output}`,
     `总计: ${usage.total}`,
     `统计来源: ${usage.source === 'provider' ? '服务商真实 usage' : usage.source === 'mixed' ? '真实和估算混合' : '本地估算'}`,
   ];
+  if (usage.source !== 'provider') lines.push(`估算依据: ${TOKEN_ESTIMATE_BASIS}`);
   if (usage.reasoning > 0) lines.push(`思考: ${usage.reasoning}`);
-  if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
+  if (hasCacheTelemetry) {
     lines.push(`缓存命中: ${usage.cacheHit}`);
     lines.push(`缓存未命中: ${usage.cacheMiss}`);
     lines.push(`命中率: ${Math.round(usage.cacheHitRate * 100)}%`);
+  } else {
+    lines.push('缓存: provider 未返回 cache hit/miss，本地不会把未知伪装成 0%');
   }
   if (usage.cost) {
     lines.push(`估算成本: $${Number(usage.cost.estimatedCostUsd || 0).toFixed(6)}`);
@@ -75,10 +79,14 @@ export function buildConversationUsageTelemetryDetails(conversation: Record<stri
   const usage = getConversationUsageSummary(conversation);
   if (!usage || usage.total <= 0) return null;
   const profile = getConversationCacheProfile(conversation) || {};
-  const hitRate = usage.cacheHit > 0 || usage.cacheMiss > 0 ? Math.round(usage.cacheHitRate * 100) : null;
+  const tokenRecords = getConversationTokenRecords(conversation);
+  const hasCacheTelemetry = tokenRecords.some(hasReliableCacheTelemetry);
+  const hitRate = hasCacheTelemetry ? Math.round(usage.cacheHitRate * 100) : null;
   const reasons = normalizeCacheStabilityReasons(profile.cacheStabilityReasons);
   const warnings = [...new Set([...(usage.warnings || []), ...(profile.cacheStabilityWarnings || [])])];
-  const textParts = [`${formatCompactTokenCount(usage.total)} tok`];
+  const sourceKind = usage.source === 'provider' ? 'provider' : usage.source === 'mixed' ? 'mixed' : 'estimated';
+  const textParts = [`${sourceKind === 'provider' ? '' : '≈'}${formatCompactTokenCount(usage.total)} tok`];
+  textParts.push(sourceKind === 'provider' ? '真实' : sourceKind === 'mixed' ? '混合' : '估算');
   if (hitRate !== null) textParts.push(`缓存 ${hitRate}%`);
   if (Number(usage.cost?.estimatedSavingsUsd || 0) > 0)
     textParts.push(`省 ${formatUsd(usage.cost?.estimatedSavingsUsd || 0)}`);
@@ -91,11 +99,14 @@ export function buildConversationUsageTelemetryDetails(conversation: Record<stri
     `总计: ${usage.total}`,
     `统计来源: ${usage.source === 'provider' ? '服务商真实 usage' : usage.source === 'mixed' ? '真实和估算混合' : '本地估算'}`,
   ];
+  if (sourceKind !== 'provider') titleLines.push(`估算依据: ${TOKEN_ESTIMATE_BASIS}`);
   if (usage.reasoning > 0) titleLines.push(`思考: ${usage.reasoning}`);
-  if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
+  if (hasCacheTelemetry) {
     titleLines.push(`缓存命中: ${usage.cacheHit}`);
     titleLines.push(`缓存未命中: ${usage.cacheMiss}`);
     titleLines.push(`命中率: ${hitRate}%`);
+  } else {
+    titleLines.push('缓存: provider 未返回 cache hit/miss，本地不会把未知伪装成 0%');
   }
   if (usage.cost) {
     titleLines.push(`估算成本: ${formatUsd(usage.cost.estimatedCostUsd || 0)}`);
@@ -116,7 +127,9 @@ export function buildConversationUsageTelemetryDetails(conversation: Record<stri
     title: titleLines.join('\n'),
     sourceLabel: formatUsageSourceLabel(usage.source),
     hitRate,
-    hitRateLabel: hitRate === null ? '无缓存 usage' : `${hitRate}%`,
+    hitRateLabel: hitRate === null ? '缓存未知' : `${hitRate}%`,
+    hasCacheTelemetry,
+    sourceKind,
     usage,
     profile,
     reasons,
@@ -151,6 +164,42 @@ export function buildCacheProfile(tokens: Record<string, any>, contextBudget: Re
 }
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
+
+const TOKEN_ESTIMATE_BASIS =
+  '本地估算：中文约 1.5 tokens/字，其他字符约 0.4 tokens/字符，每条消息 +4；缓存命中只能来自 provider usage。';
+
+function getConversationTokenRecords(conversation: Record<string, any>) {
+  const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
+  return messages.map((message) => message?.tokens).filter((tokens) => tokens && typeof tokens === 'object');
+}
+
+function hasReliableCacheTelemetry(tokens: Record<string, any>) {
+  if (!tokens || typeof tokens !== 'object') return false;
+  if (
+    tokens.prompt_cache_hit_tokens !== undefined ||
+    tokens.prompt_cache_miss_tokens !== undefined ||
+    tokens.prompt_tokens_details !== undefined ||
+    tokens.cached_tokens !== undefined
+  ) {
+    return true;
+  }
+  const source = String(tokens.source || '');
+  if (
+    (source === 'provider' || source === 'mixed') &&
+    (tokens.cacheHit !== undefined || tokens.cacheMiss !== undefined)
+  ) {
+    return true;
+  }
+  const profile = tokens.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : null;
+  if (
+    (source === 'provider' || source === 'mixed') &&
+    profile &&
+    (profile.cacheHit !== undefined || profile.cacheMiss !== undefined || profile.cacheHitRate !== undefined)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 export function getConversationCacheProfile(conversation: Record<string, any>) {
   if (conversation?.cacheProfile && typeof conversation.cacheProfile === 'object') return conversation.cacheProfile;

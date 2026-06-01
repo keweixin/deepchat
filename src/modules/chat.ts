@@ -1789,23 +1789,47 @@ export function renderConversationUsageTelemetryPanel(container: HTMLElement, co
     ['输出', details.usage.output],
     ['思考', details.usage.reasoning],
     ['总计', details.usage.total],
-    ['Cache hit', details.usage.cacheHit],
-    ['Cache miss', details.usage.cacheMiss],
-    ['命中率', details.hitRateLabel],
     ['Agent 轮次', details.usage.rounds || 1],
   ];
+  if (details.hasCacheTelemetry) {
+    usageMetrics.splice(
+      4,
+      0,
+      ['Cache hit', details.usage.cacheHit],
+      ['Cache miss', details.usage.cacheMiss],
+      ['命中率', details.hitRateLabel]
+    );
+  } else {
+    usageMetrics.splice(4, 0, ['缓存', details.hitRateLabel]);
+  }
   usageMetrics.forEach(([label, value]) => metrics.appendChild(createUsageMetric(label, String(value))));
 
   const cost = document.createElement('div');
   cost.className = 'usage-panel-section';
   cost.appendChild(createUsageSectionTitle('成本解释'));
   const costRows = [
+    [
+      '统计依据',
+      details.sourceKind === 'provider'
+        ? 'provider usage'
+        : details.sourceKind === 'mixed'
+          ? 'provider usage + 本地估算'
+          : '本地估算',
+    ],
     ['估算成本', details.usage.cost ? formatUsd(details.usage.cost.estimatedCostUsd || 0) : '无价格表'],
     ['缓存节省', details.usage.cost ? formatUsd(details.usage.cost.estimatedSavingsUsd || 0) : '无价格表'],
-    ['命中输入成本', details.usage.cost ? formatUsd(details.usage.cost.inputCacheHitCostUsd || 0) : '无价格表'],
-    ['未命中输入成本', details.usage.cost ? formatUsd(details.usage.cost.inputCacheMissCostUsd || 0) : '无价格表'],
     ['输出成本', details.usage.cost ? formatUsd(details.usage.cost.outputCostUsd || 0) : '无价格表'],
   ];
+  if (details.hasCacheTelemetry) {
+    costRows.splice(
+      3,
+      0,
+      ['命中输入成本', details.usage.cost ? formatUsd(details.usage.cost.inputCacheHitCostUsd || 0) : '无价格表'],
+      ['未命中输入成本', details.usage.cost ? formatUsd(details.usage.cost.inputCacheMissCostUsd || 0) : '无价格表']
+    );
+  } else {
+    costRows.push(['缓存说明', 'provider 未返回 cache hit/miss，不展示伪命中率']);
+  }
   costRows.forEach(([label, value]) => cost.appendChild(createUsageRow(label, value)));
 
   const prefix = document.createElement('div');
@@ -1928,6 +1952,41 @@ export function renderLatestEvidenceDrawer(container: HTMLElement, conversation:
   actions.appendChild(copy);
   container.appendChild(actions);
   return container;
+}
+
+export function getInspectorOverviewData() {
+  const conversation = getActiveConversation();
+  if (!conversation) {
+    return {
+      conversationTitle: '新的对话',
+      messageCount: 0,
+      hint: '还没有对话内容。发送一条消息后，Inspector 会展示最近消息、工具证据、Trace 和 Artifact。',
+    };
+  }
+  const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+  const latestEvidence = getLatestEvidenceMessage(conversation);
+  const latestArtifactIndex = findLatestArtifactMessageIndex(messages);
+  const latestTraceIndex = findLatestTraceMessageIndex(messages);
+  const latestAssistantIndex = findLatestAssistantMessageIndex(messages);
+  const latestMessage = latestEvidence?.message || (latestAssistantIndex >= 0 ? messages[latestAssistantIndex] : null);
+  const usage = buildConversationUsageTelemetryDetails(conversation);
+  const stages = Array.isArray(latestMessage?.agentStages) ? latestMessage.agentStages : [];
+  const lastStage = stages.length ? formatAgentStageBrief(stages[stages.length - 1]) : '';
+  return {
+    conversationTitle: conversation.title || '当前对话',
+    messageCount: messages.length,
+    latestMessageIndex: latestEvidence?.index ?? (latestAssistantIndex >= 0 ? latestAssistantIndex : undefined),
+    latestTraceIndex: latestTraceIndex >= 0 ? latestTraceIndex : undefined,
+    latestArtifactIndex: latestArtifactIndex >= 0 ? latestArtifactIndex : undefined,
+    latestToolRunCount: Array.isArray(latestEvidence?.message?.toolRuns) ? latestEvidence.message.toolRuns.length : 0,
+    latestArtifactCount:
+      latestArtifactIndex >= 0 ? extractArtifacts(messages[latestArtifactIndex]?.content || '').length : 0,
+    usageText: usage?.text || '',
+    usageTitle: usage?.title || '',
+    lastStage,
+    latestStopReason: findLatestStopReason(stages),
+    hint: '点击上方按钮可切到最近消息、Trace 或 Artifact；没有证据时按钮会禁用。',
+  };
 }
 
 function switchVersion(msgIndex: number, direction: number) {
@@ -2312,6 +2371,42 @@ function getLatestEvidenceMessage(conversation: Record<string, any>) {
     if (hasRuns || hasUsage || hasCacheProfile) return { message, index };
   }
   return null;
+}
+
+function findLatestAssistantMessageIndex(messages: any[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'assistant') return index;
+  }
+  return -1;
+}
+
+function findLatestTraceMessageIndex(messages: any[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      message?.traceRecorder ||
+      message?.agentRun ||
+      (Array.isArray(message?.agentStages) && message.agentStages.length)
+    ) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function findLatestArtifactMessageIndex(messages: any[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === 'assistant' && extractArtifacts(message.content || '').length > 0) return index;
+  }
+  return -1;
+}
+
+function findLatestStopReason(stages: any[]) {
+  for (let index = stages.length - 1; index >= 0; index -= 1) {
+    if (stages[index]?.stopReason) return stages[index].stopReason;
+  }
+  return '';
 }
 
 function formatAgentStageBrief(stage: Record<string, any> = {}) {

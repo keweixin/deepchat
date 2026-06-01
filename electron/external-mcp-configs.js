@@ -8,8 +8,11 @@ const SOURCE_LABELS = {
   claude_desktop: 'Claude Desktop',
   claude_desktop_msix: 'Claude Desktop (MSIX)',
   claude_code_global: 'Claude Code Global',
+  claude_code_user_settings: 'Claude Code User settings',
+  claude_code_mcp_configs: 'Claude Code MCP configs',
   claude_code_project_mcp: 'Claude Code Project .mcp.json',
   claude_code_project_settings: 'Claude Code Project settings',
+  codex_global: 'Codex Global',
 };
 
 async function scanExternalMcpConfigs(settings = {}, options = {}) {
@@ -75,7 +78,16 @@ async function readExternalConfigEntries(settings = {}, options = {}) {
       ),
     },
     { source: 'claude_code_global', filePath: path.join(homeDir, '.claude.json') },
+    { source: 'claude_code_user_settings', filePath: path.join(homeDir, '.claude', 'settings.json') },
+    { source: 'codex_global', filePath: path.join(homeDir, '.codex', 'config.toml'), format: 'toml' },
   ];
+
+  const claudeMcpConfigDir = path.join(homeDir, '.claude', 'mcp-configs');
+  const claudeMcpFiles = await fs.readdir(claudeMcpConfigDir, { withFileTypes: true }).catch(() => []);
+  for (const entry of claudeMcpFiles) {
+    if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.json')) continue;
+    paths.push({ source: 'claude_code_mcp_configs', filePath: path.join(claudeMcpConfigDir, entry.name) });
+  }
 
   for (const root of workspaceRoots) {
     const workspaceRoot = String(root || '').trim();
@@ -93,7 +105,10 @@ async function readExternalConfigEntries(settings = {}, options = {}) {
     const key = process.platform === 'win32' ? filePath.toLowerCase() : filePath;
     if (seenPaths.has(key)) continue;
     seenPaths.add(key);
-    const entry = await readJsonConfig(filePath, item.source);
+    const entry =
+      item.format === 'toml'
+        ? await readTomlConfig(filePath, item.source)
+        : await readJsonConfig(filePath, item.source);
     if (entry) out.push(entry);
   }
   return out;
@@ -112,6 +127,131 @@ async function readJsonConfig(filePath, source) {
     if (error?.code === 'ENOENT') return null;
     return { source, sourcePath: filePath, warning: `${sourceLabel(source)} 配置读取失败：${error?.message || error}` };
   }
+}
+
+async function readTomlConfig(filePath, source) {
+  try {
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) return null;
+    if (stat.size > MAX_CONFIG_BYTES) {
+      return { source, sourcePath: filePath, warning: `${sourceLabel(source)} 配置过大，已跳过：${filePath}` };
+    }
+    const raw = await fs.readFile(filePath, 'utf8');
+    return { source, sourcePath: filePath, json: parseCodexTomlMcpConfig(raw) };
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    return { source, sourcePath: filePath, warning: `${sourceLabel(source)} 配置读取失败：${error?.message || error}` };
+  }
+}
+
+function parseCodexTomlMcpConfig(raw) {
+  const mcpServers = {};
+  let currentName = '';
+  for (const rawLine of String(raw || '').split(/\r?\n/)) {
+    const line = stripTomlComment(rawLine).trim();
+    if (!line) continue;
+    const section = line.match(/^\[mcp_servers\.([^\].]+)\]$/);
+    if (section) {
+      currentName = section[1].replace(/^["']|["']$/g, '').trim();
+      if (currentName && !mcpServers[currentName]) mcpServers[currentName] = {};
+      continue;
+    }
+    if (!currentName || line.startsWith('[')) continue;
+    const assign = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.+)$/);
+    if (!assign) continue;
+    const key = assign[1];
+    const value = parseTomlValue(assign[2].trim());
+    if (key === 'command' || key === 'cwd') mcpServers[currentName][key] = String(value || '');
+    if (key === 'args') mcpServers[currentName].args = Array.isArray(value) ? value.map(String) : [];
+    if (key === 'env')
+      mcpServers[currentName].env = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  }
+  return { mcpServers };
+}
+
+function stripTomlComment(line) {
+  let quote = '';
+  let escaped = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const ch = line[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if ((ch === '"' || ch === "'") && (!quote || quote === ch)) {
+      quote = quote ? '' : ch;
+      continue;
+    }
+    if (ch === '#' && !quote) return line.slice(0, index);
+  }
+  return line;
+}
+
+function parseTomlValue(value) {
+  if (/^["']/.test(value)) return parseTomlString(value);
+  if (value.startsWith('[')) return parseTomlArray(value);
+  if (value.startsWith('{')) return parseTomlInlineTable(value);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return value;
+}
+
+function parseTomlString(value) {
+  const quote = value[0];
+  const end = value.lastIndexOf(quote);
+  const inner = end > 0 ? value.slice(1, end) : value.slice(1);
+  return quote === '"' ? inner.replace(/\\"/g, '"').replace(/\\\\/g, '\\') : inner;
+}
+
+function parseTomlArray(value) {
+  const body = value.replace(/^\[/, '').replace(/\]$/, '');
+  return splitTomlList(body).map((item) => parseTomlValue(item.trim()));
+}
+
+function parseTomlInlineTable(value) {
+  const body = value.replace(/^\{/, '').replace(/\}$/, '');
+  const out = {};
+  for (const entry of splitTomlList(body)) {
+    const match = entry.match(/^\s*("?[^"=]+"?|[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)\s*$/);
+    if (!match) continue;
+    const key = match[1].replace(/^["']|["']$/g, '').trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    out[key] = String(parseTomlValue(match[2].trim()) ?? '');
+  }
+  return out;
+}
+
+function splitTomlList(value) {
+  const parts = [];
+  let quote = '';
+  let escaped = false;
+  let start = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const ch = value[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') {
+      escaped = true;
+      continue;
+    }
+    if ((ch === '"' || ch === "'") && (!quote || quote === ch)) {
+      quote = quote ? '' : ch;
+      continue;
+    }
+    if (ch === ',' && !quote) {
+      parts.push(value.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  const tail = value.slice(start).trim();
+  if (tail) parts.push(tail);
+  return parts.filter(Boolean);
 }
 
 function extractMcpServers(json) {
@@ -319,4 +459,5 @@ module.exports = {
   extractMcpServers,
   serverFingerprint,
   normalizeExternalServer,
+  parseCodexTomlMcpConfig,
 };

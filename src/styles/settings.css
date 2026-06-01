@@ -1110,6 +1110,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.settings-section-flash {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 4px;
+  border-radius: var(--radius-md);
+}
 .compact-input {
   margin-top: var(--space-2);
 }
