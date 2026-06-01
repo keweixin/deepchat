@@ -20,7 +20,7 @@ export function toggleKeyboardHelp() {
 
   const overlay = document.createElement('div');
   overlay.className = 'keyboard-help-overlay';
-  overlay.innerHTML = ` /* safeSetHTML-exempt: static template */
+  overlay.innerHTML = /* safeSetHTML-exempt: static template */ `
     <div class="keyboard-help-panel">
       <div class="keyboard-help-header">
         <h3>⌨️ 快捷键速查</h3>
@@ -84,7 +84,7 @@ export function toggleChatSearch() {
 
   const bar = document.createElement('div');
   bar.className = 'chat-search-bar';
-  bar.innerHTML = ` /* safeSetHTML-exempt: static template */
+  bar.innerHTML = /* safeSetHTML-exempt: static template */ `
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
     <input type="text" class="chat-search-input" placeholder="搜索对话内容…" autofocus />
     <span class="chat-search-count"></span>
@@ -176,7 +176,7 @@ export function toggleMarkdownPreview(text: string) {
 
   const overlay = document.createElement('div');
   overlay.className = 'markdown-preview-overlay';
-  overlay.innerHTML = ` /* safeSetHTML-exempt: static template */
+  overlay.innerHTML = /* safeSetHTML-exempt: static template */ `
     <div class="markdown-preview-panel">
       <div class="markdown-preview-header">
         <h3>📝 Markdown 预览</h3>

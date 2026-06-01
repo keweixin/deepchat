@@ -154,7 +154,7 @@ function _renderContent(mode: string, data: Record<string, any>) {
 
 function _renderEmpty() {
   if (!_contentEl) return;
-  _contentEl.innerHTML = ` /* safeSetHTML-exempt: static template */
+  _contentEl.innerHTML = /* safeSetHTML-exempt: static template */ `
     <div class="inspector-empty">
       <p>选择一条消息或按 <kbd>Ctrl+Shift+I</kbd> 查看详情</p>
     </div>
@@ -326,7 +326,7 @@ function _renderArtifactInfo(data: Record<string, any>) {
   }
 
   if (artifacts.length === 0) {
-    _contentEl.innerHTML = ` /* safeSetHTML-exempt: static template */
+    _contentEl.innerHTML = /* safeSetHTML-exempt: static template */ `
       <div class="inspector-empty">
         <p>此消息中未发现 artifact</p>
       </div>

@@ -119,7 +119,7 @@ export function renderAgentTheatre(container: HTMLElement | null, agentRun: Agen
   // Header
   const header = document.createElement('div');
   header.className = 'agent-theatre-header';
-  header.innerHTML = ` /* safeSetHTML-exempt: static template */
+  header.innerHTML = /* safeSetHTML-exempt: static template */ `
     <span class="theatre-pulse"></span>
     <span class="agent-theatre-title">Agent Theatre</span>
     <span class="agent-theatre-badge">${agentRun?.status || 'idle'}</span>
@@ -187,7 +187,7 @@ export function renderAgentTheatre(container: HTMLElement | null, agentRun: Agen
     actorEl.className = `theatre-actor ${animClass}`;
     actorEl.dataset.roleId = role.id;
     actorEl.dataset.toolCount = String(toolCount);
-    actorEl.innerHTML = ` /* safeSetHTML-exempt: static template */
+    actorEl.innerHTML = /* safeSetHTML-exempt: static template */ `
       <div class="theatre-actor-icon" style="color:${role.color}">${role.iconSvg}</div>
       <div class="theatre-actor-name">${role.label}</div>
       <div class="theatre-actor-status">${escapeHtml(statusText)}</div>

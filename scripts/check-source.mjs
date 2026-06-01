@@ -83,6 +83,13 @@ for (const file of files) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (/\.innerHTML\s*=/.test(line)) {
+      if (/\.innerHTML\s*=\s*`\s*\/\*\s*safeSetHTML-exempt/i.test(line)) {
+        issues.push(
+          `${rel}:${i + 1} places a safeSetHTML-exempt audit comment inside a rendered template string. Put the audit comment outside the template literal so it cannot become visible UI text.`
+        );
+        continue;
+      }
+
       // 1. Allow safeSetHTML-impl strictly only in src/modules/renderer.ts
       if (line.includes('/* safeSetHTML-impl') && rel === 'src/modules/renderer.ts') {
         continue;

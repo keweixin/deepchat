@@ -252,7 +252,7 @@ export function renderToolCard(
     ? `color:${productRisk.color};background:${productRisk.bg};border-color:${productRisk.border}`
     : `color:${legacyRisk.color}`;
 
-  header.innerHTML = ` /* safeSetHTML-exempt: static template */
+  header.innerHTML = /* safeSetHTML-exempt: static template */ `
     <span class="tool-card-icon">${getToolIcon(toolName)}</span>
     <span class="tool-card-name">${escapeHtml(toolName)}</span>
     <span class="tool-card-status tool-card-status--${approval.id}" style="color:${approval.color}">${approval.icon} ${approval.label}</span>

@@ -88,7 +88,7 @@ export function toggleComposerToolMenu(
     item.setAttribute('role', 'menuitemradio');
     item.setAttribute('aria-checked', String(entry.active));
     item.setAttribute('aria-disabled', String(!entry.available));
-    item.innerHTML = ` /* safeSetHTML-exempt: static template */
+    item.innerHTML = /* safeSetHTML-exempt: static template */ `
       <span class="composer-tool-item-icon">${entry.icon}</span>
       <span class="composer-tool-item-body">
         <span class="composer-tool-item-title">${entry.name}</span>
@@ -155,7 +155,7 @@ export function toggleContextShortcutMenu(
     item.className = `context-shortcut-item${entry.available ? '' : ' unavailable'}`;
     item.setAttribute('role', 'menuitem');
     item.setAttribute('aria-disabled', String(!entry.available));
-    item.innerHTML = ` /* safeSetHTML-exempt: static template */
+    item.innerHTML = /* safeSetHTML-exempt: static template */ `
       <span class="context-shortcut-title">${entry.title}</span>
       <span class="context-shortcut-desc">${entry.description}</span>
       <code class="context-shortcut-code">${entry.insertText}</code>

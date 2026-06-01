@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 
@@ -46,5 +46,17 @@ describe('composer layout', () => {
     expect(chipRow).toContain('data-context-chip="changed"');
     expect(chipRow).toContain('data-context-chip="web"');
     expect(chipRow).toContain('data-context-chip="run"');
+  });
+
+  it('keeps the composer context preview to a single scrollable row', () => {
+    const css = fs.readFileSync(path.resolve('src/styles/chat-input.css'), 'utf8');
+    const rule = css.slice(
+      css.indexOf('.composer-context-preview {'),
+      css.indexOf('.composer-context-preview::before {')
+    );
+
+    expect(rule).toContain('flex-wrap: nowrap');
+    expect(rule).toContain('overflow-x: auto');
+    expect(rule).toContain('max-height: 36px');
   });
 });

@@ -1,4 +1,6 @@
-﻿import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import path from 'path';
 import { getPromptPresetText, renderModelCapabilities } from '../src/modules/settings.js';
 import { renderMcpServerList } from '../src/modules/settings-mcp.js';
 
@@ -84,5 +86,16 @@ describe('settings MCP rendering', () => {
       expect(prompt).toContain(':::tool-result');
       expect(prompt).toContain('不输出原始 HTML');
     }
+  });
+  it('keeps dense settings tabs horizontally scrollable instead of clipped', () => {
+    const css = fs.readFileSync(path.resolve('src/styles/settings.css'), 'utf8');
+    const panelRule = css.slice(css.indexOf('.settings-panel {'), css.indexOf('@media (max-width: 768px)'));
+    const tabsRule = css.slice(css.indexOf('.settings-tabs {'), css.indexOf('.settings-tab {'));
+    const tabRule = css.slice(css.indexOf('.settings-tab {'), css.indexOf('.settings-tab.active {'));
+
+    expect(panelRule).toContain('width: min(920px, 100vw)');
+    expect(tabsRule).toContain('display: flex');
+    expect(tabsRule).toContain('overflow-x: auto');
+    expect(tabRule).toContain('white-space: nowrap');
   });
 });

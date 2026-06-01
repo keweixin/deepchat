@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Inspector Panel Tests
  */
 
@@ -33,6 +33,11 @@ describe('inspector-panel', () => {
     openInspectorPanel('empty');
     expect(panel.classList.contains('is-visible')).toBe(true);
     expect(isInspectorPanelOpen()).toBe(true);
+  });
+
+  it('does not render trusted-template audit comments as visible inspector text', () => {
+    openInspectorPanel('empty');
+    expect(panel.textContent).not.toContain('safeSetHTML-exempt');
   });
 
   it('closes panel and removes visible class', () => {

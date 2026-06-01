@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   buildAgentPlanActionPrompt,
   buildAgentPlanActionComposerOverrides,
@@ -31,8 +31,20 @@ import {
   renderAssistantEvidence,
   renderAssistantToc,
 } from '../src/modules/chat-assistant-ui.ts';
+import { createMessageElement } from '../src/modules/chat-message-renderer.ts';
 
 describe('chat regeneration', () => {
+  it('does not leak trusted-template audit comments into message DOM', () => {
+    const el = createMessageElement({
+      role: 'assistant',
+      content: '',
+      timestamp: Date.parse('2026-06-01T00:00:00.000Z'),
+    });
+
+    expect(el.textContent).not.toContain('safeSetHTML-exempt');
+    expect(el.querySelector('.agent-crew-container')).toBeTruthy();
+  });
+
   it('groups secondary answer actions into compact menus', () => {
     const groups = buildAnswerActionMenuGroups();
 

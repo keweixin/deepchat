@@ -164,7 +164,7 @@ function _renderHeader(title: string, recorder: TraceRecorder) {
 
   const titleEl = document.createElement('div');
   titleEl.className = 'trace-inspector-title';
-  titleEl.innerHTML = ` /* safeSetHTML-exempt: static template */
+  titleEl.innerHTML = /* safeSetHTML-exempt: static template */ `
     <svg class="trace-inspector-title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
     </svg>
@@ -194,7 +194,7 @@ function _renderHeader(title: string, recorder: TraceRecorder) {
   const closeBtn = document.createElement('button');
   closeBtn.className = 'trace-inspector-close';
   closeBtn.setAttribute('aria-label', 'Close inspector');
-  closeBtn.innerHTML = ` /* safeSetHTML-exempt: static template */
+  closeBtn.innerHTML = /* safeSetHTML-exempt: static template */ `
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <line x1="18" y1="6" x2="6" y2="18"/>
       <line x1="6" y1="6" x2="18" y2="18"/>
@@ -237,7 +237,7 @@ function _renderRunSummary(summary: RunSummaryInput) {
   for (const item of items) {
     const div = document.createElement('div');
     div.className = 'trace-summary-item';
-    div.innerHTML = ` /* safeSetHTML-exempt: static template */
+    div.innerHTML = /* safeSetHTML-exempt: static template */ `
       <span class="trace-summary-label">${escapeHtml(item.label)}</span>
       <span class="trace-summary-value">${item.value}</span>
     `;
@@ -270,7 +270,7 @@ function _renderSection(
 
   const header = document.createElement('div');
   header.className = 'trace-section-header';
-  header.innerHTML = ` /* safeSetHTML-exempt: static template */
+  header.innerHTML = /* safeSetHTML-exempt: static template */ `
     <svg class="trace-section-toggle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <polyline points="6 9 12 15 18 9"/>
     </svg>
@@ -313,7 +313,7 @@ function _renderActorGrid(actors: ActorState[]) {
     card.className = 'trace-actor-card';
     if (actor.isActive) card.classList.add('trace-actor-card--active');
 
-    card.innerHTML = ` /* safeSetHTML-exempt: static template */
+    card.innerHTML = /* safeSetHTML-exempt: static template */ `
       <div class="trace-actor-icon" style="background:${actor.color}20;color:${actor.color}">
         ${actor.icon}
       </div>
@@ -361,7 +361,7 @@ function _renderToolCards(tools: ToolCallRecord[]) {
     const statusClass = `trace-tool-status--${tc.status}`;
     const statusLabel = tc.status.replace(/_/g, ' ');
 
-    card.innerHTML = ` /* safeSetHTML-exempt: static template */
+    card.innerHTML = /* safeSetHTML-exempt: static template */ `
       <div class="trace-tool-header">
         <div class="trace-tool-name">
           <span class="trace-tool-role-badge" style="background:${tc.roleMeta?.color || '#64748b'}20;color:${tc.roleMeta?.color || '#94a3b8'}">
@@ -507,7 +507,7 @@ function _renderEventTimeline(events: TimelineEvent[]) {
         break;
     }
 
-    item.innerHTML = ` /* safeSetHTML-exempt: static template */
+    item.innerHTML = /* safeSetHTML-exempt: static template */ `
       <div class="trace-timeline-time">${escapeHtml(time)} ${relative ? `<span style="opacity:0.6">${relative}</span>` : ''}</div>
       <div class="trace-timeline-type">${escapeHtml(evt.type)}</div>
       ${detail ? `<div class="trace-timeline-detail">${escapeHtml(detail)}</div>` : ''}
@@ -540,7 +540,7 @@ function _renderSnapshots(snapshots: ContextSnapshot[]) {
       padding: 10px 12px;
       font-size: 12px;
     `;
-    item.innerHTML = ` /* safeSetHTML-exempt: static template */
+    item.innerHTML = /* safeSetHTML-exempt: static template */ `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <span style="font-weight:500;color:var(--text-primary)">${escapeHtml(snap.description)}</span>
         <span style="color:var(--text-tertiary);font-size:11px">${escapeHtml(snap.atFormatted)}</span>

@@ -483,16 +483,22 @@
 .composer-context-preview {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--space-2);
   width: 100%;
   max-width: var(--message-max-width);
   min-height: 30px;
+  max-height: 36px;
   margin: 0 auto var(--space-2);
-  padding: 0 var(--space-1);
+  padding: 0 var(--space-1) 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
 }
 
 .composer-context-preview::before {
+  flex: 0 0 auto;
   content: '本轮将使用';
   color: var(--text-muted);
   font-size: var(--font-size-xs);
@@ -502,7 +508,8 @@
 .composer-context-preview-chip {
   display: inline-flex;
   align-items: center;
-  max-width: min(260px, 100%);
+  flex: 0 0 auto;
+  max-width: min(180px, 45vw);
   min-height: 24px;
   padding: 0 8px;
   border: 1px solid color-mix(in srgb, var(--text-muted), transparent 78%);

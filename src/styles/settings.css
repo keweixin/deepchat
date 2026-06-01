@@ -23,8 +23,8 @@
   position: fixed;
   top: 0;
   right: 0;
-  width: 720px;
-  max-width: 100%;
+  width: min(920px, 100vw);
+  max-width: 100vw;
   height: 100vh;
   background: var(--bg-secondary);
   border-left: 1px solid var(--glass-border);
@@ -115,8 +115,8 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
   margin: calc(var(--space-6) * -1) calc(var(--space-6) * -1) var(--space-5);
   padding: var(--space-3) var(--space-6);
@@ -124,16 +124,25 @@
   border-bottom: 1px solid var(--border-primary);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
 }
 
 .settings-tab {
+  flex: 0 0 auto;
+  min-width: max-content;
   min-height: 34px;
+  padding: 0 var(--space-4);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   background: var(--glass-bg);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-weight: 600;
+  white-space: nowrap;
   transition:
     background var(--transition-fast),
     color var(--transition-fast),
@@ -1120,20 +1129,24 @@
   display: flex !important;
   flex-direction: row !important;
   overflow-x: auto !important;
+  overflow-y: hidden !important;
+  overscroll-behavior-x: contain !important;
   gap: var(--space-2) !important;
-  scrollbar-width: none !important; /* Hide scrollbar for Clean UI */
+  scrollbar-width: thin !important;
+  scrollbar-gutter: stable !important;
   padding: var(--space-3) var(--space-6) !important;
   background: color-mix(in srgb, var(--surface-elevated), transparent 4%) !important;
   margin: calc(var(--space-6) * -1) calc(var(--space-6) * -1) var(--space-5) !important;
   grid-template-columns: none !important;
 }
 .settings-panel .settings-subtabs::-webkit-scrollbar {
-  display: none !important;
+  height: 6px;
 }
 .settings-panel .settings-subtabs .settings-tab {
   flex: 0 0 auto !important;
   padding: 0 var(--space-4) !important;
   min-width: max-content !important;
+  white-space: nowrap !important;
 }
 
 .settings-panel .settings-section {
