@@ -41,6 +41,7 @@ const DEFAULT_SETTINGS = {
   contextFoldEconomicsEnabled: true,
   codingEditsEnabled: true,
   agentModelTier: 'auto',
+  interfaceDetailLevel: 'normal',
   toolApprovalTimeoutMs: 60000,
   toolApprovalPolicy: 'confirm_all',
   runCodeEnabled: true,
@@ -168,6 +169,9 @@ function normalizeSettings(input = /** @type {Record<string, any>} */ ({})) {
   next.agentModelTier = ['flash', 'auto', 'pro'].includes(String(next.agentModelTier))
     ? String(next.agentModelTier)
     : DEFAULT_SETTINGS.agentModelTier;
+  next.interfaceDetailLevel = ['normal', 'advanced', 'developer'].includes(String(next.interfaceDetailLevel))
+    ? String(next.interfaceDetailLevel)
+    : DEFAULT_SETTINGS.interfaceDetailLevel;
   next.toolApprovalTimeoutMs = Math.round(
     clampNumber(next.toolApprovalTimeoutMs, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs)
   );
@@ -315,6 +319,7 @@ function normalizeMcpServers(servers) {
       cwd: String(server.cwd || '')
         .trim()
         .slice(0, 2000),
+      inheritEnv: resolveMcpInheritEnv(server),
       externalConfigSource: String(server.externalConfigSource || '')
         .trim()
         .slice(0, 80),
@@ -328,6 +333,14 @@ function normalizeMcpServers(servers) {
     }))
     .filter((server) => server.command)
     .slice(0, 20);
+}
+
+function resolveMcpInheritEnv(server) {
+  if (server.inheritEnv === true || server.inheritEnv === 'true') return true;
+  if (server.inheritEnv === false || server.inheritEnv === 'false') return false;
+  // Existing manually configured MCP servers used to inherit process.env.
+  // Keep that behavior for old records; new UI/import flows write inheritEnv explicitly.
+  return !server.externalConfigSource && !server.externalConfigPath && !server.externalConfigFingerprint;
 }
 
 /**
@@ -776,6 +789,7 @@ function sanitizeSettingsForBackup(settings) {
         command: String(server.command || ''),
         args: sanitizeMcpArgs(server.args),
         ...(server.cwd ? { cwd: String(server.cwd) } : {}),
+        inheritEnv: server.inheritEnv === true,
         ...(server.externalConfigSource ? { externalConfigSource: String(server.externalConfigSource) } : {}),
         ...(server.externalConfigPath ? { externalConfigPath: String(server.externalConfigPath) } : {}),
         ...(server.externalConfigFingerprint

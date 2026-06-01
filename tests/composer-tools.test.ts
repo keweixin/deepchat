@@ -265,12 +265,13 @@ describe('composer tool drawer helpers', () => {
 
     expect(preview.items).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ label: 'MCP 1/3 可用', tone: 'ready' }),
-        expect.objectContaining({ label: 'MCP GitHub ✓', tone: 'ready' }),
+        expect.objectContaining({ label: 'MCP 1 个待测试', tone: 'warning' }),
+        expect.objectContaining({ label: 'MCP GitHub ×', tone: 'warning' }),
         expect.objectContaining({ label: 'MCP Notion ×', tone: 'warning' }),
         expect.objectContaining({ label: 'MCP Filesystem ×', tone: 'warning' }),
       ])
     );
+    expect(preview.items.find((item) => item.label === 'MCP GitHub ×').title).toContain('尚未刷新');
     expect(preview.items.find((item) => item.label === 'MCP Notion ×').title).toContain('已关闭');
     expect(preview.items.find((item) => item.label === 'MCP Filesystem ×').title).toContain('缺少启动命令');
   });

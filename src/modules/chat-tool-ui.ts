@@ -20,6 +20,8 @@ import {
 } from './tool-runs.js';
 import { copyToClipboard, downloadTextFile, fillComposerPrompt, showToast, truncate } from './utils.js';
 
+type ToolDetailLevel = 'normal' | 'advanced' | 'developer';
+
 // ─── Risk Classification ─────────────────────────────────────────────────────
 
 const LOW_RISK_TOOLS = new Set([
@@ -218,33 +220,33 @@ export function renderToolCalls(container: HTMLElement, toolCalls: any[] = [], o
   }
 
   container.hidden = false;
+  const detailLevel = getToolDetailLevel(options);
   for (const tool of toolCalls) {
     const block = document.createElement('div');
     block.className = `tool-call-block status-${tool.status || 'pending'}`;
+    block.dataset.detailLevel = detailLevel;
 
     const header = document.createElement('div');
     header.className = 'tool-call-header';
     const statusMeta = getToolStatusMeta(tool.status);
     block.dataset.statusTone = statusMeta.tone;
     const title = document.createElement('strong');
-    title.textContent = getToolName(tool);
+    title.textContent = getToolDisplayName(tool);
+    title.title = getToolName(tool);
     const status = document.createElement('span');
     status.className = 'tool-call-status';
     status.textContent = `${statusMeta.icon} ${statusMeta.label}`;
     const riskBadge = createToolRiskBadge(tool);
-    header.append('工具调用：', title, status, riskBadge);
+    header.append(getToolHeaderPrefix(tool), title, status, riskBadge);
 
     const risk = document.createElement('p');
     risk.className = 'tool-call-risk';
-    risk.textContent = tool.risk || '将执行一个工具调用。';
+    risk.textContent = getToolReadablePurpose(tool);
 
-    const args = document.createElement('pre');
-    args.className = 'tool-call-args';
-    const code = document.createElement('code');
-    code.textContent = formatToolArgs(tool);
-    args.appendChild(code);
+    const args = createToolArgsDetails(tool, detailLevel);
 
-    block.append(header, risk, args);
+    block.append(header, risk);
+    if (args) block.appendChild(args);
 
     const meta = createToolMeta(tool);
     if (meta) block.appendChild(meta);
@@ -256,7 +258,7 @@ export function renderToolCalls(container: HTMLElement, toolCalls: any[] = [], o
     if (nextAction) block.appendChild(nextAction);
     const repairAction = createToolRepairAction(tool);
     if (repairAction) block.appendChild(repairAction);
-    const repairReport = createToolRepairReport(tool);
+    const repairReport = detailLevel === 'normal' ? null : createToolRepairReport(tool);
     if (repairReport) block.appendChild(repairReport);
     if (tool.parseError) {
       const parse = document.createElement('div');
@@ -296,71 +298,160 @@ export function renderToolCalls(container: HTMLElement, toolCalls: any[] = [], o
       const preview = createToolOutputPreview(tool.output, getToolName(tool));
       if (preview) block.appendChild(preview);
 
-      const runCard = createRunCodeExperimentCard(tool);
+      const runCard = createRunCodeExperimentCard(tool, detailLevel);
       if (runCard) block.appendChild(runCard);
 
-      const output = document.createElement('details');
-      output.className = 'tool-call-output';
-      const summary = document.createElement('summary');
-      summary.textContent = tool.ok === false ? '查看失败信息' : '查看工具结果';
-      const pre = document.createElement('pre');
-      pre.textContent = tool.output;
-      output.append(summary, pre);
-      block.appendChild(output);
+      if (detailLevel !== 'normal') {
+        block.appendChild(
+          createPreDetails(tool.ok === false ? '查看完整失败信息' : '查看完整工具结果', String(tool.output || ''), {
+            className: 'tool-call-output',
+            open: detailLevel === 'developer',
+          })
+        );
+      }
     }
-    if (tool.contextOutput && tool.contextOutput !== tool.output) {
-      const contextOutput = document.createElement('details');
-      contextOutput.className = 'tool-call-output tool-context-output';
-      const summary = document.createElement('summary');
-      const rawTokens = tool.rawOutputTokens || 0;
-      const contextTokens = tool.contextOutputTokens || 0;
-      summary.textContent =
-        rawTokens && contextTokens
+    if (detailLevel === 'developer' && tool.contextOutput && tool.contextOutput !== tool.output) {
+      const summaryText = (() => {
+        const rawTokens = tool.rawOutputTokens || 0;
+        const contextTokens = tool.contextOutputTokens || 0;
+        return rawTokens && contextTokens
           ? `查看进入上下文的压缩输出 (${rawTokens}→${contextTokens} tokens)`
           : '查看进入上下文的压缩输出';
-      const pre = document.createElement('pre');
-      pre.textContent = tool.contextOutput;
-      contextOutput.append(summary, pre);
-      block.appendChild(contextOutput);
+      })();
+      block.appendChild(
+        createPreDetails(summaryText, String(tool.contextOutput || ''), {
+          className: 'tool-call-output tool-context-output',
+          open: true,
+        })
+      );
     }
 
-    const copyRow = document.createElement('div');
-    copyRow.className = 'tool-copy-row';
-    const copyEvidence = document.createElement('button');
-    copyEvidence.type = 'button';
-    copyEvidence.className = 'tool-copy-btn';
-    copyEvidence.textContent = '复制证据 JSON';
-    copyEvidence.addEventListener('click', async () => {
-      await copyToClipboard(JSON.stringify(buildToolEvidencePayload(tool), null, 2));
-      showToast('工具证据已复制');
-    });
-    copyRow.appendChild(copyEvidence);
-    if (tool.output) {
-      const copyOutput = document.createElement('button');
-      copyOutput.type = 'button';
-      copyOutput.className = 'tool-copy-btn';
-      copyOutput.textContent = '复制原始输出';
-      copyOutput.addEventListener('click', async () => {
-        await copyToClipboard(tool.output);
-        showToast('工具输出已复制');
-      });
-      copyRow.appendChild(copyOutput);
-    }
-    if (tool.contextOutput && tool.contextOutput !== tool.output) {
-      const copyContext = document.createElement('button');
-      copyContext.type = 'button';
-      copyContext.className = 'tool-copy-btn';
-      copyContext.textContent = '复制上下文输出';
-      copyContext.addEventListener('click', async () => {
-        await copyToClipboard(tool.contextOutput);
-        showToast('上下文输出已复制');
-      });
-      copyRow.appendChild(copyContext);
-    }
-    block.appendChild(copyRow);
+    const copyRow = createToolCopyRow(tool, detailLevel);
+    if (copyRow) block.appendChild(copyRow);
 
     container.appendChild(block);
   }
+}
+
+function getToolDetailLevel(options: Record<string, any> = {}): ToolDetailLevel {
+  const raw = String(options.detailLevel || options.uiDetailLevel || '').trim();
+  if (raw === 'developer' || raw === 'advanced' || raw === 'normal') return raw;
+  if (options.showRaw === true) return 'developer';
+  return 'normal';
+}
+
+function getToolHeaderPrefix(tool: Record<string, any>) {
+  if (tool.status === 'pending') return '需要确认：';
+  if (tool.status === 'failed' || tool.ok === false) return '执行失败：';
+  if (tool.status === 'denied') return '已拒绝：';
+  return '已执行：';
+}
+
+function getToolDisplayName(tool: Record<string, any>) {
+  const name = getToolName(tool);
+  const labels: Record<string, string> = {
+    web_search: '联网搜索',
+    read_file: '读取文件',
+    read_many_files: '批量读取文件',
+    list_files: '查看目录',
+    search_workspace: '搜索工作区',
+    read_symbol: '读取符号',
+    run_code: '运行代码',
+    edit_file: '修改文件',
+    multi_edit: '批量修改文件',
+    index_workspace: '索引工作区',
+  };
+  if (labels[name]) return labels[name];
+  if (name.startsWith('mcp__')) return '外部 MCP 工具';
+  return name || '工具';
+}
+
+function getToolReadablePurpose(tool: Record<string, any>) {
+  const explicit = String(tool.risk || '').trim();
+  if (explicit) return explicit;
+  const name = getToolName(tool);
+  const args = tool.args || {};
+  if (name === 'web_search') return `将联网搜索：${getToolQuery(tool) || args.query || '当前问题'}`;
+  if (name === 'read_file') return `将读取文件：${args.path || args.file || '未指定路径'}`;
+  if (name === 'read_many_files') return `将读取 ${Array.isArray(args.paths) ? args.paths.length : 0} 个文件`;
+  if (name === 'search_workspace') return `将在工作区搜索：${args.query || '未指定关键词'}`;
+  if (name === 'run_code') return '将在本地轻隔离环境运行代码；不提供硬网络隔离或硬内存限制。';
+  if (name === 'edit_file' || name === 'multi_edit') return '将修改工作区文件；执行前会检查路径、匹配内容并保留备份。';
+  if (name.startsWith('mcp__')) return '将调用外部 MCP 工具；请确认来源、参数和风险后再执行。';
+  return '将执行一个工具动作；可展开参数确认具体范围。';
+}
+
+function createToolArgsDetails(tool: Record<string, any>, detailLevel: ToolDetailLevel) {
+  const formatted = formatToolArgs(tool);
+  if (!formatted || formatted === '{}') return null;
+  return createPreDetails(detailLevel === 'normal' ? '查看参数' : '工具参数', formatted, {
+    className: 'tool-call-args-details',
+    preClassName: 'tool-call-args',
+    open: detailLevel !== 'normal',
+  });
+}
+
+function createPreDetails(
+  summaryText: string,
+  text: string,
+  {
+    className = '',
+    preClassName = '',
+    open = false,
+  }: {
+    className?: string;
+    preClassName?: string;
+    open?: boolean;
+  } = {}
+) {
+  const details = document.createElement('details');
+  details.className = className;
+  details.open = open;
+  const summary = document.createElement('summary');
+  summary.textContent = summaryText;
+  const pre = document.createElement('pre');
+  if (preClassName) pre.className = preClassName;
+  pre.textContent = text;
+  details.append(summary, pre);
+  return details;
+}
+
+function createToolCopyRow(tool: Record<string, any>, detailLevel: ToolDetailLevel) {
+  if (detailLevel === 'normal') return null;
+  const copyRow = document.createElement('div');
+  copyRow.className = 'tool-copy-row';
+  const copyEvidence = document.createElement('button');
+  copyEvidence.type = 'button';
+  copyEvidence.className = 'tool-copy-btn';
+  copyEvidence.textContent = '复制证据 JSON';
+  copyEvidence.addEventListener('click', async () => {
+    await copyToClipboard(JSON.stringify(buildToolEvidencePayload(tool), null, 2));
+    showToast('工具证据已复制');
+  });
+  copyRow.appendChild(copyEvidence);
+  if (tool.output) {
+    const copyOutput = document.createElement('button');
+    copyOutput.type = 'button';
+    copyOutput.className = 'tool-copy-btn';
+    copyOutput.textContent = '复制原始输出';
+    copyOutput.addEventListener('click', async () => {
+      await copyToClipboard(tool.output);
+      showToast('工具输出已复制');
+    });
+    copyRow.appendChild(copyOutput);
+  }
+  if (detailLevel === 'developer' && tool.contextOutput && tool.contextOutput !== tool.output) {
+    const copyContext = document.createElement('button');
+    copyContext.type = 'button';
+    copyContext.className = 'tool-copy-btn';
+    copyContext.textContent = '复制上下文输出';
+    copyContext.addEventListener('click', async () => {
+      await copyToClipboard(tool.contextOutput);
+      showToast('上下文输出已复制');
+    });
+    copyRow.appendChild(copyContext);
+  }
+  return copyRow;
 }
 
 function createToolRiskBadge(tool: Record<string, any>) {
@@ -621,7 +712,7 @@ function createToolOutputPreview(outputText: string, toolName = '') {
   return preview;
 }
 
-function createRunCodeExperimentCard(tool: Record<string, any> = {}) {
+function createRunCodeExperimentCard(tool: Record<string, any> = {}, detailLevel: ToolDetailLevel = 'normal') {
   if (getToolName(tool) !== 'run_code' || !tool.output) return null;
   const result = tool.runResult || extractRunCodeResult(tool.output, 'run_code');
   if (!result) return null;
@@ -658,13 +749,15 @@ function createRunCodeExperimentCard(tool: Record<string, any> = {}) {
     card.appendChild(hint);
   }
 
-  const outputs = document.createElement('div');
-  outputs.className = 'run-experiment-outputs';
-  if (result.stdoutPreview)
-    outputs.appendChild(createRunOutputBlock('STDOUT', result.stdoutPreview, result.stdoutBytes));
-  if (result.stderrPreview)
-    outputs.appendChild(createRunOutputBlock('STDERR', result.stderrPreview, result.stderrBytes));
-  if (outputs.children.length) card.appendChild(outputs);
+  if (detailLevel !== 'normal') {
+    const outputs = document.createElement('div');
+    outputs.className = 'run-experiment-outputs';
+    if (result.stdoutPreview)
+      outputs.appendChild(createRunOutputBlock('STDOUT', result.stdoutPreview, result.stdoutBytes));
+    if (result.stderrPreview)
+      outputs.appendChild(createRunOutputBlock('STDERR', result.stderrPreview, result.stderrBytes));
+    if (outputs.children.length) card.appendChild(outputs);
+  }
   appendRunExperimentActions(card, tool, result);
   return card;
 }

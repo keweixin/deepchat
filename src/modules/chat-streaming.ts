@@ -120,6 +120,15 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
     const evidenceContainer = msgEl.querySelector('.evidence-panel');
     const agentContainer = msgEl.querySelector('.agent-timeline-container');
 
+    function getInterfaceDetailLevel() {
+      const level = String(deps.getSettings().interfaceDetailLevel || 'normal');
+      return ['normal', 'advanced', 'developer'].includes(level) ? level : 'normal';
+    }
+
+    function shouldShowThinkingInChat() {
+      return getInterfaceDetailLevel() === 'developer';
+    }
+
     function shouldShowAgentCrewEarly() {
       const mode = deps.getSettings().crewDisplayMode || 'auto';
       if (mode === 'off') return false;
@@ -128,15 +137,26 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         return isAgentSkill(skill);
       }
       if (mode === 'always') return true;
-      return true;
+      const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
+      return isAgentSkill(skill);
     }
 
     function shouldCreateCrewFromStage(event: Record<string, any>) {
       const mode = deps.getSettings().crewDisplayMode || 'auto';
       if (mode === 'off') return false;
-      if (mode !== 'tools_only') return true;
       if (mode === 'always') return true;
       const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
+      if (mode === 'auto') {
+        if (isAgentSkill(skill)) return true;
+        if (event.stage === 'plan') {
+          const plan = event.planSummary || {};
+          const selected = Array.isArray(plan.selectedTools) ? plan.selectedTools : event.selectedTools || [];
+          return selected.length > 0 || (plan.mode && plan.mode !== 'none');
+        }
+        return ['tool', 'tool_pending', 'tool_approved', 'tool_denied', 'tool_result', 'tool_failed', 'final'].includes(
+          String(event.stage || '')
+        );
+      }
       if (isAgentSkill(skill)) return true;
       const toolCalls = assistantMsg.toolCalls as unknown[];
       if (toolCalls?.length > 0) return true;
@@ -352,7 +372,7 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         if (thinkingContent) {
           thinkingContent.textContent = fullThinking;
           const thinkingBlock = msgEl.querySelector('.thinking-block');
-          if (thinkingBlock) thinkingBlock.hidden = false;
+          if (thinkingBlock) thinkingBlock.hidden = !shouldShowThinkingInChat();
         }
       },
       onTokenCount(counts: Record<string, any>) {

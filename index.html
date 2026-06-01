@@ -397,7 +397,8 @@
         </div>
         <div class="inspector-panel-content">
           <div class="inspector-empty">
-            <p>选择一条消息或按 <kbd>Ctrl+Shift+I</kbd> 查看详情</p>
+            <h3>Inspector 会在有内容时显示细节</h3>
+            <p>发送消息后，点击回答下方的“详情”，或按 <kbd>Ctrl+Shift+I</kbd> 查看最近消息。</p>
           </div>
         </div>
       </aside>
@@ -435,7 +436,7 @@
             <button type="button" class="settings-nav-item" data-target-title="工作区与备份">工作区</button>
             <button type="button" class="settings-nav-item" data-target-title="Agent 与 Token">Agent 与工具</button>
             <button type="button" class="settings-nav-item" data-target-title="MCP Server">MCP</button>
-            <button type="button" class="settings-nav-item" data-target-title="外部 Skill">Skills</button>
+            <button type="button" class="settings-nav-item" data-target-title="外部技能">外部技能</button>
             <button type="button" class="settings-nav-item" data-target-title="模型设置">模型参数</button>
             <button type="button" class="settings-nav-item" data-target-title="回答模式">外观与快捷键</button>
             <button type="button" class="settings-nav-item" data-target-title="系统提示词">数据与备份</button>
@@ -779,9 +780,9 @@
               </div>
             </div>
             <div class="settings-section" id="section-skills" data-tab="tab-model">
-              <h3>外部 Skill</h3>
+              <h3>外部技能</h3>
               <div class="form-group">
-                <label>已导入的 Skill</label>
+                <label>已导入的 SKILL.md</label>
                 <div id="external-skill-list" class="workspace-list"></div>
                 <div class="form-actions">
                   <button id="add-external-skill-btn" class="secondary-btn" type="button">
@@ -790,14 +791,13 @@
                       <line x1="5" y1="12" x2="19" y2="12" /></svg
                     >导入 SKILL.md
                   </button>
-                  <button id="scan-external-skill-btn" class="secondary-btn" type="button">
-                    发现 Claude/Codex Skill
-                  </button>
+                  <button id="scan-external-skill-btn" class="secondary-btn" type="button">扫描本机技能</button>
                   <span id="external-skill-status-text" class="inline-status"></span>
                 </div>
                 <div id="external-skill-import-list" class="workspace-list compact-list"></div>
                 <p class="form-hint">
-                  可手动导入 SKILL.md，也可只读扫描 Claude/Codex/Agents 的本地 Skill；导入前不会自动执行。
+                  这里管理 Codex/Claude 格式的
+                  SKILL.md。导入后先作为提示词和引用资料使用，不会自动执行脚本；工具权限仍由 Agent 与工具设置控制。
                 </p>
               </div>
             </div>
@@ -824,12 +824,25 @@
                   rows="3"
                   placeholder='环境变量 JSON，可选，例如 {"API_KEY":"..."}'
                 ></textarea>
+                <input
+                  type="text"
+                  id="mcp-cwd-input"
+                  class="form-input compact-input"
+                  placeholder="工作目录，可选。留空表示使用 DeepChat 默认目录"
+                />
+                <label class="toggle-line compact-toggle">
+                  <input type="checkbox" id="mcp-inherit-env-toggle" />
+                  <span>继承系统环境变量</span>
+                </label>
                 <div class="form-actions">
                   <button id="add-mcp-server-btn" class="secondary-btn" type="button">添加 MCP</button>
                   <button id="refresh-mcp-status-btn" class="secondary-btn" type="button">测试 MCP</button>
                   <span id="mcp-status-text" class="inline-status"></span>
                 </div>
-                <p class="form-hint">MCP 仅桌面版可执行。浏览器预览不能启动外部进程。</p>
+                <p class="form-hint">
+                  MCP 仅桌面版可执行。默认只传 PATH、TEMP 等安全环境和上方显式 env；如果某个 server
+                  依赖系统环境变量，再手动开启继承。
+                </p>
               </div>
               <div class="form-group">
                 <label>外部 MCP 配置发现</label>
@@ -1050,14 +1063,17 @@
                 </p>
               </div>
               <div class="form-group">
-                <label>调整 AI 的回答边界</label>
+                <label>Agent 模式</label>
                 <div class="skill-grid" id="skill-grid">
                   <!-- Populated by JS -->
                 </div>
-                <p class="form-hint">工具模式会在模型请求执行时弹出确认卡片，确认后才会联网、读文件或运行代码。</p>
+                <p class="form-hint">
+                  这里决定本轮是否允许联网、读文件、运行代码或 MCP。真正的 SKILL.md
+                  在“外部技能”里管理；所有工具执行仍需确认。
+                </p>
               </div>
               <div class="form-group">
-                <label for="crew-display-mode-select">Agent Crew 显示策略</label>
+                <label for="crew-display-mode-select">AI 工作进度显示</label>
                 <select id="crew-display-mode-select" class="form-input">
                   <option value="auto">自动 — AI 工作时显示</option>
                   <option value="always">总是 — 所有 Agent 回答都显示</option>
@@ -1065,9 +1081,16 @@
                   <option value="theatre">剧场 — Agent Theatre 可视化</option>
                   <option value="off">关闭 — 不显示 Crew 面板</option>
                 </select>
-                <p class="form-hint">
-                  控制 AI 小队面板的显示时机。"自动"会在每次 AI 工作时展示当前规划、输出和工具协作状态。
-                </p>
+                <p class="form-hint">控制 AI 小队面板的显示时机。“自动”会在 AI 规划、输出或调用工具时显示进度。</p>
+              </div>
+              <div class="form-group">
+                <label for="interface-detail-level-select">界面细节级别</label>
+                <select id="interface-detail-level-select" class="form-input">
+                  <option value="normal">普通 — 聊天区只显示必要进度和结果</option>
+                  <option value="advanced">高级 — 可在聊天区展开工具参数和完整输出</option>
+                  <option value="developer">开发者 — 显示 Trace、Token、Cache 和原始调试数据</option>
+                </select>
+                <p class="form-hint">普通模式适合日常使用；高级和开发者模式用于排查工具、MCP、缓存或上下文问题。</p>
               </div>
               <div class="form-group">
                 <label for="default-composer-mode-select">默认任务模式</label>

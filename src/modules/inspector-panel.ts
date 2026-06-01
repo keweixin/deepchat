@@ -169,9 +169,23 @@ function _renderEmpty() {
   if (!_contentEl) return;
   _contentEl.innerHTML = /* safeSetHTML-exempt: static template */ `
     <div class="inspector-empty">
-      <p>选择一条消息或按 <kbd>Ctrl+Shift+I</kbd> 查看详情</p>
+      <h3>Inspector 会在有内容时显示细节</h3>
+      <p>发送消息后，点击回答下方的“详情”，或按 <kbd>Ctrl+Shift+I</kbd> 查看最近消息。</p>
+      <div class="inspector-empty-grid" aria-label="Inspector 可查看内容">
+        <span><strong>消息</strong>模型、Token、缓存与来源</span>
+        <span><strong>Trace</strong>Agent 阶段、工具调用与失败原因</span>
+        <span><strong>Artifact</strong>代码块、图表和可下载文件</span>
+      </div>
     </div>
   `;
+}
+
+function _createEmptyStateItem(label: string, description: string) {
+  const item = document.createElement('span');
+  const title = document.createElement('strong');
+  title.textContent = label;
+  item.append(title, document.createTextNode(description));
+  return item;
 }
 
 function _resolveInspectorRequest(mode: string, data: Record<string, any>) {
@@ -217,8 +231,9 @@ function _renderOverview(data: Record<string, any>) {
   const summary = document.createElement('div');
   summary.className = 'inspector-section inspector-overview';
 
+  const messageCount = Number(data.messageCount || 0);
   const title = document.createElement('h3');
-  title.textContent = '当前会话概览';
+  title.textContent = messageCount > 0 ? '当前会话概览' : 'Inspector 会在有内容时显示细节';
   summary.appendChild(title);
 
   const grid = document.createElement('div');
@@ -231,6 +246,17 @@ function _renderOverview(data: Record<string, any>) {
   );
   if (data.usageText) grid.appendChild(_createMetaItem('Token / Cache', data.usageText, data.usageTitle));
   summary.appendChild(grid);
+
+  if (messageCount === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'inspector-empty-grid';
+    empty.append(
+      _createEmptyStateItem('消息', '模型、Token、缓存与来源'),
+      _createEmptyStateItem('Trace', 'Agent 阶段、工具调用与失败原因'),
+      _createEmptyStateItem('Artifact', '代码块、图表和可下载文件')
+    );
+    summary.appendChild(empty);
+  }
 
   const actions = document.createElement('div');
   actions.className = 'inspector-overview-actions';
@@ -417,6 +443,8 @@ function _formatTokenUsageForInspector(tokens: unknown) {
 
 function _hasReliableCacheTelemetry(tokens: Record<string, any>) {
   if (!tokens || typeof tokens !== 'object') return false;
+  if (tokens.hasCacheTelemetry === true) return true;
+  if (tokens.hasCacheTelemetry === false) return false;
   if (
     tokens.prompt_cache_hit_tokens !== undefined ||
     tokens.prompt_cache_miss_tokens !== undefined ||
@@ -433,11 +461,7 @@ function _hasReliableCacheTelemetry(tokens: Record<string, any>) {
     return true;
   }
   const profile = tokens.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : null;
-  return Boolean(
-    (source === 'provider' || source === 'mixed') &&
-    profile &&
-    (profile.cacheHit !== undefined || profile.cacheMiss !== undefined || profile.cacheHitRate !== undefined)
-  );
+  return Boolean((source === 'provider' || source === 'mixed') && profile && profile.hasCacheTelemetry === true);
 }
 
 function _formatUsageSourceForInspector(source: string) {

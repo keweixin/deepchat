@@ -14,15 +14,18 @@ export function renderSkillGrid(
   for (const [id, skill] of Object.entries(SKILLS) as [string, { icon: string; name: string; description: string }][]) {
     const card = document.createElement('button');
     const available = isSkillAvailable(id, settings);
+    const stateText = id === resolvedActiveSkill ? '当前模式' : available ? '可选择' : getUnavailableReason(id);
     card.type = 'button';
     card.disabled = !available;
     card.setAttribute('aria-disabled', String(!available));
+    card.setAttribute('aria-label', `${skill.name}：${skill.description}。${stateText}`);
+    card.title = `${skill.name}：${skill.description}。${stateText}`;
     card.className = `skill-card${id === resolvedActiveSkill ? ' active' : ''}${available ? '' : ' unavailable'}`;
     card.innerHTML = /* safeSetHTML-exempt: static template */ `
       <span class="skill-icon">${skill.icon}</span>
       <span class="skill-name">${skill.name}</span>
       <span class="skill-desc">${skill.description}</span>
-      <span class="skill-state">${available ? '可用' : getUnavailableReason(id)}</span>
+      <span class="skill-state">${stateText}</span>
     `;
     card.addEventListener('click', () => {
       if (!available) {
@@ -42,11 +45,11 @@ export function isSkillAvailable(id: string, settings: Record<string, unknown>):
 }
 
 export function getUnavailableReason(id: string): string {
-  if (!hasNativeBridge() && id !== 'none' && id !== 'web_search') return '需桌面版';
-  if (id === 'web_search') return hasNativeBridge() ? '需 Tavily Key 或搜索兜底' : '需 Tavily Key';
-  if (id === 'file_reader') return '需工作区';
-  if (id === 'mcp_tool') return '需 MCP';
-  if (id === 'multi_tool') return '需配置工具';
+  if (!hasNativeBridge() && id !== 'none' && id !== 'web_search') return '仅桌面版可用';
+  if (id === 'web_search') return hasNativeBridge() ? '缺 Tavily Key 或搜索兜底' : '缺 Tavily Key';
+  if (id === 'file_reader') return '先添加工作区';
+  if (id === 'mcp_tool') return '先配置 MCP';
+  if (id === 'multi_tool') return '先配置至少一种工具';
   return '可用';
 }
 

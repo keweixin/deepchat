@@ -8,6 +8,20 @@ const MAX_MCP_OUTPUT = 16000;
 const TOOL_DEFINITION_CACHE_TTL_MS = 5 * 60 * 1000;
 const TOOL_SCHEMA_FLATTEN_LEAF_LIMIT = 10;
 const TOOL_SCHEMA_FLATTEN_DEPTH_LIMIT = 2;
+const MCP_ENV_ALLOWLIST = [
+  'PATH',
+  'Path',
+  'SystemRoot',
+  'WINDIR',
+  'TEMP',
+  'TMP',
+  'HOME',
+  'USERPROFILE',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'COMSPEC',
+  'SHELL',
+];
 
 class McpManager {
   constructor() {
@@ -138,7 +152,7 @@ class McpManager {
     const transport = new StdioClientTransport({
       command: server.command,
       args: server.args || [],
-      env: { ...process.env, ...(server.env || {}) },
+      env: buildMcpEnv(server),
       cwd: server.cwd || undefined,
     });
     await withTimeout(client.connect(transport), CONNECT_TIMEOUT_MS, `MCP Server ${server.name} 连接超时`);
@@ -370,6 +384,8 @@ function makeStatusPayload(server, payload) {
     command: server.command,
     args: server.args || [],
     cwd: server.cwd || '',
+    inheritEnv: server.inheritEnv === true,
+    envKeys: Object.keys(server.env || {}).sort(),
   };
 }
 
@@ -404,8 +420,19 @@ function serverFingerprint(server) {
     args: server.args || [],
     cwd: server.cwd || '',
     env: server.env || {},
+    inheritEnv: server.inheritEnv === true,
     enabled: server.enabled !== false,
   });
+}
+
+function buildMcpEnv(server = {}) {
+  const explicitEnv = server.env && typeof server.env === 'object' ? server.env : {};
+  if (server.inheritEnv === true) return { ...process.env, ...explicitEnv };
+  const safeEnv = {};
+  for (const key of MCP_ENV_ALLOWLIST) {
+    if (process.env[key] !== undefined) safeEnv[key] = process.env[key];
+  }
+  return { ...safeEnv, ...explicitEnv };
 }
 
 async function closeSession(session) {
@@ -439,4 +466,5 @@ module.exports = {
   isMcpToolName,
   makeOpenAiToolName,
   hashMcpTools,
+  buildMcpEnv,
 };

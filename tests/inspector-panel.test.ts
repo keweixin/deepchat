@@ -37,6 +37,15 @@ describe('inspector-panel', () => {
     expect(isInspectorPanelOpen()).toBe(true);
   });
 
+  it('renders an actionable empty state instead of a blank panel', () => {
+    openInspectorPanel('empty');
+    expect(panel.textContent).toContain('Inspector 会在有内容时显示细节');
+    expect(panel.textContent).toContain('消息');
+    expect(panel.textContent).toContain('Trace');
+    expect(panel.textContent).toContain('Artifact');
+    expect(panel.querySelector('.inspector-empty-grid')).toBeTruthy();
+  });
+
   it('does not render trusted-template audit comments as visible inspector text', () => {
     openInspectorPanel('empty');
     expect(panel.textContent).not.toContain('safeSetHTML-exempt');
@@ -59,6 +68,22 @@ describe('inspector-panel', () => {
     expect(panel.textContent).toContain('测试会话');
     expect(panel.textContent).toContain('≈7.3k tok · 估算');
     expect(panel.querySelector('.inspector-overview-action')).toBeTruthy();
+  });
+
+  it('renders actionable overview guidance when the current conversation has no messages yet', () => {
+    setInspectorOverviewProvider(() => ({
+      conversationTitle: '新会话',
+      messageCount: 0,
+      hint: '发送一条消息后会显示细节。',
+    }));
+
+    openInspectorPanel('empty');
+
+    expect(panel.textContent).toContain('Inspector 会在有内容时显示细节');
+    expect(panel.textContent).toContain('消息');
+    expect(panel.textContent).toContain('Trace');
+    expect(panel.textContent).toContain('Artifact');
+    expect(panel.querySelector('.inspector-empty-grid')).toBeTruthy();
   });
 
   it('closes panel and removes visible class', () => {

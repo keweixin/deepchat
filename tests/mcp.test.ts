@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   McpManager,
+  buildMcpEnv,
   hashMcpTools,
   isMcpToolName,
   makeOpenAiToolName,
@@ -66,6 +67,22 @@ description: Demo skill description
     expect(name).toMatch(/^mcp__local-files__/);
     expect(name.length).toBeLessThanOrEqual(64);
     expect(isMcpToolName(name)).toBe(true);
+  });
+
+  it('does not inherit secret-like process env for MCP by default', () => {
+    const original = process.env.DEEPCHAT_TEST_SECRET;
+    process.env.DEEPCHAT_TEST_SECRET = 'should-not-leak';
+    try {
+      const safeEnv = buildMcpEnv({ env: { EXPLICIT_TOKEN: 'allowed' } });
+      expect(safeEnv.EXPLICIT_TOKEN).toBe('allowed');
+      expect(safeEnv.DEEPCHAT_TEST_SECRET).toBeUndefined();
+
+      const inheritedEnv = buildMcpEnv({ inheritEnv: true, env: { EXPLICIT_TOKEN: 'allowed' } });
+      expect(inheritedEnv.DEEPCHAT_TEST_SECRET).toBe('should-not-leak');
+    } finally {
+      if (original === undefined) delete process.env.DEEPCHAT_TEST_SECRET;
+      else process.env.DEEPCHAT_TEST_SECRET = original;
+    }
   });
 
   it('returns MCP tool definitions in a stable sorted order and reuses the cache', async () => {

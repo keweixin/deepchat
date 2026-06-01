@@ -157,6 +157,7 @@ export function buildCacheProfile(tokens: Record<string, any>, contextBudget: Re
     cacheHit: usage.cacheHit,
     cacheMiss: usage.cacheMiss,
     cacheHitRate: usage.cacheHitRate,
+    hasCacheTelemetry: usage.hasCacheTelemetry,
     estimatedCostUsd: usage.cost?.estimatedCostUsd || 0,
     estimatedSavingsUsd: usage.cost?.estimatedSavingsUsd || 0,
     foldDecision: contextBudget?.foldDecision || contextBudget?.summaryMeta?.foldDecision || profile.foldDecision,
@@ -175,6 +176,8 @@ function getConversationTokenRecords(conversation: Record<string, any>) {
 
 function hasReliableCacheTelemetry(tokens: Record<string, any>) {
   if (!tokens || typeof tokens !== 'object') return false;
+  if (tokens.hasCacheTelemetry === true) return true;
+  if (tokens.hasCacheTelemetry === false) return false;
   if (
     tokens.prompt_cache_hit_tokens !== undefined ||
     tokens.prompt_cache_miss_tokens !== undefined ||
@@ -191,11 +194,7 @@ function hasReliableCacheTelemetry(tokens: Record<string, any>) {
     return true;
   }
   const profile = tokens.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : null;
-  if (
-    (source === 'provider' || source === 'mixed') &&
-    profile &&
-    (profile.cacheHit !== undefined || profile.cacheMiss !== undefined || profile.cacheHitRate !== undefined)
-  ) {
+  if ((source === 'provider' || source === 'mixed') && profile && profile.hasCacheTelemetry === true) {
     return true;
   }
   return false;

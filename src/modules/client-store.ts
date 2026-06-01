@@ -330,6 +330,7 @@ export function sanitizeSettingsForBackup(settings: Record<string, unknown>): Re
         command: String(server.command || ''),
         args: sanitizeMcpArgs(server.args),
         ...(server.cwd ? { cwd: String(server.cwd) } : {}),
+        inheritEnv: server.inheritEnv === true,
         ...(server.externalConfigSource ? { externalConfigSource: String(server.externalConfigSource) } : {}),
         ...(server.externalConfigPath ? { externalConfigPath: String(server.externalConfigPath) } : {}),
         ...(server.externalConfigFingerprint

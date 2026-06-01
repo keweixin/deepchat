@@ -26,7 +26,9 @@ import { createSqliteJobStore } from './job-stores.js';
 import { scanExternalMcpConfigs, serverFingerprint } from './external-mcp-configs.js';
 import { listDocsets, searchDocsets, validateDocsetRoot } from './docset-search.js';
 
-if (process.env.DEEPCHAT_DISABLE_GPU === '1') {
+if (process.platform === 'win32' && process.env.DEEPCHAT_ENABLE_GPU !== '1') {
+  app.disableHardwareAcceleration();
+} else if (process.env.DEEPCHAT_DISABLE_GPU === '1') {
   app.disableHardwareAcceleration();
 }
 

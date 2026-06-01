@@ -284,13 +284,16 @@ describe('chat regeneration', () => {
 
     renderAssistantEvidence(container, message);
 
+    expect(container.textContent).not.toContain('本轮工具证据');
+    expect(container.textContent).toContain('本地文件证据未被明确引用');
+    expect(container.textContent).toContain('src/agent.md:2-3');
+
+    renderAssistantEvidence(container, message, { showToolEvidencePanel: true });
     expect(container.textContent).toContain('本轮工具证据');
     expect(container.textContent).toContain('1 个工具');
     expect(container.textContent).toContain('未被回答引用');
     expect(container.textContent).toContain('引用明细');
     expect(container.textContent).toContain('未引用: src/agent.md:2-3');
-    expect(container.textContent).toContain('本地文件证据未被明确引用');
-    expect(container.textContent).toContain('src/agent.md:2-3');
   });
 
   it('renders detailed tool evidence panel with sources, symbols, and cache', async () => {
@@ -309,6 +312,7 @@ describe('chat regeneration', () => {
         cacheHit: 60,
         cacheMiss: 40,
         cacheHitRate: 0.6,
+        hasCacheTelemetry: true,
         source: 'provider',
       },
       cacheProfile: { prefixFingerprint: 'abc123' },
@@ -340,7 +344,7 @@ describe('chat regeneration', () => {
       ],
     };
 
-    renderAssistantEvidence(container, message);
+    renderAssistantEvidence(container, message, { showToolEvidencePanel: true });
 
     expect(container.textContent).toContain('本轮工具证据');
     expect(container.textContent).toContain('2 个工具');
@@ -388,7 +392,7 @@ describe('chat regeneration', () => {
       ],
     };
 
-    renderAssistantEvidence(container, message);
+    renderAssistantEvidence(container, message, { showToolEvidencePanel: true });
 
     expect(container.textContent).toContain('部分证据已引用');
     expect(container.textContent).toContain('已引用: Used Source');
@@ -600,43 +604,47 @@ describe('chat regeneration', () => {
       value: { writeText },
     });
 
-    renderToolCalls(container, [
-      {
-        id: 'tool-code',
-        name: 'run_code',
-        status: 'completed',
-        ok: true,
-        args: { language: 'javascript', code: 'console.log("测试完成")' },
-        requestedAt: '2026-05-27T12:00:00.000Z',
-        completedAt: '2026-05-27T12:00:01.000Z',
-        output: [
-          '退出码：0',
-          '耗时：8ms',
-          'Structured Run:',
-          JSON.stringify({
-            type: 'deepchat.runCodeResult',
-            version: 1,
-            language: 'javascript',
-            codeLength: 24,
-            stdinBytes: 0,
-            durationMs: 8,
-            exitCode: 0,
-            timedOut: false,
-            ok: true,
-            stdoutBytes: 12,
-            stderrBytes: 0,
-            stdoutPreview: '测试完成',
-            stderrPreview: '',
-            failureHint: '',
-          }),
-          'stdout:',
-          '测试完成',
-          '```js',
-          'const secret = "long code";',
-          '```',
-        ].join('\n'),
-      },
-    ]);
+    renderToolCalls(
+      container,
+      [
+        {
+          id: 'tool-code',
+          name: 'run_code',
+          status: 'completed',
+          ok: true,
+          args: { language: 'javascript', code: 'console.log("测试完成")' },
+          requestedAt: '2026-05-27T12:00:00.000Z',
+          completedAt: '2026-05-27T12:00:01.000Z',
+          output: [
+            '退出码：0',
+            '耗时：8ms',
+            'Structured Run:',
+            JSON.stringify({
+              type: 'deepchat.runCodeResult',
+              version: 1,
+              language: 'javascript',
+              codeLength: 24,
+              stdinBytes: 0,
+              durationMs: 8,
+              exitCode: 0,
+              timedOut: false,
+              ok: true,
+              stdoutBytes: 12,
+              stderrBytes: 0,
+              stdoutPreview: '测试完成',
+              stderrPreview: '',
+              failureHint: '',
+            }),
+            'stdout:',
+            '测试完成',
+            '```js',
+            'const secret = "long code";',
+            '```',
+          ].join('\n'),
+        },
+      ],
+      { detailLevel: 'developer' }
+    );
 
     expect(container.textContent).toContain('输出摘要');
     expect(container.textContent).toContain('代码实验');
@@ -1049,7 +1057,7 @@ describe('chat regeneration', () => {
         {
           role: 'assistant',
           content: '根据 src/modules/chat.js:10-12 可知。',
-          tokens: { input: 900, output: 100, total: 1000, cacheHit: 600, cacheMiss: 300 },
+          tokens: { input: 900, output: 100, total: 1000, cacheHit: 600, cacheMiss: 300, source: 'provider' },
           agentStages: [{ stage: 'plan', round: 0, intent: { toolMode: 'multi_tool' } }],
           toolRuns: [
             {

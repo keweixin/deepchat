@@ -97,6 +97,23 @@ function renderCrewOrTheatre(container: HTMLElement | null, agentRun: any) {
     renderAgentCrew(container, agentRun);
   }
 }
+
+function getInterfaceDetailLevel() {
+  const level = String(getSettings().interfaceDetailLevel || 'normal');
+  return ['normal', 'advanced', 'developer'].includes(level) ? level : 'normal';
+}
+
+function shouldShowInlineDebugPanels() {
+  return getInterfaceDetailLevel() !== 'normal';
+}
+
+function shouldShowDeveloperDetails() {
+  return getInterfaceDetailLevel() === 'developer';
+}
+
+function getToolRenderOptions(extra: Record<string, any> = {}) {
+  return { ...extra, detailLevel: getInterfaceDetailLevel() };
+}
 import { renderStreamingMarkdown } from './streaming-renderer.js';
 import { TraceRecorder, migrateLegacyAgentRun } from './agent-trace.js';
 import { openTraceInspector } from './agent-trace-inspector.js';
@@ -306,15 +323,37 @@ export async function initChat() {
     smartScroll,
     updateSpeedIndicator,
     removeSpeedIndicator,
-    renderToolCalls,
-    renderEvidencePanel,
-    renderAgentTimeline,
+    renderToolCalls: (container: HTMLElement | null, toolCalls: any[] = [], options: Record<string, any> = {}) =>
+      renderToolCalls(container as HTMLElement, toolCalls, getToolRenderOptions(options)),
+    renderEvidencePanel: (container: HTMLElement | null, toolCalls: any[] = []) => {
+      if (!shouldShowInlineDebugPanels()) {
+        if (container) {
+          container.textContent = '';
+          container.hidden = true;
+        }
+        return;
+      }
+      renderEvidencePanel(container, toolCalls);
+    },
+    renderAgentTimeline: (container: HTMLElement | null, message: Record<string, any> = {}) => {
+      if (!shouldShowDeveloperDetails()) {
+        if (container) {
+          container.textContent = '';
+          container.hidden = true;
+        }
+        return;
+      }
+      renderAgentTimeline(container as HTMLElement, message);
+    },
     renderCrewOrTheatre,
     addMessageActions,
     renderStoppedNotice,
     renderAssistantAnswerHeader,
     renderAssistantArtifacts,
-    renderAssistantEvidence,
+    renderAssistantEvidence: (container: HTMLElement | null, message: any) =>
+      renderAssistantEvidence(container as HTMLElement, message, {
+        showToolEvidencePanel: shouldShowInlineDebugPanels(),
+      }),
     renderAssistantToc,
     renderErrorContent,
     attachCopyHandlersOnly,
@@ -373,50 +412,7 @@ export async function initChat() {
   document.addEventListener('deepchat:run-code-block', runCodeHandler as EventListener);
   _chatCleanupFns.push(() => document.removeEventListener('deepchat:run-code-block', runCodeHandler as EventListener));
 
-  // Agent control events
-  const agentPauseHandler = () => {
-    if (isStreaming) {
-      const requestId = getActiveRequestId();
-      if (!requestId) return;
-      if (isAgentPaused) {
-        resumeAgent(requestId);
-        isAgentPaused = false;
-        showToast('Agent 已继续运行');
-        const btn = document.querySelector('.theatre-control-pause');
-        if (btn) btn.textContent = '暂停';
-      } else {
-        pauseAgent(requestId);
-        isAgentPaused = true;
-        showToast('Agent 已暂停');
-        const btn = document.querySelector('.theatre-control-pause');
-        if (btn) btn.textContent = '继续';
-      }
-    }
-  };
-  const agentStopHandler = () => {
-    if (isStreaming) {
-      showToast('Agent 已停止');
-      stopStreaming();
-    }
-  };
-  const agentSkipToolHandler = (event: Event) => {
-    if (isStreaming) {
-      const requestId = getActiveRequestId();
-      if (!requestId) return;
-      const detail = (event as CustomEvent).detail || {};
-      const toolCallId = detail.toolCallId || 'current';
-      skipToolAgent(requestId, toolCallId);
-      showToast('已跳过当前工具');
-    }
-  };
-  document.addEventListener('deepchat:agent-pause', agentPauseHandler);
-  document.addEventListener('deepchat:agent-stop', agentStopHandler);
-  document.addEventListener('deepchat:agent-skip-tool', agentSkipToolHandler as EventListener);
-  _chatCleanupFns.push(() => {
-    document.removeEventListener('deepchat:agent-pause', agentPauseHandler);
-    document.removeEventListener('deepchat:agent-stop', agentStopHandler);
-    document.removeEventListener('deepchat:agent-skip-tool', agentSkipToolHandler as EventListener);
-  });
+  bindAgentControlEvents();
 
   const reloadHandler = () => {
     reloadConversations().catch(() => showToast('刷新对话失败'));
@@ -473,6 +469,47 @@ export async function initChat() {
   };
   document.addEventListener('deepchat:open-inspector', openInspectorHandler);
   _chatCleanupFns.push(() => document.removeEventListener('deepchat:open-inspector', openInspectorHandler));
+}
+
+function bindAgentControlEvents() {
+  const agentPauseHandler = () => {
+    if (!isStreaming) return;
+    const requestId = getActiveRequestId();
+    if (!requestId) return;
+    const btn = document.querySelector('.theatre-control-pause');
+    if (isAgentPaused) {
+      resumeAgent(requestId);
+      isAgentPaused = false;
+      showToast('Agent 已继续运行');
+      if (btn) btn.textContent = '暂停';
+    } else {
+      pauseAgent(requestId);
+      isAgentPaused = true;
+      showToast('Agent 已暂停');
+      if (btn) btn.textContent = '继续';
+    }
+  };
+  const agentStopHandler = () => {
+    if (!isStreaming) return;
+    showToast('Agent 已停止');
+    stopStreaming();
+  };
+  const agentSkipToolHandler = (event: Event) => {
+    if (!isStreaming) return;
+    const requestId = getActiveRequestId();
+    if (!requestId) return;
+    const detail = (event as CustomEvent).detail || {};
+    skipToolAgent(requestId, detail.toolCallId || 'current');
+    showToast('已跳过当前工具');
+  };
+  document.addEventListener('deepchat:agent-pause', agentPauseHandler);
+  document.addEventListener('deepchat:agent-stop', agentStopHandler);
+  document.addEventListener('deepchat:agent-skip-tool', agentSkipToolHandler as EventListener);
+  _chatCleanupFns.push(() => {
+    document.removeEventListener('deepchat:agent-pause', agentPauseHandler);
+    document.removeEventListener('deepchat:agent-stop', agentStopHandler);
+    document.removeEventListener('deepchat:agent-skip-tool', agentSkipToolHandler as EventListener);
+  });
 }
 
 export function destroyChat() {
@@ -848,7 +885,7 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
     addMessageActions(el, msg.content, msg.tokens, msg.speed, idx);
     if (msg.stopped) renderStoppedNotice(el.querySelector('.message-body') as HTMLElement, idx);
 
-    if (msg.thinking) {
+    if (msg.thinking && shouldShowDeveloperDetails()) {
       const thinkingBlock = el.querySelector('.thinking-block') as HTMLElement | null;
       const thinkingContentEl = el.querySelector('.thinking-content') as HTMLElement | null;
       if (thinkingBlock && thinkingContentEl) {
@@ -856,9 +893,17 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
         thinkingContentEl.textContent = msg.thinking;
       }
     }
-    renderToolCalls(el.querySelector('.tool-calls-container') as HTMLElement, msg.toolCalls || []);
-    renderEvidencePanel(el.querySelector('.evidence-panel') as HTMLElement | null, msg.toolCalls || []);
-    renderAgentTimeline(el.querySelector('.agent-timeline-container') as HTMLElement, msg);
+    renderToolCalls(
+      el.querySelector('.tool-calls-container') as HTMLElement,
+      msg.toolCalls || [],
+      getToolRenderOptions()
+    );
+    if (shouldShowInlineDebugPanels()) {
+      renderEvidencePanel(el.querySelector('.evidence-panel') as HTMLElement | null, msg.toolCalls || []);
+    }
+    if (shouldShowDeveloperDetails()) {
+      renderAgentTimeline(el.querySelector('.agent-timeline-container') as HTMLElement, msg);
+    }
 
     let agentRun = msg.agentRun;
     if (!agentRun && ((msg.toolCalls && msg.toolCalls.length > 0) || (msg.agentStages && msg.agentStages.length > 0))) {
@@ -921,7 +966,9 @@ function _setupMessageElement(el: HTMLElement, msg: Record<string, any>, idx: nu
     }
 
     renderAssistantArtifacts(el.querySelector('.artifact-container') as HTMLElement, msg, idx);
-    renderAssistantEvidence(el.querySelector('.message-body') as HTMLElement, msg);
+    renderAssistantEvidence(el.querySelector('.message-body') as HTMLElement, msg, {
+      showToolEvidencePanel: shouldShowInlineDebugPanels(),
+    });
   }
 }
 
@@ -2134,7 +2181,7 @@ async function handleRunCodeBlock(detail: Record<string, any> = {}) {
       if (msg && tool) {
         msg.toolCalls = [...(msg.toolCalls || []), tool];
         syncToolRuns(msg);
-        renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
+        renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls, getToolRenderOptions());
         persist();
       }
       try {
@@ -2148,7 +2195,7 @@ async function handleRunCodeBlock(detail: Record<string, any> = {}) {
             output,
           });
           syncToolRuns(msg);
-          renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls);
+          renderToolCalls(msgEl.querySelector('.tool-calls-container'), msg.toolCalls, getToolRenderOptions());
           persist();
         }
         confirmBox.remove();
@@ -2163,7 +2210,11 @@ async function handleRunCodeBlock(detail: Record<string, any> = {}) {
             output: (error as Error).message || String(error),
           });
           syncToolRuns(msg);
-          renderToolCalls(msgEl.querySelector('.tool-calls-container') as HTMLElement, msg.toolCalls);
+          renderToolCalls(
+            msgEl.querySelector('.tool-calls-container') as HTMLElement,
+            msg.toolCalls,
+            getToolRenderOptions()
+          );
           persist();
         }
         renderCodeOutput(wrapper, (error as Error).message || String(error), false);

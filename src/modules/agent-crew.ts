@@ -323,14 +323,14 @@ function getCrewRoleName(member: Record<string, any> = {}) {
 
 function getCrewPlace(roleId = '') {
   const places: Record<string, string> = {
-    planner: '计划台',
-    reader: '资料台',
-    researcher: '搜索台',
-    coder: '实验台',
-    reviewer: '审查台',
-    writer: '写作台',
+    planner: '拆任务',
+    reader: '读文件',
+    researcher: '查资料',
+    coder: '运行/编辑',
+    reviewer: '核对结果',
+    writer: '写回答',
   };
-  return places[String(roleId)] || '工作位';
+  return places[String(roleId)] || '处理任务';
 }
 
 function getStatusText(status = '') {

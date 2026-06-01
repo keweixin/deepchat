@@ -335,6 +335,7 @@ describe('backup secret handling', () => {
         name: 'Local MCP',
         command: 'node',
         args: ['server.js', '--auth', '[REDACTED]', '--repo=demo'],
+        inheritEnv: false,
         enabled: false,
       },
     ]);

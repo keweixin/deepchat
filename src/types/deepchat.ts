@@ -78,6 +78,7 @@ export interface McpServerConfig {
   args?: string[];
   env?: Record<string, string>;
   cwd?: string;
+  inheritEnv?: boolean;
   externalConfigSource?: string;
   externalConfigPath?: string;
   externalConfigFingerprint?: string;
@@ -152,6 +153,7 @@ export interface SettingsPatch {
   contextFoldEconomicsEnabled?: boolean;
   codingEditsEnabled?: boolean;
   agentModelTier?: 'flash' | 'auto' | 'pro';
+  interfaceDetailLevel?: 'normal' | 'advanced' | 'developer';
   toolApprovalTimeoutMs?: number;
   toolApprovalPolicy?: 'confirm_all' | 'auto_readonly';
   runCodeEnabled?: boolean;

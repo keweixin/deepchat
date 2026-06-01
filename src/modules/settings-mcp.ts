@@ -49,7 +49,9 @@ export function renderMcpServerList(
     const toolCount = status?.toolCount ?? status?.tools?.length ?? 0;
     const schemaText = status?.schemaHash ? ` · schema ${shortHash(status.schemaHash)}` : '';
     const toolText = status?.ok ? `工具 ${toolCount} 个${schemaText}` : status?.error || '未测试';
-    meta.textContent = `${server.enabled === false ? '停用' : '启用'} · ${server.command} ${(server.args || []).join(' ')} · ${toolText}`;
+    const envText = server.inheritEnv ? '继承系统环境' : '只传安全环境';
+    const cwdText = server.cwd ? ` · cwd ${server.cwd}` : '';
+    meta.textContent = `${server.enabled === false ? '停用' : '启用'} · ${server.command} ${(server.args || []).join(' ')}${cwdText} · ${envText} · ${toolText}`;
     item.append(main, meta);
     if (status) {
       const detail = document.createElement('details');
@@ -106,6 +108,8 @@ export function renderMcpServerList(
         `检测时间 ${status.checkedAt || '-'}`,
         `耗时 ${status.durationMs ?? '-'}ms`,
         status.cacheExpiresAt ? `缓存到 ${status.cacheExpiresAt}` : '',
+        status.inheritEnv ? '环境策略：继承系统环境' : '环境策略：只传安全环境和显式 env',
+        status.envKeys?.length ? `显式 env：${status.envKeys.join(', ')}` : '',
       ]
         .filter(Boolean)
         .join(' · ');
@@ -157,6 +161,9 @@ function buildMcpToolsClipboard(server: Record<string, any>, status: Record<stri
         name: server.name,
         command: server.command,
         args: server.args || [],
+        cwd: server.cwd || '',
+        inheritEnv: server.inheritEnv === true,
+        envKeys: Array.isArray(status.envKeys) ? status.envKeys : Object.keys(server.env || {}).sort(),
         enabled: server.enabled !== false,
       },
       ok: Boolean(status.ok),
@@ -181,6 +188,8 @@ export function readMcpServerForm(els: SettingsElements) {
     command,
     args: parseMcpArgs(els.mcpArgs?.value),
     env: parseMcpEnv(els.mcpEnv?.value),
+    cwd: els.mcpCwd?.value.trim() || '',
+    inheritEnv: els.mcpInheritEnv?.checked === true,
     enabled: true,
   };
 }

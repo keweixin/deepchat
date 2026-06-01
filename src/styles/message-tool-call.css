@@ -384,6 +384,23 @@
   font-size: inherit;
   color: inherit;
 }
+.tool-call-args-details {
+  margin: 0 var(--space-3) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--border-color), transparent 35%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card), transparent 16%);
+}
+.tool-call-args-details summary {
+  cursor: pointer;
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+.tool-call-args-details .tool-call-args {
+  padding: 0 8px 8px;
+  white-space: pre-wrap;
+}
 .tool-call-meta,
 .tool-security-meta,
 .tool-next-action,

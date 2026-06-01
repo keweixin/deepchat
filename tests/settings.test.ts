@@ -3,6 +3,11 @@ import fs from 'fs';
 import path from 'path';
 import { getPromptPresetText, renderModelCapabilities } from '../src/modules/settings.js';
 import { renderMcpServerList } from '../src/modules/settings-mcp.js';
+import {
+  formatDiscoveryStatus,
+  renderExternalMcpImportList,
+  renderExternalSkillImportList,
+} from '../src/modules/settings-dom.js';
 
 describe('settings MCP rendering', () => {
   afterEach(() => {
@@ -21,7 +26,7 @@ describe('settings MCP rendering', () => {
 
     renderMcpServerList(
       container,
-      [{ id: 'local', name: 'Local MCP', command: 'node', args: ['server.js'], enabled: true }],
+      [{ id: 'local', name: 'Local MCP', command: 'node', args: ['server.js'], enabled: true, inheritEnv: false }],
       vi.fn(),
       [
         {
@@ -36,12 +41,16 @@ describe('settings MCP rendering', () => {
           cacheExpiresAt: '2026-05-27T12:00:00.000Z',
           checkedAt: '2026-05-27T11:55:00.000Z',
           durationMs: 12,
+          inheritEnv: false,
+          envKeys: ['API_KEY'],
         },
       ]
     );
 
     expect(container.textContent).toContain('schema 12345678');
     expect(container.textContent).toContain('缓存 TTL 5m');
+    expect(container.textContent).toContain('只传安全环境');
+    expect(container.textContent).toContain('显式 env：API_KEY');
     expect(container.textContent).toContain('read_file');
 
     container.querySelector('.mcp-copy-tools-btn').click();
@@ -50,6 +59,8 @@ describe('settings MCP rendering', () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     const payload = JSON.parse(writeText.mock.calls[0][0]);
     expect(payload.schemaHash).toBe('1234567890abcdef');
+    expect(payload.server.inheritEnv).toBe(false);
+    expect(payload.server.envKeys).toEqual(['API_KEY']);
     expect(payload.tools[0].name).toBe('read_file');
   });
 
@@ -101,5 +112,26 @@ describe('settings MCP rendering', () => {
     expect(panelRule).toContain('width: min(920px, 100vw)');
     expect(navRule).toContain('flex: 0 0 150px');
     expect(navRule).toContain('overflow-y: auto');
+  });
+
+  it('explains external discovery empty states instead of showing a bare zero count', () => {
+    const skillContainer = document.createElement('div');
+    const mcpContainer = document.createElement('div');
+
+    renderExternalSkillImportList(skillContainer, [], vi.fn(), { emptyHint: '外部 Skill 自动发现仅桌面版可用。' });
+    renderExternalMcpImportList(
+      mcpContainer,
+      [],
+      { importCandidate: vi.fn(), probeCandidate: vi.fn() },
+      { emptyHint: '外部 MCP 配置发现仅桌面版可用。' }
+    );
+
+    expect(skillContainer.textContent).toContain('暂时没有可导入的技能');
+    expect(skillContainer.textContent).toContain('仅桌面版可用');
+    expect(mcpContainer.textContent).toContain('暂时没有可导入的 MCP 配置');
+    expect(mcpContainer.textContent).toContain('仅桌面版可用');
+    expect(formatDiscoveryStatus(0, ['外部 MCP 配置发现仅桌面版可用。'], '未发现外部 MCP')).toBe(
+      '未发现外部 MCP：外部 MCP 配置发现仅桌面版可用。'
+    );
   });
 });

@@ -112,6 +112,22 @@ describe('composer status helpers', () => {
     expect(target.querySelectorAll('.composer-context-preview-chip')).toHaveLength(0);
   });
 
+  it('does not show persistent workspace and tool configuration chips before the user types', () => {
+    const target = document.createElement('div');
+
+    renderComposerContextPreview(target, '', {
+      activeSkill: 'multi_tool',
+      workspaceRoots: ['E:\\demo'],
+      tavilyApiKey: 'tvly-test',
+      runCodeEnabled: true,
+      mcpServers: [{ id: 'local', name: 'local', command: 'node', enabled: true }],
+    });
+
+    expect(target.hidden).toBe(true);
+    expect(target.textContent).toBe('');
+    expect(target.querySelectorAll('.composer-context-preview-chip')).toHaveLength(0);
+  });
+
   it('updates the composer tool button label and availability', () => {
     document.body.innerHTML = `
       <button><span class="composer-tool-icon"></span></button>

@@ -586,14 +586,20 @@ function downloadArtifact(artifact: Record<string, any>, index: number) {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000); // URL revocation delay, not a shared constant
 }
-export function renderAssistantEvidence(container: HTMLElement, message: any) {
+export function renderAssistantEvidence(
+  container: HTMLElement,
+  message: any,
+  options: { showToolEvidencePanel?: boolean } = {}
+) {
   if (!container) return;
   container
     .querySelectorAll('.source-grounding-warning, .source-grounding-card, .tool-evidence-panel')
     .forEach((item: Record<string, any>) => item.remove());
   const grounding = getSearchGrounding(message, message?.content || '');
   const localGrounding = getLocalFileGrounding(message, message?.content || '');
-  appendToolEvidencePanel(container, message, grounding, localGrounding);
+  if (options.showToolEvidencePanel) {
+    appendToolEvidencePanel(container, message, grounding, localGrounding);
+  }
   if (grounding.hasSearch) {
     appendGroundingCard(container, {
       warning: grounding.warning,
@@ -695,9 +701,9 @@ function buildToolEvidenceMeta(
   if (grounding.sources?.length) parts.push(`${grounding.sources.length} 个来源`);
   if (localGrounding.citations?.length) parts.push(`${localGrounding.citations.length} 个文件引用`);
   const usage = message.tokens ? normalizeTokenUsage(message.tokens) : null;
-  if ((usage?.cacheHit || 0) > 0 || (usage?.cacheMiss || 0) > 0) {
+  if (usage?.hasCacheTelemetry) {
     parts.push(`cache ${Math.round((usage?.cacheHitRate || 0) * 100)}%`);
-  } else if (message.cacheProfile?.cacheHitRate !== undefined) {
+  } else if (message.cacheProfile?.hasCacheTelemetry === true && message.cacheProfile?.cacheHitRate !== undefined) {
     parts.push(`cache ${Math.round(Number(message.cacheProfile.cacheHitRate || 0) * 100)}%`);
   }
   return parts.length ? parts.join(' · ') : '无工具调用';
@@ -848,10 +854,12 @@ export function createCacheEvidenceCard(message: Record<string, any> = {}) {
     usage ? `输出 ${usage.output}` : '',
     usage?.reasoning ? `思考 ${usage.reasoning}` : '',
   ]);
+  const hasCacheTelemetry = usage?.hasCacheTelemetry || profile.hasCacheTelemetry === true;
   appendEvidenceChips(card, '缓存', [
-    usage ? `hit ${usage.cacheHit}` : profile.cacheHit ? `hit ${profile.cacheHit}` : '',
-    usage ? `miss ${usage.cacheMiss}` : profile.cacheMiss ? `miss ${profile.cacheMiss}` : '',
-    usage ? `rate ${Math.round((usage.cacheHitRate || 0) * 100)}%` : '',
+    hasCacheTelemetry && usage ? `hit ${usage.cacheHit}` : '',
+    hasCacheTelemetry && usage ? `miss ${usage.cacheMiss}` : '',
+    hasCacheTelemetry && usage ? `rate ${Math.round((usage.cacheHitRate || 0) * 100)}%` : '',
+    !hasCacheTelemetry && usage ? '命中未知' : '',
     profile.prefixFingerprint ? `prefix ${profile.prefixFingerprint}` : '',
   ]);
   if (Number(usage?.cost?.estimatedSavingsUsd || 0) > 0 || Number(profile.estimatedSavingsUsd || 0) > 0) {

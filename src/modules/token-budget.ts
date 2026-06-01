@@ -14,6 +14,7 @@ interface NormalizedUsage {
   cacheHit: number;
   cacheMiss: number;
   cacheHitRate: number;
+  hasCacheTelemetry: boolean;
   source: string;
   rounds: number | undefined;
   warnings: string[];
@@ -100,6 +101,7 @@ export function normalizeTokenUsage(usage: Record<string, unknown>, fallback: Re
       reasoning: toTokenNumber(fallback.reasoning),
       cacheHit: toTokenNumber(fallback.cacheHit),
       cacheMiss: fallback.cacheMiss === undefined ? inputFallback : toTokenNumber(fallback.cacheMiss),
+      hasCacheTelemetry: fallback.hasCacheTelemetry === true,
       source: 'estimated',
       warnings: fallback.warnings || [],
       byPurpose: fallback.byPurpose,
@@ -117,6 +119,14 @@ export function normalizeTokenUsage(usage: Record<string, unknown>, fallback: Re
   const cacheHit = toTokenNumber(
     usage.prompt_cache_hit_tokens ?? promptDetails?.cached_tokens ?? usage.cached_tokens ?? usage.cacheHit
   );
+  const hasCacheTelemetry =
+    usage.hasCacheTelemetry === true ||
+    usage.prompt_cache_hit_tokens !== undefined ||
+    usage.prompt_cache_miss_tokens !== undefined ||
+    promptDetails?.cached_tokens !== undefined ||
+    usage.cached_tokens !== undefined ||
+    ((usage.source === 'provider' || usage.source === 'mixed') &&
+      (usage.cacheHit !== undefined || usage.cacheMiss !== undefined));
   const cacheMiss =
     usage.prompt_cache_miss_tokens !== undefined
       ? toTokenNumber(usage.prompt_cache_miss_tokens)
@@ -142,6 +152,7 @@ export function normalizeTokenUsage(usage: Record<string, unknown>, fallback: Re
     reasoning,
     cacheHit,
     cacheMiss,
+    hasCacheTelemetry,
     source,
     warnings: usage.warnings || fallback.warnings || [],
     byPurpose: usage.byPurpose || fallback.byPurpose,
@@ -163,6 +174,7 @@ export function mergeTokenUsage(usages: unknown[] = [], options: Record<string, 
       acc.reasoning += usage.reasoning;
       acc.cacheHit += usage.cacheHit;
       acc.cacheMiss += usage.cacheMiss;
+      acc.hasCacheTelemetry = acc.hasCacheTelemetry || usage.hasCacheTelemetry;
       acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
       acc.cost = mergeUsageCost(acc.cost, usage.cost);
       return acc;
@@ -174,6 +186,7 @@ export function mergeTokenUsage(usages: unknown[] = [], options: Record<string, 
       reasoning: 0,
       cacheHit: 0,
       cacheMiss: 0,
+      hasCacheTelemetry: false,
       byPurpose: {} as Record<string, number>,
       cost: null as NormalizedUsage['cost'],
     }
@@ -266,6 +279,7 @@ function finalizeTokenUsage(usage: Record<string, unknown>): NormalizedUsage {
   const reasoning = toTokenNumber(usage.reasoning);
   const cacheHit = toTokenNumber(usage.cacheHit);
   const cacheMiss = toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  const hasCacheTelemetry = usage.hasCacheTelemetry === true;
   const byPurpose = normalizePurposeUsage(usage.byPurpose);
   const cost =
     (usage.cost as Record<string, unknown> | null) ||
@@ -278,6 +292,7 @@ function finalizeTokenUsage(usage: Record<string, unknown>): NormalizedUsage {
     cacheHit,
     cacheMiss,
     cacheHitRate: input > 0 ? cacheHit / input : 0,
+    hasCacheTelemetry,
     source: String(usage.source || 'estimated'),
     rounds: usage.rounds as number | undefined,
     warnings: Array.isArray(usage.warnings) ? (usage.warnings as string[]) : [],
@@ -381,6 +396,7 @@ export function getConversationUsageSummary(conversation: { messages?: ContextBu
         reasoning: number;
         cacheHit: number;
         cacheMiss: number;
+        hasCacheTelemetry: boolean;
         rounds: number;
         byPurpose: Record<string, number>;
         cost: NormalizedUsage['cost'];
@@ -396,6 +412,7 @@ export function getConversationUsageSummary(conversation: { messages?: ContextBu
       acc.reasoning += usage.reasoning;
       acc.cacheHit += usage.cacheHit;
       acc.cacheMiss += usage.cacheMiss;
+      acc.hasCacheTelemetry = acc.hasCacheTelemetry || usage.hasCacheTelemetry;
       acc.rounds += usage.rounds || 1;
       acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
       acc.cost = mergeUsageCost(acc.cost, usage.cost);
@@ -408,6 +425,7 @@ export function getConversationUsageSummary(conversation: { messages?: ContextBu
       reasoning: 0,
       cacheHit: 0,
       cacheMiss: 0,
+      hasCacheTelemetry: false,
       rounds: 0,
       byPurpose: {} as Record<string, number>,
       cost: null as Record<string, unknown> | null,

@@ -90,9 +90,10 @@ export function buildAnswerActionEvidenceSummary(message: Record<string, any> | 
     ...(message.cacheProfile && typeof message.cacheProfile === 'object' ? message.cacheProfile : {}),
   };
   if (usage || profile?.prefixFingerprint) {
-    const cacheHit = usage?.cacheHit ?? profile?.cacheHit;
-    const cacheMiss = usage?.cacheMiss ?? profile?.cacheMiss;
-    const cacheRate = usage?.cacheHitRate ?? profile?.cacheHitRate;
+    const hasCacheTelemetry = usage?.hasCacheTelemetry || profile?.hasCacheTelemetry === true;
+    const cacheHit = hasCacheTelemetry ? (usage?.cacheHit ?? profile?.cacheHit) : undefined;
+    const cacheMiss = hasCacheTelemetry ? (usage?.cacheMiss ?? profile?.cacheMiss) : undefined;
+    const cacheRate = hasCacheTelemetry ? (usage?.cacheHitRate ?? profile?.cacheHitRate) : undefined;
     lines.push('Token/Cache：');
     lines.push(
       [

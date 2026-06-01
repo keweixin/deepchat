@@ -58,6 +58,7 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   contextFoldEconomicsEnabled: true,
   codingEditsEnabled: true,
   agentModelTier: 'auto',
+  interfaceDetailLevel: 'normal',
   toolApprovalTimeoutMs: 60000,
   toolApprovalPolicy: 'confirm_all',
   runCodeEnabled: true,
@@ -142,6 +143,7 @@ async function migrateLegacyStorage(): Promise<void> {
     dc_contextFoldEconomicsEnabled: 'contextFoldEconomicsEnabled',
     dc_codingEditsEnabled: 'codingEditsEnabled',
     dc_agentModelTier: 'agentModelTier',
+    dc_interfaceDetailLevel: 'interfaceDetailLevel',
     dc_runCodeEnabled: 'runCodeEnabled',
     dc_autoContextSummary: 'autoContextSummary',
     dc_enhance: 'enhance',
@@ -204,6 +206,7 @@ function loadBrowserSettings(): Record<string, unknown> {
     contextFoldEconomicsEnabled: localStorage.getItem('dc_contextFoldEconomicsEnabled') !== 'false',
     codingEditsEnabled: localStorage.getItem('dc_codingEditsEnabled') !== 'false',
     agentModelTier: localStorage.getItem('dc_agentModelTier') || DEFAULT_SETTINGS.agentModelTier,
+    interfaceDetailLevel: localStorage.getItem('dc_interfaceDetailLevel') || DEFAULT_SETTINGS.interfaceDetailLevel,
     toolApprovalTimeoutMs: parseInt(
       localStorage.getItem('dc_toolApprovalTimeoutMs') || String(DEFAULT_SETTINGS.toolApprovalTimeoutMs),
       10
@@ -261,6 +264,7 @@ function saveBrowserSettings(patch: Record<string, unknown>): void {
     contextFoldEconomicsEnabled: 'dc_contextFoldEconomicsEnabled',
     codingEditsEnabled: 'dc_codingEditsEnabled',
     agentModelTier: 'dc_agentModelTier',
+    interfaceDetailLevel: 'dc_interfaceDetailLevel',
     toolApprovalTimeoutMs: 'dc_toolApprovalTimeoutMs',
     toolApprovalPolicy: 'dc_toolApprovalPolicy',
     runCodeEnabled: 'dc_runCodeEnabled',
@@ -379,6 +383,10 @@ function normalizeSettings(input: Record<string, unknown> = {}): Record<string, 
   next.agentModelTier = validAgentModelTiers.includes(String(next.agentModelTier))
     ? next.agentModelTier
     : DEFAULT_SETTINGS.agentModelTier;
+  const validInterfaceDetailLevels = ['normal', 'advanced', 'developer'];
+  next.interfaceDetailLevel = validInterfaceDetailLevels.includes(String(next.interfaceDetailLevel))
+    ? next.interfaceDetailLevel
+    : DEFAULT_SETTINGS.interfaceDetailLevel;
   const validCrewModes = ['auto', 'always', 'tools_only', 'theatre', 'compact', 'off'];
   next.crewDisplayMode = validCrewModes.includes(String(next.crewDisplayMode))
     ? next.crewDisplayMode

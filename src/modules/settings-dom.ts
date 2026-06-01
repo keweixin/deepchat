@@ -73,6 +73,7 @@ export interface SettingsElements {
   runCodeEnabled: HTMLInputElement | null;
   codingEditsEnabled: HTMLInputElement | null;
   agentModelTier: HTMLSelectElement | null;
+  interfaceDetailLevel: HTMLSelectElement | null;
   systemPrompt: HTMLTextAreaElement | null;
   modelQuickSelect: HTMLElement | null;
   modelCapabilityStatus: HTMLElement | null;
@@ -108,7 +109,9 @@ export interface SettingsElements {
   mcpName: HTMLInputElement | null;
   mcpCommand: HTMLInputElement | null;
   mcpArgs: HTMLInputElement | null;
-  mcpEnv: HTMLInputElement | null;
+  mcpEnv: HTMLTextAreaElement | null;
+  mcpCwd: HTMLInputElement | null;
+  mcpInheritEnv: HTMLInputElement | null;
   addMcpServerBtn: HTMLElement | null;
   refreshMcpStatusBtn: HTMLElement | null;
   mcpStatusText: HTMLElement | null;
@@ -160,6 +163,7 @@ export function collectSettingsElements(): SettingsElements {
     runCodeEnabled: document.getElementById('run-code-enabled-toggle') as HTMLInputElement | null,
     codingEditsEnabled: document.getElementById('coding-edits-enabled-toggle') as HTMLInputElement | null,
     agentModelTier: document.getElementById('agent-model-tier-select') as HTMLSelectElement | null,
+    interfaceDetailLevel: document.getElementById('interface-detail-level-select') as HTMLSelectElement | null,
     systemPrompt: document.getElementById('system-prompt-input') as HTMLTextAreaElement | null,
     modelQuickSelect: document.querySelector('.model-quick-select'),
     modelCapabilityStatus: document.getElementById('model-capability-status'),
@@ -195,7 +199,9 @@ export function collectSettingsElements(): SettingsElements {
     mcpName: document.getElementById('mcp-name-input') as HTMLInputElement | null,
     mcpCommand: document.getElementById('mcp-command-input') as HTMLInputElement | null,
     mcpArgs: document.getElementById('mcp-args-input') as HTMLInputElement | null,
-    mcpEnv: document.getElementById('mcp-env-input') as HTMLInputElement | null,
+    mcpEnv: document.getElementById('mcp-env-input') as HTMLTextAreaElement | null,
+    mcpCwd: document.getElementById('mcp-cwd-input') as HTMLInputElement | null,
+    mcpInheritEnv: document.getElementById('mcp-inherit-env-toggle') as HTMLInputElement | null,
     addMcpServerBtn: document.getElementById('add-mcp-server-btn'),
     refreshMcpStatusBtn: document.getElementById('refresh-mcp-status-btn'),
     mcpStatusText: document.getElementById('mcp-status-text'),
@@ -253,6 +259,7 @@ export function applySettingsToInputs(els: SettingsElements, settings: Record<st
   if (els.runCodeEnabled) els.runCodeEnabled.checked = settings.runCodeEnabled !== false;
   if (els.codingEditsEnabled) els.codingEditsEnabled.checked = settings.codingEditsEnabled !== false;
   if (els.agentModelTier) els.agentModelTier.value = String(settings.agentModelTier || 'auto');
+  if (els.interfaceDetailLevel) els.interfaceDetailLevel.value = String(settings.interfaceDetailLevel || 'normal');
   if (els.thinkingBudget) els.thinkingBudget.value = String(settings.thinkingBudget ?? '');
   if (els.thinkingBudgetVal)
     els.thinkingBudgetVal.textContent = settings.thinkingBudget === 0 ? '自动' : `${settings.thinkingBudget} tokens`;
@@ -330,18 +337,19 @@ type ExternalSkillCandidate = ExternalSkill & {
   importSkill?: ExternalSkill;
 };
 
-function renderExternalSkillImportList(
+export function renderExternalSkillImportList(
   container: HTMLElement | null,
   candidates: ExternalSkillCandidate[] = [],
-  onImport: (candidate: ExternalSkillCandidate) => Promise<void>
+  onImport: (candidate: ExternalSkillCandidate) => Promise<void>,
+  options: { emptyHint?: string } = {}
 ): void {
   if (!container) return;
   container.textContent = '';
   if (!candidates.length) {
     renderEmptyList(
       container,
-      '未发现 Claude/Codex Skill',
-      '会只读扫描 ~/.codex/skills、~/.agents/skills、~/.claude/skills 和工作区 .claude/skills'
+      '暂时没有可导入的技能',
+      options.emptyHint || '会只读扫描 ~/.codex/skills、~/.agents/skills、~/.claude/skills 和工作区 .claude/skills'
     );
     return;
   }
@@ -429,18 +437,23 @@ export async function refreshDocsetList(els: SettingsElements): Promise<void> {
   }
 }
 
-function renderExternalMcpImportList(
+export function renderExternalMcpImportList(
   container: HTMLElement | null,
   candidates: ExternalMcpCandidate[],
   handlers: {
     importCandidate: (candidate: ExternalMcpCandidate) => Promise<void>;
     probeCandidate: (candidate: ExternalMcpCandidate, status: HTMLElement) => Promise<void>;
-  }
+  },
+  options: { emptyHint?: string } = {}
 ): void {
   if (!container) return;
   container.textContent = '';
   if (!candidates.length) {
-    renderEmptyList(container, '未发现外部 MCP 配置', '会只读扫描 Claude Desktop / Claude Code / 工作区配置');
+    renderEmptyList(
+      container,
+      '暂时没有可导入的 MCP 配置',
+      options.emptyHint || '会只读扫描 Claude Desktop / Claude Code / 工作区配置'
+    );
     return;
   }
   for (const candidate of candidates) {
@@ -487,6 +500,21 @@ function renderExternalMcpImportList(
     item.append(main, meta);
     container.appendChild(item);
   }
+}
+
+export function formatDiscoveryStatus(count: number, warnings: string[] = [], emptyWarningPrefix = ''): string {
+  const safeCount = Math.max(0, Number(count) || 0);
+  const messages = warnings.map((item) => String(item || '').trim()).filter(Boolean);
+  if (safeCount === 0 && messages.length > 0) {
+    return emptyWarningPrefix ? `${emptyWarningPrefix}：${messages[0]}` : messages[0];
+  }
+  return messages.length ? `发现 ${safeCount} 个，${messages.length} 个警告` : `发现 ${safeCount} 个`;
+}
+
+function normalizeDiscoveryWarnings(payload: Record<string, unknown> | null | undefined): string[] {
+  return Array.isArray(payload?.warnings)
+    ? payload.warnings.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
 }
 
 export function highlightActiveProvider(current: Record<string, unknown> | string): void {
@@ -598,6 +626,9 @@ export function bindSettingsEvents(
     }
     if (patch.agentModelTier !== undefined && els.agentModelTier) {
       els.agentModelTier.value = String(next.agentModelTier || 'auto');
+    }
+    if (patch.interfaceDetailLevel !== undefined && els.interfaceDetailLevel) {
+      els.interfaceDetailLevel.value = String(next.interfaceDetailLevel || 'normal');
     }
     if (patch.toolApprovalTimeoutMs !== undefined && els.toolApprovalTimeout) {
       els.toolApprovalTimeout.value = String(next.toolApprovalTimeoutMs);
@@ -858,6 +889,11 @@ export function bindSettingsEvents(
   if (els.agentModelTier) {
     els.agentModelTier.addEventListener('change', () => saveSettings({ agentModelTier: els.agentModelTier!.value }));
   }
+  if (els.interfaceDetailLevel) {
+    els.interfaceDetailLevel.addEventListener('change', () =>
+      saveSettings({ interfaceDetailLevel: els.interfaceDetailLevel!.value })
+    );
+  }
   if (els.systemPrompt) {
     els.systemPrompt.addEventListener('input', () => saveSettings({ systemPrompt: els.systemPrompt!.value }));
   }
@@ -976,23 +1012,30 @@ export function bindSettingsEvents(
       try {
         const payload = await scanExternalSkills();
         const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
-        renderExternalSkillImportList(els.externalSkillImportList, candidates, async (candidate) => {
-          const skill = candidate.importSkill || candidate;
-          const next = await importExternalSkills([skill]);
-          renderExternalSkillList(
-            els.externalSkillList,
-            (next.externalSkills as ExternalSkill[]) || [],
-            updateExternalSkills
-          );
-          renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
-          if (els.externalSkillStatusText) els.externalSkillStatusText.textContent = '已导入 Skill';
-          showToast('外部 Skill 已导入');
-        });
-        const warnings = Array.isArray(payload?.warnings) ? payload.warnings.length : 0;
+        const warnings = normalizeDiscoveryWarnings(payload);
+        renderExternalSkillImportList(
+          els.externalSkillImportList,
+          candidates,
+          async (candidate) => {
+            const skill = candidate.importSkill || candidate;
+            const next = await importExternalSkills([skill]);
+            renderExternalSkillList(
+              els.externalSkillList,
+              (next.externalSkills as ExternalSkill[]) || [],
+              updateExternalSkills
+            );
+            renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
+            if (els.externalSkillStatusText) els.externalSkillStatusText.textContent = '已导入外部技能';
+            showToast('外部技能已导入');
+          },
+          { emptyHint: warnings.join('；') || undefined }
+        );
         if (els.externalSkillStatusText) {
-          els.externalSkillStatusText.textContent = warnings
-            ? `发现 ${candidates.length} 个，${warnings} 个警告`
-            : `发现 ${candidates.length} 个`;
+          els.externalSkillStatusText.textContent = formatDiscoveryStatus(
+            candidates.length,
+            warnings,
+            '未发现本机技能'
+          );
         }
       } catch (error) {
         if (els.externalSkillStatusText)
@@ -1044,30 +1087,33 @@ export function bindSettingsEvents(
       try {
         const payload = await scanExternalMcpConfigs();
         const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
-        renderExternalMcpImportList(els.externalMcpImportList, candidates, {
-          importCandidate: async (candidate) => {
-            const server = candidate.importServer || candidate;
-            const next = await importExternalMcpConfigs([server]);
-            applySettingsToInputs(els, next);
-            setLatestMcpStatuses?.(markMcpStatusStale(els, next));
-            renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
-            if (els.externalMcpStatusText) els.externalMcpStatusText.textContent = '已导入，MCP schema 已失效';
-            showToast('外部 MCP 配置已导入');
+        const warnings = normalizeDiscoveryWarnings(payload);
+        renderExternalMcpImportList(
+          els.externalMcpImportList,
+          candidates,
+          {
+            importCandidate: async (candidate) => {
+              const server = candidate.importServer || candidate;
+              const next = await importExternalMcpConfigs([server]);
+              applySettingsToInputs(els, next);
+              setLatestMcpStatuses?.(markMcpStatusStale(els, next));
+              renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
+              if (els.externalMcpStatusText) els.externalMcpStatusText.textContent = '已导入，MCP schema 已失效';
+              showToast('外部 MCP 配置已导入');
+            },
+            probeCandidate: async (candidate, status) => {
+              status.textContent = '测试中...';
+              const result = await probeExternalMcpConfig(candidate.importServer || candidate);
+              const jobStatus = result?.job?.status ? ` (${result.job.status})` : '';
+              status.textContent = result?.ok
+                ? `可用${jobStatus}`
+                : `${result?.error || result?.statuses?.[0]?.error || '不可用'}${jobStatus}`;
+            },
           },
-          probeCandidate: async (candidate, status) => {
-            status.textContent = '测试中...';
-            const result = await probeExternalMcpConfig(candidate.importServer || candidate);
-            const jobStatus = result?.job?.status ? ` (${result.job.status})` : '';
-            status.textContent = result?.ok
-              ? `可用${jobStatus}`
-              : `${result?.error || result?.statuses?.[0]?.error || '不可用'}${jobStatus}`;
-          },
-        });
-        const warnings = Array.isArray(payload?.warnings) ? payload.warnings.length : 0;
+          { emptyHint: warnings.join('；') || undefined }
+        );
         if (els.externalMcpStatusText) {
-          els.externalMcpStatusText.textContent = warnings
-            ? `发现 ${candidates.length} 个，${warnings} 个警告`
-            : `发现 ${candidates.length} 个`;
+          els.externalMcpStatusText.textContent = formatDiscoveryStatus(candidates.length, warnings, '未发现外部 MCP');
         }
       } catch (error) {
         if (els.externalMcpStatusText) els.externalMcpStatusText.textContent = (error as Error).message || '扫描失败';

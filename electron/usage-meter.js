@@ -198,6 +198,7 @@ function finalizeTokenUsage(usage) {
   const reasoning = toTokenNumber(usage.reasoning);
   const cacheHit = toTokenNumber(usage.cacheHit);
   const cacheMiss = toTokenNumber(usage.cacheMiss, Math.max(input - cacheHit, 0));
+  const hasCacheTelemetry = usage.hasCacheTelemetry === true;
   const byPurpose = normalizePurposeUsage(usage.byPurpose);
   const cost = usage.cost || estimateUsageCost(usage.model || '', { cacheHit, cacheMiss, output });
   return {
@@ -208,6 +209,7 @@ function finalizeTokenUsage(usage) {
     cacheHit,
     cacheMiss,
     cacheHitRate: input > 0 ? cacheHit / input : 0,
+    hasCacheTelemetry,
     source: usage.source || 'estimated',
     rounds: usage.rounds,
     warnings: Array.isArray(usage.warnings) ? usage.warnings : [],
@@ -232,6 +234,7 @@ function normalizeTokenUsage(usage, fallback = {}) {
       reasoning: toTokenNumber(fallback.reasoning),
       cacheHit: toTokenNumber(fallback.cacheHit),
       cacheMiss: fallback.cacheMiss === undefined ? inputFallback : toTokenNumber(fallback.cacheMiss),
+      hasCacheTelemetry: fallback.hasCacheTelemetry === true,
       source: 'estimated',
       warnings: fallback.warnings || [],
       byPurpose: fallback.byPurpose,
@@ -249,6 +252,14 @@ function normalizeTokenUsage(usage, fallback = {}) {
   const cacheHit = toTokenNumber(
     usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? usage.cached_tokens ?? usage.cacheHit
   );
+  const hasCacheTelemetry =
+    usage.hasCacheTelemetry === true ||
+    usage.prompt_cache_hit_tokens !== undefined ||
+    usage.prompt_cache_miss_tokens !== undefined ||
+    usage.prompt_tokens_details?.cached_tokens !== undefined ||
+    usage.cached_tokens !== undefined ||
+    ((usage.source === 'provider' || usage.source === 'mixed') &&
+      (usage.cacheHit !== undefined || usage.cacheMiss !== undefined));
   const cacheMiss =
     usage.prompt_cache_miss_tokens !== undefined
       ? toTokenNumber(usage.prompt_cache_miss_tokens)
@@ -274,6 +285,7 @@ function normalizeTokenUsage(usage, fallback = {}) {
     reasoning,
     cacheHit,
     cacheMiss,
+    hasCacheTelemetry,
     source,
     warnings: usage.warnings || fallback.warnings || [],
     byPurpose: usage.byPurpose || fallback.byPurpose,
@@ -298,11 +310,22 @@ function mergeTokenUsage(usages = [], options = {}) {
       acc.reasoning += usage.reasoning;
       acc.cacheHit += usage.cacheHit;
       acc.cacheMiss += usage.cacheMiss;
+      acc.hasCacheTelemetry = acc.hasCacheTelemetry || usage.hasCacheTelemetry;
       acc.byPurpose = mergePurposeUsage(acc.byPurpose, usage.byPurpose);
       acc.cost = mergeUsageCost(acc.cost, usage.cost);
       return acc;
     },
-    { input: 0, output: 0, total: 0, reasoning: 0, cacheHit: 0, cacheMiss: 0, byPurpose: {}, cost: null }
+    {
+      input: 0,
+      output: 0,
+      total: 0,
+      reasoning: 0,
+      cacheHit: 0,
+      cacheMiss: 0,
+      hasCacheTelemetry: false,
+      byPurpose: {},
+      cost: null,
+    }
   );
   const sources = new Set(normalized.map((usage) => usage.source));
   const source = sources.size === 0 ? 'estimated' : sources.size === 1 ? [...sources][0] : 'mixed';

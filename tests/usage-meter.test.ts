@@ -91,16 +91,23 @@ describe('usage-meter', () => {
 
   describe('normalizeTokenUsage', () => {
     it('normalizes provider fields', () => {
-      const u = normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 5 });
+      const u = normalizeTokenUsage({ prompt_tokens: 10, completion_tokens: 5, prompt_cache_hit_tokens: 4 });
       expect(u.input).toBe(10);
       expect(u.output).toBe(5);
       expect(u.source).toBe('provider');
+      expect(u.hasCacheTelemetry).toBe(true);
     });
     it('uses fallback when no usage', () => {
       const u = normalizeTokenUsage(null, { input: 3, output: 2 });
       expect(u.input).toBe(3);
       expect(u.output).toBe(2);
       expect(u.source).toBe('estimated');
+      expect(u.hasCacheTelemetry).toBe(false);
+    });
+    it('keeps legacy provider cache telemetry readable', () => {
+      const u = normalizeTokenUsage({ input: 10, output: 2, cacheHit: 6, cacheMiss: 4, source: 'provider' });
+      expect(u.hasCacheTelemetry).toBe(true);
+      expect(u.cacheHitRate).toBe(0.6);
     });
   });
 

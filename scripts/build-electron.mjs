@@ -43,6 +43,20 @@ function copyAndReplace(src, dest) {
       content = content.replace(/import\s*\(\s*(['"])(\.{1,2}\/[^'"]+)\.ts\1\s*\)/g, 'import($1$2.js$1)');
       // Replace relative .ts requires with .js
       content = content.replace(/require\s*\(\s*(['"])(\.{1,2}\/[^'"]+)\.ts\1\s*\)/g, 'require($1$2.js$1)');
+      if (entry.name === 'preload.ts') {
+        // The strict typecheck above validates shared renderer/main contracts.
+        // The emit-only temp build must stay inside tmp-electron-build, so strip
+        // renderer-only type imports that would pull src/types outside rootDir.
+        content = content.replace(
+          /import type \{ Conversation, ExternalSkill, McpServerConfig, SettingsPatch \} from '\.\.\/src\/types\/deepchat\.js';/,
+          [
+            'type Conversation = Record<string, unknown>;',
+            'type ExternalSkill = Record<string, unknown>;',
+            'type McpServerConfig = Record<string, unknown>;',
+            'type SettingsPatch = Record<string, unknown>;',
+          ].join('\n')
+        );
+      }
       fs.writeFileSync(destPath, content);
     } else {
       fs.copyFileSync(srcPath, destPath);

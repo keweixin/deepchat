@@ -298,6 +298,7 @@ describe('browser settings fallback', () => {
       cacheHit: 60,
       cacheMiss: 40,
       cacheHitRate: 0.6,
+      hasCacheTelemetry: true,
       source: 'provider',
     });
   });
@@ -319,6 +320,7 @@ describe('browser settings fallback', () => {
       cacheHit: 32,
       cacheMiss: 48,
       cacheHitRate: 0.4,
+      hasCacheTelemetry: true,
       source: 'provider',
     });
   });
@@ -331,7 +333,27 @@ describe('browser settings fallback', () => {
       cacheHit: 0,
       cacheMiss: 12,
       cacheHitRate: 0,
+      hasCacheTelemetry: false,
       source: 'estimated',
+    });
+  });
+
+  it('keeps legacy provider cacheHit/cacheMiss telemetry readable', () => {
+    const usage = normalizeTokenUsage({
+      input: 100,
+      output: 20,
+      total: 120,
+      cacheHit: 70,
+      cacheMiss: 30,
+      source: 'provider',
+    });
+
+    expect(usage).toMatchObject({
+      cacheHit: 70,
+      cacheMiss: 30,
+      cacheHitRate: 0.7,
+      hasCacheTelemetry: true,
+      source: 'provider',
     });
   });
 
@@ -349,6 +371,7 @@ describe('browser settings fallback', () => {
       cacheHit: 60,
       cacheMiss: 80,
       cacheHitRate: 60 / 140,
+      hasCacheTelemetry: true,
       source: 'provider',
       rounds: 2,
     });

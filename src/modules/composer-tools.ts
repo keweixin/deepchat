@@ -114,6 +114,8 @@ export function buildComposerIntentPreview(inputText = '', settings: Record<stri
 
 export function buildComposerContextPreview(inputText = '', settings: Record<string, unknown> = {}): any {
   const items: any[] = [];
+  const rawInput = String(inputText || '');
+  const hasInputText = Boolean(rawInput.trim());
   const mentions = extractContextMentions(inputText);
   const roots = Array.isArray((settings as any).workspaceRoots) ? (settings as any).workspaceRoots : [];
   const configuredActiveSkill = (settings as any).activeSkill || 'agent_auto';
@@ -131,13 +133,13 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
     activeSkill === 'multi_tool' ||
     (intent.state === 'warning' && /工作区/.test(intent.text || intent.title || ''));
 
-  if (roots.length) {
+  if (roots.length && (mentions.length > 0 || hasChangedDirective)) {
     items.push({
       kind: 'workspace',
       label: roots.length === 1 ? '工作区 1 个' : `工作区 ${roots.length} 个`,
       tone: 'ready',
     });
-  } else if (needsWorkspace) {
+  } else if (!roots.length && needsWorkspace) {
     items.push({
       kind: 'workspace',
       label: '未选工作区',
@@ -168,10 +170,11 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
   }
 
   const shouldShowToolMode =
-    activeSkill !== 'agent_auto' ||
-    configuredActiveSkill !== 'agent_auto' ||
-    mentions.length > 0 ||
-    hasChangedDirective;
+    hasInputText &&
+    (activeSkill !== 'agent_auto' ||
+      configuredActiveSkill !== 'agent_auto' ||
+      mentions.length > 0 ||
+      hasChangedDirective);
   if (shouldShowToolMode) {
     const toolLabel = getComposerToolModeLabel(activeSkill);
     items.push({
@@ -190,7 +193,10 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
     });
   }
 
-  if (configuredActiveSkill === 'web_search' || configuredActiveSkill === 'multi_tool' || hasWebDirective) {
+  if (
+    hasWebDirective ||
+    (hasInputText && (configuredActiveSkill === 'web_search' || configuredActiveSkill === 'multi_tool'))
+  ) {
     const hasSearch = hasSearchCapability(settings);
     items.push({
       kind: 'web',
@@ -199,7 +205,10 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
     });
   }
 
-  if (configuredActiveSkill === 'code_runner' || configuredActiveSkill === 'multi_tool' || hasRunDirective) {
+  if (
+    hasRunDirective ||
+    (hasInputText && (configuredActiveSkill === 'code_runner' || configuredActiveSkill === 'multi_tool'))
+  ) {
     items.push({
       kind: 'run',
       label: (settings as any).runCodeEnabled === false ? '代码运行关闭' : '代码运行需确认',
@@ -208,7 +217,10 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
     });
   }
 
-  if (configuredActiveSkill === 'mcp_tool' || configuredActiveSkill === 'multi_tool' || hasMcpDirective) {
+  if (
+    hasMcpDirective ||
+    (hasInputText && (configuredActiveSkill === 'mcp_tool' || configuredActiveSkill === 'multi_tool'))
+  ) {
     const servers = getMcpServerPreviewItems(settings);
     const configuredCount = servers.filter((server: any) => server.configured).length;
     const readyCount = servers.filter((server: any) => server.ready).length;
@@ -310,7 +322,7 @@ function getMcpServerPreviewItems(settings: Record<string, unknown> = {}): any[]
       const status = byId.get(id) as any;
       const toolCount = Number(status?.toolCount ?? status?.tools?.length ?? 0) || 0;
       const configured = Boolean(!disabled && command);
-      const ready = configured && (status ? Boolean(status.ok) : true);
+      const ready = configured && Boolean(status?.ok);
       const reason = buildMcpServerPreviewReason({ disabled, command, status, toolCount });
       return {
         name,
