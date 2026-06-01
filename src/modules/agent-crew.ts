@@ -21,8 +21,10 @@ export function renderAgentCrew(container: HTMLElement, agentRun: Record<string,
     container.appendChild(wrapper);
   }
 
+  const crew = Array.isArray(agentRun.crew) ? agentRun.crew : [];
+
   // Calculate completed count
-  const runningOrDoneCount = agentRun.crew.filter((c: Record<string, any>) =>
+  const runningOrDoneCount = crew.filter((c: Record<string, any>) =>
     ['running', 'done', 'waiting'].includes(c.status)
   ).length;
   const totalCount = agentRun.crew.length;
@@ -36,22 +38,22 @@ export function renderAgentCrew(container: HTMLElement, agentRun: Record<string,
   }
 
   const statusLabels: Record<string, string> = {
-    running: 'AI 小队协作中',
-    waiting: '等待你确认',
-    done: '任务协作已完成',
-    error: '协作遇到错误',
-    cancelled: '协作已被终止',
+    running: '正在处理这轮任务',
+    waiting: '需要你确认后继续',
+    done: '本轮任务已完成',
+    error: '本轮执行遇到问题',
+    cancelled: '本轮已停止',
   };
   const activeStatusText = statusLabels[agentRun.status] || '智能团队';
-  const waitingCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'waiting').length;
+  const waitingCount = crew.filter((c: Record<string, any>) => c.status === 'waiting').length;
   const badgeText =
     agentRun.status === 'waiting' && waitingCount > 0
       ? `等待确认 · ${waitingCount} 个工具`
       : `${runningOrDoneCount}/${totalCount} 参与`;
-  const runningCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'running').length;
-  const doneCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'done').length;
-  const skippedCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'skipped').length;
-  const errorCount = agentRun.crew.filter((c: Record<string, any>) => c.status === 'error').length;
+  const runningCount = crew.filter((c: Record<string, any>) => c.status === 'running').length;
+  const doneCount = crew.filter((c: Record<string, any>) => c.status === 'done').length;
+  const skippedCount = crew.filter((c: Record<string, any>) => c.status === 'skipped').length;
+  const errorCount = crew.filter((c: Record<string, any>) => c.status === 'error').length;
   const detailParts = [];
   if (runningCount > 0) detailParts.push(`运行 ${runningCount}`);
   if (waitingCount > 0) detailParts.push(`等待 ${waitingCount}`);
@@ -62,6 +64,14 @@ export function renderAgentCrew(container: HTMLElement, agentRun: Record<string,
   const badgeEl = createTextElement('div', 'agent-crew-badge', badgeText);
   badgeEl.title = badgeTitle;
   header.replaceChildren(createCrewHeaderTitle(agentRun.status, activeStatusText), badgeEl);
+
+  let stage = wrapper.querySelector('.agent-crew-stage-wrap');
+  if (!stage) {
+    stage = document.createElement('div');
+    stage.className = 'agent-crew-stage-wrap';
+    wrapper.appendChild(stage);
+  }
+  stage.replaceChildren(createCrewStage(agentRun, crew));
 
   // Render Grid Container
   let grid = wrapper.querySelector('.agent-crew-grid');
@@ -80,7 +90,7 @@ export function renderAgentCrew(container: HTMLElement, agentRun: Record<string,
 
   const activeRoleIds = new Set();
 
-  agentRun.crew.forEach((member: Record<string, any>) => {
+  crew.forEach((member: Record<string, any>) => {
     activeRoleIds.add(member.id);
     let card = cardMap.get(member.id);
 
@@ -155,6 +165,82 @@ function createCrewHeaderTitle(status: string, statusText: string) {
   return title;
 }
 
+function createCrewStage(agentRun: Record<string, any>, crew: Record<string, any>[] = []) {
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(createCrewStageMap(crew));
+  fragment.appendChild(createCrewCurrentPanel(agentRun, crew));
+  return fragment;
+}
+
+function createCrewStageMap(crew: Record<string, any>[] = []) {
+  const stage = document.createElement('div');
+  stage.className = 'agent-crew-stage';
+  stage.setAttribute('role', 'list');
+  stage.setAttribute('aria-label', 'AI 小队工作进度');
+
+  const progress = document.createElement('div');
+  progress.className = 'agent-crew-stage-progress';
+  const progressFill = document.createElement('span');
+  progressFill.style.width = `${Math.round(calculateCrewProgress(crew) * 100)}%`;
+  progress.appendChild(progressFill);
+  stage.appendChild(progress);
+
+  crew.forEach((member, index) => {
+    const node = document.createElement('button');
+    node.type = 'button';
+    node.className = `agent-crew-persona status-${member.status || 'idle'}${isActiveCrewMember(member) ? ' is-active' : ''}`;
+    node.dataset.roleId = member.id;
+    node.setAttribute('role', 'listitem');
+    node.setAttribute(
+      'aria-label',
+      `${getCrewRoleName(member)}：${getStatusText(member.status)}，${member.currentAction || '等待中'}`
+    );
+    node.style.setProperty('--crew-index', String(index));
+    node.addEventListener('click', () => {
+      node.dispatchEvent(
+        new CustomEvent('deepchat:crew-role-click', {
+          bubbles: true,
+          detail: { roleId: member.id },
+        })
+      );
+    });
+
+    const bubble = createTextElement(
+      'span',
+      'agent-crew-persona-bubble',
+      compactActionText(member.currentAction || '等待中')
+    );
+    const avatar = createTextElement('span', 'agent-crew-persona-avatar', member.icon || '•');
+    const label = createTextElement('span', 'agent-crew-persona-label', getCrewRoleName(member));
+    const place = createTextElement('span', 'agent-crew-persona-place', getCrewPlace(member.id));
+    node.append(bubble, avatar, label, place);
+    stage.appendChild(node);
+  });
+
+  return stage;
+}
+
+function createCrewCurrentPanel(agentRun: Record<string, any>, crew: Record<string, any>[] = []) {
+  const active = getPrimaryCrewMember(crew);
+  const panel = document.createElement('div');
+  panel.className = 'agent-crew-current-panel';
+
+  const status = createTextElement('span', 'agent-crew-current-status', getRunReadableStatus(agentRun.status));
+  const action = createTextElement(
+    'strong',
+    'agent-crew-current-action',
+    active ? `${getCrewRoleName(active)}：${active.currentAction || '处理中'}` : '本轮暂无可视化步骤'
+  );
+  const hint = createTextElement(
+    'span',
+    'agent-crew-current-hint',
+    active ? getStatusHelp(active.status) : '模型开始规划或调用工具后，这里会显示进度。'
+  );
+
+  panel.append(status, action, hint);
+  return panel;
+}
+
 function createCrewCardMain(member: Record<string, any> = {}, statusIcon = '○') {
   const main = document.createElement('div');
   main.className = 'agent-crew-card-main';
@@ -164,8 +250,8 @@ function createCrewCardMain(member: Record<string, any> = {}, statusIcon = '○'
   const roleInfo = document.createElement('div');
   roleInfo.className = 'agent-crew-role-info';
   roleInfo.append(
-    createTextElement('span', 'agent-crew-role-label', member.label || ''),
-    createTextElement('span', 'agent-crew-role-title', member.title || '')
+    createTextElement('span', 'agent-crew-role-label', getCrewRoleName(member)),
+    createTextElement('span', 'agent-crew-role-title', getCrewPlace(member.id))
   );
 
   const status = createTextElement('span', 'agent-crew-status-dot', statusIcon);
@@ -178,10 +264,10 @@ function createCrewCardMain(member: Record<string, any> = {}, statusIcon = '○'
 function createCrewCardDetails(member: Record<string, any> = {}, { toolCount = 0, stepCount = 0 } = {}) {
   const details = document.createElement('div');
   details.className = 'agent-crew-card-details';
-  details.appendChild(createCrewDetailRow('当前动作', member.currentAction || '无'));
+  details.appendChild(createCrewDetailRow('现在', member.currentAction || '无'));
 
   if (member.outputSummary) {
-    details.appendChild(createCrewDetailRow('执行摘要', member.outputSummary));
+    details.appendChild(createCrewDetailRow('结果', member.outputSummary));
   }
 
   const meta = document.createElement('div');
@@ -200,6 +286,94 @@ function createCrewDetailRow(label: string, value: string) {
     createTextElement('span', 'crew-detail-val', value)
   );
   return row;
+}
+
+function calculateCrewProgress(crew: Record<string, any>[] = []) {
+  if (!crew.length) return 0;
+  const weights: Record<string, number> = {
+    idle: 0,
+    skipped: 0.35,
+    waiting: 0.55,
+    running: 0.7,
+    error: 0.85,
+    done: 1,
+  };
+  const total = crew.reduce((sum, member) => sum + (weights[String(member.status || 'idle')] ?? 0), 0);
+  return Math.max(0, Math.min(1, total / crew.length));
+}
+
+function getPrimaryCrewMember(crew: Record<string, any>[] = []) {
+  return (
+    crew.find((member) => member.status === 'waiting') ||
+    crew.find((member) => member.status === 'running') ||
+    [...crew].reverse().find((member) => member.status === 'error') ||
+    [...crew].reverse().find((member) => member.status === 'done') ||
+    crew[0] ||
+    null
+  );
+}
+
+function isActiveCrewMember(member: Record<string, any> = {}) {
+  return ['running', 'waiting', 'error'].includes(String(member.status || ''));
+}
+
+function getCrewRoleName(member: Record<string, any> = {}) {
+  return String(member.title || member.label || member.id || '成员');
+}
+
+function getCrewPlace(roleId = '') {
+  const places: Record<string, string> = {
+    planner: '计划台',
+    reader: '资料台',
+    researcher: '搜索台',
+    coder: '实验台',
+    reviewer: '审查台',
+    writer: '写作台',
+  };
+  return places[String(roleId)] || '工作位';
+}
+
+function getStatusText(status = '') {
+  const labels: Record<string, string> = {
+    idle: '待命',
+    running: '工作中',
+    done: '完成',
+    error: '出错',
+    waiting: '等待确认',
+    skipped: '跳过',
+  };
+  return labels[String(status)] || '待命';
+}
+
+function getRunReadableStatus(status = '') {
+  const labels: Record<string, string> = {
+    running: '工作中',
+    waiting: '等待确认',
+    done: '已完成',
+    error: '遇到问题',
+    cancelled: '已停止',
+  };
+  return labels[String(status)] || '准备中';
+}
+
+function getStatusHelp(status = '') {
+  const labels: Record<string, string> = {
+    idle: '还没有轮到这个角色。',
+    running: '正在处理，会继续更新。',
+    done: '这一步已经完成。',
+    error: '这一步失败了，可打开 Trace 查看原因。',
+    waiting: '需要你先确认工具调用。',
+    skipped: '本轮没有使用这个角色。',
+  };
+  return labels[String(status)] || '等待下一步。';
+}
+
+function compactActionText(text = '') {
+  const normalized = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) return '等待中';
+  return normalized.length > 28 ? `${normalized.slice(0, 27)}…` : normalized;
 }
 
 function createTextElement(tag: string, className: string, text: string) {

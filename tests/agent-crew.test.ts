@@ -205,9 +205,40 @@ describe('agent crew state engine', () => {
       renderAgentCrew(container, run);
       expect(container.hidden).toBe(false);
       expect(container.querySelector('.agent-crew-title')?.textContent).toContain('AI 小队');
+      expect(container.querySelectorAll('.agent-crew-persona')).toHaveLength(6);
+      expect(container.querySelector('.agent-crew-current-panel')?.textContent).toContain('计划员');
       const cards = container.querySelectorAll('.agent-crew-card');
       expect(cards).toHaveLength(6);
       expect(container.textContent).toContain('🧭');
+    });
+
+    it('renders a stage map with readable role places and action bubbles', () => {
+      const container = document.createElement('div');
+      const run = createAgentRun('auto');
+      applyCrewToolRequest(run, { id: 't1', name: 'run_code', status: 'pending' });
+
+      renderAgentCrew(container, run);
+
+      expect(container.querySelector('.agent-crew-stage')?.getAttribute('aria-label')).toBe('AI 小队工作进度');
+      expect(container.textContent).toContain('计划台');
+      expect(container.textContent).toContain('实验台');
+      expect(container.textContent).toContain('等待审批：run_code');
+      expect(container.querySelector('.agent-crew-persona.status-waiting')?.textContent).toContain('实验员');
+      expect(container.querySelector('.agent-crew-stage-progress span')?.getAttribute('style')).toContain('width:');
+    });
+
+    it('dispatches crew role clicks from the stage map personas', () => {
+      const container = document.createElement('div');
+      const run = createAgentRun('auto');
+      const events = [];
+      container.addEventListener('deepchat:crew-role-click', (event) =>
+        events.push((event as CustomEvent).detail.roleId)
+      );
+
+      renderAgentCrew(container, run);
+      container.querySelector('.agent-crew-persona[data-role-id="planner"]').click();
+
+      expect(events).toEqual(['planner']);
     });
 
     it('applies status-running class to running members', () => {

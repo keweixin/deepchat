@@ -87,6 +87,176 @@
   font-size: 10px;
 }
 
+.agent-crew-stage-wrap {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.agent-crew-stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(64px, 1fr));
+  gap: var(--space-2);
+  min-height: 92px;
+  padding: var(--space-3) var(--space-2) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--glass-border), transparent 18%);
+  border-radius: 8px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--text-muted), transparent 94%) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--text-muted), transparent 95%) 1px, transparent 1px),
+    color-mix(in srgb, var(--surface-card), transparent 28%);
+  background-size: 18px 18px;
+  overflow: hidden;
+}
+
+.agent-crew-stage-progress {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 47px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted), transparent 82%);
+  pointer-events: none;
+}
+
+.agent-crew-stage-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent-primary), var(--text-primary) 10%);
+  transition: width var(--transition-normal);
+}
+
+.agent-crew-persona {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 2px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.agent-crew-persona:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.agent-crew-persona-bubble {
+  min-height: 20px;
+  max-width: 108px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--glass-border), transparent 10%);
+  border-radius: 8px 8px 8px 2px;
+  background: color-mix(in srgb, var(--surface-card-strong), transparent 4%);
+  color: var(--text-secondary);
+  font-size: 9px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.agent-crew-persona-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--glass-border), transparent 12%);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-card-strong), #000 5%);
+  font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Android Emoji', 'EmojiSymbols', sans-serif;
+  font-size: 18px;
+  line-height: 1;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.12);
+}
+
+.agent-crew-persona-label {
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.agent-crew-persona-place {
+  color: var(--text-muted);
+  font-size: 8.5px;
+  line-height: 1.1;
+}
+
+.agent-crew-persona.status-idle {
+  opacity: 0.56;
+}
+
+.agent-crew-persona.status-skipped {
+  opacity: 0.46;
+}
+
+.agent-crew-persona.status-running .agent-crew-persona-avatar {
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 42%);
+  color: var(--text-primary);
+  animation: crewPersonaStep 1.4s ease-in-out infinite;
+}
+
+.agent-crew-persona.status-running .agent-crew-persona-bubble {
+  border-color: color-mix(in srgb, var(--accent-primary), transparent 58%);
+}
+
+.agent-crew-persona.status-waiting .agent-crew-persona-avatar,
+.agent-crew-persona.status-waiting .agent-crew-persona-bubble {
+  border-color: color-mix(in srgb, #f59e0b, transparent 42%);
+}
+
+.agent-crew-persona.status-done .agent-crew-persona-avatar {
+  border-color: color-mix(in srgb, #10b981, transparent 54%);
+}
+
+.agent-crew-persona.status-error .agent-crew-persona-avatar,
+.agent-crew-persona.status-error .agent-crew-persona-bubble {
+  border-color: color-mix(in srgb, #ef4444, transparent 42%);
+}
+
+.agent-crew-current-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px 9px;
+  border: 1px solid color-mix(in srgb, var(--glass-border), transparent 18%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-card), transparent 20%);
+  font-size: 11px;
+}
+
+.agent-crew-current-status {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-primary), transparent 88%);
+  color: var(--accent-primary);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.agent-crew-current-action {
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-crew-current-hint {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .agent-crew-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
@@ -311,8 +481,35 @@
   }
 }
 
+@keyframes crewPersonaStep {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 /* Responsive adjustment */
 @media (max-width: 640px) {
+  .agent-crew-stage {
+    grid-template-columns: repeat(3, minmax(72px, 1fr));
+    min-height: 174px;
+  }
+
+  .agent-crew-stage-progress {
+    display: none;
+  }
+
+  .agent-crew-current-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-crew-current-hint {
+    white-space: normal;
+  }
+
   .agent-crew-grid {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -325,6 +522,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .crew-pulse-icon,
+  .agent-crew-persona.status-running .agent-crew-persona-avatar,
   .agent-crew-card.status-running,
   .agent-crew-card.status-running .agent-crew-status-dot {
     animation: none !important;
@@ -332,6 +530,7 @@
 
   .agent-crew-card,
   .agent-crew-card-details,
+  .agent-crew-stage-progress span,
   .agent-crew-wrapper {
     transition: none !important;
   }
