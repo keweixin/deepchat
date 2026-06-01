@@ -117,6 +117,10 @@ const ToolRunSchema = z
     contextCompactionType: z.string().max(80).optional(),
     expiresAt: z.string().max(80).optional(),
     job: ToolJobSchema.nullable().optional(),
+    searchProvider: z.string().max(80).optional(),
+    fallbackReason: z.string().max(1000).optional(),
+    externalConfigSource: z.string().max(200).optional(),
+    warnings: z.array(z.string().max(1000)).max(20).optional(),
   })
   .strip();
 
@@ -261,6 +265,10 @@ const McpServerSchema = z
     command: z.string().max(1000),
     args: z.array(z.string().max(2000)).max(80).optional(),
     env: MpcEnvSchema.optional(),
+    cwd: z.string().max(2000).optional(),
+    externalConfigSource: z.string().max(80).optional(),
+    externalConfigPath: z.string().max(2000).optional(),
+    externalConfigFingerprint: z.string().max(120).optional(),
     enabled: z.boolean().optional(),
   })
   .strip();
@@ -312,6 +320,11 @@ const SettingsPatchSchema = z
     tavilyExtractTopResults: z.number().int().min(0).max(5).optional(),
     tavilyChunksPerSource: z.number().int().min(1).max(5).optional(),
     tavilyCacheTtlMinutes: z.number().int().min(0).max(1440).optional(),
+    externalMcpDiscoveryEnabled: z.boolean().optional(),
+    localSearchFallbackMode: z.enum(['missing_key', 'provider_error', 'off']).optional(),
+    fallbackOnSearchError: z.boolean().optional(),
+    docsetSearchEnabled: z.boolean().optional(),
+    docsetRoots: z.array(z.string().max(2000)).max(20).optional(),
     workspaceRoots: z.array(z.string().max(2000)).max(20).optional(),
     externalSkills: z.array(ExternalSkillSchema).max(20).optional(),
     mcpServers: z.array(McpServerSchema).max(20).optional(),
@@ -388,6 +401,23 @@ const RunManualToolSchema = z
 const TestSearchSchema = z.string().max(500).optional();
 const WorkspaceRemoveSchema = z.string().min(1).max(2000);
 const RequestIdSchema = stringId;
+const ExternalMcpImportSchema = z
+  .object({
+    servers: z.array(McpServerSchema).min(1).max(20),
+  })
+  .strict();
+const ExternalMcpProbeSchema = z
+  .object({
+    server: McpServerSchema,
+  })
+  .strict();
+const DocsetRootSchema = z.string().trim().min(1).max(2000);
+const DocsetSearchSchema = z
+  .object({
+    query: z.string().trim().min(1).max(500),
+    maxResults: z.number().int().min(1).max(20).optional(),
+  })
+  .strict();
 
 function validate(schema, value, label) {
   const result = schema.safeParse(value);
@@ -447,5 +477,9 @@ module.exports = {
     TestSearchSchema,
     WorkspaceRemoveSchema,
     RequestIdSchema,
+    ExternalMcpImportSchema,
+    ExternalMcpProbeSchema,
+    DocsetRootSchema,
+    DocsetSearchSchema,
   },
 };

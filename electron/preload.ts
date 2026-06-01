@@ -54,6 +54,15 @@ contextBridge.exposeInMainWorld('deepchat', {
   },
   mcp: {
     listStatus: () => ipcRenderer.invoke('mcp:listStatus'),
+    scanExternalConfigs: () => ipcRenderer.invoke('mcp:scanExternalConfigs'),
+    importExternalConfigs: (payload: any) => ipcRenderer.invoke('mcp:importExternalConfigs', payload),
+    probeExternalConfig: (payload: any) => ipcRenderer.invoke('mcp:probeExternalConfig', payload),
+  },
+  docset: {
+    list: () => ipcRenderer.invoke('docset:list'),
+    add: (root?: string) => ipcRenderer.invoke('docset:add', root),
+    remove: (root: string) => ipcRenderer.invoke('docset:remove', root),
+    search: (payload: any) => ipcRenderer.invoke('docset:search', payload),
   },
   menu: {
     onOpenSettings: (callback: any) => on('menu:openSettings', callback),

@@ -235,6 +235,79 @@ describe('electron tools helpers', () => {
     expect(second).toContain('缓存：1 命中 / 0 未命中');
   });
 
+  it('falls back to local DuckDuckGo HTML search when Tavily key is missing', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => `
+        <a class="result__a" href="https://example.com/fallback">Fallback Result</a>
+        <a class="result__snippet">Fallback summary.</a>
+      `,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const output = await executeTool(
+      'web_search',
+      { query: 'deepchat fallback provider unique', max_results: 1 },
+      { localSearchFallbackMode: 'missing_key', tavilyMaxResults: 1, tavilyCacheTtlMinutes: 0 }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(output).toContain('Fallback provider：local_duckduckgo_html');
+    expect(output).toContain('missing_tavily_key');
+    expect(output).toContain('https://example.com/fallback');
+    const structured = extractStructuredResults(output, 'Structured Search:');
+    expect(structured).toMatchObject({
+      provider: 'local_duckduckgo_html',
+      experimental: true,
+      fallbackReason: 'missing_tavily_key',
+    });
+  });
+
+  it('does not fall back from Tavily provider errors unless explicitly enabled', async () => {
+    const failingTavily = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service unavailable',
+      text: async () => 'temporary outage',
+    });
+    vi.stubGlobal('fetch', failingTavily);
+
+    await expect(
+      executeTool(
+        'web_search',
+        { query: 'deepchat tavily error no fallback unique', max_results: 1 },
+        { tavilyApiKey: 'tvly-test', localSearchFallbackMode: 'missing_key', fallbackOnSearchError: false }
+      )
+    ).rejects.toThrow('Tavily 搜索失败');
+
+    const fallbackFetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        statusText: 'Service unavailable',
+        text: async () => 'temporary outage',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () => `
+          <a class="result__a" href="https://example.com/recovered">Recovered</a>
+          <a class="result__snippet">Recovered summary.</a>
+        `,
+      });
+    vi.stubGlobal('fetch', fallbackFetch);
+
+    const output = await executeTool(
+      'web_search',
+      { query: 'deepchat tavily error fallback unique', max_results: 1 },
+      { tavilyApiKey: 'tvly-test', fallbackOnSearchError: true, tavilyCacheTtlMinutes: 0 }
+    );
+
+    expect(output).toContain('Fallback provider：local_duckduckgo_html');
+    expect(output).toContain('tavily_error:');
+    expect(output).toContain('https://example.com/recovered');
+  });
+
   it('lists files inside a selected workspace subdirectory only', async () => {
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-list-files-'));
     try {

@@ -125,6 +125,10 @@ export const AgentToolRunSchema = z
     editPreview: z.record(z.string(), z.unknown()).nullable().optional(),
     backupPath: z.string().max(2000).optional(),
     job: ToolJobSnapshotSchema.nullable().optional(),
+    searchProvider: z.string().max(80).optional(),
+    fallbackReason: z.string().max(1000).optional(),
+    externalConfigSource: z.string().max(200).optional(),
+    warnings: z.array(z.string().max(1000)).max(20).optional(),
   })
   .strip();
 

@@ -13,7 +13,7 @@ const TOOL_DEFINITIONS = {
       function: {
         name: 'web_search',
         description:
-          'Search the web through Tavily and return concise sourced results. Supports multi-query research, Tavily depth/topic/time/domain options, optional focused extraction, and structured citations.',
+          'Search the web through Tavily first and return concise sourced results. If configured, DeepChat may fall back to local Docset or experimental DuckDuckGo HTML search when Tavily is unavailable; always preserve provider/source metadata.',
         parameters: {
           type: 'object',
           properties: {

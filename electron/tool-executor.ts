@@ -130,7 +130,7 @@ function buildCompactionMetadata(
 function compactSearchOutput(text: string) {
   const lines = text.split('\n');
   const important = lines.filter((/** @type {string} */ line) =>
-    /^\s*(搜索时间|用户原始问题|实际搜索 query|Tavily 参数|Tavily provider|缓存：|credits|request_id|response_time|抽取：|抽取警告：|\d+\.|URL:|Published:|Score:|摘要:|抽取片段:)/.test(
+    /^\s*(搜索时间|用户原始问题|实际搜索 query|Tavily 参数|Tavily provider|Fallback provider|Fallback experimental|Fallback reason|Docset provider|缓存：|credits|request_id|response_time|抽取：|抽取警告：|\d+\.|URL:|Published:|Score:|Docset:|Path:|摘要:|片段:|抽取片段:|本地搜索返回来源|离线 Docset 返回来源)/.test(
       line
     )
   );

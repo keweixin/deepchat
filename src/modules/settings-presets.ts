@@ -215,10 +215,10 @@ export const SKILLS: Record<
   web_search: {
     name: '联网检索',
     icon: '🌐',
-    description: '使用 Tavily 搜索网页并带来源回答',
+    description: '使用 Tavily 搜索网页；缺 key 时可走本地实验兜底',
     needs: ['tavilyApiKey'],
     promptSuffix:
-      '\n\n当前客户端具备联网搜索能力（Tavily）。当问题需要最新信息或你不确定事实时，请明确说明你需要搜索，客户端会自动调用搜索工具并将结果提供给你。基于搜索结果回答时请标注信息来源。',
+      '\n\n当前客户端具备联网搜索能力（Tavily 优先；缺少 Key 或显式降级时可能使用本地实验性兜底或离线 Docset）。当问题需要最新信息或你不确定事实时，请明确说明你需要搜索，客户端会自动调用搜索工具并将结果提供给你。基于搜索结果回答时请标注信息来源和 provider。',
   },
   file_reader: {
     name: '文件分析',
@@ -458,7 +458,7 @@ export function isSkillRunnable(id: string, settings: Record<string, unknown> = 
   if (!hasNativeBridge()) {
     return id === 'web_search' && Boolean((settings as any).tavilyApiKey);
   }
-  if (id === 'web_search') return Boolean((settings as any).tavilyApiKey);
+  if (id === 'web_search') return hasSearchCapability(settings);
   if (id === 'file_reader') return ((settings as any).workspaceRoots || []).length > 0;
   if (id === 'code_runner') {
     const canRunCode = (settings as any).runCodeEnabled !== false;
@@ -471,6 +471,16 @@ export function isSkillRunnable(id: string, settings: Record<string, unknown> = 
     return ((settings as any).mcpServers || []).some((server: any) => server?.enabled !== false && server?.command);
   if (id === 'multi_tool') return true;
   return true;
+}
+
+function hasSearchCapability(settings: Record<string, unknown> = getSettings()): boolean {
+  const values = settings as any;
+  if (values.tavilyApiKey) return true;
+  if (!hasNativeBridge()) return false;
+  if (values.docsetSearchEnabled === true && Array.isArray(values.docsetRoots) && values.docsetRoots.length > 0) {
+    return true;
+  }
+  return String(values.localSearchFallbackMode || '') === 'missing_key';
 }
 
 export function resolveRunnableSkill(settings: Record<string, unknown> = getSettings()): string {
@@ -499,7 +509,7 @@ export async function testApiConnection(): Promise<{ ok: boolean }> {
 export async function testSearchConnection(query = 'DeepChat test'): Promise<{ ok: boolean }> {
   if (hasNativeBridge()) return (window as any).deepchat.settings.testSearch(query);
   const settings = getSettings();
-  if (!(settings as any).tavilyApiKey) throw new Error('请先配置 Tavily API Key。');
+  if (!(settings as any).tavilyApiKey) throw new Error('浏览器预览的搜索测试需要 Tavily API Key。');
   const { response } = await requestTavilySearch(query, settings, 3);
   if (!response.ok) throw new Error(`Tavily 搜索失败 (${response.status})`);
   return { ok: true };

@@ -1,4 +1,5 @@
 import { getSettings } from './settings-core.js';
+import { hasNativeBridge } from './bridge.js';
 import { stripVolatileContextBlocks } from './context-mentions.ts';
 import { getLastUserContent } from './shared-utils.js';
 
@@ -36,8 +37,8 @@ export function detectAgentIntent(
     candidates.add('web_search');
     reasons.push('explicit_web');
     score += 0.75;
-    if (settings.tavilyApiKey) selected.add('web_search');
-    else missing.add('Tavily API Key');
+    if (hasSearchCapability(settings)) selected.add('web_search');
+    else missing.add(getSearchPrerequisiteLabel(settings));
   }
   if (directives.code) {
     candidates.add('run_code');
@@ -77,8 +78,8 @@ export function detectAgentIntent(
     candidates.add('web_search');
     reasons.push('fresh_or_external_facts');
     score += 0.35;
-    if (settings.tavilyApiKey) selected.add('web_search');
-    else missing.add('Tavily API Key');
+    if (hasSearchCapability(settings)) selected.add('web_search');
+    else missing.add(getSearchPrerequisiteLabel(settings));
   }
   if (!candidates.has('list_files') && needsFiles(text, lower)) {
     candidates.add('index_workspace');
@@ -167,6 +168,23 @@ export function detectAgentIntent(
       .map(([name]) => name),
     reason: reasons.join(',') || 'plain_chat',
   };
+}
+
+function hasSearchCapability(settings: Record<string, unknown>): boolean {
+  const values = settings as any;
+  if (values.tavilyApiKey) return true;
+  if (!hasNativeBridge()) return false;
+  if (values.docsetSearchEnabled === true && Array.isArray(values.docsetRoots) && values.docsetRoots.length > 0) {
+    return true;
+  }
+  return String(values.localSearchFallbackMode || '') === 'missing_key';
+}
+
+function getSearchPrerequisiteLabel(settings: Record<string, unknown>): string {
+  if (!hasNativeBridge()) return 'Tavily API Key';
+  return (settings as any).localSearchFallbackMode === 'off' || !(settings as any).localSearchFallbackMode
+    ? 'Tavily API Key'
+    : 'Tavily API Key 或搜索兜底';
 }
 
 function detectExplicitToolDirectives(content = ''): Record<string, boolean> {

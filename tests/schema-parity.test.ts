@@ -41,6 +41,10 @@ describe('runtime schema parity', () => {
       editPreview: null,
       backupPath: '',
       job,
+      searchProvider: 'local_duckduckgo_html',
+      fallbackReason: 'missing_tavily_key',
+      externalConfigSource: 'claude_desktop',
+      warnings: ['experimental fallback'],
       unsafeExtra: 'drop me',
     };
 
@@ -54,9 +58,11 @@ describe('runtime schema parity', () => {
     const agentJob = ToolJobSnapshotSchema.parse(job);
 
     expect(ipcConversation[0].messages[0].toolRuns[0].job).toMatchObject(job);
+    expect(ipcConversation[0].messages[0].toolRuns[0].searchProvider).toBe('local_duckduckgo_html');
     expect(ipcConversation[0].messages[0].toolRuns[0].unsafeExtra).toBeUndefined();
     expect(rendererMessage.toolRuns?.[0].job).toMatchObject(job);
     expect(agentToolRun.job).toMatchObject(agentJob);
+    expect(agentToolRun.searchProvider).toBe('local_duckduckgo_html');
   });
 
   it('keeps chat request boundaries consistent for short ids and unknown fields', () => {
@@ -86,6 +92,11 @@ describe('runtime schema parity', () => {
       tavilyExtractTopResults: 2,
       tavilyChunksPerSource: 3,
       tavilyCacheTtlMinutes: 30,
+      externalMcpDiscoveryEnabled: true,
+      localSearchFallbackMode: 'missing_key',
+      fallbackOnSearchError: true,
+      docsetSearchEnabled: true,
+      docsetRoots: ['E:/Docs/Example.docset'],
     };
 
     expect(validate(schemas.SettingsPatchSchema, patch, 'settings:set')).toMatchObject(patch);

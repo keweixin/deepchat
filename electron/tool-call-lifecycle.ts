@@ -310,6 +310,7 @@ export async function executeApprovedToolCall(options: {
       ok: true,
       output,
       ...buildToolContextOutput(name, args, output),
+      ...extractSearchEvidence(name, output),
       security: buildToolSecurity(name, args, settings),
       editPreview,
       job: serializeToolJob(finishedJob),
@@ -337,6 +338,7 @@ export async function executeApprovedToolCall(options: {
       output: message,
       nextAction,
       ...buildToolContextOutput(name, args, returned),
+      ...extractSearchEvidence(name, returned),
       security: buildToolSecurity(name, args, settings),
       editPreview,
       job: serializeToolJob(failedJob),
@@ -382,6 +384,63 @@ function extractWriteEvidence(output: unknown) {
 
 function extractStructuredEditEvidence(text: string) {
   const marker = 'Structured Edit:';
+  const start = String(text || '').indexOf(marker);
+  if (start < 0) return null;
+  const jsonStart = text.indexOf('{', start + marker.length);
+  if (jsonStart < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = jsonStart; index < text.length; index++) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === '\\') {
+      escaped = inString;
+      continue;
+    }
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(text.slice(jsonStart, index + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function extractSearchEvidence(name: string, output: unknown) {
+  if (name !== 'web_search') return {};
+  const structured = extractStructuredSearchPayload(String(output || ''));
+  if (!structured) return {};
+  const telemetry = structured.telemetry && typeof structured.telemetry === 'object' ? structured.telemetry : {};
+  const warnings = Array.isArray(telemetry.warnings)
+    ? telemetry.warnings
+        .map((item: unknown) => String(item || ''))
+        .filter(Boolean)
+        .slice(0, 20)
+    : [];
+  return {
+    searchProvider: String(structured.provider || telemetry.provider || '').slice(0, 80),
+    fallbackReason: String(structured.fallbackReason || telemetry.fallbackReason || '').slice(0, 1000),
+    warnings,
+  };
+}
+
+function extractStructuredSearchPayload(text: string) {
+  const marker = 'Structured Search';
   const start = String(text || '').indexOf(marker);
   if (start < 0) return null;
   const jsonStart = text.indexOf('{', start + marker.length);

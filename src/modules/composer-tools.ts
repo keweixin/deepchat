@@ -40,7 +40,9 @@ export function getComposerToolModeLabel(id: string): string {
 
 export function getComposerToolUnavailableReason(id: string, settings: Record<string, unknown> = {}): string {
   if (!hasNativeBridge() && id !== 'agent_auto' && id !== 'none' && id !== 'web_search') return '需桌面版';
-  if (id === 'web_search' && !(settings as any).tavilyApiKey) return '需 Tavily Key';
+  if (id === 'web_search' && !hasSearchCapability(settings)) {
+    return hasNativeBridge() ? '需 Tavily Key 或搜索兜底' : '需 Tavily Key';
+  }
   if (id === 'file_reader' && !Array.isArray((settings as any).workspaceRoots)) return '需工作区';
   if (id === 'file_reader' && (settings as any).workspaceRoots.length === 0) return '需工作区';
   if (id === 'code_runner' && (settings as any).runCodeEnabled === false) return '代码运行已关闭';
@@ -50,7 +52,7 @@ export function getComposerToolUnavailableReason(id: string, settings: Record<st
 }
 
 export function hasAnyToolConfigured(settings: Record<string, unknown> = {}): boolean {
-  if ((settings as any).tavilyApiKey) return true;
+  if (hasSearchCapability(settings)) return true;
   if (Array.isArray((settings as any).workspaceRoots) && (settings as any).workspaceRoots.length > 0) return true;
   if ((settings as any).runCodeEnabled !== false && hasNativeBridge()) return true;
   return hasEnabledMcpServer(settings);
@@ -182,10 +184,11 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
   }
 
   if (configuredActiveSkill === 'web_search' || configuredActiveSkill === 'multi_tool' || hasWebDirective) {
+    const hasSearch = hasSearchCapability(settings);
     items.push({
       kind: 'web',
-      label: (settings as any).tavilyApiKey ? '联网可用' : '联网缺 Tavily Key',
-      tone: (settings as any).tavilyApiKey ? 'ready' : 'warning',
+      label: hasSearch ? ((settings as any).tavilyApiKey ? '联网可用' : '搜索兜底可用') : '联网缺 Tavily Key',
+      tone: hasSearch ? 'ready' : 'warning',
     });
   }
 
@@ -274,6 +277,16 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
     items: visibleItems,
     title: '本轮将使用的上下文、工具、token 预算和缓存策略。显式 @file/@folder/@symbol 会优先影响工具选择。',
   };
+}
+
+function hasSearchCapability(settings: Record<string, unknown>): boolean {
+  const values = settings as any;
+  if (values.tavilyApiKey) return true;
+  if (!hasNativeBridge()) return false;
+  if (values.docsetSearchEnabled === true && Array.isArray(values.docsetRoots) && values.docsetRoots.length > 0) {
+    return true;
+  }
+  return String(values.localSearchFallbackMode || '') === 'missing_key';
 }
 
 function hasEnabledMcpServer(settings: Record<string, unknown> = {}): boolean {

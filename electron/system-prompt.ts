@@ -112,7 +112,7 @@ function canonicalStringify(value: any): string {
  */
 function getStableAgentToolMode(settings: Settings = {}): string {
   const hasMcp = (settings.mcpServers || []).some((server: any) => server?.enabled !== false && server?.command);
-  const hasWeb = Boolean(settings.tavilyApiKey);
+  const hasWeb = hasSearchCapability(settings);
   const hasFiles = Array.isArray(settings.workspaceRoots) && settings.workspaceRoots.length > 0;
   const hasCode = settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false';
   const builtinCount = [hasWeb, hasFiles, hasCode].filter(Boolean).length;
@@ -123,6 +123,13 @@ function getStableAgentToolMode(settings: Settings = {}): string {
   if (hasFiles) return 'file_reader';
   if (hasCode) return 'code_runner';
   return 'none';
+}
+
+function hasSearchCapability(settings: Settings = {}): boolean {
+  if (settings.tavilyApiKey) return true;
+  const docsetRoots = Array.isArray((settings as any).docsetRoots) ? (settings as any).docsetRoots : [];
+  if ((settings as any).docsetSearchEnabled === true && docsetRoots.length > 0) return true;
+  return String((settings as any).localSearchFallbackMode || '') === 'missing_key';
 }
 
 // ---------------------------------------------------------------------------

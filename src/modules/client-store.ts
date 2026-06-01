@@ -256,6 +256,45 @@ export async function listMcpStatus(): Promise<any[]> {
   return (window as any).deepchat.mcp.listStatus();
 }
 
+export async function scanExternalMcpConfigs(): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.mcp?.scanExternalConfigs) {
+    return { candidates: [], warnings: ['外部 MCP 配置发现仅桌面版可用。'] };
+  }
+  return (window as any).deepchat.mcp.scanExternalConfigs();
+}
+
+export async function importExternalMcpConfigs(servers: any[]): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.mcp?.importExternalConfigs) return getSettings();
+  return (window as any).deepchat.mcp.importExternalConfigs({ servers });
+}
+
+export async function probeExternalMcpConfig(server: any): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.mcp?.probeExternalConfig) {
+    return { ok: false, error: 'MCP 探测仅桌面版可用。' };
+  }
+  return (window as any).deepchat.mcp.probeExternalConfig({ server });
+}
+
+export async function listDocsets(): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.docset?.list) return { docsets: [], warnings: [] };
+  return (window as any).deepchat.docset.list();
+}
+
+export async function addDocsetRoot(root?: string): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.docset?.add) return getSettings();
+  return (window as any).deepchat.docset.add(root);
+}
+
+export async function removeDocsetRoot(root: string): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.docset?.remove) return getSettings();
+  return (window as any).deepchat.docset.remove(root);
+}
+
+export async function searchDocsets(query: string, maxResults = 5): Promise<any> {
+  if (!hasNativeBridge() || !(window as any).deepchat.docset?.search) return { results: [], warnings: [] };
+  return (window as any).deepchat.docset.search({ query, maxResults });
+}
+
 export function onMenuOpenSettings(callback: () => void): () => void {
   if (!hasNativeBridge()) return () => {};
   return (window as any).deepchat.menu.onOpenSettings(callback);
@@ -278,6 +317,12 @@ export function sanitizeSettingsForBackup(settings: Record<string, unknown>): Re
         name: String(server.name || ''),
         command: String(server.command || ''),
         args: sanitizeMcpArgs(server.args),
+        ...(server.cwd ? { cwd: String(server.cwd) } : {}),
+        ...(server.externalConfigSource ? { externalConfigSource: String(server.externalConfigSource) } : {}),
+        ...(server.externalConfigPath ? { externalConfigPath: String(server.externalConfigPath) } : {}),
+        ...(server.externalConfigFingerprint
+          ? { externalConfigFingerprint: String(server.externalConfigFingerprint) }
+          : {}),
         enabled: server.enabled !== false,
       }))
       .filter((server) => server.command);

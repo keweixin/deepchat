@@ -4,6 +4,8 @@ const MAX_RAW_CONTENT = 3000;
 const MAX_EXTRACT_CONTENT = 2200;
 const TAVILY_SEARCH_ENDPOINT = 'https://api.tavily.com/search';
 const TAVILY_EXTRACT_ENDPOINT = 'https://api.tavily.com/extract';
+const { runLocalDuckDuckGoSearch, formatLocalSearchResults } = require('./local-search-provider.js');
+const { searchDocsets, formatDocsetSearchResults } = require('./docset-search.js');
 
 const tavilyCache = new Map();
 
@@ -20,11 +22,25 @@ function truncate(value, max) {
 
 async function webSearch(args, settings, signal) {
   const apiKey = String(settings.tavilyApiKey || '').trim();
-  if (!apiKey) throw new Error('请先在设置中配置 Tavily API Key。');
-
   const queries = normalizeSearchQueries(args);
   if (queries.length === 0) throw new Error('搜索关键词不能为空。');
 
+  if (!apiKey) {
+    if (shouldUseMissingKeyFallback(settings)) {
+      return runFallbackSearch(queries, args, settings, signal, 'missing_tavily_key');
+    }
+    throw new Error('请先在设置中配置 Tavily API Key，或在设置中开启本地实验性搜索兜底。');
+  }
+
+  try {
+    return await runTavilyWebSearch(apiKey, queries, args, settings, signal);
+  } catch (error) {
+    if (!shouldFallbackOnProviderError(settings)) throw error;
+    return runFallbackSearch(queries, args, settings, signal, `tavily_error:${truncate(error?.message || error, 180)}`);
+  }
+}
+
+async function runTavilyWebSearch(apiKey, queries, args, settings, signal) {
   const { buildTavilySearchRequest } = await import('./search-utils.mjs');
   const maxPerQuery =
     queries.length > 1
@@ -52,6 +68,85 @@ async function webSearch(args, settings, signal) {
 
   if (requests.length === 1) return formatTavilyResults(requests[0], deduped, metadata, extraction);
   return formatTavilySearchPlanResults(requests, deduped, metadata, extraction);
+}
+
+async function runFallbackSearch(queries, args, settings, signal, fallbackReason) {
+  const maxResults = clampInt(args.max_results ?? settings.tavilyMaxResults, 1, 10, 5);
+  const docsetEnabled = settings.docsetSearchEnabled === true && Array.isArray(settings.docsetRoots);
+  if (docsetEnabled) {
+    const docsetPayload = searchDocsets(queries[0], settings, { maxResults, fallbackReason });
+    if (docsetPayload.results.length > 0 || settings.localSearchFallbackMode === 'off') {
+      return formatDocsetSearchResults(docsetPayload, fallbackReason);
+    }
+  }
+
+  if (settings.localSearchFallbackMode === 'off') {
+    return formatFallbackUnavailable(queries, fallbackReason, '本地 HTML 搜索兜底已关闭，且离线 Docset 没有命中。');
+  }
+
+  try {
+    const localPayload = await runLocalDuckDuckGoSearch(
+      queries[0],
+      {
+        maxResults,
+        timeoutMs: clampInt(args.timeoutMs ?? args.timeout_ms, 3000, 30000, 10000),
+        cacheTtlMinutes: settings.tavilyCacheTtlMinutes,
+        fallbackReason,
+      },
+      signal
+    );
+    return formatLocalSearchResults(localPayload, fallbackReason);
+  } catch (error) {
+    return formatFallbackUnavailable(
+      queries,
+      fallbackReason,
+      `实验性本地 HTML 搜索不可用：${truncate(error?.message || error, 300)}`
+    );
+  }
+}
+
+function shouldUseMissingKeyFallback(settings) {
+  if (settings.docsetSearchEnabled === true) return true;
+  return String(settings.localSearchFallbackMode || '') === 'missing_key';
+}
+
+function shouldFallbackOnProviderError(settings) {
+  return settings.fallbackOnSearchError === true || String(settings.localSearchFallbackMode || '') === 'provider_error';
+}
+
+function formatFallbackUnavailable(queries, fallbackReason, message) {
+  const structured = {
+    type: 'deepchat.webSearchPlanResults',
+    version: 2,
+    provider: 'deepchat_fallback_unavailable',
+    experimental: true,
+    requestedAt: new Date().toISOString().slice(0, 10),
+    fallbackReason,
+    telemetry: {
+      provider: 'deepchat_fallback_unavailable',
+      fallbackReason,
+      warnings: [message],
+      cache: { hits: 0, misses: 0 },
+    },
+    queries: queries.map((query, index) => ({
+      index: index + 1,
+      originalQuery: query,
+      query,
+      maxResults: 0,
+    })),
+    results: [],
+  };
+  return [
+    `搜索时间：${structured.requestedAt}`,
+    `Fallback provider：deepchat_fallback_unavailable`,
+    `Fallback reason：${fallbackReason}`,
+    message,
+    '',
+    'Structured Search:',
+    JSON.stringify(structured, null, 2),
+  ]
+    .join('\n')
+    .slice(0, MAX_TOOL_OUTPUT);
 }
 
 async function runTavilySearch(apiKey, request, signal) {

@@ -50,6 +50,11 @@ const DEFAULT_SETTINGS = {
   tavilyExtractTopResults: 0,
   tavilyChunksPerSource: 3,
   tavilyCacheTtlMinutes: 10,
+  externalMcpDiscoveryEnabled: true,
+  localSearchFallbackMode: 'missing_key',
+  fallbackOnSearchError: false,
+  docsetSearchEnabled: false,
+  docsetRoots: /** @type {string[]} */ ([]),
   workspaceRoots: /** @type {string[]} */ ([]),
   externalSkills: /** @type {Record<string, any>[]} */ ([]),
   mcpServers: /** @type {Record<string, any>[]} */ ([]),
@@ -145,6 +150,14 @@ function normalizeSettings(input = /** @type {Record<string, any>} */ ({})) {
   next.tavilyCacheTtlMinutes = Math.round(
     clampNumber(next.tavilyCacheTtlMinutes, 0, 1440, DEFAULT_SETTINGS.tavilyCacheTtlMinutes)
   );
+  next.externalMcpDiscoveryEnabled =
+    nextAny.externalMcpDiscoveryEnabled !== false && nextAny.externalMcpDiscoveryEnabled !== 'false';
+  next.localSearchFallbackMode = ['missing_key', 'provider_error', 'off'].includes(String(next.localSearchFallbackMode))
+    ? String(next.localSearchFallbackMode)
+    : DEFAULT_SETTINGS.localSearchFallbackMode;
+  next.fallbackOnSearchError = nextAny.fallbackOnSearchError === true || nextAny.fallbackOnSearchError === 'true';
+  next.docsetSearchEnabled = nextAny.docsetSearchEnabled === true || nextAny.docsetSearchEnabled === 'true';
+  next.docsetRoots = normalizePathList(next.docsetRoots, 20);
   next.autoContextSummary = nextAny.autoContextSummary !== false && nextAny.autoContextSummary !== 'false';
   next.cacheOptimization = nextAny.cacheOptimization !== false && nextAny.cacheOptimization !== 'false';
   next.contextFoldEconomicsEnabled =
@@ -203,18 +216,29 @@ function inferProviderId(apiBase) {
  * @returns {string[]}
  */
 function normalizeWorkspaceRoots(roots) {
+  return normalizePathList(roots, 20);
+}
+
+/**
+ * @param {any} roots
+ * @param {number} max
+ * @returns {string[]}
+ */
+function normalizePathList(roots, max) {
   if (!Array.isArray(roots)) return [];
   const seen = /** @type {Set<string>} */ (new Set());
   const normalized = /** @type {string[]} */ ([]);
   for (const root of roots) {
     if (typeof root !== 'string') continue;
-    const value = path.resolve(root.trim());
+    const raw = root.trim();
+    if (!raw) continue;
+    const value = path.resolve(raw);
     const key = process.platform === 'win32' ? value.toLowerCase() : value;
     if (!value || seen.has(key)) continue;
     seen.add(key);
     normalized.push(value);
   }
-  return normalized.slice(0, 20);
+  return normalized.slice(0, max);
 }
 
 /**
@@ -258,6 +282,18 @@ function normalizeMcpServers(servers) {
       command: String(server.command || '').trim(),
       args: Array.isArray(server.args) ? server.args.map(String).slice(0, 40) : parseArgs(String(server.args || '')),
       env: normalizeEnv(server.env),
+      cwd: String(server.cwd || '')
+        .trim()
+        .slice(0, 2000),
+      externalConfigSource: String(server.externalConfigSource || '')
+        .trim()
+        .slice(0, 80),
+      externalConfigPath: String(server.externalConfigPath || '')
+        .trim()
+        .slice(0, 2000),
+      externalConfigFingerprint: String(server.externalConfigFingerprint || server.fingerprint || '')
+        .trim()
+        .slice(0, 120),
       enabled: server.enabled !== false,
     }))
     .filter((server) => server.command)
@@ -709,6 +745,12 @@ function sanitizeSettingsForBackup(settings) {
         name: String(server.name || ''),
         command: String(server.command || ''),
         args: sanitizeMcpArgs(server.args),
+        ...(server.cwd ? { cwd: String(server.cwd) } : {}),
+        ...(server.externalConfigSource ? { externalConfigSource: String(server.externalConfigSource) } : {}),
+        ...(server.externalConfigPath ? { externalConfigPath: String(server.externalConfigPath) } : {}),
+        ...(server.externalConfigFingerprint
+          ? { externalConfigFingerprint: String(server.externalConfigFingerprint) }
+          : {}),
         enabled: server.enabled !== false,
       }))
       .filter((server) => server.command);

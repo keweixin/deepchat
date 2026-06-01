@@ -178,7 +178,7 @@ function shouldWarnAboutToolSupport(settings = {}, intent = {}) {
 function filterStableBuiltInTools(tools, settings = {}) {
   return (tools || []).filter((tool) => {
     const name = tool?.function?.name;
-    if (name === 'web_search') return Boolean(settings.tavilyApiKey);
+    if (name === 'web_search') return hasSearchCapability(settings);
     if (
       name === 'index_workspace' ||
       name === 'list_files' ||
@@ -198,6 +198,14 @@ function filterStableBuiltInTools(tools, settings = {}) {
     }
     return true;
   });
+}
+
+function hasSearchCapability(settings = {}) {
+  if (settings.tavilyApiKey) return true;
+  if (settings.docsetSearchEnabled === true && Array.isArray(settings.docsetRoots) && settings.docsetRoots.length > 0) {
+    return true;
+  }
+  return String(settings.localSearchFallbackMode || '') === 'missing_key';
 }
 
 module.exports = {

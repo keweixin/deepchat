@@ -77,6 +77,10 @@ export interface McpServerConfig {
   command: string;
   args?: string[];
   env?: Record<string, string>;
+  cwd?: string;
+  externalConfigSource?: string;
+  externalConfigPath?: string;
+  externalConfigFingerprint?: string;
   enabled?: boolean;
 }
 
@@ -160,6 +164,11 @@ export interface SettingsPatch {
   tavilyExtractTopResults?: number;
   tavilyChunksPerSource?: number;
   tavilyCacheTtlMinutes?: number;
+  externalMcpDiscoveryEnabled?: boolean;
+  localSearchFallbackMode?: 'missing_key' | 'provider_error' | 'off';
+  fallbackOnSearchError?: boolean;
+  docsetSearchEnabled?: boolean;
+  docsetRoots?: string[];
   workspaceRoots?: string[];
   externalSkills?: ExternalSkill[];
   mcpServers?: McpServerConfig[];
@@ -271,6 +280,18 @@ export interface DeepChatBridge {
   tools: {
     run: (name: string, args: unknown) => Promise<unknown>;
     list: () => Promise<string[]>;
+  };
+  mcp?: {
+    listStatus: () => Promise<unknown[]>;
+    scanExternalConfigs: () => Promise<unknown>;
+    importExternalConfigs: (payload: { servers: McpServerConfig[] }) => Promise<Settings>;
+    probeExternalConfig: (payload: { server: McpServerConfig }) => Promise<unknown>;
+  };
+  docset?: {
+    list: () => Promise<unknown>;
+    add: (root?: string) => Promise<Settings>;
+    remove: (root: string) => Promise<Settings>;
+    search: (payload: { query: string; maxResults?: number }) => Promise<unknown>;
   };
   workspace: {
     listRoots: () => Promise<string[]>;

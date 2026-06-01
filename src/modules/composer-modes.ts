@@ -1,3 +1,5 @@
+import { hasNativeBridge } from './bridge.js';
+
 export const COMPOSER_MODE_IDS: readonly string[] = Object.freeze([
   'daily',
   'analysis',
@@ -159,7 +161,7 @@ export function buildComposerModeEntries(
 
 export function resolveComposerModeActiveSkill(modeId = 'daily', settings: Record<string, unknown> = {}): string {
   const mode = getComposerMode(modeId);
-  if (mode.id === 'research' && !settings.tavilyApiKey) return 'agent_auto';
+  if (mode.id === 'research' && !hasSearchCapability(settings)) return 'agent_auto';
   if (
     mode.id === 'code' &&
     (!Array.isArray(settings.workspaceRoots) || (settings.workspaceRoots as unknown[]).length === 0)
@@ -188,11 +190,23 @@ export function applyComposerModeToPrompt(content = '', modeId = 'daily'): strin
 }
 
 export function getComposerModeUnavailableReason(modeId = 'daily', settings: Record<string, unknown> = {}): string {
-  if (modeId === 'research' && !settings.tavilyApiKey) return '缺 Tavily Key 时会退回智能 Agent';
+  if (modeId === 'research' && !hasSearchCapability(settings)) {
+    return hasNativeBridge() ? '缺搜索能力时会退回智能 Agent' : '缺 Tavily Key 时会退回智能 Agent';
+  }
   if (
     modeId === 'code' &&
     (!Array.isArray(settings.workspaceRoots) || (settings.workspaceRoots as unknown[]).length === 0)
   )
     return '缺工作区时会退回智能 Agent';
   return '';
+}
+
+function hasSearchCapability(settings: Record<string, unknown>): boolean {
+  const values = settings as any;
+  if (values.tavilyApiKey) return true;
+  if (!hasNativeBridge()) return false;
+  if (values.docsetSearchEnabled === true && Array.isArray(values.docsetRoots) && values.docsetRoots.length > 0) {
+    return true;
+  }
+  return String(values.localSearchFallbackMode || '') === 'missing_key';
 }

@@ -1,4 +1,5 @@
 import { getModelCapabilities } from './api.js';
+import { hasNativeBridge } from './bridge.js';
 import { buildComposerModeEntries, getComposerMode } from './composer-modes.js';
 import {
   buildComposerContextPreview,
@@ -58,10 +59,20 @@ export function getThinkingLabel(value: unknown) {
 }
 
 export function getSearchStatusText(settings: Record<string, any> = {}) {
-  if (!settings.tavilyApiKey) return '需配置';
+  if (!hasSearchCapability(settings)) return '需配置';
   if (settings.activeSkill === 'web_search') return '开启';
   if (settings.activeSkill === 'multi_tool') return '全工具';
+  if (!settings.tavilyApiKey) return '兜底';
   return '关闭';
+}
+
+function hasSearchCapability(settings: Record<string, any> = {}) {
+  if (settings.tavilyApiKey) return true;
+  if (!hasNativeBridge()) return false;
+  if (settings.docsetSearchEnabled === true && Array.isArray(settings.docsetRoots) && settings.docsetRoots.length > 0) {
+    return true;
+  }
+  return String(settings.localSearchFallbackMode || '') === 'missing_key';
 }
 
 export function updateComposerRunStatus(

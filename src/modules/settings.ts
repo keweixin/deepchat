@@ -32,6 +32,7 @@ import {
   highlightActiveProvider,
   highlightActiveModelTag,
   renderExternalSkillList,
+  refreshDocsetList,
   refreshSettingsDiagnostics,
 } from './settings-dom.js';
 import { renderMcpServerList, refreshMcpStatuses, markMcpStatusStale } from './settings-mcp.js';
@@ -95,6 +96,7 @@ export function initSettings(onModelChange?: (model: string) => void) {
   renderSkillGrid(els.skillGrid, runnableSkill, settings);
   renderStorageStatus(els.storageStatus, settings);
   refreshWorkspaces(els, settings, { removeWorkspace, renderSkillGrid });
+  refreshDocsetList(els);
   renderExternalSkillList(els.externalSkillList, (settings.externalSkills as any[]) || [], updateExternalSkills);
   renderMcpServerList(els.mcpServerList, (settings.mcpServers as any[]) || [], updateMcpServers, latestMcpStatuses);
   buildSettingsTabs(els.panel);

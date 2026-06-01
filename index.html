@@ -739,6 +739,32 @@
                   <span>搜索阶段包含 raw content</span>
                 </label>
               </div>
+              <div class="form-grid two">
+                <div class="form-group">
+                  <label for="local-search-fallback-mode-select">本地搜索兜底</label>
+                  <select id="local-search-fallback-mode-select" class="form-input">
+                    <option value="missing_key">缺少 Tavily Key 时启用</option>
+                    <option value="provider_error">仅 Tavily 失败时启用</option>
+                    <option value="off">关闭兜底</option>
+                  </select>
+                </div>
+                <label class="toggle-line compact-toggle">
+                  <input type="checkbox" id="fallback-on-search-error-toggle" />
+                  <span>Tavily 请求失败时自动降级</span>
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="toggle-line">
+                  <input type="checkbox" id="docset-search-enabled-toggle" />
+                  <span>启用本地 Docset 文档搜索</span>
+                </label>
+                <div id="docset-list" class="workspace-list compact-list"></div>
+                <div class="form-actions">
+                  <button id="add-docset-root-btn" class="secondary-btn" type="button">添加 Docset</button>
+                  <button id="refresh-docset-list-btn" class="secondary-btn" type="button">刷新 Docset</button>
+                  <span id="docset-status-text" class="inline-status"></span>
+                </div>
+              </div>
               <p class="form-hint">
                 默认使用 Basic + 摘要结果；需要严肃研究时建议开启 Top N 抽取，而不是直接塞整页 raw content。
               </p>
@@ -891,6 +917,18 @@
                   <span id="mcp-status-text" class="inline-status"></span>
                 </div>
                 <p class="form-hint">MCP 仅桌面版可执行。浏览器预览不能启动外部进程。</p>
+              </div>
+              <div class="form-group">
+                <label>外部 MCP 配置发现</label>
+                <label class="toggle-line">
+                  <input type="checkbox" id="external-mcp-discovery-enabled-toggle" />
+                  <span>允许只读扫描 Claude / Codex MCP 配置</span>
+                </label>
+                <div class="form-actions">
+                  <button id="scan-external-mcp-btn" class="secondary-btn" type="button">发现外部配置</button>
+                  <span id="external-mcp-status-text" class="inline-status"></span>
+                </div>
+                <div id="external-mcp-import-list" class="workspace-list compact-list"></div>
               </div>
               <div class="form-group">
                 <label>已配置 MCP</label>

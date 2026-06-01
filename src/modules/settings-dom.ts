@@ -17,9 +17,15 @@ import {
   clearWorkspaceIndexCache,
   exportBackup,
   importBackup,
+  addDocsetRoot,
+  importExternalMcpConfigs,
+  listDocsets,
   pickExternalSkill,
   pickWorkspace,
+  probeExternalMcpConfig,
   removeWorkspace,
+  removeDocsetRoot,
+  scanExternalMcpConfigs,
 } from './client-store.ts';
 import { showToast } from './utils.js';
 import {
@@ -78,6 +84,13 @@ export interface SettingsElements {
   tavilyExtractTopResults: HTMLInputElement | null;
   tavilyChunksPerSource: HTMLInputElement | null;
   tavilyCacheTtlMinutes: HTMLInputElement | null;
+  localSearchFallbackMode: HTMLSelectElement | null;
+  fallbackOnSearchError: HTMLInputElement | null;
+  docsetSearchEnabled: HTMLInputElement | null;
+  docsetList: HTMLElement | null;
+  addDocsetRootBtn: HTMLElement | null;
+  refreshDocsetListBtn: HTMLElement | null;
+  docsetStatusText: HTMLElement | null;
   testApiBtn: HTMLElement | null;
   apiTestStatus: HTMLElement | null;
   testSearchBtn: HTMLElement | null;
@@ -95,6 +108,10 @@ export interface SettingsElements {
   refreshMcpStatusBtn: HTMLElement | null;
   mcpStatusText: HTMLElement | null;
   mcpServerList: HTMLElement | null;
+  externalMcpDiscoveryEnabled: HTMLInputElement | null;
+  scanExternalMcpBtn: HTMLElement | null;
+  externalMcpStatusText: HTMLElement | null;
+  externalMcpImportList: HTMLElement | null;
   exportBackupBtn: HTMLElement | null;
   importBackupBtn: HTMLElement | null;
   enhanceToggle: HTMLInputElement | null;
@@ -151,6 +168,13 @@ export function collectSettingsElements(): SettingsElements {
     tavilyExtractTopResults: document.getElementById('tavily-extract-top-results-input') as HTMLInputElement | null,
     tavilyChunksPerSource: document.getElementById('tavily-chunks-per-source-input') as HTMLInputElement | null,
     tavilyCacheTtlMinutes: document.getElementById('tavily-cache-ttl-input') as HTMLInputElement | null,
+    localSearchFallbackMode: document.getElementById('local-search-fallback-mode-select') as HTMLSelectElement | null,
+    fallbackOnSearchError: document.getElementById('fallback-on-search-error-toggle') as HTMLInputElement | null,
+    docsetSearchEnabled: document.getElementById('docset-search-enabled-toggle') as HTMLInputElement | null,
+    docsetList: document.getElementById('docset-list'),
+    addDocsetRootBtn: document.getElementById('add-docset-root-btn'),
+    refreshDocsetListBtn: document.getElementById('refresh-docset-list-btn'),
+    docsetStatusText: document.getElementById('docset-status-text'),
     testApiBtn: document.getElementById('test-api-btn'),
     apiTestStatus: document.getElementById('api-test-status'),
     testSearchBtn: document.getElementById('test-search-btn'),
@@ -168,6 +192,12 @@ export function collectSettingsElements(): SettingsElements {
     refreshMcpStatusBtn: document.getElementById('refresh-mcp-status-btn'),
     mcpStatusText: document.getElementById('mcp-status-text'),
     mcpServerList: document.getElementById('mcp-server-list'),
+    externalMcpDiscoveryEnabled: document.getElementById(
+      'external-mcp-discovery-enabled-toggle'
+    ) as HTMLInputElement | null,
+    scanExternalMcpBtn: document.getElementById('scan-external-mcp-btn'),
+    externalMcpStatusText: document.getElementById('external-mcp-status-text'),
+    externalMcpImportList: document.getElementById('external-mcp-import-list'),
     exportBackupBtn: document.getElementById('export-backup-btn'),
     importBackupBtn: document.getElementById('import-backup-btn'),
     enhanceToggle: document.getElementById('enhance-toggle') as HTMLInputElement | null,
@@ -194,6 +224,14 @@ export function applySettingsToInputs(els: SettingsElements, settings: Record<st
   if (els.tavilyExtractTopResults) els.tavilyExtractTopResults.value = String(settings.tavilyExtractTopResults ?? '');
   if (els.tavilyChunksPerSource) els.tavilyChunksPerSource.value = String(settings.tavilyChunksPerSource ?? '');
   if (els.tavilyCacheTtlMinutes) els.tavilyCacheTtlMinutes.value = String(settings.tavilyCacheTtlMinutes ?? '');
+  if (els.localSearchFallbackMode) {
+    els.localSearchFallbackMode.value = String(settings.localSearchFallbackMode || 'missing_key');
+  }
+  if (els.fallbackOnSearchError) els.fallbackOnSearchError.checked = settings.fallbackOnSearchError === true;
+  if (els.docsetSearchEnabled) els.docsetSearchEnabled.checked = settings.docsetSearchEnabled === true;
+  if (els.externalMcpDiscoveryEnabled) {
+    els.externalMcpDiscoveryEnabled.checked = settings.externalMcpDiscoveryEnabled !== false;
+  }
   if (els.temperature) els.temperature.value = String(settings.temperature ?? '');
   if (els.temperatureVal) els.temperatureVal.textContent = String(settings.temperature ?? '');
   if (els.maxTokens) els.maxTokens.value = String(settings.maxTokens ?? '');
@@ -272,6 +310,126 @@ export function renderExternalSkillList(
     const meta = document.createElement('div');
     meta.className = 'workspace-item-meta';
     meta.textContent = `${skill.enabled === false ? '停用' : '启用'} · ${skill.sourcePath || skill.description || '已导入内容'}`;
+    item.append(main, meta);
+    container.appendChild(item);
+  }
+}
+
+type ExternalMcpCandidate = {
+  id: string;
+  name?: string;
+  command?: string;
+  args?: string[];
+  cwd?: string;
+  sourceLabel?: string;
+  sourcePath?: string;
+  status?: string;
+  warnings?: string[];
+  envKeys?: string[];
+  importServer?: Record<string, unknown>;
+};
+
+export async function refreshDocsetList(els: SettingsElements): Promise<void> {
+  const container = els.docsetList;
+  if (!container) return;
+  container.textContent = '';
+  try {
+    const payload = await listDocsets();
+    const docsets = Array.isArray(payload?.docsets) ? payload.docsets : [];
+    if (!docsets.length) {
+      renderEmptyList(container, '尚未添加 Docset', '可选择本地 .docset 目录作为离线文档兜底');
+    }
+    for (const docset of docsets) {
+      const item = document.createElement('div');
+      item.className = 'workspace-item column';
+      const main = document.createElement('div');
+      main.className = 'workspace-item-main';
+      const name = document.createElement('span');
+      name.textContent = `${docset.name || 'Docset'} · ${docset.entryCount || 0} 条`;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'icon-btn-sm';
+      remove.textContent = '移除';
+      remove.addEventListener('click', async () => {
+        const next = await removeDocsetRoot(String(docset.root || ''));
+        applySettingsToInputs(els, next);
+        await refreshDocsetList(els);
+        showToast('Docset 已移除');
+      });
+      main.append(name, remove);
+      const meta = document.createElement('div');
+      meta.className = 'workspace-item-meta';
+      meta.textContent = String(docset.root || docset.error || '');
+      item.append(main, meta);
+      container.appendChild(item);
+    }
+    if (els.docsetStatusText) {
+      const warnings = Array.isArray(payload?.warnings) ? payload.warnings.length : 0;
+      els.docsetStatusText.textContent = warnings
+        ? `已加载 ${docsets.length} 个，${warnings} 个警告`
+        : `已加载 ${docsets.length} 个`;
+    }
+  } catch (error) {
+    renderEmptyList(container, 'Docset 加载失败', (error as Error).message || '无法读取本地 Docset');
+    if (els.docsetStatusText) els.docsetStatusText.textContent = (error as Error).message || '加载失败';
+  }
+}
+
+function renderExternalMcpImportList(
+  container: HTMLElement | null,
+  candidates: ExternalMcpCandidate[],
+  handlers: {
+    importCandidate: (candidate: ExternalMcpCandidate) => Promise<void>;
+    probeCandidate: (candidate: ExternalMcpCandidate, status: HTMLElement) => Promise<void>;
+  }
+): void {
+  if (!container) return;
+  container.textContent = '';
+  if (!candidates.length) {
+    renderEmptyList(container, '未发现外部 MCP 配置', '会只读扫描 Claude Desktop / Claude Code / 工作区配置');
+    return;
+  }
+  for (const candidate of candidates) {
+    const item = document.createElement('div');
+    item.className = 'workspace-item column';
+    const main = document.createElement('div');
+    main.className = 'workspace-item-main';
+    const name = document.createElement('span');
+    name.textContent = `${candidate.name || 'MCP Server'} · ${candidate.status || 'new'}`;
+    const actions = document.createElement('div');
+    actions.className = 'form-actions';
+    const status = document.createElement('span');
+    status.className = 'inline-status';
+    const probe = document.createElement('button');
+    probe.type = 'button';
+    probe.className = 'icon-btn-sm';
+    probe.textContent = '测试';
+    probe.addEventListener('click', () => handlers.probeCandidate(candidate, status));
+    const importBtn = document.createElement('button');
+    importBtn.type = 'button';
+    importBtn.className = 'icon-btn-sm';
+    importBtn.textContent = candidate.status === 'imported' ? '已导入' : '导入';
+    importBtn.disabled = candidate.status === 'imported';
+    importBtn.addEventListener('click', () => handlers.importCandidate(candidate));
+    actions.append(probe, importBtn, status);
+    main.append(name, actions);
+
+    const meta = document.createElement('div');
+    meta.className = 'workspace-item-meta';
+    const args = Array.isArray(candidate.args) ? candidate.args.join(' ') : '';
+    const env =
+      Array.isArray(candidate.envKeys) && candidate.envKeys.length ? `env: ${candidate.envKeys.join(', ')}` : '';
+    const warnings =
+      Array.isArray(candidate.warnings) && candidate.warnings.length ? ` · ${candidate.warnings.join('；')}` : '';
+    meta.textContent = [
+      candidate.sourceLabel || candidate.sourcePath || '外部配置',
+      candidate.command ? `cmd: ${candidate.command} ${args}` : '',
+      candidate.cwd ? `cwd: ${candidate.cwd}` : '',
+      env,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+      .concat(warnings);
     item.append(main, meta);
     container.appendChild(item);
   }
@@ -472,9 +630,26 @@ export function bindSettingsEvents(
     if (patch.runCodeEnabled !== undefined && els.runCodeEnabled) {
       els.runCodeEnabled.checked = next.runCodeEnabled !== false;
     }
+    if (patch.localSearchFallbackMode !== undefined && els.localSearchFallbackMode) {
+      els.localSearchFallbackMode.value = String(next.localSearchFallbackMode || 'missing_key');
+    }
+    if (patch.fallbackOnSearchError !== undefined && els.fallbackOnSearchError) {
+      els.fallbackOnSearchError.checked = next.fallbackOnSearchError === true;
+    }
+    if (patch.docsetSearchEnabled !== undefined && els.docsetSearchEnabled) {
+      els.docsetSearchEnabled.checked = next.docsetSearchEnabled === true;
+    }
+    if (patch.docsetRoots !== undefined || patch.docsetSearchEnabled !== undefined) {
+      void refreshDocsetList(els);
+    }
+    if (patch.externalMcpDiscoveryEnabled !== undefined && els.externalMcpDiscoveryEnabled) {
+      els.externalMcpDiscoveryEnabled.checked = next.externalMcpDiscoveryEnabled !== false;
+    }
     if (
       patch.activeSkill !== undefined ||
       patch.tavilyApiKey !== undefined ||
+      patch.localSearchFallbackMode !== undefined ||
+      patch.docsetSearchEnabled !== undefined ||
       patch.workspaceRoots !== undefined ||
       patch.mcpServers !== undefined
     ) {
@@ -735,6 +910,36 @@ export function bindSettingsEvents(
       saveSettings({ tavilyCacheTtlMinutes: parseInt(els.tavilyCacheTtlMinutes!.value, 10) })
     );
   }
+  if (els.localSearchFallbackMode) {
+    els.localSearchFallbackMode.addEventListener('change', () =>
+      saveSettings({ localSearchFallbackMode: els.localSearchFallbackMode!.value })
+    );
+  }
+  if (els.fallbackOnSearchError) {
+    els.fallbackOnSearchError.addEventListener('change', () =>
+      saveSettings({ fallbackOnSearchError: els.fallbackOnSearchError!.checked })
+    );
+  }
+  if (els.docsetSearchEnabled) {
+    els.docsetSearchEnabled.addEventListener('change', () =>
+      saveSettings({ docsetSearchEnabled: els.docsetSearchEnabled!.checked })
+    );
+  }
+  if (els.addDocsetRootBtn) {
+    els.addDocsetRootBtn.addEventListener('click', async () => {
+      try {
+        const next = await addDocsetRoot();
+        applySettingsToInputs(els, next);
+        await refreshDocsetList(els);
+        showToast('Docset 已添加');
+      } catch (error) {
+        showToast((error as Error).message || 'Docset 添加失败');
+      }
+    });
+  }
+  if (els.refreshDocsetListBtn) {
+    els.refreshDocsetListBtn.addEventListener('click', () => refreshDocsetList(els));
+  }
   if (els.testApiBtn) {
     els.testApiBtn.addEventListener('click', () =>
       runStatusAction(els.apiTestStatus, '测试中...', '连接正常', () => testApiConnection())
@@ -794,6 +999,51 @@ export function bindSettingsEvents(
         doRefreshMcpStatuses || (() => Promise.resolve())
       )
     );
+  }
+  if (els.externalMcpDiscoveryEnabled) {
+    els.externalMcpDiscoveryEnabled.addEventListener('change', () =>
+      saveSettings({ externalMcpDiscoveryEnabled: els.externalMcpDiscoveryEnabled!.checked })
+    );
+  }
+  if (els.scanExternalMcpBtn) {
+    els.scanExternalMcpBtn.addEventListener('click', async () => {
+      if (els.externalMcpStatusText) els.externalMcpStatusText.textContent = '扫描中...';
+      try {
+        const payload = await scanExternalMcpConfigs();
+        const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+        renderExternalMcpImportList(els.externalMcpImportList, candidates, {
+          importCandidate: async (candidate) => {
+            const server = candidate.importServer || candidate;
+            const next = await importExternalMcpConfigs([server]);
+            applySettingsToInputs(els, next);
+            setLatestMcpStatuses?.(markMcpStatusStale(els, next));
+            renderSkillGrid(els.skillGrid, resolveRunnableSkill(next), next);
+            if (els.externalMcpStatusText) els.externalMcpStatusText.textContent = '已导入，MCP schema 已失效';
+            showToast('外部 MCP 配置已导入');
+          },
+          probeCandidate: async (candidate, status) => {
+            status.textContent = '测试中...';
+            const result = await probeExternalMcpConfig(candidate.importServer || candidate);
+            const jobStatus = result?.job?.status ? ` (${result.job.status})` : '';
+            status.textContent = result?.ok
+              ? `可用${jobStatus}`
+              : `${result?.error || result?.statuses?.[0]?.error || '不可用'}${jobStatus}`;
+          },
+        });
+        const warnings = Array.isArray(payload?.warnings) ? payload.warnings.length : 0;
+        if (els.externalMcpStatusText) {
+          els.externalMcpStatusText.textContent = warnings
+            ? `发现 ${candidates.length} 个，${warnings} 个警告`
+            : `发现 ${candidates.length} 个`;
+        }
+      } catch (error) {
+        if (els.externalMcpStatusText) els.externalMcpStatusText.textContent = (error as Error).message || '扫描失败';
+        renderExternalMcpImportList(els.externalMcpImportList, [], {
+          importCandidate: async () => {},
+          probeCandidate: async () => {},
+        });
+      }
+    });
   }
   if (els.exportBackupBtn) {
     els.exportBackupBtn.addEventListener('click', async () => {
@@ -925,6 +1175,11 @@ export async function refreshSettingsDiagnostics(els: SettingsElements, settings
       els.statusSearchValue.textContent = '已配置';
       if (card) {
         card.className = 'status-card status-success';
+      }
+    } else if (settings.docsetSearchEnabled || settings.localSearchFallbackMode !== 'off') {
+      els.statusSearchValue.textContent = settings.docsetSearchEnabled ? 'Docset 兜底' : '本地兜底';
+      if (card) {
+        card.className = 'status-card status-warning';
       }
     } else {
       els.statusSearchValue.textContent = '未配置';

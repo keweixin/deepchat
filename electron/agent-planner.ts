@@ -12,6 +12,9 @@
 
 export interface AgentSettings {
   tavilyApiKey?: string;
+  localSearchFallbackMode?: string;
+  docsetSearchEnabled?: boolean | string;
+  docsetRoots?: string[];
   runCodeEnabled?: boolean | string;
   codingEditsEnabled?: boolean | string;
   workspaceRoots?: string[];
@@ -263,8 +266,8 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
     candidates.add('web_search');
     reasons.push('explicit_web');
     score += 0.75;
-    if (settings.tavilyApiKey) selected.add('web_search');
-    else missing.add('Tavily API Key');
+    if (hasSearchCapability(settings)) selected.add('web_search');
+    else missing.add(getSearchPrerequisiteLabel(settings));
   }
   if (directives.code) {
     candidates.add('run_code');
@@ -310,8 +313,8 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
     candidates.add('web_search');
     reasons.push('fresh_or_external_facts');
     score += 0.35;
-    if (settings.tavilyApiKey) selected.add('web_search');
-    else missing.add('Tavily API Key');
+    if (hasSearchCapability(settings)) selected.add('web_search');
+    else missing.add(getSearchPrerequisiteLabel(settings));
   }
   if (!candidates.has('list_files') && needsFiles(text, lower)) {
     candidates.add('project_map');
@@ -422,6 +425,20 @@ export function detectAgentIntent(messagesOrText: ChatMessage[] | string, settin
       .map(([name]) => name),
     reason: reasons.join(',') || 'plain_chat',
   };
+}
+
+function hasSearchCapability(settings: AgentSettings): boolean {
+  if (settings.tavilyApiKey) return true;
+  if (settings.docsetSearchEnabled === true && Array.isArray(settings.docsetRoots) && settings.docsetRoots.length > 0) {
+    return true;
+  }
+  return String(settings.localSearchFallbackMode || '') === 'missing_key';
+}
+
+function getSearchPrerequisiteLabel(settings: AgentSettings): string {
+  return settings.localSearchFallbackMode === 'off' || !settings.localSearchFallbackMode
+    ? 'Tavily API Key'
+    : 'Tavily API Key 或搜索兜底';
 }
 
 // ---------------------------------------------------------------------------

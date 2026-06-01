@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell, ipcMain, session } from 'electron';
+import { app, BrowserWindow, Menu, shell, ipcMain, session, dialog } from 'electron';
 import path from 'path';
 
 if (process.env.DEEPCHAT_TEST_USER_DATA_DIR) {
@@ -21,8 +21,10 @@ import { executeTool, clearWorkspaceIndexDiskCache, getWorkspaceIndexModule } fr
 import { McpManager } from './mcp-manager.js';
 import { validate, schemas, summarizeChatStartForLog } from './ipc-validation.js';
 import { warmBuiltinSkills } from './system-prompt.ts';
-import { configureDefaultJobRuntime } from './job-runtime.js';
+import { configureDefaultJobRuntime, defaultJobRuntime } from './job-runtime.js';
 import { createSqliteJobStore } from './job-stores.js';
+import { scanExternalMcpConfigs, serverFingerprint } from './external-mcp-configs.js';
+import { listDocsets, searchDocsets, validateDocsetRoot } from './docset-search.js';
 
 if (process.env.DEEPCHAT_DISABLE_GPU === '1') {
   app.disableHardwareAcceleration();
@@ -140,6 +142,58 @@ function registerIpc() {
     const settings = await getSettings();
     return mcpManager!.listStatus(settings);
   });
+  ipcMain.handle('mcp:scanExternalConfigs', async () => {
+    const settings = await getSettings();
+    if (settings.externalMcpDiscoveryEnabled === false) {
+      return { candidates: [], warnings: ['外部 MCP 配置发现已在设置中关闭。'] };
+    }
+    return scanExternalMcpConfigs(settings);
+  });
+  ipcMain.handle('mcp:importExternalConfigs', async (_event, payload) => {
+    const safePayload = validate(schemas.ExternalMcpImportSchema, payload, 'mcp:importExternalConfigs');
+    const settings = await getSettings();
+    const imported = mergeImportedMcpServers(settings.mcpServers || [], safePayload.servers);
+    const next = await setSettings({ mcpServers: imported });
+    mcpManager!.refreshToolDefinitions();
+    return next;
+  });
+  ipcMain.handle('mcp:probeExternalConfig', async (_event, payload) => {
+    const safePayload = validate(schemas.ExternalMcpProbeSchema, payload, 'mcp:probeExternalConfig');
+    return probeMcpConfig(safePayload.server);
+  });
+  ipcMain.handle('docset:list', async () => {
+    const settings = await getSettings();
+    return listDocsets(settings);
+  });
+  ipcMain.handle('docset:add', async (_event, root) => {
+    let selected = typeof root === 'string' && root.trim() ? root.trim() : '';
+    if (!selected) {
+      if (!mainWindow) throw new Error('主窗口未初始化');
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: '选择 Docset 目录',
+        properties: ['openDirectory'],
+      });
+      if (result.canceled || !result.filePaths[0]) return getSettings();
+      selected = result.filePaths[0];
+    }
+    const safeRoot = validate(schemas.DocsetRootSchema, selected, 'docset:add');
+    const info = validateDocsetRoot(safeRoot);
+    const settings = await getSettings();
+    const roots = [...new Set([...(settings.docsetRoots || []), info.root])];
+    return setSettings({ docsetRoots: roots, docsetSearchEnabled: true });
+  });
+  ipcMain.handle('docset:remove', async (_event, root) => {
+    const safeRoot = validate(schemas.DocsetRootSchema, root, 'docset:remove');
+    const resolved = path.resolve(safeRoot);
+    const settings = await getSettings();
+    const roots = (settings.docsetRoots || []).filter((item: string) => path.resolve(item) !== resolved);
+    return setSettings({ docsetRoots: roots });
+  });
+  ipcMain.handle('docset:search', async (_event, payload) => {
+    const safePayload = validate(schemas.DocsetSearchSchema, payload, 'docset:search');
+    const settings = await getSettings();
+    return searchDocsets(safePayload.query, settings, { maxResults: safePayload.maxResults });
+  });
 
   ipcMain.on('chat:start', (_event, request) => {
     console.log(`[IPC chat:start] Received request:`, summarizeChatStartForLog(request));
@@ -200,6 +254,81 @@ function registerIpc() {
     const safePayload = validate(schemas.RunManualToolSchema, payload, 'tools:runManual');
     return executeTool(safePayload.name, safePayload.args || {}, settings);
   });
+}
+
+function mergeImportedMcpServers(existingServers: any[], importedServers: any[]) {
+  const merged = Array.isArray(existingServers) ? [...existingServers] : [];
+  const seen = new Set(merged.map((server) => server.externalConfigFingerprint || serverFingerprint(server)));
+  for (const server of importedServers) {
+    const fingerprint = server.externalConfigFingerprint || serverFingerprint(server);
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    merged.push({
+      ...server,
+      id: server.id || `mcp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      externalConfigFingerprint: fingerprint,
+      enabled: server.enabled !== false,
+    });
+  }
+  return merged.slice(0, 20);
+}
+
+async function probeMcpConfig(server: any) {
+  const job = defaultJobRuntime.createJob({
+    id: `job_mcp_probe_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    toolName: 'mcp_probe',
+    args: { id: server.id, name: server.name, command: server.command },
+    timeoutMs: 15000,
+  });
+  let statuses: any[] = [];
+  try {
+    await defaultJobRuntime.runJob(
+      job.id,
+      async (signal) => {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        const manager = new McpManager();
+        try {
+          statuses = await manager.listStatus({ mcpServers: [{ ...server, enabled: true }] });
+          return JSON.stringify(statuses).slice(0, 4000);
+        } finally {
+          await manager.closeAll();
+        }
+      },
+      { timeoutMs: 15000 }
+    );
+    return {
+      ok: statuses.some((item) => item?.ok === true),
+      statuses,
+      job: serializeJob(defaultJobRuntime.getJob(job.id)),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: normalizeProbeError(error),
+      statuses,
+      job: serializeJob(defaultJobRuntime.getJob(job.id)),
+    };
+  }
+}
+
+function serializeJob(job: any) {
+  if (!job) return null;
+  return {
+    id: job.id,
+    status: job.status,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    durationMs: job.durationMs,
+    timeoutMs: job.timeoutMs,
+    stale: job.stale,
+    orphaned: job.orphaned,
+    error: job.error,
+  };
+}
+
+function normalizeProbeError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error || 'MCP 探测失败');
 }
 
 function sendMenuEvent(channel: string) {

@@ -135,6 +135,10 @@ export const ToolRunSchema = z
     localCitations: z.array(ToolCitationSchema).max(50).optional(),
     error: z.string().max(4000).optional(),
     job: ToolJobSchema.nullable().optional(),
+    searchProvider: z.string().max(80).optional(),
+    fallbackReason: z.string().max(1000).optional(),
+    externalConfigSource: z.string().max(200).optional(),
+    warnings: z.array(z.string().max(1000)).max(20).optional(),
   })
   .strip();
 
@@ -293,6 +297,11 @@ export const SettingsSchema = z
     tavilyExtractTopResults: z.number().int().min(0).max(5).optional(),
     tavilyChunksPerSource: z.number().int().min(1).max(5).optional(),
     tavilyCacheTtlMinutes: z.number().int().min(0).max(1440).optional(),
+    externalMcpDiscoveryEnabled: z.boolean().optional(),
+    localSearchFallbackMode: z.enum(['missing_key', 'provider_error', 'off']).optional(),
+    fallbackOnSearchError: z.boolean().optional(),
+    docsetSearchEnabled: z.boolean().optional(),
+    docsetRoots: z.array(z.string().max(2000)).optional(),
     workspaceRoots: z.array(z.string().max(500)).optional(),
     externalSkills: z.array(z.record(z.string(), z.unknown())).optional(),
     mcpServers: z.array(z.record(z.string(), z.unknown())).optional(),

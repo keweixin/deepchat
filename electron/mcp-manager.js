@@ -139,6 +139,7 @@ class McpManager {
       command: server.command,
       args: server.args || [],
       env: { ...process.env, ...(server.env || {}) },
+      cwd: server.cwd || undefined,
     });
     await withTimeout(client.connect(transport), CONNECT_TIMEOUT_MS, `MCP Server ${server.name} 连接超时`);
     const session = { key, client, transport };
@@ -368,6 +369,7 @@ function makeStatusPayload(server, payload) {
     durationMs: payload.durationMs,
     command: server.command,
     args: server.args || [],
+    cwd: server.cwd || '',
   };
 }
 
@@ -400,6 +402,7 @@ function serverFingerprint(server) {
   return JSON.stringify({
     command: server.command,
     args: server.args || [],
+    cwd: server.cwd || '',
     env: server.env || {},
     enabled: server.enabled !== false,
   });

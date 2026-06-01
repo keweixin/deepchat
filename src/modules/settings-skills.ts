@@ -43,7 +43,7 @@ export function isSkillAvailable(id: string, settings: Record<string, unknown>):
 
 export function getUnavailableReason(id: string): string {
   if (!hasNativeBridge() && id !== 'none' && id !== 'web_search') return '需桌面版';
-  if (id === 'web_search') return '需 Tavily Key';
+  if (id === 'web_search') return hasNativeBridge() ? '需 Tavily Key 或搜索兜底' : '需 Tavily Key';
   if (id === 'file_reader') return '需工作区';
   if (id === 'mcp_tool') return '需 MCP';
   if (id === 'multi_tool') return '需配置工具';

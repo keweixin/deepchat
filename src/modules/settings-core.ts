@@ -70,6 +70,11 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   tavilyExtractTopResults: 0,
   tavilyChunksPerSource: 3,
   tavilyCacheTtlMinutes: 10,
+  externalMcpDiscoveryEnabled: true,
+  localSearchFallbackMode: 'missing_key',
+  fallbackOnSearchError: false,
+  docsetSearchEnabled: false,
+  docsetRoots: [],
   workspaceRoots: [],
   externalSkills: [],
   mcpServers: [],
@@ -148,6 +153,10 @@ async function migrateLegacyStorage(): Promise<void> {
     dc_tavilyExtractTopResults: 'tavilyExtractTopResults',
     dc_tavilyChunksPerSource: 'tavilyChunksPerSource',
     dc_tavilyCacheTtlMinutes: 'tavilyCacheTtlMinutes',
+    dc_externalMcpDiscoveryEnabled: 'externalMcpDiscoveryEnabled',
+    dc_localSearchFallbackMode: 'localSearchFallbackMode',
+    dc_fallbackOnSearchError: 'fallbackOnSearchError',
+    dc_docsetSearchEnabled: 'docsetSearchEnabled',
   };
   for (const [storageKey, settingKey] of Object.entries(map)) {
     const value = localStorage.getItem(storageKey);
@@ -222,6 +231,12 @@ function loadBrowserSettings(): Record<string, unknown> {
       localStorage.getItem('dc_tavilyCacheTtlMinutes') || String(DEFAULT_SETTINGS.tavilyCacheTtlMinutes),
       10
     ),
+    externalMcpDiscoveryEnabled: localStorage.getItem('dc_externalMcpDiscoveryEnabled') !== 'false',
+    localSearchFallbackMode:
+      localStorage.getItem('dc_localSearchFallbackMode') || DEFAULT_SETTINGS.localSearchFallbackMode,
+    fallbackOnSearchError: localStorage.getItem('dc_fallbackOnSearchError') === 'true',
+    docsetSearchEnabled: localStorage.getItem('dc_docsetSearchEnabled') === 'true',
+    docsetRoots: safeJsonArray(localStorage.getItem('dc_docsetRoots')),
     workspaceRoots: safeJsonArray(localStorage.getItem('dc_workspaceRoots')),
     externalSkills: safeJsonArray(localStorage.getItem('dc_externalSkills')),
     mcpServers: [],
@@ -257,6 +272,11 @@ function saveBrowserSettings(patch: Record<string, unknown>): void {
     tavilyExtractTopResults: 'dc_tavilyExtractTopResults',
     tavilyChunksPerSource: 'dc_tavilyChunksPerSource',
     tavilyCacheTtlMinutes: 'dc_tavilyCacheTtlMinutes',
+    externalMcpDiscoveryEnabled: 'dc_externalMcpDiscoveryEnabled',
+    localSearchFallbackMode: 'dc_localSearchFallbackMode',
+    fallbackOnSearchError: 'dc_fallbackOnSearchError',
+    docsetSearchEnabled: 'dc_docsetSearchEnabled',
+    docsetRoots: 'dc_docsetRoots',
     workspaceRoots: 'dc_workspaceRoots',
     externalSkills: 'dc_externalSkills',
   };
@@ -308,6 +328,24 @@ function normalizeSettings(input: Record<string, unknown> = {}): Record<string, 
   next.tavilyCacheTtlMinutes = Math.round(
     clampNumber(next.tavilyCacheTtlMinutes as number, 0, 1440, DEFAULT_SETTINGS.tavilyCacheTtlMinutes as number)
   );
+  next.externalMcpDiscoveryEnabled =
+    next.externalMcpDiscoveryEnabled !== false && next.externalMcpDiscoveryEnabled !== 'false';
+  const fallbackModes = ['missing_key', 'provider_error', 'off'];
+  next.localSearchFallbackMode = fallbackModes.includes(String(next.localSearchFallbackMode))
+    ? next.localSearchFallbackMode
+    : DEFAULT_SETTINGS.localSearchFallbackMode;
+  next.fallbackOnSearchError = next.fallbackOnSearchError === true || next.fallbackOnSearchError === 'true';
+  next.docsetSearchEnabled = next.docsetSearchEnabled === true || next.docsetSearchEnabled === 'true';
+  next.docsetRoots = Array.isArray(next.docsetRoots)
+    ? [
+        ...new Set(
+          (next.docsetRoots as unknown[])
+            .map(String)
+            .map((item) => item.trim())
+            .filter(Boolean)
+        ),
+      ].slice(0, 20)
+    : [];
   next.toolApprovalTimeoutMs = Math.round(
     clampNumber(next.toolApprovalTimeoutMs as number, 5000, 300000, DEFAULT_SETTINGS.toolApprovalTimeoutMs as number)
   );
@@ -363,6 +401,9 @@ function parseStoredValue(key: string, value: string): unknown {
     key === 'cacheOptimization' ||
     key === 'contextFoldEconomicsEnabled' ||
     key === 'codingEditsEnabled' ||
+    key === 'externalMcpDiscoveryEnabled' ||
+    key === 'fallbackOnSearchError' ||
+    key === 'docsetSearchEnabled' ||
     key === 'tavilyIncludeAnswer' ||
     key === 'tavilyIncludeRawContent' ||
     key === 'runCodeEnabled'

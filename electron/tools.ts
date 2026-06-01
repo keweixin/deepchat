@@ -1,4 +1,4 @@
-﻿import { resolveAllowedPath, isSensitivePath, isPathInsideRoot } from './tools-path.js';
+import { resolveAllowedPath, isSensitivePath, isPathInsideRoot } from './tools-path.js';
 import { gitStatus, gitDiff, gitLog, gitBlame, gitCompare, gitShow } from './tools-git.js';
 import { webSearch, normalizeSearchQueries, normalizeTavilyResults, formatTavilyResults } from './tools-search.js';
 import { projectMap } from './tools-project.js';
@@ -53,19 +53,35 @@ const PROJECT_MAP_EXCLUDED_DIRS = new Set(['.git', 'node_modules', 'dist', 'buil
 function getToolModeStatus(settings: {
   workspaceRoots?: string[];
   tavilyApiKey?: string;
+  localSearchFallbackMode?: string;
+  docsetSearchEnabled?: boolean | string;
+  docsetRoots?: string[];
   runCodeEnabled?: boolean | string;
   codingEditsEnabled?: boolean | string;
 }) {
   const roots = settings.workspaceRoots || [];
+  const hasWeb = hasSearchCapability(settings);
   const editEnabled =
     settings.codingEditsEnabled !== false && settings.codingEditsEnabled !== 'false' && roots.length > 0;
   return {
-    web_search: Boolean(settings.tavilyApiKey),
+    web_search: hasWeb,
     file_reader: roots.length > 0,
     code_runner: settings.runCodeEnabled !== false && settings.runCodeEnabled !== 'false',
     coding_edits: editEnabled,
-    multi_tool: Boolean(settings.tavilyApiKey) || roots.length > 0,
+    multi_tool: hasWeb || roots.length > 0,
   };
+}
+
+function hasSearchCapability(settings: {
+  tavilyApiKey?: string;
+  localSearchFallbackMode?: string;
+  docsetSearchEnabled?: boolean | string;
+  docsetRoots?: string[];
+}) {
+  if (settings.tavilyApiKey) return true;
+  if (settings.docsetSearchEnabled === true && Array.isArray(settings.docsetRoots) && settings.docsetRoots.length > 0)
+    return true;
+  return String(settings.localSearchFallbackMode || '') === 'missing_key';
 }
 
 /**
@@ -80,9 +96,9 @@ function describeToolRisk(name: string, args: any, settings: any = {}) {
     const extractTop = clampInt(args.extract_top_results ?? settings.tavilyExtractTopResults, 0, 5, 0);
     const depth = String(args.search_depth || settings.tavilySearchDepth || 'basic');
     return [
-      `将使用 Tavily 搜索网络：${String(preview || '').slice(0, 180)}`,
+      `将使用联网搜索：${String(preview || '').slice(0, 180)}`,
       `搜索深度：${depth} · 结果数：${clampInt(args.max_results ?? settings.tavilyMaxResults, 1, 10, 5)}`,
-      `缓存 TTL：${clampInt(settings.tavilyCacheTtlMinutes, 0, 1440, 10)} 分钟 · 深度抽取 Top N：${extractTop}`,
+      `Provider：Tavily 优先，必要时按设置降级 · 缓存 TTL：${clampInt(settings.tavilyCacheTtlMinutes, 0, 1440, 10)} 分钟 · 深度抽取 Top N：${extractTop}`,
       '结果会被结构化、去重、压缩后进入上下文，回答需要引用来源 URL。',
     ].join('\n');
   }

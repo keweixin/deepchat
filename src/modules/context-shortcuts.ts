@@ -82,12 +82,23 @@ export function getContextShortcutUnavailableReason(shortcutOrId: any, settings:
     if (!hasNativeBridge()) return '需桌面版';
     if (!Array.isArray(settings.workspaceRoots) || settings.workspaceRoots.length === 0) return '需工作区';
   }
-  if (shortcut.needs === 'tavily' && !settings.tavilyApiKey) return '需 Tavily Key';
+  if (shortcut.needs === 'tavily' && !hasSearchCapability(settings)) {
+    return hasNativeBridge() ? '需 Tavily Key 或搜索兜底' : '需 Tavily Key';
+  }
   if (shortcut.needs === 'desktop' && !hasNativeBridge()) return '需桌面版';
   if (shortcut.needs === 'desktop' && settings.runCodeEnabled === false) return '代码运行已关闭';
   if (shortcut.needs === 'mcp' && !hasNativeBridge()) return '需桌面版';
   if (shortcut.needs === 'mcp' && !hasEnabledMcpServer(settings)) return '需 MCP';
   return '';
+}
+
+function hasSearchCapability(settings: Record<string, any> = {}) {
+  if (settings.tavilyApiKey) return true;
+  if (!hasNativeBridge()) return false;
+  if (settings.docsetSearchEnabled === true && Array.isArray(settings.docsetRoots) && settings.docsetRoots.length > 0) {
+    return true;
+  }
+  return String(settings.localSearchFallbackMode || '') === 'missing_key';
 }
 
 export function formatContextMentionTitle(mentions: Array<{ type: string; path: string }> = []) {
