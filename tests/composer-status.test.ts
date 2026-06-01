@@ -68,6 +68,23 @@ describe('composer status helpers', () => {
     expect(target.dataset.intentState).toBeTruthy();
   });
 
+  it('hides default composer run parameters from the chat surface', () => {
+    const target = document.createElement('div');
+
+    updateComposerRunStatus(
+      target,
+      { activeSkill: 'agent_auto', tavilyApiKey: 'tvly-test', enhance: true, model: 'deepseek-chat' },
+      0,
+      '普通聊天',
+      'daily'
+    );
+
+    expect(target.hidden).toBe(true);
+    expect(target.textContent).toBe('');
+    expect(target.title).toContain('模式：日常');
+    expect(target.title).toContain('工具：智能 Agent');
+  });
+
   it('renders context preview chips', () => {
     const target = document.createElement('div');
 

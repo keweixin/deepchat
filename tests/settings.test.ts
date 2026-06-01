@@ -87,15 +87,17 @@ describe('settings MCP rendering', () => {
       expect(prompt).toContain('不输出原始 HTML');
     }
   });
-  it('keeps dense settings tabs horizontally scrollable instead of clipped', () => {
+  it('keeps settings navigation in one primary sidebar instead of duplicated tabs', () => {
+    const html = fs.readFileSync(path.resolve('index.html'), 'utf8');
     const css = fs.readFileSync(path.resolve('src/styles/settings.css'), 'utf8');
     const panelRule = css.slice(css.indexOf('.settings-panel {'), css.indexOf('@media (max-width: 768px)'));
-    const tabsRule = css.slice(css.indexOf('.settings-tabs {'), css.indexOf('.settings-tab {'));
-    const tabRule = css.slice(css.indexOf('.settings-tab {'), css.indexOf('.settings-tab.active {'));
+    const navRule = css.slice(css.indexOf('.settings-nav {'), css.indexOf('.settings-nav-item {'));
 
+    expect(html).toContain('class="settings-nav"');
+    expect(html).not.toContain('class="settings-tabs"');
+    expect(html).not.toContain('role="tablist" aria-label="设置分类"');
     expect(panelRule).toContain('width: min(920px, 100vw)');
-    expect(tabsRule).toContain('display: flex');
-    expect(tabsRule).toContain('overflow-x: auto');
-    expect(tabRule).toContain('white-space: nowrap');
+    expect(navRule).toContain('flex: 0 0 150px');
+    expect(navRule).toContain('overflow-y: auto');
   });
 });

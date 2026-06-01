@@ -166,7 +166,7 @@ export function renderAssistantAnswerHeader(container: HTMLElement, message: Rec
 
   const title = document.createElement('div');
   title.className = 'answer-header-title';
-  title.textContent = '回答概览';
+  title.textContent = '本轮状态';
   header.appendChild(title);
 
   const list = document.createElement('div');
@@ -248,59 +248,40 @@ function ensureHeadingId(heading: Element, text: string, index: number) {
 function buildAssistantAnswerHeaderItems(message: Record<string, any> = {}) {
   const items = [];
   const type = inferAnswerType(message);
-  if (type) items.push({ kind: 'type', label: type });
-
-  const model = String(message.model || message.tokens?.model || message.cacheProfile?.model || '').trim();
-  if (model) items.push({ kind: 'model', label: model });
+  if (message.error && type) items.push({ kind: 'type', label: type });
 
   const runs = getAssistantHeaderToolRuns(message);
   if (runs.length) {
     const failed = runs.filter((run) => isFailedToolStatus(run.status) || run.ok === false).length;
     const completed = runs.filter((run) => run.status === 'completed' || run.ok === true).length;
     const suffix = failed ? ` · ${failed} 失败` : completed ? ` · ${completed} 完成` : '';
-    items.push({ kind: failed ? 'tool-warning' : 'tool', label: `工具 ${runs.length}${suffix}` });
+    items.push({ kind: failed ? 'tool-warning' : 'tool', label: `工具 ${runs.length} 个${suffix}` });
   }
 
   if (Array.isArray(message.agentStages) && message.agentStages.length) {
     const rounds = Math.max(...message.agentStages.map((stage) => Number(stage.round || 0)).filter(Number.isFinite), 0);
-    items.push({ kind: 'agent', label: rounds > 0 ? `Agent ${rounds} 轮` : 'Agent 过程' });
-  }
-
-  if (message.tokens) {
-    const usage = normalizeTokenUsage(message.tokens);
-    const source = usage.source === 'provider' ? '实测' : usage.source === 'mixed' ? '混合' : '估算';
-    items.push({ kind: 'token', label: `${source} ${formatCompactTokenCount(usage.total)} tok` });
-    if (usage.cacheHit > 0 || usage.cacheMiss > 0) {
-      items.push({ kind: 'cache', label: `缓存 ${Math.round((usage.cacheHitRate || 0) * 100)}%` });
-    }
-    if (usage.reasoning > 0)
-      items.push({ kind: 'thinking', label: `思考 ${formatCompactTokenCount(usage.reasoning)} tok` });
-  }
-
-  if (message.contextBudget?.trimmed) {
-    items.push({ kind: 'budget', label: `裁剪 ${message.contextBudget.droppedCount || 0} 条历史` });
-  } else if (message.contextBudget?.summaryUsed) {
-    items.push({ kind: 'budget', label: '已用长期记忆' });
+    items.push({ kind: 'agent', label: rounds > 0 ? `Agent 执行 ${rounds} 轮` : 'Agent 执行中' });
   }
 
   return items;
 }
 
 function buildAssistantAnswerHeaderTitle(message: Record<string, any> = {}) {
-  const lines = ['回答头部'];
+  const lines = ['本轮状态详情'];
   const type = inferAnswerType(message);
-  if (type) lines.push(`类型: ${type}`);
+  if (type) lines.push(`回答类型: ${type}`);
   const model = String(message.model || message.tokens?.model || message.cacheProfile?.model || '').trim();
-  if (model) lines.push(`模型: ${model}`);
+  if (model) lines.push(`使用模型: ${model}`);
   const runs = getAssistantHeaderToolRuns(message);
   if (runs.length) {
     const names = runs.map((run) => `${getToolName(run)}:${run.status || (run.ok === true ? 'completed' : 'unknown')}`);
-    lines.push(`工具: ${names.join(', ')}`);
+    lines.push(`工具执行: ${names.join(', ')}`);
   }
   if (message.tokens) lines.push(formatTokenUsageTitle(message.tokens));
   if (message.contextBudget?.prefixFingerprint) lines.push(`Prefix: ${message.contextBudget.prefixFingerprint}`);
-  if (message.contextBudget?.trimmed) lines.push(`上下文裁剪: ${message.contextBudget.droppedCount || 0} 条`);
-  if (message.contextBudget?.summaryUsed) lines.push('上下文摘要: 已使用');
+  if (message.contextBudget?.trimmed)
+    lines.push(`历史压缩: 已移出 ${message.contextBudget.droppedCount || 0} 条旧消息`);
+  if (message.contextBudget?.summaryUsed) lines.push('长期记忆: 已使用');
   return lines.join('\n');
 }
 

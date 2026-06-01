@@ -519,16 +519,17 @@ describe('chat regeneration', () => {
     });
 
     expect(container.hidden).toBe(false);
-    expect(container.textContent).toContain('回答概览');
-    expect(container.textContent).toContain('执行结果');
-    expect(container.textContent).toContain('deepseek-v4-flash');
-    expect(container.textContent).toContain('工具 2 · 1 失败');
-    expect(container.textContent).toContain('Agent 2 轮');
-    expect(container.textContent).toContain('实测 1.3k tok');
-    expect(container.textContent).toContain('缓存 75%');
-    expect(container.textContent).toContain('思考 30 tok');
-    expect(container.textContent).toContain('裁剪 2 条历史');
+    expect(container.textContent).toContain('本轮状态');
+    expect(container.textContent).toContain('工具 2 个 · 1 失败');
+    expect(container.textContent).toContain('Agent 执行 2 轮');
+    expect(container.textContent).not.toContain('deepseek-v4-flash');
+    expect(container.textContent).not.toContain('实测 1.3k tok');
+    expect(container.textContent).not.toContain('缓存 75%');
+    expect(container.textContent).not.toContain('思考 30 tok');
+    expect(container.textContent).not.toContain('裁剪 2 条历史');
+    expect(container.querySelector('.answer-header').title).toContain('使用模型: deepseek-v4-flash');
     expect(container.querySelector('.answer-header').title).toContain('Prefix: abc123');
+    expect(container.querySelector('.answer-header').title).toContain('历史压缩: 已移出 2 条旧消息');
   });
 
   it('renders a compact table of contents for long assistant answers', () => {

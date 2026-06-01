@@ -439,6 +439,11 @@
   background: color-mix(in srgb, var(--surface-card), transparent 32%);
 }
 
+.composer-run-status[hidden],
+.composer-context-preview[hidden] {
+  display: none !important;
+}
+
 .composer-chip-row {
   display: flex;
   align-items: center;

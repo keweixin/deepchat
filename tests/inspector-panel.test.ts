@@ -102,6 +102,47 @@ describe('inspector-panel', () => {
     expect(panel.textContent).not.toContain('DeepSeek cache uses stable prefixes');
   });
 
+  it('renders token usage as readable fields instead of raw JSON', () => {
+    openInspectorPanel('message', {
+      index: 0,
+      msg: {
+        role: 'assistant',
+        timestamp: Date.now(),
+        tokens: {
+          input: 1000,
+          output: 250,
+          total: 1250,
+          reasoning: 50,
+          cacheHit: 750,
+          cacheMiss: 250,
+          source: 'provider',
+          cost: { estimatedCostUsd: 0.00123, estimatedSavingsUsd: 0.00045 },
+        },
+      },
+    });
+
+    expect(panel.textContent).toContain('Token 用量');
+    expect(panel.textContent).toContain('输入 1,000 · 输出 250 · 总计 1,250 · 思考 50');
+    expect(panel.textContent).toContain('命中 75%');
+    expect(panel.textContent).toContain('Provider 实测');
+    expect(panel.textContent).toContain('成本 $0.001230');
+    expect(panel.textContent).not.toContain('"cacheHit"');
+  });
+
+  it('does not show fake 0 percent cache when provider has no cache telemetry', () => {
+    openInspectorPanel('message', {
+      index: 0,
+      msg: {
+        role: 'assistant',
+        timestamp: Date.now(),
+        tokens: { input: 1000, output: 250, total: 1250, source: 'estimated' },
+      },
+    });
+
+    expect(panel.textContent).toContain('服务商未返回命中数据');
+    expect(panel.textContent).not.toContain('命中 0%');
+  });
+
   it('update does nothing when closed', () => {
     updateInspectorPanel('message', { msg: { role: 'user' }, index: 0 });
     expect(panel.classList.contains('is-visible')).toBe(false);

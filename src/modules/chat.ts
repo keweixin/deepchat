@@ -1522,7 +1522,7 @@ function addUserMessageActions(msgEl: HTMLElement, msg: Record<string, any>, msg
 
 // ─── Assistant Message Actions ───
 
-function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, speed: number, msgIndex: number) {
+function addMessageActions(msgEl: HTMLElement, content: string, _tokens: any, _speed: number, msgIndex: number) {
   const existing = msgEl.querySelector('.message-actions');
   if (existing) existing.remove();
 
@@ -1552,23 +1552,6 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
   });
   actions.appendChild(copyBtn);
 
-  // Copy raw Markdown
-  const copyMdBtn = document.createElement('button');
-  copyMdBtn.className = 'msg-action-btn';
-  copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`; /* safeSetHTML-exempt: static template */
-  copyMdBtn.addEventListener('click', async () => {
-    const ok = await copyToClipboard(content);
-    if (ok) {
-      showToast('已复制 Markdown 源码');
-      copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> 已复制`; /* safeSetHTML-exempt: static template */
-      setTimeout(() => {
-        if (copyMdBtn.isConnected)
-          copyMdBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> 复制MD`; /* safeSetHTML-exempt: static template */
-      }, COPY_FEEDBACK_MS);
-    }
-  });
-  actions.appendChild(copyMdBtn);
-
   // Regenerate
   const regenBtn = document.createElement('button');
   regenBtn.className = 'msg-action-btn';
@@ -1576,55 +1559,69 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
   regenBtn.addEventListener('click', () => regenerateResponseAt(msgIndex));
   actions.appendChild(regenBtn);
 
-  const continueBtn = document.createElement('button');
-  continueBtn.className = 'msg-action-btn';
-  continueBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg> 继续`; /* safeSetHTML-exempt: static template */
-  continueBtn.addEventListener('click', () => continueFromResponseAt(msgIndex));
-  actions.appendChild(continueBtn);
+  const detailBtn = document.createElement('button');
+  detailBtn.className = 'msg-action-btn';
+  detailBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> 详情`; /* safeSetHTML-exempt: static template */
+  detailBtn.title = '在 Inspector 查看模型、Token、工具和证据详情';
+  detailBtn.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('deepchat:open-inspector', { detail: { mode: 'message', msgIndex } }));
+  });
+  actions.appendChild(detailBtn);
 
+  const moreItems: any[] = [];
   if (String(content || '').trim()) {
     const groups = buildAnswerActionMenuGroups();
-    actions.appendChild(
-      createAnswerActionButton('更短', '生成一个更短版本', () => {
-        sendAnswerAction('shorter', content, msg);
-      })
-    );
-    actions.appendChild(
-      createAnswerActionButton('详细', '生成一个更详细版本', () => {
-        sendAnswerAction('deeper', content, msg);
-      })
-    );
-    actions.appendChild(
-      createAnswerActionMenu(
-        '改写',
-        '把回答转成表格、精排、代码、TODO 或报告',
-        groups.rewrite.map((item) => ({
-          ...item,
-          onClick: () => sendAnswerAction(item.action, content, msg),
-        }))
-      )
-    );
-    actions.appendChild(
-      createAnswerActionMenu(
-        '导出',
-        '导出当前回答',
-        groups.export.map((item) => ({
-          ...item,
-          onClick: () => {
-            if (item.action === 'markdown') exportAssistantMarkdown(content, msgIndex);
-            if (item.action === 'html') exportAssistantHtml(msgEl, content, msgIndex);
-            if (item.action === 'artifact') exportAssistantArtifact(content, msgIndex);
-          },
-        }))
-      )
+    moreItems.push(
+      {
+        label: '继续回答',
+        title: '让 AI 从这条回答继续补完',
+        onClick: () => continueFromResponseAt(msgIndex),
+      },
+      {
+        label: '复制 Markdown',
+        title: '复制这条回答的 Markdown 源码',
+        onClick: async () => {
+          const ok = await copyToClipboard(content);
+          if (ok) showToast('已复制 Markdown 源码');
+        },
+      },
+      {
+        label: '更短版本',
+        title: '生成一个更短版本',
+        onClick: () => {
+          sendAnswerAction('shorter', content, msg);
+        },
+      },
+      {
+        label: '更详细版本',
+        title: '生成一个更详细版本',
+        onClick: () => {
+          sendAnswerAction('deeper', content, msg);
+        },
+      },
+      ...groups.rewrite.map((item) => ({
+        ...item,
+        label: `改写：${item.label}`,
+        onClick: () => sendAnswerAction(item.action, content, msg),
+      })),
+      ...groups.export.map((item) => ({
+        ...item,
+        label: `导出：${item.label}`,
+        onClick: () => {
+          if (item.action === 'markdown') exportAssistantMarkdown(content, msgIndex);
+          if (item.action === 'html') exportAssistantHtml(msgEl, content, msgIndex);
+          if (item.action === 'artifact') exportAssistantArtifact(content, msgIndex);
+        },
+      }))
     );
   }
 
-  const favoriteBtn = document.createElement('button');
-  favoriteBtn.className = `msg-action-btn${msg?.favorite ? ' is-favorite' : ''}`;
-  favoriteBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="${msg?.favorite ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><polygon points="12 2 15 8.5 22 9.3 16.8 14 18.2 21 12 17.4 5.8 21 7.2 14 2 9.3 9 8.5 12 2"/></svg> 收藏`; /* safeSetHTML-exempt: static template */
-  favoriteBtn.addEventListener('click', () => toggleMessageFavorite(msgIndex));
-  actions.appendChild(favoriteBtn);
+  moreItems.push({
+    label: msg?.favorite ? '取消收藏' : '收藏',
+    title: msg?.favorite ? '从收藏中移除' : '收藏这条回答',
+    onClick: () => toggleMessageFavorite(msgIndex),
+  });
+  actions.appendChild(createAnswerActionMenu('更多', '更多回答操作', moreItems));
 
   // Version switcher (if message has version history)
   if (msg && msg.versions && msg.versions.length > 0) {
@@ -1659,37 +1656,7 @@ function addMessageActions(msgEl: HTMLElement, content: string, tokens: any, spe
     actions.appendChild(switcher);
   }
 
-  // Token badge + speed
-  if (tokens || speed) {
-    const badge = document.createElement('span');
-    badge.className = 'token-badge';
-    const parts = [];
-    if (tokens) {
-      const usage = normalizeTokenUsage(tokens);
-      const prefix = usage.source === 'provider' ? '实测' : usage.source === 'mixed' ? '混合' : '估算';
-      parts.push(`${prefix} ${usage.total} tokens`);
-      if (usage.cacheHit > 0) parts.push(`命中 ${Math.round(usage.cacheHitRate * 100)}%`);
-      if (Number(usage.cost?.estimatedCostUsd || 0) > 0)
-        parts.push(`$${Number(usage.cost?.estimatedCostUsd || 0).toFixed(6)}`);
-      if ((usage.rounds || 0) > 1) parts.push(`${usage.rounds} 轮`);
-    }
-    if (speed) parts.push(`${speed} tok/s`);
-    badge.textContent = parts.join(' · ');
-    if (tokens) badge.title = formatTokenUsageTitle(tokens);
-    actions.appendChild(badge);
-  }
-
   msgEl.querySelector('.message-body')?.appendChild(actions);
-}
-
-function createAnswerActionButton(label: string, title: any, onClick: () => void) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'msg-action-btn answer-action-btn';
-  button.textContent = label;
-  button.title = title;
-  button.addEventListener('click', onClick);
-  return button;
 }
 
 function createAnswerActionMenu(label: string, title: any, items: any[] = []) {

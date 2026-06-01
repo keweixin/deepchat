@@ -506,66 +506,25 @@ export function highlightActiveModelTag(currentModel: string): void {
 export function buildSettingsTabs(panel: HTMLElement | null): void {
   if (!panel) return;
 
-  let tabsContainer = panel.querySelector('.settings-tabs') as HTMLElement | null;
-  if (!tabsContainer) {
-    tabsContainer = document.createElement('div');
-    tabsContainer.className = 'settings-tabs';
-    const body = panel.querySelector('.settings-body');
-    if (body) body.insertBefore(tabsContainer, body.firstChild);
-  }
-
-  tabsContainer.textContent = '';
-  tabsContainer.className = 'settings-tabs settings-subtabs';
-
   const body = panel.querySelector('.settings-body') as HTMLElement | null;
   if (!body) return;
+  panel.querySelectorAll('.settings-tabs').forEach((node) => node.remove());
+  body.dataset.activeTab = 'all';
 
   const sections = [...body.querySelectorAll('.settings-section')] as HTMLElement[];
   if (sections.length === 0) return;
-
-  const segments = [
-    { title: 'API 配置', label: '连接' },
-    { title: '联网搜索', label: '搜索' },
-    { title: '工作区与备份', label: '工作区' },
-    { title: '外部 Skill', label: 'Skill' },
-    { title: 'MCP Server', label: 'MCP' },
-    { title: '模型设置', label: '模型' },
-    { title: 'Agent 与 Token', label: 'Agent' },
-    { title: '回答模式', label: '边界' },
-    { title: '系统提示词', label: '提示词' },
-  ];
-
-  segments.forEach((seg, index) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `settings-tab${index === 0 ? ' active' : ''}`;
-    btn.textContent = seg.label;
-    btn.dataset.targetTitle = seg.title;
-
-    btn.addEventListener('click', () => {
-      const targetSec = sections.find((sec) => {
-        const h3 = sec.querySelector('h3');
-        return h3 && h3.textContent?.trim() === seg.title;
-      });
-
-      if (targetSec) {
-        tabsContainer!.querySelectorAll('.settings-tab').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    });
-
-    tabsContainer!.appendChild(btn);
-  });
 
   sections.forEach((sec) => {
     sec.style.display = 'block';
     sec.style.opacity = '1';
   });
 
-  const scrollContainer = body.querySelector('.settings-content') as HTMLElement | null;
-  (scrollContainer || body).addEventListener('scroll', () => {
-    let activeTitle = segments[0].title;
+  const scrollContainer = (body.querySelector('.settings-content') as HTMLElement | null) || body;
+  if ((scrollContainer as any).__settingsNavScrollBound) return;
+  (scrollContainer as any).__settingsNavScrollBound = true;
+  scrollContainer.addEventListener('scroll', () => {
+    const firstNav = panel.querySelector('.settings-nav-item') as HTMLElement | null;
+    let activeTitle = firstNav?.dataset.targetTitle || '';
     const containerRect = (scrollContainer || body).getBoundingClientRect();
 
     for (const sec of sections) {
@@ -573,44 +532,15 @@ export function buildSettingsTabs(panel: HTMLElement | null): void {
       if (rect.top - containerRect.top < 150) {
         const h3 = sec.querySelector('h3');
         if (h3 && h3.textContent) {
-          const matched = segments.find((seg) => seg.title === h3.textContent?.trim());
-          if (matched) activeTitle = matched.title;
+          activeTitle = h3.textContent.trim();
         }
       }
     }
 
-    tabsContainer!.querySelectorAll('.settings-tab').forEach((btn) => {
-      const el = btn as HTMLElement;
-      el.classList.toggle('active', el.dataset.targetTitle === activeTitle);
-    });
-
-    // Sync left nav active state
     const navItems = panel!.querySelectorAll('.settings-nav-item');
     navItems.forEach((item) => {
       const el = item as HTMLElement;
       el.classList.toggle('active', el.dataset.targetTitle === activeTitle);
-    });
-  });
-
-  // Left nav click handlers
-  const navItems = panel!.querySelectorAll('.settings-nav-item');
-  navItems.forEach((item) => {
-    item.addEventListener('click', () => {
-      const targetTitle = (item as HTMLElement).dataset.targetTitle;
-      const targetSec = sections.find((sec) => {
-        const h3 = sec.querySelector('h3');
-        return h3 && h3.textContent?.trim() === targetTitle;
-      });
-
-      if (targetSec) {
-        navItems.forEach((b) => b.classList.remove('active'));
-        item.classList.add('active');
-        tabsContainer!.querySelectorAll('.settings-tab').forEach((b) => {
-          const el = b as HTMLElement;
-          el.classList.toggle('active', el.dataset.targetTitle === targetTitle);
-        });
-        targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
     });
   });
 }

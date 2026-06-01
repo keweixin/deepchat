@@ -315,10 +315,7 @@
                   <span id="composer-enhance-status" class="composer-toggle-status">开启</span>
                 </span>
               </label>
-              <span id="composer-run-status" class="composer-run-status">本轮：自动思考 · 离线 · 增强开启</span>
-              <button id="composer-settings-shortcut" class="composer-settings-shortcut" type="button" title="打开设置">
-                设置
-              </button>
+              <span id="composer-run-status" class="composer-run-status" hidden></span>
             </div>
           </div>
           <div class="composer-chip-row" aria-label="本轮上下文快捷选择">
@@ -510,45 +507,6 @@
             <button class="settings-nav-item" data-target-title="智能增强">高级调试</button>
           </nav>
           <div class="settings-content">
-            <div class="settings-tabs" role="tablist" aria-label="设置分类">
-              <button
-                class="settings-tab active"
-                data-tab="tab-connection"
-                role="tab"
-                aria-selected="true"
-                aria-controls="tab-connection"
-              >
-                连接
-              </button>
-              <button
-                class="settings-tab"
-                data-tab="tab-model"
-                role="tab"
-                aria-selected="false"
-                aria-controls="tab-model"
-              >
-                模型
-              </button>
-              <button
-                class="settings-tab"
-                data-tab="tab-agent"
-                role="tab"
-                aria-selected="false"
-                aria-controls="tab-agent"
-              >
-                Agent
-              </button>
-              <button
-                class="settings-tab"
-                data-tab="tab-preference"
-                role="tab"
-                aria-selected="false"
-                aria-controls="tab-preference"
-              >
-                偏好
-              </button>
-            </div>
-
             <div class="settings-section" id="section-provider" data-tab="tab-connection">
               <h3>API 配置</h3>
               <div class="form-group">

@@ -27,6 +27,7 @@ import { downloadZipArchive } from './zip-builder.js';
 import { escapeHtml, formatBytes } from './shared-utils.js';
 import { renderToolCardList } from './tool-card.js';
 import { safeSetHTML, setTrustedTemplateHTML } from './renderer.js';
+import { normalizeTokenUsage } from './token-budget.js';
 
 let _panelEl: HTMLElement | null = null;
 let _contentEl: HTMLElement | null = null;
@@ -274,6 +275,7 @@ function _renderMessageInfo(data: Record<string, any>) {
   if (!_contentEl) return;
   const { msg, index } = data;
   if (!msg) return _renderEmpty();
+  const tokenInfo = _formatTokenUsageForInspector(msg.tokens);
 
   const html = `
     <div class="inspector-section">
@@ -288,12 +290,30 @@ function _renderMessageInfo(data: Record<string, any>) {
           <span class="inspector-meta-value">${new Date(msg.timestamp).toLocaleString()}</span>
         </div>
         ${
-          msg.tokens
+          tokenInfo
             ? `
         <div class="inspector-meta-item">
-          <span class="inspector-meta-label">Token</span>
-          <span class="inspector-meta-value">${typeof msg.tokens === 'object' ? JSON.stringify(msg.tokens) : msg.tokens}</span>
+          <span class="inspector-meta-label">Token 用量</span>
+          <span class="inspector-meta-value">${escapeHtml(tokenInfo.summary)}</span>
         </div>
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">缓存</span>
+          <span class="inspector-meta-value">${escapeHtml(tokenInfo.cache)}</span>
+        </div>
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">统计来源</span>
+          <span class="inspector-meta-value">${escapeHtml(tokenInfo.source)}</span>
+        </div>
+        ${
+          tokenInfo.cost
+            ? `
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">预估费用</span>
+          <span class="inspector-meta-value">${escapeHtml(tokenInfo.cost)}</span>
+        </div>
+        `
+            : ''
+        }
         `
             : ''
         }
@@ -361,6 +381,79 @@ function _renderMessageInfo(data: Record<string, any>) {
   if (toolListEl && Array.isArray(msg.toolCalls)) {
     renderToolCardList(toolListEl, msg.toolCalls, { showRaw: true });
   }
+}
+
+function _formatTokenUsageForInspector(tokens: unknown) {
+  if (!tokens) return null;
+  if (typeof tokens !== 'object') {
+    const text = String(tokens || '').trim();
+    return text ? { summary: text, cache: '未提供缓存命中数据', source: '旧格式记录', cost: '' } : null;
+  }
+
+  const usage = normalizeTokenUsage(tokens as Record<string, unknown>);
+  const parts = [
+    `输入 ${_formatCount(usage.input)}`,
+    `输出 ${_formatCount(usage.output)}`,
+    `总计 ${_formatCount(usage.total)}`,
+  ];
+  if (usage.reasoning > 0) parts.push(`思考 ${_formatCount(usage.reasoning)}`);
+
+  const hasCacheTelemetry = _hasReliableCacheTelemetry(tokens as Record<string, any>);
+  const cache = hasCacheTelemetry
+    ? `命中 ${Math.round(usage.cacheHitRate * 100)}%（命中 ${_formatCount(usage.cacheHit)} / 未命中 ${_formatCount(usage.cacheMiss)}）`
+    : '服务商未返回命中数据，本地不会把未知伪装成 0%';
+
+  const cost = usage.cost
+    ? `成本 ${_formatUsd(usage.cost.estimatedCostUsd)} · 缓存节省 ${_formatUsd(usage.cost.estimatedSavingsUsd)}`
+    : '';
+
+  return {
+    summary: parts.join(' · '),
+    cache,
+    source: _formatUsageSourceForInspector(usage.source),
+    cost,
+  };
+}
+
+function _hasReliableCacheTelemetry(tokens: Record<string, any>) {
+  if (!tokens || typeof tokens !== 'object') return false;
+  if (
+    tokens.prompt_cache_hit_tokens !== undefined ||
+    tokens.prompt_cache_miss_tokens !== undefined ||
+    tokens.prompt_tokens_details !== undefined ||
+    tokens.cached_tokens !== undefined
+  ) {
+    return true;
+  }
+  const source = String(tokens.source || '');
+  if (
+    (source === 'provider' || source === 'mixed') &&
+    (tokens.cacheHit !== undefined || tokens.cacheMiss !== undefined)
+  ) {
+    return true;
+  }
+  const profile = tokens.cacheProfile && typeof tokens.cacheProfile === 'object' ? tokens.cacheProfile : null;
+  return Boolean(
+    (source === 'provider' || source === 'mixed') &&
+    profile &&
+    (profile.cacheHit !== undefined || profile.cacheMiss !== undefined || profile.cacheHitRate !== undefined)
+  );
+}
+
+function _formatUsageSourceForInspector(source: string) {
+  if (source === 'provider') return 'Provider 实测';
+  if (source === 'mixed') return 'Provider 实测 + 本地估算';
+  return '本地估算';
+}
+
+function _formatCount(value: unknown) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Math.round(number).toLocaleString('en-US') : '0';
+}
+
+function _formatUsd(value: unknown) {
+  const number = Number(value || 0);
+  return `$${Number.isFinite(number) ? number.toFixed(6) : '0.000000'}`;
 }
 
 function _renderTraceInfo(data: Record<string, any>) {

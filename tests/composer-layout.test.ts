@@ -14,7 +14,8 @@ describe('composer layout', () => {
     expect(advanced).toContain('composer-thinking-select');
     expect(advanced).toContain('composer-web-search-toggle');
     expect(advanced).toContain('composer-enhance-toggle');
-    expect(advanced).toContain('composer-settings-shortcut');
+    expect(advanced).not.toContain('composer-settings-shortcut');
+    expect(html).not.toContain('id="composer-settings-shortcut"');
     // Tool drawer and template are now in the primary toolbar row
     expect(advanced).not.toContain('composer-tool-drawer-btn');
     expect(advanced).not.toContain('composer-template-btn');
@@ -58,5 +59,7 @@ describe('composer layout', () => {
     expect(rule).toContain('flex-wrap: nowrap');
     expect(rule).toContain('overflow-x: auto');
     expect(rule).toContain('max-height: 36px');
+    expect(css).toContain('.composer-context-preview[hidden]');
+    expect(css).toContain('display: none !important');
   });
 });

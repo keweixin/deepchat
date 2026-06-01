@@ -90,9 +90,24 @@ export function updateComposerRunStatus(
   const enhance = settings.enhance === false ? '增强关闭' : '增强开启';
   const caps = getModelCapabilities(settings);
   const preview = buildComposerIntentPreview(inputText, settings);
-  const base = `本轮：${mode.label}模式 · ${tool} · ${thinking}思考 · 搜索${search} · ${enhance} · 图片${caps.vision ? '可用' : '不可用'}`;
-  target.textContent = preview.text ? `${base} · ${preview.text}` : base;
-  target.title = preview.title || '根据当前设置展示本轮模型、工具和输入意图预判。';
+  const details = [
+    `模式：${mode.label}`,
+    `工具：${tool}`,
+    `思考：${thinking}`,
+    `搜索：${search}`,
+    `提示词增强：${enhance}`,
+    `图片输入：${caps.vision ? '可用' : '不可用'}`,
+    preview.text ? preview.text : '',
+  ].filter(Boolean);
+  const visible: string[] = [];
+  if (mode.id !== 'daily') visible.push(`${mode.label}模式`);
+  if (settings.activeSkill && !['agent_auto', 'none'].includes(settings.activeSkill)) visible.push(tool);
+  if (thinking !== '自动') visible.push(`${thinking}思考`);
+  if (preview.state === 'warning' && preview.text) visible.push(preview.text.replace(/^预判：/, ''));
+  else if (preview.state === 'tool' && preview.text) visible.push(preview.text.replace(/^预判：/, ''));
+  target.hidden = visible.length === 0;
+  target.textContent = visible.join(' · ');
+  target.title = [preview.title, details.join('\n')].filter(Boolean).join('\n\n');
   target.dataset.intentState = preview.state || 'idle';
 }
 
