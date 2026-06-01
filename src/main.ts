@@ -35,6 +35,7 @@ import './styles/inspector-panel.css';
 import './styles/artifact-panel.css';
 import './styles/tool-card.css';
 import './styles/agent-trace.css';
+import './styles/workbench.css';
 
 // Modules
 import {
@@ -155,6 +156,9 @@ function bindEvents() {
   const $themeBtn = document.getElementById('theme-toggle-btn') as HTMLButtonElement;
   const $sidebarToggle = document.getElementById('sidebar-toggle') as HTMLButtonElement;
   const $mobileSidebarToggle = document.getElementById('mobile-sidebar-toggle') as HTMLButtonElement | null;
+  const $workbenchTraceBtn = document.getElementById('workbench-trace-btn') as HTMLButtonElement | null;
+  const $workbenchPerformanceBtn = document.getElementById('workbench-performance-btn') as HTMLButtonElement | null;
+  const $workbenchArtifactsBtn = document.getElementById('workbench-artifacts-btn') as HTMLButtonElement | null;
   const $sidebar = document.getElementById('sidebar') as HTMLElement;
   const mobileLayoutQuery = window.matchMedia('(max-width: 768px)');
   function openSettings() {
@@ -253,6 +257,30 @@ function bindEvents() {
   if ($exportBtn) {
     $exportBtn.addEventListener('click', () => toggleExportMenu($exportBtn, exportCurrentChat));
   }
+
+  $workbenchTraceBtn?.addEventListener('click', () => {
+    document.dispatchEvent(new CustomEvent('deepchat:open-inspector', { detail: { mode: 'trace' } }));
+  });
+
+  $workbenchPerformanceBtn?.addEventListener('click', () => {
+    const usageBadge = document.getElementById('chat-usage-badge') as HTMLElement | null;
+    if (usageBadge && !usageBadge.classList.contains('hidden')) {
+      usageBadge.click();
+      return;
+    }
+    showToast('还没有本轮性能和 Token 统计；发送一次消息后这里会显示。', 2200);
+  });
+
+  $workbenchArtifactsBtn?.addEventListener('click', () => {
+    const overview = getInspectorOverviewData();
+    if (Number.isFinite(overview.latestArtifactIndex) && overview.latestArtifactIndex >= 0) {
+      document.dispatchEvent(
+        new CustomEvent('deepchat:open-artifact-inspector', { detail: { msgIndex: overview.latestArtifactIndex } })
+      );
+      return;
+    }
+    showToast('当前会话还没有 Artifact。', 1800);
+  });
 
   // Theme toggle
   $themeBtn.addEventListener('click', toggleTheme);

@@ -142,13 +142,19 @@
       <main id="main-content" class="main-content">
         <header id="chat-header" class="chat-header">
           <div class="chat-header-info">
-            <h1 class="chat-title" id="chat-title">新的对话</h1>
+            <h1 class="chat-title">AgentWorkbench</h1>
+            <span class="workbench-conversation-title" id="chat-title">新的对话</span>
             <div class="model-badge" id="model-badge">
               <span class="model-dot"></span><span id="model-name">deepseek-v4-flash</span>
             </div>
             <span class="header-usage-badge hidden" id="chat-usage-badge" title=""></span>
           </div>
           <div class="chat-header-actions">
+            <nav class="workbench-top-nav" aria-label="工作台视图">
+              <button type="button" id="workbench-trace-btn" class="workbench-nav-btn active">Trace</button>
+              <button type="button" id="workbench-performance-btn" class="workbench-nav-btn">Performance</button>
+              <button type="button" id="workbench-artifacts-btn" class="workbench-nav-btn">Artifacts</button>
+            </nav>
             <button
               type="button"
               id="inspector-toggle-btn"
