@@ -1153,13 +1153,15 @@
               <div class="form-group">
                 <label for="crew-display-mode-select">Agent Crew 显示策略</label>
                 <select id="crew-display-mode-select" class="form-input">
-                  <option value="auto">自动 — 仅复杂任务/工具调用时显示</option>
+                  <option value="auto">自动 — AI 工作时显示</option>
                   <option value="always">总是 — 所有 Agent 回答都显示</option>
                   <option value="tools_only">仅工具 — 只有真实工具调用时显示</option>
                   <option value="theatre">剧场 — Agent Theatre 可视化</option>
                   <option value="off">关闭 — 不显示 Crew 面板</option>
                 </select>
-                <p class="form-hint">控制 Agent Crew 小人面板的显示时机。"自动"会在模型调用工具时自动展示协作状态。</p>
+                <p class="form-hint">
+                  控制 AI 小队面板的显示时机。"自动"会在每次 AI 工作时展示当前规划、输出和工具协作状态。
+                </p>
               </div>
               <div class="form-group">
                 <label for="default-composer-mode-select">默认任务模式</label>

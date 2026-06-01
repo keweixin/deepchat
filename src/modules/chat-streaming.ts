@@ -19,6 +19,8 @@ import {
   applyCrewToolRequest,
   applyCrewToolResult,
   handleCrewAgentStage,
+  markCrewThinking,
+  markCrewWriting,
   finalizeCrewRun,
 } from './agent-run-store.js';
 import { TraceRecorder } from './agent-trace.js';
@@ -121,14 +123,18 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
     function shouldShowAgentCrewEarly() {
       const mode = deps.getSettings().crewDisplayMode || 'auto';
       if (mode === 'off') return false;
+      if (mode === 'tools_only') {
+        const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
+        return isAgentSkill(skill);
+      }
       if (mode === 'always') return true;
-      const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
-      return isAgentSkill(skill);
+      return true;
     }
 
     function shouldCreateCrewFromStage(event: Record<string, any>) {
       const mode = deps.getSettings().crewDisplayMode || 'auto';
       if (mode === 'off') return false;
+      if (mode !== 'tools_only') return true;
       if (mode === 'always') return true;
       const skill = composerOverrides?.activeSkill || deps.getSettings().activeSkill || 'auto';
       if (isAgentSkill(skill)) return true;
@@ -194,6 +200,8 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
     let streamStartTime = 0;
     let tokenCount = 0;
     let artifactFocused = false;
+    let hasMarkedThinking = false;
+    let hasMarkedWriting = false;
 
     // Append-only rendering for long content
     const APPEND_THRESHOLD = STREAMING_APPEND_THRESHOLD;
@@ -298,6 +306,10 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         warning: `检索到 ${memoryContext.hits.length} 条相关历史`,
       });
       deps.renderAgentTimeline(agentContainer, assistantMsg);
+      if (shouldShowAgentCrewEarly()) {
+        handleCrewAgentStage(ensureAgentRun(), (assistantMsg.agentStages as Record<string, unknown>[]).at(-1) || {});
+        deps.renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
+      }
     }
     if (memoryContext?.taskCheckpointUsed) {
       const checkpointSummary = deps.formatTaskCheckpointStageSummary(memoryContext.taskCheckpoint);
@@ -307,6 +319,10 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         warning: checkpointSummary || '已使用长期任务状态',
       });
       deps.renderAgentTimeline(agentContainer, assistantMsg);
+      if (shouldShowAgentCrewEarly()) {
+        handleCrewAgentStage(ensureAgentRun(), (assistantMsg.agentStages as Record<string, unknown>[]).at(-1) || {});
+        deps.renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
+      }
     }
 
     const abortController = deps.getAbortController();
@@ -319,10 +335,20 @@ export function createStreamOrchestrator(deps: Record<string, any>) {
         if (streamStartTime === 0) streamStartTime = Date.now();
         tokenCount++;
         fullContent += token;
+        if (!hasMarkedWriting && token.trim() && shouldShowAgentCrewEarly()) {
+          hasMarkedWriting = true;
+          markCrewWriting(ensureAgentRun());
+          deps.renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
+        }
         scheduleRender();
       },
       onThinking(token: string) {
         fullThinking += token;
+        if (!hasMarkedThinking && shouldShowAgentCrewEarly()) {
+          hasMarkedThinking = true;
+          markCrewThinking(ensureAgentRun(), '正在推理和规划下一步');
+          deps.renderCrewOrTheatre(crewContainer, assistantMsg.agentRun);
+        }
         if (thinkingContent) {
           thinkingContent.textContent = fullThinking;
           const thinkingBlock = msgEl.querySelector('.thinking-block');

@@ -36,7 +36,7 @@ export function renderAgentCrew(container: HTMLElement, agentRun: Record<string,
   }
 
   const statusLabels: Record<string, string> = {
-    running: '智能团队协作中',
+    running: 'AI 小队协作中',
     waiting: '等待你确认',
     done: '任务协作已完成',
     error: '协作遇到错误',
@@ -85,7 +85,8 @@ export function renderAgentCrew(container: HTMLElement, agentRun: Record<string,
     let card = cardMap.get(member.id);
 
     if (!card) {
-      card = document.createElement('div');
+      card = document.createElement('button');
+      card.type = 'button';
       card.dataset.roleId = member.id;
       card.addEventListener('click', (e: Event) => {
         if ((e.target as HTMLElement).closest('.crew-detail-val a')) return;
@@ -147,7 +148,7 @@ function createCrewHeaderTitle(status: string, statusText: string) {
   pulse.dataset.status = String(status || '');
 
   const name = document.createElement('strong');
-  name.textContent = 'Agent Crew';
+  name.textContent = 'AI 小队';
 
   const label = createTextElement('span', 'agent-crew-status-text', statusText || '智能团队');
   title.append(pulse, name, label);

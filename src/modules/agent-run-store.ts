@@ -3,12 +3,12 @@
  */
 
 export const CREW_ROLES = [
-  { id: 'planner', label: 'Planner', icon: '\u25CE', title: '计划员' },
-  { id: 'reader', label: 'Reader', icon: '\u2261', title: '文档员' },
-  { id: 'researcher', label: 'Researcher', icon: '\u2299', title: '搜索员' },
-  { id: 'coder', label: 'Coder', icon: '\u2699', title: '实验员' },
-  { id: 'reviewer', label: 'Reviewer', icon: '\u2713', title: '审核员' },
-  { id: 'writer', label: 'Writer', icon: '\u270E', title: '写手' },
+  { id: 'planner', label: 'Planner', icon: '🧭', title: '计划员' },
+  { id: 'reader', label: 'Reader', icon: '📄', title: '文档员' },
+  { id: 'researcher', label: 'Researcher', icon: '🔎', title: '搜索员' },
+  { id: 'coder', label: 'Coder', icon: '🧪', title: '实验员' },
+  { id: 'reviewer', label: 'Reviewer', icon: '🛡️', title: '审核员' },
+  { id: 'writer', label: 'Writer', icon: '✍️', title: '写手' },
 ];
 
 export function createAgentRun(mode = 'auto') {
@@ -136,7 +136,7 @@ export function handleCrewAgentStage(agentRun: Record<string, any>, stageEvent: 
     }
   } else if (stage === 'memory' || stage === 'checkpoint') {
     const planner = agentRun.crew.find((m: Record<string, any>) => m.id === 'planner');
-    if (planner && planner.status === 'idle') {
+    if (planner && planner.status !== 'done' && planner.status !== 'error') {
       planner.status = 'done';
       planner.currentAction = stage === 'memory' ? '已检索历史记忆' : '已载入任务状态';
       planner.outputSummary = stageEvent.warning || '记忆前缀稳定';
@@ -163,6 +163,36 @@ export function handleCrewAgentStage(agentRun: Record<string, any>, stageEvent: 
       reviewer.outputSummary = '历史对话已被安全压缩';
       reviewer.finishedAt = new Date().toISOString();
     }
+  }
+}
+
+export function markCrewThinking(agentRun: Record<string, any>, action = '正在理解问题和规划下一步') {
+  if (!agentRun || !agentRun.crew) return;
+  const planner = agentRun.crew.find((m: Record<string, any>) => m.id === 'planner');
+  if (!planner || planner.status === 'done' || planner.status === 'error') return;
+  planner.status = 'running';
+  planner.currentAction = action;
+  if (!planner.startedAt) planner.startedAt = new Date().toISOString();
+}
+
+export function markCrewWriting(agentRun: Record<string, any>, action = '正在组织回答') {
+  if (!agentRun || !agentRun.crew) return;
+  const now = new Date().toISOString();
+  const planner = agentRun.crew.find((m: Record<string, any>) => m.id === 'planner');
+  if (planner && (planner.status === 'running' || planner.status === 'idle')) {
+    planner.status = 'done';
+    planner.currentAction = '已完成任务理解';
+    planner.outputSummary = planner.outputSummary || '已进入回答生成阶段';
+    planner.finishedAt = planner.finishedAt || now;
+  }
+  const writer = agentRun.crew.find((m: Record<string, any>) => m.id === 'writer');
+  if (writer && writer.status !== 'done' && writer.status !== 'error') {
+    writer.status = 'running';
+    writer.currentAction = action;
+    if (!writer.startedAt) writer.startedAt = now;
+  }
+  if (agentRun.status !== 'error' && agentRun.status !== 'cancelled') {
+    agentRun.status = 'running';
   }
 }
 

@@ -105,6 +105,7 @@ export function renderComposerContextPreview(
   const preview = buildComposerContextPreview(inputText, settings);
   target.textContent = '';
   target.title = preview.title || '';
+  target.hidden = !preview.items?.length;
   for (const item of preview.items) {
     const chip = document.createElement('button');
     chip.type = 'button';

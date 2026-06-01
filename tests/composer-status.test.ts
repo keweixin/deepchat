@@ -81,6 +81,20 @@ describe('composer status helpers', () => {
     expect(target.textContent).toContain('工具 联网检索');
   });
 
+  it('hides the context preview for ordinary chat without explicit context', () => {
+    const target = document.createElement('div');
+
+    renderComposerContextPreview(target, '普通聊天', {
+      activeSkill: 'agent_auto',
+      workspaceRoots: [],
+      runCodeEnabled: true,
+      mcpServers: [],
+    });
+
+    expect(target.hidden).toBe(true);
+    expect(target.querySelectorAll('.composer-context-preview-chip')).toHaveLength(0);
+  });
+
   it('updates the composer tool button label and availability', () => {
     document.body.innerHTML = `
       <button><span class="composer-tool-icon"></span></button>

@@ -5,6 +5,8 @@ import {
   applyCrewToolRequest,
   applyCrewToolResult,
   handleCrewAgentStage,
+  markCrewThinking,
+  markCrewWriting,
   markCrewMemberDone,
   finalizeCrewRun,
 } from '../src/modules/agent-run-store.js';
@@ -20,10 +22,12 @@ describe('agent crew state engine', () => {
     const planner = run.crew.find((c) => c.id === 'planner');
     expect(planner.status).toBe('running');
     expect(planner.currentAction).toBe('正在拆解任务');
+    expect(planner.icon).toBe('🧭');
 
     const coder = run.crew.find((c) => c.id === 'coder');
     expect(coder.status).toBe('idle');
     expect(coder.currentAction).toBe('等待中');
+    expect(coder.icon).toBe('🧪');
   });
 
   it('correctly maps tool names to crew roles', () => {
@@ -113,6 +117,21 @@ describe('agent crew state engine', () => {
     expect(reviewer.status).toBe('done');
   });
 
+  it('marks thinking and streaming answer states for ordinary model output', () => {
+    const run = createAgentRun('auto');
+
+    markCrewThinking(run);
+    const planner = run.crew.find((c) => c.id === 'planner');
+    expect(planner.status).toBe('running');
+    expect(planner.currentAction).toContain('规划');
+
+    markCrewWriting(run);
+    const writer = run.crew.find((c) => c.id === 'writer');
+    expect(planner.status).toBe('done');
+    expect(writer.status).toBe('running');
+    expect(writer.currentAction).toBe('正在组织回答');
+  });
+
   it('finalizes a successful run and marks inactive agents as skipped', () => {
     const run = createAgentRun('auto');
 
@@ -185,8 +204,10 @@ describe('agent crew state engine', () => {
       const run = createAgentRun('auto');
       renderAgentCrew(container, run);
       expect(container.hidden).toBe(false);
+      expect(container.querySelector('.agent-crew-title')?.textContent).toContain('AI 小队');
       const cards = container.querySelectorAll('.agent-crew-card');
       expect(cards).toHaveLength(6);
+      expect(container.textContent).toContain('🧭');
     });
 
     it('applies status-running class to running members', () => {

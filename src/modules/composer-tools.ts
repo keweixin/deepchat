@@ -167,14 +167,21 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
     });
   }
 
-  const toolLabel = getComposerToolModeLabel(activeSkill);
-  items.push({
-    kind: 'tool',
-    label: `工具 ${toolLabel}`,
-    tone: activeSkill === 'none' ? 'muted' : 'ready',
-  });
+  const shouldShowToolMode =
+    activeSkill !== 'agent_auto' ||
+    configuredActiveSkill !== 'agent_auto' ||
+    mentions.length > 0 ||
+    hasChangedDirective;
+  if (shouldShowToolMode) {
+    const toolLabel = getComposerToolModeLabel(activeSkill);
+    items.push({
+      kind: 'tool',
+      label: `工具 ${toolLabel}`,
+      tone: activeSkill === 'none' ? 'muted' : 'ready',
+    });
+  }
 
-  if (intent.text) {
+  if (intent.text && intent.state !== 'chat') {
     items.push({
       kind: 'intent',
       label: intent.text.replace(/^预判：/, ''),
@@ -226,56 +233,54 @@ export function buildComposerContextPreview(inputText = '', settings: Record<str
     }
   }
 
-  items.push({
-    kind: 'approval',
-    label: (settings as any).toolApprovalPolicy === 'auto_readonly' ? '只读工具可自动通过' : '工具调用需确认',
-    tone: (settings as any).toolApprovalPolicy === 'auto_readonly' ? 'ready' : 'muted',
-  });
-
+  const hasActionablePreview = items.some((item) =>
+    [
+      'workspace',
+      'file',
+      'folder',
+      'symbol',
+      'changed',
+      'context-route',
+      'tool',
+      'intent',
+      'web',
+      'run',
+      'mcp',
+      'mcp-server',
+    ].includes(item.kind)
+  );
   const maxInputTokens = Number.parseInt((settings as any).maxInputTokens, 10);
-  if (Number.isFinite(maxInputTokens) && maxInputTokens > 0) {
+  if (hasActionablePreview && Number.isFinite(maxInputTokens) && maxInputTokens > 0 && maxInputTokens < 8000) {
     items.push({
       kind: 'budget',
-      label: `输入预算 ${formatCompactTokenCount(maxInputTokens)}`,
-      tone: maxInputTokens < 8000 ? 'warning' : 'ready',
+      label: `输入预算偏低 ${formatCompactTokenCount(maxInputTokens)}`,
+      tone: 'warning',
       title: '历史消息会按输入 token 预算裁剪，当前用户消息会优先保留。',
     });
   }
-
-  if (activeSkill !== 'none') {
-    const maxRounds = Number.parseInt((settings as any).agentMaxRounds, 10);
+  if (hasActionablePreview && (settings as any).autoContextSummary === false) {
     items.push({
-      kind: 'rounds',
-      label: `Agent ${Number.isFinite(maxRounds) && maxRounds > 0 ? maxRounds : 3} 轮上限`,
+      kind: 'summary',
+      label: '自动摘要关闭',
       tone: 'muted',
-      title: '达到轮数上限后会停止并说明原因。',
+      title: '长上下文只会按预算裁剪，不会额外生成长期摘要。',
     });
   }
-
-  items.push({
-    kind: 'summary',
-    label: (settings as any).autoContextSummary === false ? '自动摘要关闭' : '自动摘要开启',
-    tone: (settings as any).autoContextSummary === false ? 'muted' : 'ready',
-    title:
-      (settings as any).autoContextSummary === false
-        ? '长上下文只会按预算裁剪，不会额外生成长期摘要。'
-        : '历史被裁剪或接近预算时，会尝试生成长期摘要并计入 usage。',
-  });
-
-  items.push({
-    kind: 'cache',
-    label: (settings as any).cacheOptimization === false ? '缓存优化关闭' : '缓存前缀稳定',
-    tone: (settings as any).cacheOptimization === false ? 'warning' : 'ready',
-    title:
-      (settings as any).cacheOptimization === false
-        ? '本轮不会主动保持缓存友好的固定前缀。'
-        : '系统提示、Agent 规则和工具 schema 会尽量保持稳定顺序，提高 prefix cache 命中。',
-  });
+  if (hasActionablePreview && (settings as any).cacheOptimization === false) {
+    items.push({
+      kind: 'cache',
+      label: '缓存优化关闭',
+      tone: 'warning',
+      title: '本轮不会主动保持缓存友好的固定前缀。',
+    });
+  }
 
   const visibleItems = limitPreviewItems(dedupePreviewItems(items), 12);
   return {
     items: visibleItems,
-    title: '本轮将使用的上下文、工具、token 预算和缓存策略。显式 @file/@folder/@symbol 会优先影响工具选择。',
+    title: visibleItems.length
+      ? '本轮将使用的显式上下文、工具和必要告警。'
+      : '普通聊天不展示上下文预览，避免占用输入区。',
   };
 }
 

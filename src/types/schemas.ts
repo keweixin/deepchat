@@ -278,7 +278,7 @@ export const SettingsSchema = z
     agentMaxRounds: z.number().int().nonnegative().optional(),
     thinkingBudget: z.number().int().nonnegative().optional(),
     activeSkill: z.string().max(80).optional(),
-    crewDisplayMode: z.enum(['auto', 'compact', 'verbose']).optional(),
+    crewDisplayMode: z.enum(['auto', 'always', 'tools_only', 'theatre', 'compact', 'off']).optional(),
     defaultComposerMode: z.string().max(80).optional(),
     autoContextSummary: z.boolean().optional(),
     cacheOptimization: z.boolean().optional(),

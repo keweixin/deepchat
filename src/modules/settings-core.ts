@@ -367,7 +367,7 @@ function normalizeSettings(input: Record<string, unknown> = {}): Record<string, 
   next.agentModelTier = validAgentModelTiers.includes(String(next.agentModelTier))
     ? next.agentModelTier
     : DEFAULT_SETTINGS.agentModelTier;
-  const validCrewModes = ['auto', 'always', 'tools_only', 'off'];
+  const validCrewModes = ['auto', 'always', 'tools_only', 'theatre', 'compact', 'off'];
   next.crewDisplayMode = validCrewModes.includes(String(next.crewDisplayMode))
     ? next.crewDisplayMode
     : DEFAULT_SETTINGS.crewDisplayMode;

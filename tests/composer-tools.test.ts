@@ -171,15 +171,10 @@ describe('composer tool drawer helpers', () => {
         expect.objectContaining({ label: '本地工具 read_file + read_symbol', kind: 'context-route', tone: 'ready' }),
         expect.objectContaining({ label: '工具 全工具' }),
         expect.objectContaining({ label: '代码运行需确认', tone: 'danger' }),
-        expect.objectContaining({ label: '只读工具可自动通过' }),
-        expect.objectContaining({ label: '输入预算 24k', tone: 'ready' }),
-        expect.objectContaining({ label: 'Agent 4 轮上限' }),
-        expect.objectContaining({ label: '自动摘要开启', tone: 'ready' }),
-        expect.objectContaining({ label: '缓存前缀稳定', tone: 'ready' }),
       ])
     );
-    expect(preview.title).toContain('@file');
-    expect(preview.title).toContain('token 预算');
+    expect(preview.title).toContain('显式上下文');
+    expect(preview.title).toContain('必要告警');
   });
 
   it('shows the effective tool mode from explicit directives in the context preview', () => {
@@ -320,30 +315,32 @@ describe('composer tool drawer helpers', () => {
 
   it('keeps hidden context preview items discoverable with an overflow chip', () => {
     window.deepchat = {} as any;
-    const preview = buildComposerContextPreview('请用 @mcp @run @web 检查外部系统', {
-      activeSkill: 'multi_tool',
-      workspaceRoots: ['E:/repo'],
-      tavilyApiKey: 'tvly-test',
-      runCodeEnabled: true,
-      maxInputTokens: 24000,
-      agentMaxRounds: 5,
-      autoContextSummary: true,
-      cacheOptimization: true,
-      mcpServers: [
-        { name: 'GitHub', command: 'node', enabled: true },
-        { name: 'Notion', command: 'node', enabled: false },
-        { name: 'Filesystem', command: '', enabled: true },
-        { name: 'Linear', command: 'node', enabled: true },
-        { name: 'Docs', command: 'node', enabled: true },
-      ],
-    });
+    const preview = buildComposerContextPreview(
+      '@file:a.md @file:b.md @file:c.md @file:d.md @file:e.md @file:f.md @symbol:main 请用 @mcp @run @web 检查外部系统',
+      {
+        activeSkill: 'multi_tool',
+        workspaceRoots: ['E:/repo'],
+        tavilyApiKey: 'tvly-test',
+        runCodeEnabled: true,
+        maxInputTokens: 24000,
+        agentMaxRounds: 5,
+        autoContextSummary: true,
+        cacheOptimization: true,
+        mcpServers: [
+          { name: 'GitHub', command: 'node', enabled: true },
+          { name: 'Notion', command: 'node', enabled: false },
+          { name: 'Filesystem', command: '', enabled: true },
+          { name: 'Linear', command: 'node', enabled: true },
+          { name: 'Docs', command: 'node', enabled: true },
+        ],
+      }
+    );
 
     expect(preview.items).toHaveLength(12);
     const more = preview.items.at(-1);
     expect(more).toMatchObject({ kind: 'more' });
     expect(more.label).toMatch(/^另有 \d+ 项$/);
-    expect(more.title).toContain('自动摘要开启');
-    expect(more.title).toContain('缓存前缀稳定');
+    expect(more.title).toContain('MCP');
   });
 
   it('warns in the context preview when explicit local context lacks a workspace', () => {
@@ -374,6 +371,7 @@ describe('composer tool drawer helpers', () => {
     });
 
     expect(preview.items.some((item) => item.label === '未选工作区')).toBe(false);
+    expect(preview.items).toHaveLength(0);
   });
 
   it('shows disabled summary and cache warnings before send', () => {
@@ -390,7 +388,7 @@ describe('composer tool drawer helpers', () => {
 
     expect(preview.items).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ label: '输入预算 4.1k', tone: 'warning' }),
+        expect.objectContaining({ label: '输入预算偏低 4.1k', tone: 'warning' }),
         expect.objectContaining({ label: '自动摘要关闭', tone: 'muted' }),
         expect.objectContaining({ label: '缓存优化关闭', tone: 'warning' }),
       ])
